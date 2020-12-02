@@ -168,7 +168,7 @@ choice and do required setup. Check
 section for more info about ClamAv installation and setup.
 
 Open command prompt where the release svcbatch.exe is located
-and type the following.
+and use the following procedure...
 
 ```no-highlight
 
@@ -179,18 +179,21 @@ and type the following.
 > clamscan.exe --version >> releasedesc.txt
 > clamscan.exe --bytecode=no svcbatch.exe >> releasedesc.txt
 > echo ``` >> releasedesc.txt
-> sigtool.exe --sha256 svcbatch.exe > svcbatch.exe.sha256
+> 7za.exe a -bd svcbatch-0.0.0-win-x64.zip svcbatch.exe ../LICENSE.txt
+> sigtool.exe --sha256 svcbatch.exe > svcbatch-0.0.0-sha256.txt
+> sigtool.exe --sha256 svcbatch-0.0.0-win-x64.zip >> svcbatch-0.0.0-sha256.txt
 
 ```
 
-*Notice: use actual release version instead **v0.0.0** in above template*
+*Notice: use actual release version instead **0.0.0** in above template*
 
 Edit the **releasedesc.txt** and remove directory part
 of svcbatch.exe in output report. Also remove and scan time data
 (*those are usually last three lines*)
 
+
 Put the content of **releasedesc.txt** file in GitHub
 release description box.
-Remember to add **svcbatch.exe.sha256** to release assets.
+Remember to add **svcbatch-0.0.0-sha256.txt** to release assets.
 This will allow users to verify binary checksum and
 be assured that the binary is safe to use.
