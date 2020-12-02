@@ -55,11 +55,11 @@ $(WORKDIR):
 
 $(WORKDIR)/%.o: $(SRCDIR)/%.c
 	@echo CC $<
-	@$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -c $< -o $@
+	@$(CC) $(CLOPTS) -c $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc
 	@echo RC $<
-	@$(RC) $(RCOPTS) $(RFLAGS) -I $(SRCDIR) -i $< -o $@
+	@$(RC) $(RCOPTS) $(RFLAGS) -I $(SRCDIR) -o $@ $<
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	@echo LN $(TARGET)

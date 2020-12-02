@@ -63,7 +63,7 @@ install:
 	@exit /B 1
 !ELSE
 install : all
-	@-xcopy /I /Y /Q "$(WORKDIR)\*.exe" "$(PREFIX)"
+	@xcopy /I /Y /Q "$(WORKDIR)\*.exe" "$(PREFIX)"
 !ENDIF
 
 clean:
