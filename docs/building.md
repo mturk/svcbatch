@@ -162,10 +162,12 @@ for more guidelines.
 
 Before publishing new svcbatch.exe version run the anti virus scan.
 Download latest version of [ClamAv](https://www.clamav.net/downloads)
-and unzip the portable version to some directory of choice and
-do required setup.
+and run installer or unzip the portable version to some directory of
+choice and do required setup. Check
+[Installing](https://www.clamav.net/documents/installing-clamav-on-windows)
+section for more info about ClamAv installation and setup.
 
-Open command prompt where the produced svcbatch is located
+Open command prompt where the release svcbatch.exe is located
 and type the following.
 
 ```no-highlight
@@ -181,10 +183,11 @@ and type the following.
 
 ```
 
-*Notice: use correct version instead **v0.0.0** template*
+*Notice: use actual release version instead **v0.0.0** in above template*
 
 Edit the **releasedesc.txt** and remove directory part
-of svcbatch.exe in output report, as well as time data.
+of svcbatch.exe in output report. Also remove and scan time data
+(*those are usually last three lines*)
 
 Put the content of **releasedesc.txt** file in GitHub
 release description box.
