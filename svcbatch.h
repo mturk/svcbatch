@@ -81,7 +81,7 @@
  */
 #define SVCBATCH_CTRL_ROTATE    234
 
-#define SVCBATCH_START_HINT     2000
+#define SVCBATCH_START_HINT     5000
 #define SVCBATCH_STOP_HINT      20000
 #define SVCBATCH_STOP_WAIT      30000
 #define SVCBATCH_PENDING_WAIT   1000
@@ -132,6 +132,12 @@
 #endif
 #define SVCBATCH_BUILD_STAMP    "(" __DATE__ " " __TIME__ " " SVCBATCH_BUILD_CC ")"
 
+#if SVCBATCH_ISDEV_VERSION
+# define SVCBATCH_VERSION_SFX   "-dev"
+#else
+# define SVCBATCH_VERSION_SFX   ""
+#endif
+
 /**
  * Macro for .rc files using numeric csv representation
  */
@@ -139,11 +145,6 @@
                                 SVCBATCH_MINOR_VERSION,                 \
                                 SVCBATCH_PATCH_VERSION
 
-#if SVCBATCH_ISDEV_VERSION
-# define SVCBATCH_VERSION_SFX   "-dev"
-#else
-# define SVCBATCH_VERSION_SFX
-#endif
 #define SVCBATCH_VERSION_STR \
                                 CPP_TOSTR(SVCBATCH_MAJOR_VERSION) "."   \
                                 CPP_TOSTR(SVCBATCH_MINOR_VERSION) "."   \
