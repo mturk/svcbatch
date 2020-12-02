@@ -168,10 +168,10 @@ $ freshclam --quiet
 $ cd /cygdrive/c/path/to/svcbatch/x64
 $ sha512sum.exe svcbatch.exe > svcbatch.exe.sha512
 $ echo '## Binary release v0.0.0' > releasedesc.txt
-$ echo '\`\`\`no-highlight' >> releasedesc.txt
+$ echo '```no-highlight' >> releasedesc.txt
 $ clamscan --version >> releasedesc.txt
 $ clamscan --bytecode=no svcbatch.exe | head -n 10 >> releasedesc.txt
-$ echo '\`\`\`' >> releasedesc.txt
+$ echo '```' >> releasedesc.txt
 
 ```
 
