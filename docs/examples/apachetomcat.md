@@ -25,15 +25,18 @@ catalina.bat run
 ```
 
 #### Step 3:
-Install service by opening a command prompt with Administrator
+Install service by opening command prompt with Administrator
 privileges inside your `tomcat/bin` directory
 
 ```no-highlight
+
 > sc.exe create Tomcat DisplayName= "Apache Tomcat" binPath= ""%CD%\svcbatch.exe" tomcatsvc.bat"
   Optionally you can add ...
 > sc.exe description Tomcat "Apache Tomcat Service"
   And/Or ...
 > sc.exe config Tomcat start= auto
+  Ensure system networking is up
+> sc.exe config Tomcat depend= LanmanServer
 
 ```
 
@@ -44,7 +47,6 @@ SC utility has somehow unusual approach to the command line options
 which require a space after equal character. This means that you have
 to use `start= auto` since `start=auto` will fail. Yes those
 blanks are not typos :D
-
 
 Check [SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create)
 for detailed description how to use the SC utility to create a service
