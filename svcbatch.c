@@ -13,13 +13,6 @@
  *
  */
 
-/**
- * Sanity check
- */
-#if !defined(_WIN64)
-# error "Unsupported compilation target"
-#endif
-
 #include <windows.h>
 #include <wincrypt.h>
 #include <tlhelp32.h>
