@@ -35,8 +35,11 @@ privileges inside your `tomcat/bin` directory
 > sc.exe description Tomcat "Apache Tomcat Service"
   And/Or ...
 > sc.exe config Tomcat start= auto
+
   Ensure system networking is up
 > sc.exe config Tomcat depend= LanmanServer
+  ... or
+> sc.exe config Tomcat depend= Tcpip/Afd
 
 ```
 
