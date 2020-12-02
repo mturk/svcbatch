@@ -167,6 +167,11 @@ choice and do required setup. Check
 [Installing](https://www.clamav.net/documents/installing-clamav-on-windows)
 section for more info about ClamAv installation and setup.
 
+To create a .zip distribution archive download
+and extract 7-zip standalone console version from
+[7-Zip Extra](https://www.7-zip.org/a/7z1900-extra.7z)
+and put **7za.exe** somewhere in PATH.
+
 Open command prompt where the release svcbatch.exe is located
 and use the following procedure...
 
