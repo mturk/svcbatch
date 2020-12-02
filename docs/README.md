@@ -19,14 +19,14 @@ to deploy SvcBatch with various known application frameworks.
 ### Apache Tomcat
 
 SvcBatch can be used to run Apache Tomcat by calling
-`catalina.bat` via custom batch file wrapper.
+**catalina.bat** from custom batch file wrapper.
 
 Check [Apache Tomcat](examples/apachetomcat.md) for more details
 
 
 ### Python
 
-SvcBatch enables any `server` application written in
-Python, to be run as native Windows service.
+SvcBatch enables any *"server"* like application written
+in Python, to run as native Windows service.
 
 Check [Python section](examples/python.md) for more details
