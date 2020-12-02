@@ -45,16 +45,16 @@ static int       dupwenvc         = 0;
  */
 static wchar_t  *svcbatchfile     = 0;
 static wchar_t  *batchdirname     = 0;
-static wchar_t  *ourdirname       = 0;
-static wchar_t  *ourexename       = 0;
+static wchar_t  *svcbatchexe      = 0;
+static wchar_t  *servicebase      = 0;
 
 static wchar_t  *logfilename      = 0;
 static HANDLE    logfhandle       = 0;
 
 static wchar_t  *comspecexe       = 0;
-static wchar_t  *servicename      = 0;
 static wchar_t  *childenviron     = 0;
-static wchar_t  *servicecwdir     = 0;
+static wchar_t  *servicename      = 0;
+static wchar_t  *servicehome      = 0;
 static wchar_t  *serviceuuid      = 0;
 
 /**
@@ -782,8 +782,8 @@ static int getourexenames(void)
         while (--i > 0) {
             if (exe[i] == L'\\') {
                 exe[i] = L'\0';
-                ourdirname = exe;
-                ourexename = exe + i + 1;
+                servicebase = exe;
+                svcbatchexe = exe + i + 1;
                 return 1;
             }
         }
@@ -1059,7 +1059,7 @@ static DWORD opensvclog(int sstart)
     logstartedtime = GetTickCount64();
 
     if ((logfn = logfilename) == 0) {
-        wchar_t *ld = xwcsconcat(servicecwdir, L"\\Logs");
+        wchar_t *ld = xwcsconcat(servicehome, L"\\Logs");
 
         if ((CreateDirectoryW(ld, 0) == 0) &&
             (GetLastError() != ERROR_ALREADY_EXISTS))
@@ -1129,8 +1129,8 @@ static void logconfig(void)
     logprintf("Service name     : %S", servicename);
     logprintf("Service id       : %S", serviceuuid);
     logprintf("Batch file       : %S", svcbatchfile);
-    logprintf("Base directory   : %S", ourdirname);
-    logprintf("Working directory: %S", servicecwdir);
+    logprintf("Base directory   : %S", servicebase);
+    logprintf("Working directory: %S", servicehome);
 }
 
 /**
@@ -1432,7 +1432,7 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
     if (CreateProcessW(comspecexe, cmdline, 0, 0, 1,
                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
                        childenviron,
-                       servicecwdir,
+                       servicehome,
                        &si, &cmdexeproc) == 0) {
         /**
          * CreateProcess failed ... nothing we can do.
@@ -1603,8 +1603,8 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * They are unique to this service instance
      */
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_VERSION_ABI=",  CPP_WIDEN(SVCBATCH_VERSION_ABI));
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", ourdirname);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicecwdir);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
 
@@ -1712,9 +1712,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (p[0] == L'\0')
             return svcsyserror(__LINE__, 0, L"Empty cmdline argument");
         if (hasopts) {
-            if (servicecwdir == zerostring) {
-                servicecwdir = getrealpathname(p, 1);
-                if (servicecwdir == 0)
+            if (servicehome == zerostring) {
+                servicehome = getrealpathname(p, 1);
+                if (servicehome == 0)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
             }
@@ -1739,7 +1739,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     break;
                     case L'w':
                     case L'W':
-                        servicecwdir = zerostring;
+                        servicehome = zerostring;
                     break;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown cmdline option");
@@ -1811,30 +1811,30 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, cpath);
     xfree(cpath);
 
-    if (servicecwdir == 0 && isrelativepath(bname)) {
+    if (servicehome == 0 && isrelativepath(bname)) {
         /**
          * Batch file is not absolute path
          * and we don't have provided workdir.
-         * Use ourdirname as cwd
+         * Use servicebase as cwd
          */
-        servicecwdir = ourdirname;
+        servicehome = servicebase;
     }
 
-    if (servicecwdir != 0) {
-        if (SetCurrentDirectoryW(servicecwdir) == 0)
-            return svcsyserror(__LINE__, GetLastError(), servicecwdir);
+    if (servicehome != 0) {
+        if (SetCurrentDirectoryW(servicehome) == 0)
+            return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
 
     if (resolvebatchname(bname) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, bname);
 
-    if (servicecwdir == 0) {
+    if (servicehome == 0) {
         /**
          * Use batch file directory as new cwd
          */
-        servicecwdir = batchdirname;
-        if (SetCurrentDirectoryW(servicecwdir) == 0)
-            return svcsyserror(__LINE__, GetLastError(), servicecwdir);
+        servicehome = batchdirname;
+        if (SetCurrentDirectoryW(servicehome) == 0)
+            return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
 
     if (wenv != 0) {
@@ -1880,8 +1880,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
 
     if (cleanpath) {
-        wchar_t *cp = xwcsvarcat(ourdirname, L";",
-                                 servicecwdir,
+        wchar_t *cp = xwcsvarcat(servicebase, L";",
+                                 servicehome,
                                  stdwinpaths, 0);
         xfree(opath);
 
