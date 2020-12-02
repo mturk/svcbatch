@@ -175,14 +175,11 @@ $ echo '```' >> releasedesc.txt
 
 ```
 
-Put the content of releasedesc.txt file in github
-description box and replace **v0.0.0** with actual version
-
-
 #### Important!
 
-The content of the svcbatch.exe.clamscan.txt has to be added
-to the description of the release.
+Put the content of **releasedesc.txt** file in github
+description box and replace **v0.0.0** with actual version.
 
+Also add **svcbatch.exe.sha512** to release binaries.
 This will allow users to verify binary checkum and
 be assured that the binary is safe to use.
