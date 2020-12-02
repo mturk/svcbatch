@@ -38,7 +38,7 @@ privileges inside your `tomcat/bin` directory
 
   Ensure system networking is up
 > sc.exe config Tomcat depend= LanmanServer
-  ... or
+  ... or at least TCP/IP and Winsock services
 > sc.exe config Tomcat depend= Tcpip/Afd
 
 ```
