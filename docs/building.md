@@ -4,14 +4,15 @@ This project contains source code for SvcBatch, a program
 that runs batch files as Windows services.
 
 The build process supports only command line tools
-and both Microfot and GCC compilers.
+and both Microsoft and GCC compilers.
 
 
 ## Prerequisites
 
 To compile SvcBatch from source code you will need either
 Microsoft C/C++ Compiler from Microsoft Visual Studio 2010
-or latest msys2/mingw64 compiler tollkit.
+or any later version.
+Alternatively you use msys2/mingw64 compiler toolchain.
 
 The official distributions are build using
 [Custom Microsoft Compiler Toolkit](https://github.com/mturk/cmsc)
@@ -58,7 +59,7 @@ Inside Start menu select Microsoft Visual Studio 2012 then
 click on Visual Studio Tools and click on
 Open `VC2012 x64 Native Tools Command Prompt`.
 
-If using Visual Studio 2017 or later, open command promt
+If using Visual Studio 2017 or later, open command prompt
 and call `vcvars64.bat` from Visual Studio install location
 eg, `C:\Program Files\Visual Studio 2017\VC\Auxiliary\Build`
 
@@ -160,26 +161,35 @@ Check [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html)
 for more guidelines.
 
 Before publishing new svcbatch.exe version run the anti virus scan.
-Open Cygwin shell and type
+Download latest version of [ClamAv](https://www.clamav.net/downloads)
+and unzip the portable version to some directory of choice and
+do required setup.
+
+Open command prompt where the produced svcbatch is located
+and type the following.
 
 ```no-highlight
 
-$ freshclam --quiet
-$ cd /cygdrive/c/path/to/svcbatch/x64
-$ sha512sum.exe svcbatch.exe > svcbatch.exe.sha512
-$ echo '## Binary release v0.0.0' > releasedesc.txt
-$ echo '```no-highlight' >> releasedesc.txt
-$ clamscan --version >> releasedesc.txt
-$ clamscan --bytecode=no svcbatch.exe | head -n 10 >> releasedesc.txt
-$ echo '```' >> releasedesc.txt
+> freshclam.exe --quiet
+> echo ## Binary release v0.0.0 > releasedesc.txt
+> echo. >> releasedesc.txt
+> echo ```no-highlight >> releasedesc.txt
+> clamscan.exe --version >> releasedesc.txt
+> clamscan.exe --bytecode=no svcbatch.exe >> releasedesc.txt
+> echo ``` >> releasedesc.txt
+> sigtool.exe --sha256 svcbatch.exe > svcbatch.exe.sha256
 
 ```
 
+*Notice: use correct version instead version template*
+
 #### Important!
 
-Put the content of **releasedesc.txt** file in github
-description box and replace **v0.0.0** with actual version.
+Edit the **releasedesc.txt** and remove directory part
+of svcbatch.exe in output report, as well as time data.
 
-Also add **svcbatch.exe.sha512** to release binaries.
-This will allow users to verify binary checkum and
+Put the content of **releasedesc.txt** file in github
+description box.
+Remember to add **svcbatch.exe.sha256** to release assets.
+This will allow users to verify binary checksum and
 be assured that the binary is safe to use.
