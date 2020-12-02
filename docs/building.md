@@ -154,6 +154,11 @@ For example
 
 ## Creating Release
 
+Ensure that each release tag starts with letter **v**,
+eg **v0.9.1-dev**, **v1.0.37.alpha.1** or similar.
+Check [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html)
+for more guidelines.
+
 Before publishing new svcbatch.exe version run the anti virus scan.
 Open Cygwin shell and type
 
@@ -161,14 +166,18 @@ Open Cygwin shell and type
 
 $ freshclam --quiet
 $ cd /cygdrive/c/path/to/svcbatch/x64
-$ sha512sum.exe svcbatch.exe | awk '{ print $1; }' > svcbatch.exe.clamscan.txt
-$ clamscan --version >> svcbatch.exe.clamscan.txt
-$ clamscan --bytecode=no svcbatch.exe | head -n 10 >> svcbatch.exe.clamscan.txt
+$ sha512sum.exe svcbatch.exe > svcbatch.exe.sha512
+$ echo '## Binary release v0.0.0' > releasedesc.txt
+$ echo '\`\`\`no-highlight' >> releasedesc.txt
+$ clamscan --version >> releasedesc.txt
+$ clamscan --bytecode=no svcbatch.exe | head -n 10 >> releasedesc.txt
+$ echo '\`\`\`' >> releasedesc.txt
 
 ```
 
-Ensure that each release tag starts with letter **v**,
-eg **v0.9.9-dev**, **v1.0.37** or similar.
+Put the content of releasedesc.txt file in github
+description box and replace **v0.0.0** with actual version
+
 
 #### Important!
 
