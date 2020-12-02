@@ -495,7 +495,7 @@ static int setupeventlog(void)
         return 1;
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
                         L"SYSTEM\\CurrentControlSet\\Services\\" \
-                        L"EventLog\\Application\\" SVCBATCH_SVCNAME,
+                        L"EventLog\\Application\\" CPP_WIDEN(SVCBATCH_SVCNAME),
                         0, 0, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
                         0, &k, &c) != ERROR_SUCCESS)
@@ -524,7 +524,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     _snwprintf(buf, SBUFSIZ - 2, L"svcbatch.c(%d) %s", line, err);
     buf[SBUFSIZ - 1] = L'\0';
 
-    errarg[0] = L"The " SVCBATCH_SVCNAME L" named";
+    errarg[0] = L"The " CPP_WIDEN(SVCBATCH_SVCNAME) L" named";
     if (IS_EMPTY_WCS(servicename))
         errarg[1] = L"(undefined)";
     else
@@ -546,7 +546,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         ern = ERROR_INVALID_PARAMETER;
     }
     if (setupeventlog())
-        es = RegisterEventSourceW(0, SVCBATCH_SVCNAME);
+        es = RegisterEventSourceW(0, CPP_WIDEN(SVCBATCH_SVCNAME));
     if (IS_VALID_HANDLE(es)) {
         /**
          * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'

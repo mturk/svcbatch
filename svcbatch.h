@@ -27,7 +27,7 @@
 #endif
 
 #define SVCBATCH_NAME           "SvcBatch"
-#define SVCBATCH_SVCNAME       L"SvcBatch Service"
+#define SVCBATCH_SVCNAME        "SvcBatch Service"
 /**
  * Version info
  */
