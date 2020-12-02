@@ -4,15 +4,15 @@ This project contains source code for SvcBatch, a program
 that runs batch files as Windows services.
 
 The build process supports only command line tools
-and both Microsoft and GCC compilers.
+for both Microsoft and GCC compilers.
 
 
 ## Prerequisites
 
 To compile SvcBatch from source code you will need either
 Microsoft C/C++ Compiler from Microsoft Visual Studio 2010
-or any later version.
-Alternatively you use msys2/mingw64 compiler toolchain.
+or any later version. Alternatively you use
+[MSYS2](https://www.msys2.org) mingw64 compiler toolchain.
 
 The official distributions are build using
 [Custom Microsoft Compiler Toolkit](https://github.com/mturk/cmsc)
@@ -181,15 +181,13 @@ and type the following.
 
 ```
 
-*Notice: use correct version instead version template*
-
-#### Important!
+*Notice: use correct version instead **v0.0.0** template*
 
 Edit the **releasedesc.txt** and remove directory part
 of svcbatch.exe in output report, as well as time data.
 
-Put the content of **releasedesc.txt** file in github
-description box.
+Put the content of **releasedesc.txt** file in GitHub
+release description box.
 Remember to add **svcbatch.exe.sha256** to release assets.
 This will allow users to verify binary checksum and
 be assured that the binary is safe to use.
