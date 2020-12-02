@@ -33,14 +33,20 @@
  */
 #define SVCBATCH_MAJOR_VERSION  0
 #define SVCBATCH_MINOR_VERSION  9
-#define SVCBATCH_MICRO_VERSION  9
+#define SVCBATCH_MICRO_VERSION  1
+
+/**
+ * Set to zero for non dev versions
+ */
+#define SVCBATCH_ISDEV_VERSION  1
+
 /**
  * ABI version info
  *
- * 20201129   (0.9.9-dev)       Initial version
+ * 20201129   (0.9.1-dev)       Initial version
  *
  */
-#define SVCBATCH_VERSION_ABI    "20201129"
+#define SVCBATCH_VERSION_ABI    "20201201"
 
 
 /**
@@ -133,10 +139,16 @@
                                 SVCBATCH_MINOR_VERSION,                 \
                                 SVCBATCH_MICRO_VERSION
 
+#if SVCBATCH_ISDEV_VERSION
+# define SVCBATCH_VERSION_SFX   "-dev"
+#else
+# define SVCBATCH_VERSION_SFX   "-dev"
+#endif
 #define SVCBATCH_VERSION_STR \
                                 CPP_TOSTR(SVCBATCH_MAJOR_VERSION) "."   \
                                 CPP_TOSTR(SVCBATCH_MINOR_VERSION) "."   \
-                                CPP_TOSTR(SVCBATCH_MICRO_VERSION)
+                                CPP_TOSTR(SVCBATCH_MICRO_VERSION)       \
+                                SVCBATCH_VERSION_SFX
 
 #define SVCBATCH_DESCRIPTION \
     "Run batch files as Windows Services"
