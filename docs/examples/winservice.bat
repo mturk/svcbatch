@@ -22,7 +22,7 @@ setlocal
 rem
 rem Set JAVA_HOME or JRE_HOME to desired JDK/JRE
 set "JAVA_HOME=c:\Tools\jdk-15.0.1"
-echo %~nx0: running %SVCBATCH_SERVICE_NAME% service
+echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo.
 rem Run Apache Tomcat
 call catalina.bat run
