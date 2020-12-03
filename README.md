@@ -133,10 +133,13 @@ Set service working directory to **path**
 
 This option allows to explicitly set the working
 directory. This allows to have relative path
-for batch file parameter.
+for batch file parameter and common location for
+svcbatch.exe.
 
 If not specified, the working directory is set
-to the path of the batch file.
+to the path of the batch file if it was defined
+as absolute path. Otherwise directory of svcbatch.exe
+will be used as working directory.
 
 
 ## Private environment variables
