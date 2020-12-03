@@ -20,9 +20,13 @@ rem
 rem Usage: winservice.bat create/delete [service_name]
 rem
 setlocal
-if /i "x%~1" == "xcreate" goto doCreate
-if /i "x%~1" == "xdelete" goto doDelete
-if not "x%~1" == "x" goto Einval
+if "x%~1" == "x" goto runService
+if "x%~1" == "xcreate" goto doCreate
+if "x%~1" == "xdelete" goto doDelete
+rem Unknown parameter
+goto Einval
+rem
+:runService
 rem
 rem This section is run by SvcBatch
 rem
