@@ -6,9 +6,23 @@ as a Windows service.
 Ensure that you have at least jdk version 8 installed, so that
 java.exe does not exit on user log off.
 
+
 #### Step 1:
 Download latest `svcbatch.exe` [release](https://github.com/mturk/svcbatch/releases)
 into your `tomcat/bin` directory
+
+You can put [winservice](winservice.bat) batch file inside
+your `tomcat/bin` directory. Make sure to modify version and
+snd the type...
+
+```no-highlight
+
+> winservice.bat create Tomcat10
+>
+> sc start Tomcat10
+```
+
+... or follow next steps
 
 #### Step 2:
 Create a batch file named `tomcatsvc.bat` inside `tomcat/bin`
