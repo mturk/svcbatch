@@ -155,10 +155,10 @@
     "Run batch files as Windows Services"
 
 #define SVCBATCH_COPYRIGHT \
-    "Copyright (c) 2000-2020 The Apache Software Foundation or its "            \
+    "Copyright (c) 1964-2020 The Acme Corporation or its "              \
     "licensors, as applicable."
 
-#define SVCBATCH_COMPANY_NAME "Apache Software Foundation"
+#define SVCBATCH_COMPANY_NAME "Acme Corporation"
 
 #define SVCBATCH_LICENSE \
     "Licensed under the Apache License, Version 2.0 (the ""License""); "        \
