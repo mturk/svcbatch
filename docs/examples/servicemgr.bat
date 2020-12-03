@@ -32,7 +32,7 @@ rem Unknown option
 echo %nx0: Unknown option '%~1'
 goto Einval
 rem
-rem Create service using SC tool
+rem Create service
 :doCreate
 set "SERVICE_BASE=%cd%"
 pushd ..
