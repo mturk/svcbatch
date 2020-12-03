@@ -28,23 +28,27 @@ if /i "x%~1" == "xcreate" goto doCreate
 if /i "x%~1" == "xdelete" goto doDelete
 if /i "x%~1" == "xrotate" goto doRotate
 if /i "x%~1" == "xdump"   goto doDumpStacks
-rem Unknown parameter
+rem Unknown option
+echo %nx0: Unknown option '%~1'
 goto Einval
 rem
-rem Create service using sc.exe
+rem Create service using SC tool
 :doCreate
 set "SERVICE_BASE=%cd%"
 pushd ..
 set "SERVICE_HOME=%cd%"
 popd
 rem
-rem Change to actual version
+rem Change to actual Tomcat version
 set "TOMCAT_DISPLAY=Apache Tomcat 10.0"
 set "TOMCAT_FULLVER=Apache Tomcat 10.0.0"
 rem
 sc create "%SERVICE_NAME%" binPath= ""%SERVICE_BASE%\svcbatch.exe" /w "%SERVICE_HOME%" /s /c .\bin\winservice.bat"
 sc config "%SERVICE_NAME%" DisplayName= "%TOMCAT_DISPLAY% %SERVICE_NAME% Service"
+rem Ensure the networking services are running
 sc config "%SERVICE_NAME%" depend= Tcpip/Afd
+rem Set required privileges so we can kill process tree
+rem even if Tomcat created multiple child processes.
 sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
 sc description "%SERVICE_NAME%" "%TOMCAT_FULLVER% Server - https://tomcat.apache.org/"
 goto End
@@ -59,7 +63,7 @@ goto End
 
 
 rem
-rem Rotate logs
+rem Rotate SvcBatch logs
 :doRotate
 rem
 sc control "%SERVICE_NAME%" 234
@@ -74,7 +78,6 @@ sc control "%SERVICE_NAME%" 233
 goto End
 
 :Einval
-echo %nx0: Invalid parameter
 echo Usage: %nx0 create/delete/rotate/dump [service_name]
 echo.
 exit /b 1
