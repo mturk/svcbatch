@@ -46,7 +46,8 @@ rem
 sc create "%SERVICE_NAME%" binPath= ""%SERVICE_BASE%\svcbatch.exe" /w "%SERVICE_HOME%" /s /c .\bin\winservice.bat"
 sc config "%SERVICE_NAME%" DisplayName= "%TOMCAT_DISPLAY% %SERVICE_NAME% Service"
 rem Ensure the networking services are running
-sc config "%SERVICE_NAME%" depend= Tcpip/Afd
+rem and that service is started on system startup
+sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= auto
 rem Set required privileges so we can kill process tree
 rem even if Tomcat created multiple child processes.
 sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege

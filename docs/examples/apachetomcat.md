@@ -8,12 +8,12 @@ java.exe does not exit on user log off.
 
 
 #### Step 1:
-Download latest `svcbatch.exe` [release](https://github.com/mturk/svcbatch/releases)
-into your `tomcat/bin` directory
+Download latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
+and put `svcbatch.exe` into your `tomcat/bin` directory
 
-You can put [winservice](winservice.bat) and [servicemgr](servicemgr.bat)
-batch files inside your `tomcat/bin` directory. Make sure to modify version and
-snd the type...
+You can put example [winservice](winservice.bat) and [servicemgr](servicemgr.bat)
+batch files into your `tomcat/bin` directory. Modify Tomcat versions in
+servicemgr.bat file as needed and then type...
 
 ```no-highlight
 
