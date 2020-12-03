@@ -854,10 +854,15 @@ static DWORD reportsvcstatus(DWORD cs, DWORD wh)
     static DWORD cpcnt = 1;
 
     EnterCriticalSection(&scmservicelock);
-    if ((servicestatus.dwCurrentState == SERVICE_STOPPED) || (cs == 0)) {
+    if (servicestatus.dwCurrentState == SERVICE_STOPPED) {
+        cs = SERVICE_STOPPED;
+        goto finished;
+    }
+    if (cs == 0) {
         cs = servicestatus.dwCurrentState;
-        LeaveCriticalSection(&scmservicelock);
-        return cs;
+        if (wh != 0)
+            SetServiceStatus(svcstathandle, &servicestatus);
+        goto finished;
     }
     servicestatus.dwControlsAccepted = 0;
     servicestatus.dwCheckPoint       = 0;
@@ -886,6 +891,8 @@ static DWORD reportsvcstatus(DWORD cs, DWORD wh)
     }
     servicestatus.dwCurrentState = cs;
     SetServiceStatus(svcstathandle, &servicestatus);
+
+finished:
     LeaveCriticalSection(&scmservicelock);
     return cs;
 }
@@ -1043,7 +1050,7 @@ static void logprintf(const char *format, ...)
  * Create service log file and rotate any previous
  * files in the Logs directory.
  */
-static DWORD opensvclog(int sstart)
+static DWORD opensvclog(int ssp)
 {
     HANDLE   lh = 0;
     wchar_t *logfn;
@@ -1076,7 +1083,8 @@ static DWORD opensvclog(int sstart)
     sa.lpSecurityDescriptor = 0;
     sa.bInheritHandle       = 0;
 
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    if (ssp)
+        reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     lh = CreateFileW(logfn,
                      GENERIC_WRITE,
                      FILE_SHARE_READ,
@@ -1105,7 +1113,8 @@ static DWORD opensvclog(int sstart)
             if (MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING) == 0)
                 return GetLastError();
             xfree(lognn);
-            reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+            if (ssp)
+                reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         }
         xfree(logpn);
     }
@@ -1336,6 +1345,9 @@ static DWORD WINAPI svcmonitorthread(LPVOID unused)
             break;
         }
         else if (cc == SVCBATCH_CTRL_BREAK) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "break signaled");
+#endif
             EnterCriticalSection(&logservicelock);
             if (IS_VALID_HANDLE(logfhandle)) {
                 logfflush();
@@ -1355,14 +1367,17 @@ static DWORD WINAPI svcmonitorthread(LPVOID unused)
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
         }
         else if (cc == SVCBATCH_CTRL_ROTATE) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "rotate signaled");
+#endif
             if (rotatesvclog() != 0) {
+#if defined(_DBGVIEW)
+                dbgprintf(__FUNCTION__, "rotate log failed");
+#endif
                 /**
                  * Logfile rotation failed.
                  * Create stop thread which will stop the service.
                  */
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "rotate log failed");
-#endif
                 xcreatethread(1, &svcstopthread, 0);
                 break;
             }
@@ -1528,17 +1543,13 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
             /**
              * Signal to svcmonitorthread that
              * user send custom service control
-             *
-             * Those signals can be entered either
-             * manually or by some sort of cron job
-             * eg. to rotate logfile on regular interval
-             * or send CTRL_BREAK to Java applications started
-             * from batch file
              */
             InterlockedExchange(&servicectrlnum, ctrl);
             SetEvent(monitorevent);
+            reportsvcstatus(0, 1);
         break;
         case SERVICE_CONTROL_INTERROGATE:
+            reportsvcstatus(0, 1);
         break;
         default:
             return ERROR_CALL_NOT_IMPLEMENTED;
