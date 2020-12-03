@@ -89,6 +89,7 @@ Command line options are defined at service install time, so
 make sure to get familiar with `sc.exe` utility.
 
 ### -c
+**Use clean PATH**
 
 This option will replace **PATH** environment variable with minimal
 set of paths that are needed to run the batch file.
@@ -115,9 +116,10 @@ and then call the actual application.
 
 
 ### -s
+**Use safe environment**
 
 Remove all environment variables for child
-processes, except the essential ones.
+processes, except the system ones.
 
 This option allows every batch file to have a clean
 environment, regardless of how many variables are
