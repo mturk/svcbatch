@@ -44,7 +44,7 @@ privileges to the service
 This should allow SvcBatch to terminate the entire
 descendant process tree on shutdown.
 
-### Quick Intro: Apache Tomcat
+### Examples
 
 To get an overview how the SvcBatch is used with real
 application check the [Apache Tomcat](docs/examples/apachetomcat.md)
