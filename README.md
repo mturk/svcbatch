@@ -50,7 +50,9 @@ application check the documentation [Examples](docs/examples/)
 section for some basic deployment guideline.
 
 
-# Log Rotation
+# Main Features
+
+## Log Rotation
 
 By default SvcBatch on startup creates a `Logs` directory inside its
 working directory and creates a SvcBatch.log file that is used both
@@ -75,7 +77,7 @@ log rotation at any time while the service is running.
 Note that **234** is our custom service control code.
 
 
-# Command line options
+## Command line options
 
 SvcBatch command line options allow user to customize
 service deployments. Options are case insensitive and both `-` and `/` can be
@@ -137,11 +139,10 @@ If not specified, the working directory is set
 to the path of the batch file.
 
 
-# Private environment variables
+## Private environment variables
 
 SvcBatch sets few private environment variables that
 provide more info about running environment to batch file.
-
 
 
 Here is the list of environment variables that
@@ -207,7 +208,7 @@ for inter-process communication between SvcBatch and
 batch file's child process.
 
 
-# Custom control codes
+## Custom control codes
 
 SvcBatch can send `CTRL_BREAK_EVENT` signal to its child processes.
 
