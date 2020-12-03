@@ -1177,7 +1177,7 @@ static void closesvclog(void)
     LeaveCriticalSection(&logservicelock);
 }
 
-static DWORD WINAPI svcstopthread(LPVOID _sd)
+static DWORD WINAPI svcstopthread(LPVOID unused)
 {
     static LONG volatile sstarted = 0;
     char  yn[2] = {'Y', '\n'};
@@ -1209,8 +1209,6 @@ static DWORD WINAPI svcstopthread(LPVOID _sd)
     EnterCriticalSection(&logservicelock);
     if (IS_VALID_HANDLE(logfhandle)) {
         logfflush();
-        if (_sd != 0)
-            logwrline("SERVICE_CONTROL_SHUTDOWN signaled");
         logwrline("CTRL_C_EVENT raised\r\n");
     }
     LeaveCriticalSection(&logservicelock);
@@ -1478,7 +1476,6 @@ finished:
 
 BOOL WINAPI consolehandler(DWORD ctrl)
 {
-    BOOL rv = FALSE;
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
         case CTRL_SHUTDOWN_EVENT:
@@ -1498,7 +1495,6 @@ BOOL WINAPI consolehandler(DWORD ctrl)
             }
             LeaveCriticalSection(&logservicelock);
             WaitForSingleObject(serviceended, SVCBATCH_STOP_WAIT);
-            rv = TRUE;
         break;
         case CTRL_C_EVENT:
         case CTRL_BREAK_EVENT:
@@ -1506,28 +1502,24 @@ BOOL WINAPI consolehandler(DWORD ctrl)
             /**
              * TRUE means that we handled the signal
              */
-            rv = TRUE;
         break;
         default:
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "  unknown ctrl %d", ctrl);
 #endif
+            return FALSE;
         break;
     }
-    return rv;
+    return TRUE;
 }
 
 DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
 {
-    DWORD   rv = 0;
-
     switch(ctrl) {
         case SERVICE_CONTROL_SHUTDOWN:
 #if defined(SERVICE_CONTROL_PRESHUTDOWN)
         case SERVICE_CONTROL_PRESHUTDOWN:
 #endif
-            xcreatethread(1, &svcstopthread, INVALID_HANDLE_VALUE);
-        break;
         case SERVICE_CONTROL_STOP:
             xcreatethread(1, &svcstopthread, 0);
         break;
@@ -1549,10 +1541,10 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
         case SERVICE_CONTROL_INTERROGATE:
         break;
         default:
-            rv = ERROR_CALL_NOT_IMPLEMENTED;
+            return ERROR_CALL_NOT_IMPLEMENTED;
         break;
     }
-    return rv;
+    return 0;
 }
 
 /**
