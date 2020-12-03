@@ -14,7 +14,7 @@ into your `tomcat/bin` directory
 Create a batch file named `tomcatsvc.bat` inside `tomcat/bin`
 with the following content
 
-```no-highlight
+```batchfile
 @echo off
 setlocal
 rem Set any environment variables here missing from LOCAL_SERVICE account
