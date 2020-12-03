@@ -190,6 +190,7 @@ and use the following procedure...
 
 ```
 
+
 *Notice: use actual release version instead **0.0.0** in above template*
 
 Edit the **releasedesc.txt** and remove directory part
@@ -202,3 +203,34 @@ release description box.
 Remember to add **svcbatch-0.0.0-sha256.txt** to release assets.
 This will allow users to verify binary checksum and
 be assured that the binary is safe to use.
+
+You can use the following batch file template
+instead typing the individual commands.
+
+```batchfile
+@echo off
+rem
+setlocal
+set "SvcBatchVer=0.9.1"
+rem
+rem Set path for clamav and 7za
+rem
+set "PATH=C:\usr\clamav;C:\usr\tools;%PATH%"
+rem
+freshclam.exe --quiet
+pushd x64
+echo ## Binary release v%SvcBatchVer%-dev > svcbatch-%SvcBatchVer%.txt
+echo. >> svcbatch-%SvcBatchVer%.txt
+echo. >> svcbatch-%SvcBatchVer%.txt
+echo ```no-highlight >> svcbatch-%SvcBatchVer%.txt
+clamscan.exe --version >> svcbatch-%SvcBatchVer%.txt
+clamscan.exe --bytecode=no svcbatch.exe >> svcbatch-%SvcBatchVer%.txt
+echo ``` >> svcbatch-%SvcBatchVer%.txt
+7za.exe a -bd svcbatch-%SvcBatchVer%-win-x64.zip svcbatch.exe ..\LICENSE.txt
+sigtool.exe --sha256 svcbatch.exe > svcbatch-%SvcBatchVer%-sha256.txt
+sigtool.exe --sha256 svcbatch-%SvcBatchVer%-win-x64.zip >> svcbatch-%SvcBatchVer%-sha256.txt
+popd
+rem
+echo Done
+rem
+```
