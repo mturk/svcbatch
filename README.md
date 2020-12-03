@@ -21,7 +21,6 @@ to run this application.
 
 To build the SvcBatch from source code follow
 directions explained in [Building](docs/building.md) document.
-
 SvcBatch is targetet for Windows 64-bit versions, so make sure
 to use 64-bit compiler.
 
@@ -47,8 +46,8 @@ descendant process tree on shutdown.
 ## Examples
 
 To get an overview how the SvcBatch is used with real
-application check the [Apache Tomcat](docs/examples/apachetomcat.md)
-document for basic deployment guideline.
+application check the documentation [Examples](docs/examples/)
+section for some basic deployment guideline.
 
 
 # Log Rotation
