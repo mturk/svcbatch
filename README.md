@@ -44,7 +44,7 @@ privileges to the service
 This should allow SvcBatch to terminate the entire
 descendant process tree on shutdown.
 
-### Examples
+## Examples
 
 To get an overview how the SvcBatch is used with real
 application check the [Apache Tomcat](docs/examples/apachetomcat.md)
@@ -153,7 +153,7 @@ current svcbatch.exe ABI. This can be used by batch
 file to determine the SvcBatch functionality.
 
 The ABI version is defined in svcbatch.h file and
-it current value is **20201129**
+it current value is **20201201**
 
 #### SVCBATCH_SERVICE_BASE
 
