@@ -126,6 +126,12 @@ This option allows every batch file to have a clean
 environment, regardless of how many variables are
 defined for `LOCAL_SERVICE` account.
 
+Check [svcbatch.c](svcbatch.c) **safewinenv[]**
+string array for a complete list of environment variables
+that are passed to child process. If this option is set
+all other environment variables not belonging to that set
+will be omitted from child process environment.
+
 
 ### -w [path]
 
