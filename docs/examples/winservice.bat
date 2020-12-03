@@ -17,60 +17,14 @@ rem
 rem --------------------------------------------------
 rem Apache Tomcat Service script
 rem
-rem Usage: winservice.bat create/delete [service_name]
 rem
 setlocal
-if "x%~1" == "x" goto runService
-if "x%~1" == "xcreate" goto doCreate
-if "x%~1" == "xdelete" goto doDelete
-rem Unknown parameter
-goto Einval
-rem
-:runService
-rem
-rem This section is run by SvcBatch
 rem
 rem Set JAVA_HOME or JRE_HOME to desired JDK/JRE
 set "JAVA_HOME=c:\Tools\jdk-15.0.1"
 echo %~nx0: running %SVCBATCH_SERVICE_NAME% service
 echo.
-rem Call catalina.bat
+rem Run Apache Tomcat
 call catalina.bat run
 rem
-goto End
-rem
-rem Create service using sc.exe
-:doCreate
-if "x%~2" == "x" goto Einval
-set "SERVICE_NAME=%~2"
-set "SERVICE_BASE=%cd%"
-pushd ..
-set "SERVICE_HOME=%cd%"
-popd
-rem
-rem Change to actual version
-set "TOMCAT_DISPLAY=Apache Tomcat 10.0"
-set "TOMCAT_FULLVER=Apache Tomcat 10.0.0"
-rem
-sc create "%SERVICE_NAME%" binPath= ""%SERVICE_BASE%\svcbatch.exe" /w "%SERVICE_HOME%" /s /c .\bin\%~nx0"
-sc config "%SERVICE_NAME%" DisplayName= "%TOMCAT_DISPLAY% %SERVICE_NAME% Service"
-sc config "%SERVICE_NAME%" depend= Tcpip/Afd
-sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
-sc description "%SERVICE_NAME%" "%TOMCAT_FULLVER% Server - https://tomcat.apache.org/"
-goto End
-rem
-rem Delete service
-:doDelete
-if "x%~2" == "x" goto Einval
-set "SERVICE_NAME=%~2"
-rem
-sc stop "%SERVICE_NAME%" >NUL
-sc delete "%SERVICE_NAME%"
-goto End
 
-:Einval
-echo %nx0: Invalid parameter
-echo.
-exit /b 1
-
-:End
