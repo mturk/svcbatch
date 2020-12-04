@@ -604,13 +604,13 @@ static DWORD killprocesstree(DWORD pid, UINT err)
          *       was recycled.
          */
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "subtree: %d", a[i]);
+        dbgprintf(__FUNCTION__, " subtree: %d", a[i]);
 #endif
         killprocesstree(a[i], err);
     }
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "pid: %d", pid);
+    dbgprintf(__FUNCTION__, " pid: %d", pid);
 #endif
     if (pid == cmdexeproc.dwProcessId)
         return 0;
@@ -621,12 +621,12 @@ static DWORD killprocesstree(DWORD pid, UINT err)
             if (TerminateProcess(p, err) == 0)
                 r = GetLastError();
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "term pid: %d %d:%d ", pid, x, r);
+            dbgprintf(__FUNCTION__, " term pid: %d %d:%d ", pid, x, r);
 #endif
         }
 #if defined(_DBGVIEW)
         else {
-            dbgprintf(__FUNCTION__, "exit pid: %d %d:%d ", pid, x, r);
+            dbgprintf(__FUNCTION__, " exit pid: %d %d:%d ", pid, x, r);
         }
 #endif
     }
@@ -652,7 +652,7 @@ static DWORD killprocessmain(UINT err)
         r = GetLastError();
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "main pid: %d %d:%d ", cmdexeproc.dwProcessId, x, r);
+    dbgprintf(__FUNCTION__, " main pid: %d %d:%d ", cmdexeproc.dwProcessId, x, r);
 #endif
 
     return r;
@@ -1238,7 +1238,7 @@ static DWORD WINAPI svcstopthread(LPVOID unused)
      * to handle case when cmd.exe waits for
      * user reply to "Terminate batch job (Y/N)?"
      */
-    if (WaitForSingleObject(cmdexeproc.hProcess,
+    if (WaitForSingleObject(pipesignaled,
                             SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT)
         WriteFile(redirectedstdinw, yn, 2, &wr, 0);
 
@@ -1249,7 +1249,7 @@ static DWORD WINAPI svcstopthread(LPVOID unused)
      * timeout and then kill all child processes.
      */
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-    if (WaitForSingleObject(cmdexeproc.hProcess,
+    if (WaitForSingleObject(pipesignaled,
                             SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
         /**
          * WAIT_TIMEOUT means that child is
@@ -1289,11 +1289,6 @@ static DWORD WINAPI svcpipethread(LPVOID unused)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "   started");
 #endif
-    /**
-     * Set pipe event to non signaled.
-     * This ensures that main thread will wait until we finish
-     */
-    ResetEvent(pipesignaled);
     for (;;) {
         BYTE  rb[HBUFSIZ];
         DWORD rd = 0;
@@ -1475,8 +1470,6 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
     CloseHandle(cmdexeproc.hThread);
 
     WaitForMultipleObjects(2, wh, 1, INFINITE);
-    if (WaitForSingleObject(pipesignaled, SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT)
-        TerminateThread(wh[1], ERROR_BROKEN_PIPE);
     CloseHandle(wh[1]);
 
 finished:
@@ -1905,7 +1898,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Create logic state events
      */
     stopsignaled = CreateEventW(&sa, 1, 1, 0);
-    pipesignaled = CreateEventW(&sa, 1, 1, 0);
+    pipesignaled = CreateEventW(&sa, 1, 0, 0);
     serviceended = CreateEventW(&sa, 1, 0, 0);
     monitorevent = CreateEventW(&sa, 1, 0, 0);
     if (IS_INVALID_HANDLE(serviceended) ||
