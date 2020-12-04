@@ -5,6 +5,10 @@ For a full list of changes, see the [git commit log][log]
 
   [log]: https://github.com/mturk/svcbatch/commits/
 
+## SvcBatch 0.9.2-dev
+
+ * Kill entire child process tree even if child already terminated
+
 ## SvcBatch 0.9.1-dev
 
  * Initial release
