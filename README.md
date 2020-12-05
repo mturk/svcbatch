@@ -24,23 +24,53 @@ directions explained in [Building](docs/building.md) document.
 SvcBatch is targetet for Windows 64-bit versions, so make sure
 to use 64-bit compiler.
 
-## Installing services
+## Creating services
 
 SvcBatch does not contain any code for service management.
 Users should use Microsoft's `sc.exe` utility to
-install, configure, manage and delete services.
+create, configure, manage and delete services.
 Sc is integral part of every Windows distribution and
 there is no need to replicate that functionality internally.
+Check [SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create)
+for detailed description how to use the SC utility to create
+and manage services.
 
-If the program started from service batch file can create
+SvcBatch uses System's `cmd.exe` as a shell to run a batch file.
+Thus the batch file is an *actual* service application from
+concept point of view.
+
+The batch file should behave like a *service* and must never
+exit. Any exit is treated as error because from SCM
+(Service Control Manager) point of view it is the same
+as service failure. On Stop or Shutdown events signaled
+by SCM, SvcBatch will send CTRL_C signal to cmd.exe, as
+if user hit Ctrl+Break keys in interactive console session.
+
+The simplest way to create a service for your batch file
+is to put `svcbatch.exe` in the same directory where your
+`myservice.bat` file is located. Open command prompt and
+type something like this...
+
+```no-highlight
+> sc create myservice binPath= ""%cd%\svcbatch.exe myservice.bat"
+
+```
+
+Check [Examples](docs/examples/) section for more
+detailed usage.
+
+
+#### Notice
+
+If the program started from service batch file creates
 its own child processes ensure to setup the following
 privileges to the service
 
 ```no-highlight
-> sc privs svcname SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
+> sc privs svcname SeDebugPrivilege
 ```
 
-This should allow SvcBatch to terminate the entire
+This will allow SvcBatch to terminate the entire
 descendant process tree on shutdown.
 
 ## Examples
