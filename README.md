@@ -52,7 +52,7 @@ is to put `svcbatch.exe` in the same directory where your
 type something like this...
 
 ```no-highlight
-> sc create myservice binPath= ""%cd%\svcbatch.exe myservice.bat"
+> sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat"
 
 ```
 
