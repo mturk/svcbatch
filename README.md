@@ -67,7 +67,7 @@ its own child processes ensure to setup the following
 privileges to the service
 
 ```no-highlight
-> sc privs svcname SeDebugPrivilege
+> sc privs myservice SeDebugPrivilege
 ```
 
 This will allow SvcBatch to terminate the entire
