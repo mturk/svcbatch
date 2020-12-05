@@ -44,7 +44,7 @@ exit. Any exit is treated as error because from SCM
 (Service Control Manager) point of view it is the same
 as service failure. On Stop or Shutdown events signaled
 by SCM, SvcBatch will send CTRL_C signal to cmd.exe, as
-if user hit Ctrl+Break keys in interactive console session.
+if user hit Ctrl+C keys in interactive console session.
 
 The simplest way to create a service for your batch file
 is to put `svcbatch.exe` in the same directory where your
