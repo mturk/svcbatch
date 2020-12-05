@@ -899,7 +899,8 @@ static DWORD reportsvcstatus(DWORD status, DWORD param)
     else if (status == SERVICE_STOPPED) {
         if (param != 0)
             servicestatus.dwServiceSpecificExitCode = param;
-        else if (servicestatus.dwCurrentState != SERVICE_STOP_PENDING)
+        if (servicestatus.dwServiceSpecificExitCode == 0 &&
+            servicestatus.dwCurrentState != SERVICE_STOP_PENDING)
             servicestatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
         if (servicestatus.dwServiceSpecificExitCode != 0) {
             servicestatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
