@@ -5,9 +5,6 @@ For a full list of changes, see the [git commit log][log]
 
   [log]: https://github.com/mturk/svcbatch/commits/
 
-## v0.9.4
-
-
 ## v0.9.3
 
  * Add support to send shutdown signal from batch files to parent
