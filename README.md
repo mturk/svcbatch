@@ -31,7 +31,7 @@ Users should use Microsoft's `sc.exe` utility to
 create, configure, manage and delete services.
 Sc is integral part of every Windows distribution and
 there is no need to replicate that functionality internally.
-Check [SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create)
+Check [Microsoft's SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-config)
 for detailed description how to use the SC utility to create
 and manage services.
 
