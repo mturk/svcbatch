@@ -188,7 +188,7 @@ current svcbatch.exe ABI. This can be used by batch
 file to determine the SvcBatch functionality.
 
 The ABI version is defined in svcbatch.h file and
-it current value is **20201201**
+it's current value is **20201205**
 
 #### SVCBATCH_SERVICE_BASE
 
@@ -240,10 +240,9 @@ rd /S /Q "%TEMP%\%SVCBATCH_SERVICE_UUID%"
 
 ```
 
-In future releases this variable will be also used
-for inter-process communication between SvcBatch and
-batch file's child process.
-
+This variable is also used for inter-process communication
+between batch file and SvcBatch executable. See **-k** command
+line option for more details.
 
 ## Custom control codes
 
@@ -262,7 +261,7 @@ Again as with log rotate, the **233** is our custom control code.
 This option is enabled at service install time with `/b` command
 switch option.
 
-Do not send `CTRL_BREAK_EVANT` if the batch file runs a process
+Do not send `CTRL_BREAK_EVENT` if the batch file runs a process
 that does not have custom `CTRL_BREAK_EVENT` console handler.
 By default the process will exit and service will either fail or hang.
 
