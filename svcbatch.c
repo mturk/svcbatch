@@ -33,11 +33,6 @@ static CRITICAL_SECTION      logservicelock;
 static wchar_t **dupwenvp         = 0;
 static int       dupwenvc         = 0;
 static int       hasctrlbreak     = 0;
-/**
- * On error call exit instead reporting
- * SERVICE_STOPPED status.
- */
-static int       exitonerror      = 0;
 
 /**
  * Full path to the batch file
@@ -905,19 +900,8 @@ static void reportsvcstatus(DWORD status, DWORD param)
         if (servicestatus.dwServiceSpecificExitCode == 0 &&
             servicestatus.dwCurrentState != SERVICE_STOP_PENDING)
             servicestatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
-        if (servicestatus.dwServiceSpecificExitCode != 0) {
+        if (servicestatus.dwServiceSpecificExitCode != 0)
             servicestatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
-            if (exitonerror) {
-                /**
-                 * Use exit so that SCM can kick Recovery
-                 */
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, " exit(%d)",
-                          servicestatus.dwServiceSpecificExitCode);
-#endif
-                exit(servicestatus.dwServiceSpecificExitCode);
-            }
-        }
     }
     else {
         servicestatus.dwCheckPoint = cpcnt++;
@@ -1673,10 +1657,7 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
      */
     WaitForMultipleObjects(2, wh, 1, INFINITE);
     /**
-     * Wait for stopthread signal
-     *
-     * stopsignaled event is created as signaled
-     * so we only wait if stop thread is still running
+     * Wait for stop thread to finish if started
      */
     WaitForSingleObject(stopsignaled, SVCBATCH_STOP_WAIT);
 
@@ -1779,12 +1760,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'C':
                         cleanpath    = 1;
                     break;
-#if defined(_DBGVIEW)
-                    case L'r':
-                    case L'R':
-                        exitonerror  = 1;
-                    break;
-#endif
                     case L's':
                     case L'S':
                         usesafeenv   = 1;
