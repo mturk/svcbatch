@@ -8,7 +8,7 @@ For a full list of changes, see the [git commit log][log]
 ## v0.9.4
 
  * Drop support for parent shutdown signal
-   Users can use `sc stop [service_name]` from batch file instead.
+ * Cleanup code inconsistency
 
 ## v0.9.3
 
