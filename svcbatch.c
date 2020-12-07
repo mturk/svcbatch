@@ -412,7 +412,7 @@ static wchar_t *xuuidstring(void)
         if (i == 4 || i == 6 || i == 8 || i == 10)
             b[x++] = '-';
         b[x++] = xb16[d[i] >> 4];
-        b[x++] = xb16[d[1] & 0x0F];
+        b[x++] = xb16[d[i] & 0x0F];
     }
 
     return b;
@@ -769,10 +769,13 @@ static int resolvesvcbatchexe(void)
             xfree(buf);
             return 0;
         }
-        else if ((len == siz) && (GetLastError() == ERROR_INSUFFICIENT_BUFFER)) {
+        else if (len == siz) {
+            if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
+                siz = siz * 2;
+            else
+                return 0;
             xfree(buf);
             buf = 0;
-            siz = siz * 2;
         }
     }
     svcbatchexe = getrealpathname(buf, 0);
