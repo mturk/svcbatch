@@ -29,7 +29,7 @@ if /i "x%~1" == "xdelete" goto doDelete
 if /i "x%~1" == "xrotate" goto doRotate
 if /i "x%~1" == "xdump"   goto doDumpStacks
 rem Unknown option
-echo %nx0: Unknown option '%~1'
+echo %~nx0: Unknown option '%~1'
 goto Einval
 
 rem
@@ -81,7 +81,7 @@ sc control "%SERVICE_NAME%" 233
 goto End
 
 :Einval
-echo Usage: %nx0 create/delete/rotate/dump [service_name]
+echo Usage: %~nx0 create/delete/rotate/dump [service_name]
 echo.
 exit /b 1
 
