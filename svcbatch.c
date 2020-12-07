@@ -1686,12 +1686,6 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * for worker and monitor threads to finish.
      */
     WaitForMultipleObjects(2, wh, 1, INFINITE);
-
-finished:
-
-    SAFE_CLOSE_HANDLE(wh[0]);
-    SAFE_CLOSE_HANDLE(wh[1]);
-
     /**
      * Wait for stopthread signal
      *
@@ -1699,6 +1693,11 @@ finished:
      * so we only wait if stop thread is still running
      */
     WaitForSingleObject(stopsignaled, SVCBATCH_STOP_WAIT);
+
+finished:
+
+    SAFE_CLOSE_HANDLE(wh[0]);
+    SAFE_CLOSE_HANDLE(wh[1]);
 
     SAFE_CLOSE_HANDLE(redirectedpipewr);
     SAFE_CLOSE_HANDLE(redirectedpiperd);
