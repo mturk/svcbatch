@@ -1218,10 +1218,11 @@ static void closesvclog(void)
     LeaveCriticalSection(&logservicelock);
 }
 
-static DWORD WINAPI svcstopthread(LPVOID ssignal)
+static DWORD WINAPI svcstopthread(LPVOID unused)
 {
     static LONG volatile sstarted = 0;
-    DWORD waithint = ssignal == 0 ? SVCBATCH_STOP_HINT : SVCBATCH_PENDING_WAIT * 2;
+    const char yn[2] = { 'Y', '\n'};
+    DWORD wr;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "   started");
@@ -1244,7 +1245,7 @@ static DWORD WINAPI svcstopthread(LPVOID ssignal)
      * This ensures that main thread will wait until we finish
      */
     ResetEvent(stopsignaled);
-    reportsvcstatus(SERVICE_STOP_PENDING, waithint);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     EnterCriticalSection(&logservicelock);
     if (IS_VALID_HANDLE(logfhandle)) {
@@ -1253,41 +1254,37 @@ static DWORD WINAPI svcstopthread(LPVOID ssignal)
     }
     LeaveCriticalSection(&logservicelock);
 
-    if (ssignal == 0) {
-        const char yn[2] = { 'Y', '\n'};
-        DWORD wr;
-        /**
-         * Calling SetConsoleCtrlHandler with the NULL and TRUE arguments
-         * causes the calling process to ignore CTRL+C signals.
-         * This attribute is inherited by child processes, but it can be
-         * enabled or disabled by any process without affecting existing processes.
-         */
+    /**
+     * Calling SetConsoleCtrlHandler with the NULL and TRUE arguments
+     * causes the calling process to ignore CTRL+C signals.
+     * This attribute is inherited by child processes, but it can be
+     * enabled or disabled by any process without affecting existing processes.
+     */
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "   CTRL_C_EVENT raised");
+    dbgprintf(__FUNCTION__, "   CTRL_C_EVENT raised");
 #endif
-        SetConsoleCtrlHandler(0, 1);
-        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        SetConsoleCtrlHandler(0, 0);
-        /**
-         * Wait some time for process to finish.
-         *
-         * If still active write Y to stdin pipe
-         * to handle case when cmd.exe waits for
-         * user reply to "Terminate batch job (Y/N)?"
-         */
-        if (WaitForSingleObject(processended,
-                                SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT)
-            WriteFile(redirectedstdinw, yn, 2, &wr, 0);
+    SetConsoleCtrlHandler(0, 1);
+    GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+    SetConsoleCtrlHandler(0, 0);
+    /**
+     * Wait some time for process to finish.
+     *
+     * If still active write Y to stdin pipe
+     * to handle case when cmd.exe waits for
+     * user reply to "Terminate batch job (Y/N)?"
+     */
+    if (WaitForSingleObject(processended,
+                            SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT)
+        WriteFile(redirectedstdinw, yn, 2, &wr, 0);
 
-    }
-    reportsvcstatus(SERVICE_STOP_PENDING, waithint + SVCBATCH_PENDING_WAIT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT + SVCBATCH_PENDING_WAIT);
     /**
      * Wait for main process to finish or times out.
      *
      * We are waiting at most for SVCBATCH_STOP_HINT
      * timeout and then kill all child processes.
      */
-    if (WaitForSingleObject(processended, waithint) == WAIT_TIMEOUT) {
+    if (WaitForSingleObject(processended, SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
         DWORD rc;
         /**
          * WAIT_TIMEOUT means that child is
