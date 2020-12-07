@@ -1424,6 +1424,75 @@ static DWORD WINAPI svcmonitorthread(LPVOID unused)
     XENDTHREAD(0);
 }
 
+BOOL WINAPI consolehandler(DWORD ctrl)
+{
+    switch(ctrl) {
+        case CTRL_CLOSE_EVENT:
+        case CTRL_SHUTDOWN_EVENT:
+            /**
+             * Wait for SvcBatch to terminate, but respond
+             * after a reasonable time to tell the system
+             * that we did attempt to shut ourselves down.
+             *
+             * Use 30 seconds as timeout value
+             * which is the time according to MSDN for
+             * services to react on system shutdown
+             */
+            EnterCriticalSection(&logservicelock);
+            if (IS_VALID_HANDLE(logfhandle)) {
+                logfflush();
+                logwrline("CTRL_SHUTDOWN_EVENT signaled");
+            }
+            LeaveCriticalSection(&logservicelock);
+            WaitForSingleObject(serviceended, SVCBATCH_STOP_WAIT);
+        break;
+        case CTRL_C_EVENT:
+        case CTRL_BREAK_EVENT:
+        case CTRL_LOGOFF_EVENT:
+            /**
+             * TRUE means that we handled the signal
+             */
+        break;
+        default:
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "  unknown ctrl %d", ctrl);
+#endif
+            return FALSE;
+        break;
+    }
+    return TRUE;
+}
+
+DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
+{
+    switch(ctrl) {
+        case SERVICE_CONTROL_SHUTDOWN:
+#if defined(SERVICE_CONTROL_PRESHUTDOWN)
+        case SERVICE_CONTROL_PRESHUTDOWN:
+#endif
+        case SERVICE_CONTROL_STOP:
+            xcreatethread(1, &svcstopthread, 0);
+        break;
+        case SVCBATCH_CTRL_BREAK:
+            if (hasctrlbreak == 0)
+                return ERROR_CALL_NOT_IMPLEMENTED;
+        case SVCBATCH_CTRL_ROTATE:
+            /**
+             * Signal to svcmonitorthread that
+             * user send custom service control
+             */
+            InterlockedExchange(&servicectrlnum, ctrl);
+            SetEvent(monitorevent);
+        case SERVICE_CONTROL_INTERROGATE:
+            reportsvcstatus(0, 0);
+        break;
+        default:
+            return ERROR_CALL_NOT_IMPLEMENTED;
+        break;
+    }
+    return 0;
+}
+
 static DWORD WINAPI svcworkerthread(LPVOID unused)
 {
     STARTUPINFOW si;
@@ -1497,6 +1566,7 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
         goto finished;
     }
 
+    SetConsoleCtrlHandler(consolehandler, 1);
     ResumeThread(cmdexeproc.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     CloseHandle(cmdexeproc.hThread);
@@ -1513,75 +1583,6 @@ finished:
     SetEvent(monitorevent);
 
     XENDTHREAD(0);
-}
-
-BOOL WINAPI consolehandler(DWORD ctrl)
-{
-    switch(ctrl) {
-        case CTRL_CLOSE_EVENT:
-        case CTRL_SHUTDOWN_EVENT:
-            /**
-             * Wait for SvcBatch to terminate, but respond
-             * after a reasonable time to tell the system
-             * that we did attempt to shut ourselves down.
-             *
-             * Use 30 seconds as timeout value
-             * which is the time according to MSDN for
-             * services to react on system shutdown
-             */
-            EnterCriticalSection(&logservicelock);
-            if (IS_VALID_HANDLE(logfhandle)) {
-                logfflush();
-                logwrline("CTRL_SHUTDOWN_EVENT signaled");
-            }
-            LeaveCriticalSection(&logservicelock);
-            WaitForSingleObject(serviceended, SVCBATCH_STOP_WAIT);
-        break;
-        case CTRL_C_EVENT:
-        case CTRL_BREAK_EVENT:
-        case CTRL_LOGOFF_EVENT:
-            /**
-             * TRUE means that we handled the signal
-             */
-        break;
-        default:
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "  unknown ctrl %d", ctrl);
-#endif
-            return FALSE;
-        break;
-    }
-    return TRUE;
-}
-
-DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
-{
-    switch(ctrl) {
-        case SERVICE_CONTROL_SHUTDOWN:
-#if defined(SERVICE_CONTROL_PRESHUTDOWN)
-        case SERVICE_CONTROL_PRESHUTDOWN:
-#endif
-        case SERVICE_CONTROL_STOP:
-            xcreatethread(1, &svcstopthread, 0);
-        break;
-        case SVCBATCH_CTRL_BREAK:
-            if (hasctrlbreak == 0)
-                return ERROR_CALL_NOT_IMPLEMENTED;
-        case SVCBATCH_CTRL_ROTATE:
-            /**
-             * Signal to svcmonitorthread that
-             * user send custom service control
-             */
-            InterlockedExchange(&servicectrlnum, ctrl);
-            SetEvent(monitorevent);
-        case SERVICE_CONTROL_INTERROGATE:
-            reportsvcstatus(0, 0);
-        break;
-        default:
-            return ERROR_CALL_NOT_IMPLEMENTED;
-        break;
-    }
-    return 0;
 }
 
 /**
@@ -1843,9 +1844,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (IS_INVALID_HANDLE(hstdin))
         return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
-    if (SetConsoleCtrlHandler(consolehandler, 1) == 0)
-        return svcsyserror(__LINE__, GetLastError(), L"SetConsoleCtrlHandler");
-
     if (resolvesvcbatchexe() == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
 
