@@ -865,9 +865,26 @@ static int runningasservice(void)
 }
 
 /**
- * Report service status to SCM.
+ * ServiceStatus support functions.
  */
-static DWORD reportsvcstatus(DWORD status, DWORD param)
+static void setsvcstatusexit(DWORD e)
+{
+    EnterCriticalSection(&scmservicelock);
+    servicestatus.dwServiceSpecificExitCode = e;
+    LeaveCriticalSection(&scmservicelock);
+}
+
+static DWORD getservicestate(void)
+{
+    DWORD cs;
+
+    EnterCriticalSection(&scmservicelock);
+    cs = servicestatus.dwCurrentState;
+    LeaveCriticalSection(&scmservicelock);
+    return cs;
+}
+
+static void reportsvcstatus(DWORD status, DWORD param)
 {
     static DWORD cpcnt = 1;
 
@@ -877,9 +894,7 @@ static DWORD reportsvcstatus(DWORD status, DWORD param)
         goto finished;
     }
     if (status == 0) {
-        status = servicestatus.dwCurrentState;
-        if (param != 0)
-            SetServiceStatus(svcstathandle, &servicestatus);
+        SetServiceStatus(svcstathandle, &servicestatus);
         goto finished;
     }
     servicestatus.dwControlsAccepted = 0;
@@ -923,7 +938,6 @@ static DWORD reportsvcstatus(DWORD status, DWORD param)
 
 finished:
     LeaveCriticalSection(&scmservicelock);
-    return status;
 }
 
 static PSECURITY_ATTRIBUTES getnullacl(BOOL inheritable)
@@ -1193,7 +1207,7 @@ static DWORD rotatesvclog(void)
     }
     LeaveCriticalSection(&logservicelock);
     if (rv) {
-        servicestatus.dwServiceSpecificExitCode = rv;
+        setsvcstatusexit(rv);
         svcsyserror(__LINE__, rv, L"rotatesvclog");
     }
     return rv;
@@ -1225,7 +1239,7 @@ static DWORD WINAPI svcstopthread(LPVOID ssignal)
     dbgprintf(__FUNCTION__, "   started");
 #endif
 
-    if (reportsvcstatus(0, 0) != SERVICE_RUNNING) {
+    if (getservicestate() != SERVICE_RUNNING) {
 #if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "   not running");
 #endif
@@ -1474,7 +1488,7 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
         /**
          * CreateProcess failed ... nothing we can do.
          */
-        servicestatus.dwServiceSpecificExitCode = GetLastError();
+        setsvcstatusexit(GetLastError());
         svcsyserror(__LINE__, GetLastError(), L"CreateProcess");
         goto finished;
     }
@@ -1494,7 +1508,7 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
         svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"svcpipethread");
         CloseHandle(cmdexeproc.hThread);
         TerminateProcess(cmdexeproc.hProcess, ERROR_OUTOFMEMORY);
-        servicestatus.dwServiceSpecificExitCode = ERROR_TOO_MANY_TCBS;
+        setsvcstatusexit(ERROR_TOO_MANY_TCBS);
         goto finished;
     }
 
@@ -1575,10 +1589,8 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
              */
             InterlockedExchange(&servicectrlnum, ctrl);
             SetEvent(monitorevent);
-            reportsvcstatus(0, 1);
-        break;
         case SERVICE_CONTROL_INTERROGATE:
-            reportsvcstatus(0, 1);
+            reportsvcstatus(0, 0);
         break;
         default:
             return ERROR_CALL_NOT_IMPLEMENTED;
