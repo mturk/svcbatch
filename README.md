@@ -185,23 +185,6 @@ to the path of the batch file if it was defined
 as absolute path. Otherwise directory of svcbatch.exe
 will be used as working directory.
 
-### -k [signal_name] [uuid]
-
-This option enables batch file or any child
-process to send the signal to the  running SvcBatch executable'
-
-For example inside batch file call
-
-```batchfile
-...
-%SVCBATCH_SERVICE_SELF% /k shutdown %SVCBATCH_SERVICE_UUID%
-```
-
-Currently only the *shutdown* signal is supported. The signal_name
-is only checking the first letter thus signal_name can be just
-`s or S` followed by an arbitrary number of characters.
-
-
 ## Private environment variables
 
 SvcBatch sets few private environment variables that
@@ -218,7 +201,7 @@ current svcbatch.exe ABI. This can be used by batch
 file to determine the SvcBatch functionality.
 
 The ABI version is defined in svcbatch.h file and
-it's current value is **20201205**
+it's current value is **20201207**
 
 #### SVCBATCH_SERVICE_BASE
 
@@ -269,10 +252,6 @@ md "%TEMP%\%SVCBATCH_SERVICE_UUID%"
 rd /S /Q "%TEMP%\%SVCBATCH_SERVICE_UUID%"
 
 ```
-
-This variable is also used for inter-process communication
-between batch file and SvcBatch executable. See **-k** command
-line option for more details.
 
 ## Custom control codes
 

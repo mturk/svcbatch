@@ -45,9 +45,10 @@
  *
  * 20201201   (0.9.1-dev)       Initial version
  * 20201205   (0.9.3-dev)       Add parent signaling support
+ * 20201207   (0.9.4-dev)       Drop parent signaling support
  *
  */
-#define SVCBATCH_VERSION_ABI    "20201205"
+#define SVCBATCH_VERSION_ABI    "20201207"
 
 
 /**

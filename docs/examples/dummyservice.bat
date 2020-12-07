@@ -36,7 +36,7 @@ rem Simulate work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
 rem
 rem Send shutdown signal
-rem %SVCBATCH_SERVICE_SELF% /k S %SVCBATCH_SERVICE_UUID%
+rem sc stop %SVCBATCH_SERVICE_NAME%
 goto doRepeat
 rem Comment above goto to simulate failure
 echo Simulating failure

@@ -78,8 +78,6 @@ static HANDLE    monitorevent     = 0;
  */
 static HANDLE    processended     = 0;
 
-static HANDLE    parentshutdown   = 0;
-
 static HANDLE    redirectedpipewr = 0;
 static HANDLE    redirectedpiperd = 0;
 static HANDLE    redirectedstdinw = 0;
@@ -947,29 +945,6 @@ static PSECURITY_ATTRIBUTES getnullacl(BOOL inheritable)
     return &sa;
 }
 
-static DWORD createsignals(void)
-{
-    DWORD    rc = 0;
-    wchar_t *sn = 0;
-    LPSECURITY_ATTRIBUTES sa;
-
-    if ((sa = getnullacl(0)) == 0) {
-        svcsyserror(__LINE__, ERROR_ACCESS_DENIED, L"SetSecurityDescriptorDacl");
-        rc = ERROR_ACCESS_DENIED;
-        goto finished;
-    }
-    sn = xwcsconcat(L"se-", serviceuuid);
-    parentshutdown = CreateEventW(sa, 0, 0, sn);
-    if (IS_INVALID_HANDLE(parentshutdown)) {
-        rc = svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
-        goto finished;
-    }
-
-finished:
-    xfree(sn);
-    return rc;
-}
-
 static DWORD createiopipes(void)
 {
     LPSECURITY_ATTRIBUTES sa;
@@ -1388,85 +1363,63 @@ static DWORD WINAPI svcpipethread(LPVOID unused)
 static DWORD WINAPI svcmonitorthread(LPVOID unused)
 {
     DWORD  wr;
-    HANDLE wh[2];
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
 #endif
-    wh[0] = monitorevent;
-    wh[1] = parentshutdown;
 
-    for(;;) {
-        wr = WaitForMultipleObjects(2, wh, 0, INFINITE);
-        if (wr == WAIT_OBJECT_0) {
-            LONG cc = InterlockedExchange(&servicectrlnum, 0);
+    while ((wr = WaitForSingleObject(monitorevent, INFINITE)) == WAIT_OBJECT_0) {
+        LONG cc = InterlockedExchange(&servicectrlnum, 0);
 
-            if (cc == 0) {
+        if (cc == 0) {
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "quit signaled");
+            dbgprintf(__FUNCTION__, "quit signaled");
 #endif
+            break;
+        }
+        else if (cc == SVCBATCH_CTRL_BREAK) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "break signaled");
+#endif
+            EnterCriticalSection(&logservicelock);
+            if (IS_VALID_HANDLE(logfhandle)) {
+                logfflush();
+                logwrline("CTRL_BREAK_EVENT signaled\r\n");
+            }
+            LeaveCriticalSection(&logservicelock);
+            /**
+             * Danger Zone!!!
+             *
+             * Send CTRL_BREAK_EVENT to the child process.
+             * This is useful if batch file is running java
+             * CTRL_BREAK signal tells JDK to dump thread stack
+             *
+             * In case subchild does not handle CTRL_BREAK cmd.exe
+             * will probably block on "Terminate batch job (Y/N)?"
+             */
+            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+        }
+        else if (cc == SVCBATCH_CTRL_ROTATE) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "rotate signaled");
+#endif
+            if (rotatesvclog() != 0) {
+#if defined(_DBGVIEW)
+                dbgprintf(__FUNCTION__, "rotate log failed");
+#endif
+                /**
+                 * Logfile rotation failed.
+                 * Create stop thread which will stop the service.
+                 */
+                xcreatethread(1, &svcstopthread, 0);
                 break;
             }
-            else if (cc == SVCBATCH_CTRL_BREAK) {
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "break signaled");
-#endif
-                EnterCriticalSection(&logservicelock);
-                if (IS_VALID_HANDLE(logfhandle)) {
-                    logfflush();
-                    logwrline("CTRL_BREAK_EVENT signaled\r\n");
-                }
-                LeaveCriticalSection(&logservicelock);
-                /**
-                 * Danger Zone!!!
-                 *
-                 * Send CTRL_BREAK_EVENT to the child process.
-                 * This is useful if batch file is running java
-                 * CTRL_BREAK signal tells JDK to dump thread stack
-                 *
-                 * In case subchild does not handle CTRL_BREAK cmd.exe
-                 * will probably block on "Terminate batch job (Y/N)?"
-                 */
-                GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-            }
-            else if (cc == SVCBATCH_CTRL_ROTATE) {
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "rotate signaled");
-#endif
-                if (rotatesvclog() != 0) {
-#if defined(_DBGVIEW)
-                    dbgprintf(__FUNCTION__, "rotate log failed");
-#endif
-                    /**
-                     * Logfile rotation failed.
-                     * Create stop thread which will stop the service.
-                     */
-                    xcreatethread(1, &svcstopthread, 0);
-                    break;
-                }
-            }
-            ResetEvent(monitorevent);
         }
-        else if (wr == WAIT_OBJECT_1) {
-            /**
-             * We got shutdown signal.
-             * Create stop thread that will not send CTRL_C
-             */
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "parent shutdown signaled");
-#endif
-            SAFE_CLOSE_HANDLE(parentshutdown);
-            xcreatethread(1, &svcstopthread, INVALID_HANDLE_VALUE);
-            break;
-        }
-        else {
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "wait failed: %d", wr);
-#endif
-            break;
-        }
+        ResetEvent(monitorevent);
     }
 #if defined(_DBGVIEW)
+    if (wr != WAIT_OBJECT_0)
+        dbgprintf(__FUNCTION__, "wait failed: %d", wr);
     dbgprintf(__FUNCTION__, "done");
 #endif
     XENDTHREAD(0);
@@ -1698,8 +1651,6 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
         ep += eblen + 1;
     }
 
-    if ((rv = createsignals()) != 0)
-        goto finished;
     if ((rv = createiopipes()) != 0)
         goto finished;
     wh[0] = xcreatethread(0, &svcmonitorthread, 0);
@@ -1772,53 +1723,6 @@ static void __cdecl svcobjectscleanup(void)
     SAFE_CLOSE_HANDLE(stopsignaled);
     SAFE_CLOSE_HANDLE(serviceended);
     SAFE_CLOSE_HANDLE(monitorevent);
-    SAFE_CLOSE_HANDLE(parentshutdown);
-}
-
-/**
- * Run when child calls
- * svcbatch.exe /k [signal_name] %SVCBATCH_SERVICE_UUID%
- */
-static DWORD signalhandler(const wchar_t *sign, const wchar_t *uuid)
-{
-    DWORD    rc = 0;
-    HANDLE   eh;
-    wchar_t *sn;
-
-    switch (sign[0]) {
-        case L's':
-        case L'S':
-            sn = xwcsconcat(L"se-", uuid);
-        break;
-        default:
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "   unknown signal: %S", sign);
-#endif
-            return ERROR_INVALID_PARAMETER;
-        break;
-    }
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "   %S", sn);
-#endif
-    eh = OpenEventW(EVENT_MODIFY_STATE, 0, sn);
-    if (IS_INVALID_HANDLE(eh)) {
-        rc = GetLastError();
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "   OpenEvent error: %d", rc);
-#endif
-        goto finished;
-    }
-    if (SetEvent(eh) == 0) {
-        rc = GetLastError();
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "   SetEvent error: %d", rc);
-#endif
-    }
-    CloseHandle(eh);
-
-finished:
-    xfree(sn);
-    return rc;
 }
 
 /**
@@ -1837,8 +1741,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     HANDLE      hstdin;
     SECURITY_ATTRIBUTES  sa;
     SERVICE_TABLE_ENTRYW se[2];
-    const wchar_t *psignaluuid = 0;
-    const wchar_t *psignalsign = 0;
 
     /**
      * Simple case insensitive argument parsing
@@ -1854,15 +1756,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 if (servicehome == 0)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
-            }
-            if (psignalsign == zerostring) {
-                psignalsign = p;
-                psignaluuid = zerostring;
-                continue;
-            }
-            if (psignaluuid == zerostring) {
-                psignaluuid = p;
-                break;
             }
             hasopts = 0;
             if ((p[0] == L'-') || (p[0] == L'/')) {
@@ -1897,10 +1790,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'W':
                         servicehome = zerostring;
                     break;
-                    case L'k':
-                    case L'K':
-                        psignalsign = zerostring;
-                    break;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown cmdline option");
                     break;
@@ -1922,15 +1811,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              */
             return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
         }
-    }
-    if (psignalsign != 0) {
-        /**
-         * We got signal request from child process
-         */
-        if (psignalsign == zerostring || psignaluuid == 0 || psignaluuid == zerostring)
-            return ERROR_INVALID_PARAMETER;
-        else
-            return signalhandler(psignalsign, psignaluuid);
     }
 #if defined(_DBGVIEW)
     OutputDebugStringA("Lets go");
