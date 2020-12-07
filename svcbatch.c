@@ -84,10 +84,6 @@ static HANDLE    redirectedstdinw = 0;
 static HANDLE    redirectedstdinr = 0;
 static ULONGLONG logstartedtime;
 
-static const wchar_t wcsbase16[]  = L"0123456789abcdef";
-#define HI_NIBBLE_HEX(a) wcsbase16[(a) >> 4]
-#define LO_NIBBLE_HEX(a) wcsbase16[(a) & 0x0F]
-
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 
 static const wchar_t *stdwinpaths = L";"    \
@@ -397,35 +393,26 @@ static int isrelativepath(const wchar_t *path)
         return 1;
 }
 
-static int xgetrandom(unsigned char *buf, DWORD len)
+static wchar_t *xuuidstring(void)
 {
-    DWORD      r = 0;
-    HCRYPTPROV h;
+    int i, x;
+    wchar_t      *b;
+    HCRYPTPROV    h;
+    unsigned char d[16];
+    const wchar_t xb16[] = L"0123456789abcdef";
 
     if (CryptAcquireContext(&h, 0, 0, PROV_RSA_FULL,
                             CRYPT_VERIFYCONTEXT | CRYPT_SILENT) == 0)
         return 0;
-    if (CryptGenRandom(h, len, buf) == 0)
-        r = GetLastError();
-    CryptReleaseContext(h, 0);
-    SetLastError(r);
-    return r == 0;
-}
-
-static wchar_t *xuuidstring(void)
-{
-    int i, x;
-    unsigned char d[16];
-    wchar_t      *b;
-
-    if (xgetrandom(d, 16) == 0)
+    if (CryptGenRandom(h, 16, d) == 0)
         return 0;
+    CryptReleaseContext(h, 0);
     b = xwalloc(38);
     for (i = 0, x = 0; i < 16; i++) {
         if (i == 4 || i == 6 || i == 8 || i == 10)
             b[x++] = '-';
-        b[x++] = HI_NIBBLE_HEX(d[i]);
-        b[x++] = LO_NIBBLE_HEX(d[i]);
+        b[x++] = xb16[d[i] >> 4];
+        b[x++] = xb16[d[1] & 0x0F];
     }
 
     return b;
@@ -719,7 +706,7 @@ static wchar_t *expandenvstr(const wchar_t *str)
 
 static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 {
-    wchar_t    *exp;
+    wchar_t    *es;
     wchar_t    *buf  = 0;
     int         siz  = _MAX_FNAME;
     int         len  = 0;
@@ -728,12 +715,12 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 
     if (IS_EMPTY_WCS(path))
         return 0;
-    if ((exp = expandenvstr(path)) == 0)
+    if ((es = expandenvstr(path)) == 0)
         return 0;
 
-    fh = CreateFileW(exp, GENERIC_READ, FILE_SHARE_READ, 0,
+    fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, 0,
                      OPEN_EXISTING, fa, 0);
-    xfree(exp);
+    xfree(es);
     if (IS_INVALID_HANDLE(fh))
         return 0;
 
@@ -934,7 +921,8 @@ static void reportsvcstatus(DWORD status, DWORD param)
         servicestatus.dwWaitHint   = param;
     }
     servicestatus.dwCurrentState = status;
-    SetServiceStatus(svcstathandle, &servicestatus);
+    if (SetServiceStatus(svcstathandle, &servicestatus) == 0)
+        svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
 
 finished:
     LeaveCriticalSection(&scmservicelock);
@@ -966,10 +954,8 @@ static DWORD createiopipes(void)
     HANDLE sh = 0;
     HANDLE cp = GetCurrentProcess();
 
-    if ((sa = getnullacl(1)) == 0) {
-        svcsyserror(__LINE__, ERROR_ACCESS_DENIED, L"SetSecurityDescriptorDacl");
-        return ERROR_ACCESS_DENIED;
-    }
+    if ((sa = getnullacl(1)) == 0)
+        return svcsyserror(__LINE__, ERROR_ACCESS_DENIED, L"SetSecurityDescriptorDacl");
     /**
      * Create stdin pipe
      */
@@ -1024,7 +1010,6 @@ static DWORD logappend(LPCVOID buf, DWORD len)
         return GetLastError();
     else
         return 0;
-
 }
 
 /**
@@ -1033,12 +1018,12 @@ static DWORD logappend(LPCVOID buf, DWORD len)
  * logging so that pipe thread data is separated
  * from our log messages
  */
-static DWORD logfflush(void)
+static void logfflush(void)
 {
     char  b[2] = {'\r', '\n'};
 
     FlushFileBuffers(logfhandle);
-    return logappend(b, 2);
+    logappend(b, 2);
 }
 
 static void logwrline(const char *str)
@@ -1742,8 +1727,8 @@ static void __cdecl svcobjectscleanup(void)
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int         i;
-    wchar_t    *opath = 0;
-    wchar_t    *cpath = 0;
+    wchar_t    *opath;
+    wchar_t    *cpath;
     wchar_t    *bname = 0;
     int         envc  = 0;
     int         cleanpath  = 0;
@@ -1753,6 +1738,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     SECURITY_ATTRIBUTES  sa;
     SERVICE_TABLE_ENTRYW se[2];
 
+    if (wenv != 0) {
+        while (wenv[envc] != 0)
+            ++envc;
+    }
+    if (envc == 0)
+        return svcsyserror(__LINE__, 0, L"Missing environment");
     /**
      * Simple case insensitive argument parsing
      * that allows both '-' and '/' as cmdswitches
@@ -1899,10 +1890,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
 
-    if (wenv != 0) {
-        while (wenv[envc] != 0)
-            ++envc;
-    }
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;
