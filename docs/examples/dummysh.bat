@@ -37,7 +37,7 @@ goto End
 :doCreate
 rem
 rem
-set "SERVICE_NAME=Wdummysh"
+set "SERVICE_NAME=dummysh"
 rem Presuming this is the build tree ...
 rem
 sc create "%SERVICE_NAME%" binPath= ""%cd%\..\..\x64\svcbatch.exe" -w "%cd%" %~nx0"
