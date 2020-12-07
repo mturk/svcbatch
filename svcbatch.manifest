@@ -28,7 +28,7 @@
   </compatibility>
 
   <assemblyIdentity type="win32"
-                    version="0.9.4.0"
+                    version="0.9.5.0"
                     processorArchitecture="amd64"
                     name="Acme.Tools.SvcBatch" />
   <description>Run batch files as Windows Services</description>

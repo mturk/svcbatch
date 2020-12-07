@@ -5,6 +5,9 @@ For a full list of changes, see the [git commit log][log]
 
   [log]: https://github.com/mturk/svcbatch/commits/
 
+## v0.9.5
+
+
 ## v0.9.4
 
  * Drop support for parent shutdown signal
