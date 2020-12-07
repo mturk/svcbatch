@@ -19,15 +19,13 @@
 # Dummy shell script
 #
 
-echo "$0: Running $SVCBATCH_SERVICE_NAME service"
+echo "`basename $0`: Inside $SVCBATCH_SERVICE_NAME service"
 echo
 # Dump posix environment
 env
 
-echo
-
 while :
 do
-  echo "Running ... "
+  echo "[`date +'%Y-%M-%d %T'`] Running ... "
   sleep 5
 done
