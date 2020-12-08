@@ -287,19 +287,20 @@ By default the process will exit and service will either fail or hang.
 ## Stop and Shutdown
 
 When you type `sc.exe stop myservice` or when machine gets into
-shutdown state SvcBatch running as a service receive stop or shutdown
-event, SvcBatch will send `CTRL_C_EVENT` to its child processes.
-This mean that any process recoeding, ends up.
+shutdown state SvcBatch running as a service will receive
+stop or shutdown event. SvcBatch will send `CTRL_C_EVENT` to its
+child processes.
 
-It is up to application started from  SvcBatch file to
-handle that event and do any cleanup needed ans exit.
+It is up to the application started from batch file to
+handle this event and do any cleanup needed and then exit.
 After sending `CTRL_C_EVENT` service will wait for one second
-and then send 'Y' to `cmd.exe` to handle its obnoxious
-`Terminate batch job (Y/N)?` question. If batch file does not
-exit with this timeout, SvcBatch will give another 20 seonds
-for all processes to exit. After that timeout SvcBatch will
-kill each descendant process by simply calling `TerminateProcess`
-for each and every process that originates from svcbatch.exe.
+and write 'Y' to `cmd.exe` stdin, to handle that obnoxious
+`Terminate batch job (Y/N)?` prompt. If batch file or any of
+downstream processes do not exit within that timeout,
+SvcBatch will give another 20 seconds for all processes to exit.
+After that timeout it will simply kill each descendant process
+by calling `TerminateProcess` for every process that originated
+from svcbatch.exe.
 
 # License
 
