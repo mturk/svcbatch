@@ -1,4 +1,4 @@
-# Running Python scrips with SvcBatch
+# Running Python scripts with SvcBatch
 
 Python scripts can be easily run as Windows
 services using SvcBatch
