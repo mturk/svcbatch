@@ -1,13 +1,17 @@
 # Running Python scripts with SvcBatch
 
 Python scripts can be easily run as Windows
-services using SvcBatch
+services using SvcBatch. All you need is to create a simple
+batch file that will launch your Python interpreted and
+actual Python script.
 
 
 ## Prerequisites
 
 Install or download your favorite Python distribution
 and `svcbatch.exe` binary release (or build it from the source code)
+The example depends on Python3 functionallity, but if
+familiar, you can easily modify the code.
 
 ### Application
 

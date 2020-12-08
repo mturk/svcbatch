@@ -18,15 +18,14 @@ rem Run Python script as Windows service
 rem
 setlocal
 rem
-if /i "x%~1" == "xinstall" goto doInstall
+if /i "x%~1" == "xcreate" goto doCreate
 rem
 set "PATH=C:\Program Files\Python38;%PATH%"
 rem
 python %~n0.py
 goto End
 
-:doInstall
-rem
+:doCreate
 rem
 sc create %~n0 binPath= ""%cd%\svcbatch.exe" /c /s %~nx0"
 sc privs %~n0 SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
