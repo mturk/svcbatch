@@ -554,7 +554,7 @@ static DWORD killprocesstree(DWORD pid, UINT err)
     PROCESSENTRY32W e;
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " pid: %d", pid);
+    dbgprintf(__FUNCTION__, " %d", pid);
 #endif
     h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (IS_INVALID_HANDLE(h))
@@ -573,7 +573,7 @@ static DWORD killprocesstree(DWORD pid, UINT err)
                  * Process has more then 512 child processes !?
                  */
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, " overflow");
+                dbgprintf(__FUNCTION__, " %d overflow", pid);
 #endif
                 break;
             }
@@ -588,12 +588,15 @@ static DWORD killprocesstree(DWORD pid, UINT err)
     } while (Process32NextW(h, &e));
     CloseHandle(h);
 
+#if defined(_DBGTRACE)
+    dbgprintf(__FUNCTION__, " %d has %d subtrees", pid, c);
+#endif
     for (i = 0; i < c; i++) {
         /**
          * Terminate each child and its children
          */
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, " subtree: %d", a[i]);
+        dbgprintf(__FUNCTION__, " %d killing subtree: %d", pid, a[i]);
 #endif
         killprocesstree(a[i], err);
     }
@@ -606,31 +609,31 @@ static DWORD killprocesstree(DWORD pid, UINT err)
     if (pid == cmdexeproc.dwProcessId)
         return 0;
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " killing pid: %d", pid);
+    dbgprintf(__FUNCTION__, " %d terminating", pid);
 #endif
     p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, pid);
     if (GetExitCodeProcess(p, &x)) {
         if (x == STILL_ACTIVE) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, " STILL_ACTIVE");
+            dbgprintf(__FUNCTION__, " %d STILL_ACTIVE", pid);
 #endif
             if (TerminateProcess(p, err) == 0)
                 r = GetLastError();
 #if defined(_DBGVIEW)
             if (r)
-                dbgprintf(__FUNCTION__, " term failed: %d", r);
+                dbgprintf(__FUNCTION__, " %d terminate failed: %d", pid, r);
 #endif
         }
 #if defined(_DBGVIEW)
         else {
-            dbgprintf(__FUNCTION__, " EXIT_CODE %d ", x);
+            dbgprintf(__FUNCTION__, " %d EXIT_CODE %d ", pid, x);
         }
 #endif
     }
     else
         r = GetLastError();
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " done pid: %d rv: %d", pid, r);
+    dbgprintf(__FUNCTION__, " %d done %d", pid, r);
 #endif
     return r;
 }
@@ -642,8 +645,14 @@ static DWORD killprocessmain(UINT err)
 
     if (IS_INVALID_HANDLE(cmdexeproc.hProcess))
         return 0;
+#if defined(_DBGTRACE)
+    dbgprintf(__FUNCTION__, " %d", cmdexeproc.dwProcessId);
+#endif
     if (GetExitCodeProcess(cmdexeproc.hProcess, &x)) {
         if (x == STILL_ACTIVE) {
+#if defined(_DBGTRACE)
+            dbgprintf(__FUNCTION__, " %d STILL_ACTIVE", cmdexeproc.dwProcessId);
+#endif
             if (TerminateProcess(cmdexeproc.hProcess, err) == 0)
                 r = GetLastError();
         }
@@ -651,8 +660,8 @@ static DWORD killprocessmain(UINT err)
     else {
         r = GetLastError();
     }
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " main pid: %d %d:%d ", cmdexeproc.dwProcessId, x, r);
+#if defined(_DBGTRACE)
+    dbgprintf(__FUNCTION__, " %d done %d ", cmdexeproc.dwProcessId, r);
 #endif
 
     return r;
