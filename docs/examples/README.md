@@ -8,9 +8,5 @@ environments and target applications.
 ### dummyservice.bat
 
 This is simple example that shows how to
-create run and delete a SvcBatch service
+create, run and delete SvcBatch service.
 
-### dummysh.bat
-
-This example shows how to use Msys2 or Cygwin
-to run a bash script as a service or service wrapper.
