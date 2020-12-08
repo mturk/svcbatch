@@ -23,15 +23,11 @@ provide complete solution to run and manage Apache Tomcat as
 windows service.
 
 
-You can put example [winservice](tomcat/winservice.bat) and [servicemgr](tomcat/servicemgr.bat)
-batch files into your `tomcat/bin` directory. Modify Tomcat versions in
-servicemgr.bat file as needed and then type...
-
+Put [winservice](tomcat/winservice.bat) and [servicemgr](tomcat/servicemgr.bat)
+batch files into your `tomcat/bin` directory.
 [servicemgr](omcat/servicemgr.bat) is a simple batch file
 that can be used instead typing multiple commands.
 
-To create a Tomcat service, put that file inside `tomcat/bin` directory
-and type ...
 ```no-highlight
 
 > servicemgr.bat create Tomcat10
