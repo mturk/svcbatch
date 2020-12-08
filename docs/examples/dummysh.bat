@@ -28,30 +28,27 @@ echo.
 rem Dump environment variables to log file
 set
 echo.
-rem Modify to your Msys2/Cygwin
+rem Modify to your Msys2/Cygwin install location
 rem set "PATH=C:\msys64\usr\bin;%PATH%"
 set "PATH=C:\cygwin64\bin;%PATH%"
-bash.exe --noprofile --norc "%cd%\dummysh.sh"
+bash.exe --noprofile --norc "%cd%\%~n0.sh"
 goto End
 
 :doCreate
 rem
-rem
-set "SERVICE_NAME=dummysh"
 rem Presuming this is the build tree ...
 rem
-sc create "%SERVICE_NAME%" binPath= ""%cd%\..\..\x64\svcbatch.exe" -w "%cd%" %~nx0"
-sc config "%SERVICE_NAME%" DisplayName= "A Dummy Bash Service"
-sc description "%SERVICE_NAME%" "Run shell script as service using Msys2/Cygwin bash"
-sc privs "%SERVICE_NAME%" SeDebugPrivilege
+sc create "%~n0" binPath= ""%cd%\..\..\x64\svcbatch.exe" -w "%cd%" %~nx0"
+sc config "%~n0" DisplayName= "A Dummy Bash Service"
+sc description "%~n0" "Run shell script as service using bash from Msys2/Cygwin"
+sc privs "%~n0" SeDebugPrivilege
 goto End
 
 :doDelete
 rem
 rem
-set "SERVICE_NAME=dummysh"
-sc stop "%SERVICE_NAME%" >NUL
-sc delete "%SERVICE_NAME%"
+sc stop "%~n0" >NUL
+sc delete "%~n0"
 rem
 rem rd /S /Q Logs 2>NUL
 

@@ -22,7 +22,7 @@ if /i "x%~1" == "xinstall" goto doInstall
 rem
 set "PATH=C:\Program Files\Python38;%PATH%"
 rem
-python dummyapplication.py
+python %~n0.py
 goto End
 
 :doInstall
