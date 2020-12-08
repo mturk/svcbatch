@@ -9,6 +9,16 @@ This is particularly useful when running Java applications or
 scripts written in Perl, Python, Ruby, etc... without the need
 for a specialized service wrapper.
 
+SvcBatch was designed to be simple to use and lightweight with small
+memory footprint. It is written in around 2K lines of pure **C** code,
+and depends only on win32 API. There are no configuration
+files or installation requirements, so it can be easily distributed
+alongside any application that requires Windows service functionality.
+
+Read the rest of the documentation and check [examples](docs/examples/)
+for some overview and ideas how to use and deploy SvcBatch
+with your application.
+
 
 ## Supported Windows Versions
 
