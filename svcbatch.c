@@ -23,15 +23,16 @@
 #include <process.h>
 #include "svcbatch.h"
 
-static volatile LONG         servicectrlnum  = 0;
-static SERVICE_STATUS_HANDLE svcstathandle   = 0;
+static volatile LONG         monitorsignum  = 0;
+static SERVICE_STATUS_HANDLE statushandle   = 0;
 static PROCESS_INFORMATION   cmdexeproc;
 static SERVICE_STATUS        servicestatus;
-static CRITICAL_SECTION      scmservicelock;
-static CRITICAL_SECTION      logservicelock;
+static CRITICAL_SECTION      servicelock;
+static CRITICAL_SECTION      logfilelock;
 
 static wchar_t **dupwenvp         = 0;
 static int       dupwenvc         = 0;
+static wchar_t  *wenvblock        = 0;
 static int       hasctrlbreak     = 0;
 
 /**
@@ -46,7 +47,6 @@ static wchar_t  *logfilename      = 0;
 static HANDLE    logfhandle       = 0;
 
 static wchar_t  *comspecexe       = 0;
-static wchar_t  *childenviron     = 0;
 static wchar_t  *servicename      = 0;
 static wchar_t  *servicehome      = 0;
 static wchar_t  *serviceuuid      = 0;
@@ -63,7 +63,7 @@ static HANDLE    serviceended     = 0;
  * servicemain must wait for that event
  * after main child is finished or killed
  */
-static HANDLE    stopsignaled     = 0;
+static HANDLE    svcstopevent     = 0;
 /**
  * Set when SCM sends Custom signal
  */
@@ -865,18 +865,18 @@ static int runningasservice(void)
  */
 static void setsvcstatusexit(DWORD e)
 {
-    EnterCriticalSection(&scmservicelock);
+    EnterCriticalSection(&servicelock);
     servicestatus.dwServiceSpecificExitCode = e;
-    LeaveCriticalSection(&scmservicelock);
+    LeaveCriticalSection(&servicelock);
 }
 
 static DWORD getservicestate(void)
 {
     DWORD cs;
 
-    EnterCriticalSection(&scmservicelock);
+    EnterCriticalSection(&servicelock);
     cs = servicestatus.dwCurrentState;
-    LeaveCriticalSection(&scmservicelock);
+    LeaveCriticalSection(&servicelock);
     return cs;
 }
 
@@ -884,13 +884,13 @@ static void reportsvcstatus(DWORD status, DWORD param)
 {
     static DWORD cpcnt = 1;
 
-    EnterCriticalSection(&scmservicelock);
+    EnterCriticalSection(&servicelock);
     if (servicestatus.dwCurrentState == SERVICE_STOPPED) {
         status = SERVICE_STOPPED;
         goto finished;
     }
     if (status == 0) {
-        SetServiceStatus(svcstathandle, &servicestatus);
+        SetServiceStatus(statushandle, &servicestatus);
         goto finished;
     }
     servicestatus.dwControlsAccepted = 0;
@@ -919,11 +919,11 @@ static void reportsvcstatus(DWORD status, DWORD param)
         servicestatus.dwWaitHint   = param;
     }
     servicestatus.dwCurrentState = status;
-    if (SetServiceStatus(svcstathandle, &servicestatus) == 0)
+    if (SetServiceStatus(statushandle, &servicestatus) == 0)
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
 
 finished:
-    LeaveCriticalSection(&scmservicelock);
+    LeaveCriticalSection(&servicelock);
 }
 
 static PSECURITY_ATTRIBUTES getnullacl(BOOL inheritable)
@@ -1173,7 +1173,7 @@ static DWORD rotatelogfile(void)
     static int rotatecount = 1;
     DWORD rv;
 
-    EnterCriticalSection(&logservicelock);
+    EnterCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(logfhandle)) {
         SYSTEMTIME tt;
         GetLocalTime(&tt);
@@ -1188,7 +1188,7 @@ static DWORD rotatelogfile(void)
         logprintf("Log generation   : %d", rotatecount++);
         logconfig();
     }
-    LeaveCriticalSection(&logservicelock);
+    LeaveCriticalSection(&logfilelock);
     if (rv) {
         setsvcstatusexit(rv);
         svcsyserror(__LINE__, rv, L"rotatelogfile");
@@ -1198,7 +1198,7 @@ static DWORD rotatelogfile(void)
 
 static void closelogfile(void)
 {
-    EnterCriticalSection(&logservicelock);
+    EnterCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(logfhandle)) {
         SYSTEMTIME tt;
         GetLocalTime(&tt);
@@ -1210,7 +1210,7 @@ static void closelogfile(void)
         FlushFileBuffers(logfhandle);
         SAFE_CLOSE_HANDLE(logfhandle);
     }
-    LeaveCriticalSection(&logservicelock);
+    LeaveCriticalSection(&logfilelock);
 }
 
 static DWORD WINAPI stopthread(LPVOID unused)
@@ -1239,15 +1239,15 @@ static DWORD WINAPI stopthread(LPVOID unused)
      * Set stop event to non signaled.
      * This ensures that main thread will wait until we finish
      */
-    ResetEvent(stopsignaled);
+    ResetEvent(svcstopevent);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
-    EnterCriticalSection(&logservicelock);
+    EnterCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(logfhandle)) {
         logfflush();
         logwrline("Service STOP signaled\r\n");
     }
-    LeaveCriticalSection(&logservicelock);
+    LeaveCriticalSection(&logfilelock);
 
     /**
      * Calling SetConsoleCtrlHandler with the NULL and TRUE arguments
@@ -1307,7 +1307,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
     }
 #endif
 
-    SetEvent(stopsignaled);
+    SetEvent(svcstopevent);
     XENDTHREAD(0);
 }
 
@@ -1332,12 +1332,12 @@ static DWORD WINAPI iopipethread(LPVOID unused)
             break;
         }
 
-        EnterCriticalSection(&logservicelock);
+        EnterCriticalSection(&logfilelock);
         if (IS_VALID_HANDLE(logfhandle))
             rc = logappend(rb, rd);
         else
             rc = ERROR_NO_MORE_FILES;
-        LeaveCriticalSection(&logservicelock);
+        LeaveCriticalSection(&logfilelock);
 
         if (rc != 0)
             break;
@@ -1363,7 +1363,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
 #endif
 
     while ((wr = WaitForSingleObject(monitorevent, INFINITE)) == WAIT_OBJECT_0) {
-        LONG cc = InterlockedExchange(&servicectrlnum, 0);
+        LONG cc = InterlockedExchange(&monitorsignum, 0);
 
         if (cc == 0) {
 #if defined(_DBGVIEW)
@@ -1375,12 +1375,12 @@ static DWORD WINAPI monitorthread(LPVOID unused)
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "   break signaled");
 #endif
-            EnterCriticalSection(&logservicelock);
+            EnterCriticalSection(&logfilelock);
             if (IS_VALID_HANDLE(logfhandle)) {
                 logfflush();
                 logwrline("CTRL_BREAK_EVENT signaled\r\n");
             }
-            LeaveCriticalSection(&logservicelock);
+            LeaveCriticalSection(&logfilelock);
             /**
              * Danger Zone!!!
              *
@@ -1433,12 +1433,12 @@ BOOL WINAPI consolehandler(DWORD ctrl)
              * which is the time according to MSDN for
              * services to react on system shutdown
              */
-            EnterCriticalSection(&logservicelock);
+            EnterCriticalSection(&logfilelock);
             if (IS_VALID_HANDLE(logfhandle)) {
                 logfflush();
                 logwrline("CTRL_SHUTDOWN_EVENT signaled");
             }
-            LeaveCriticalSection(&logservicelock);
+            LeaveCriticalSection(&logfilelock);
             WaitForSingleObject(serviceended, SVCBATCH_STOP_WAIT);
         break;
         case CTRL_C_EVENT:
@@ -1476,7 +1476,7 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
              * Signal to monitorthread that
              * user send custom service control
              */
-            InterlockedExchange(&servicectrlnum, ctrl);
+            InterlockedExchange(&monitorsignum, ctrl);
             SetEvent(monitorevent);
         case SERVICE_CONTROL_INTERROGATE:
             reportsvcstatus(0, 0);
@@ -1531,7 +1531,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
 
     if (CreateProcessW(comspecexe, cmdline, 0, 0, 1,
                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
-                       childenviron,
+                       wenvblock,
                        servicehome,
                        &si, &cmdexeproc) == 0) {
         /**
@@ -1574,7 +1574,7 @@ finished:
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "    done rv %d", servicestatus.dwServiceSpecificExitCode);
 #endif
-    InterlockedExchange(&servicectrlnum, 0);
+    InterlockedExchange(&monitorsignum, 0);
     SetEvent(monitorevent);
 
     XENDTHREAD(0);
@@ -1602,9 +1602,9 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
         return;
     }
 
-    servicename   = xwcsdup(argv[0]);
-    svcstathandle = RegisterServiceCtrlHandlerExW(servicename, servicehandler, 0);
-    if (IS_INVALID_HANDLE(svcstathandle)) {
+    servicename  = xwcsdup(argv[0]);
+    statushandle = RegisterServiceCtrlHandlerExW(servicename, servicehandler, 0);
+    if (IS_INVALID_HANDLE(statushandle)) {
         svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx");
         exit(ERROR_INVALID_HANDLE);
         return;
@@ -1637,8 +1637,8 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
     for (i = 0; i < dupwenvc; i++) {
         eblen += xwcslen(dupwenvp[i]) + 1;
     }
-    childenviron = xwalloc(eblen + 2);
-    for (i = 0, ep = childenviron; i < dupwenvc; i++) {
+    wenvblock = xwalloc(eblen + 2);
+    for (i = 0, ep = wenvblock; i < dupwenvc; i++) {
         eblen = xwcslen(dupwenvp[i]);
         wmemcpy(ep, dupwenvp[i], eblen);
         ep += eblen + 1;
@@ -1670,7 +1670,7 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
     /**
      * Wait for stop thread to finish if started
      */
-    WaitForSingleObject(stopsignaled, SVCBATCH_STOP_WAIT);
+    WaitForSingleObject(svcstopevent, SVCBATCH_STOP_WAIT);
 
 finished:
 
@@ -1705,11 +1705,11 @@ static void __cdecl cconsolecleanup(void)
  */
 static void __cdecl objectscleanup(void)
 {
-    DeleteCriticalSection(&logservicelock);
-    DeleteCriticalSection(&scmservicelock);
+    DeleteCriticalSection(&logfilelock);
+    DeleteCriticalSection(&servicelock);
 
     SAFE_CLOSE_HANDLE(processended);
-    SAFE_CLOSE_HANDLE(stopsignaled);
+    SAFE_CLOSE_HANDLE(svcstopevent);
     SAFE_CLOSE_HANDLE(serviceended);
     SAFE_CLOSE_HANDLE(monitorevent);
 }
@@ -1937,18 +1937,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Create logic state events
      */
-    stopsignaled = CreateEventW(&sa, 1, 1, 0);
+    svcstopevent = CreateEventW(&sa, 1, 1, 0);
     processended = CreateEventW(&sa, 1, 0, 0);
     serviceended = CreateEventW(&sa, 1, 0, 0);
     monitorevent = CreateEventW(&sa, 1, 0, 0);
     if (IS_INVALID_HANDLE(serviceended) ||
-        IS_INVALID_HANDLE(stopsignaled) ||
         IS_INVALID_HANDLE(processended) ||
+        IS_INVALID_HANDLE(svcstopevent) ||
         IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, ERROR_OUTOFMEMORY, L"CreateEvent");
 
-    InitializeCriticalSection(&scmservicelock);
-    InitializeCriticalSection(&logservicelock);
+    InitializeCriticalSection(&servicelock);
+    InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
 
     se[0].lpServiceName = zerostring;
