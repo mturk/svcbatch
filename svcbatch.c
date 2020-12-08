@@ -336,13 +336,15 @@ static int envsort(const void *arg1, const void *arg2)
     return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
 }
 
-static void fs2bs(wchar_t *s)
+static wchar_t *xreplacepathsep(wchar_t *s)
 {
-    while (*s != L'\0') {
-        if (*s == L'/')
-            *s = L'\\';
-        s++;
+    wchar_t *p = s;
+    while (*p != L'\0') {
+        if (*p == L'/')
+            *p = L'\\';
+        p++;
     }
+    return s;
 }
 
 static int wcshavespace(const wchar_t *s)
@@ -363,6 +365,7 @@ static void rmtrailingsep(wchar_t *s)
 {
     int i = (int)xwcslen(s);
 
+    xreplacepathsep(s);
     while (--i > 0) {
         if ((s[i] == L'\\') || (s[i] == L';'))
             s[i] = L'\0';
@@ -682,7 +685,7 @@ static HANDLE xcreatethread(int detach,
     return h;
 }
 
-static wchar_t *expandenvstr(const wchar_t *str)
+static wchar_t *expandenvironment(const wchar_t *str)
 {
     wchar_t  *buf = 0;
     int       bsz = MBUFSIZ;
@@ -704,8 +707,7 @@ static wchar_t *expandenvstr(const wchar_t *str)
             bsz = len + 1;
         }
     }
-    fs2bs(buf);
-    return buf;
+    return xreplacepathsep(buf);
 }
 
 static wchar_t *getrealpathname(const wchar_t *path, int isdir)
@@ -719,7 +721,7 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 
     if (IS_EMPTY_WCS(path))
         return 0;
-    if ((es = expandenvstr(path)) == 0)
+    if ((es = expandenvironment(path)) == 0)
         return 0;
 
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, 0,
@@ -1789,7 +1791,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              * First argument after options is batch file
              * that we are going to execute.
              */
-            if ((bname = expandenvstr(p)) == 0)
+            if ((bname = expandenvironment(p)) == 0)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
         }
         else {
@@ -1916,12 +1918,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                  stdwinpaths, 0);
         xfree(opath);
 
-        if ((opath = expandenvstr(cp)) == 0)
+        if ((opath = expandenvironment(cp)) == 0)
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
         xfree(cp);
     }
     else {
-        fs2bs(opath);
         rmtrailingsep(opath);
     }
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
