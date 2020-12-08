@@ -7,24 +7,64 @@ Ensure that you have at least jdk version 8 installed, so that
 java.exe does not exit on user log off.
 
 
-#### Step 1:
-Download latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
-and put `svcbatch.exe` into your `tomcat/bin` directory
+### Prerequisites
 
-You can put example [winservice](tomcat/winservice.bat) and [tomcat/servicemgr](servicemgr.bat)
+Download latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
+and put `svcbatch.exe` into your `tomcat/bin` directory.
+SvcBatch executable can be shared between multiple Tomcat instances.
+Simply put `svcbatch.exe` into desired directory and modify
+your service create scripts to pass the full path to `svcbatch.exe`
+
+
+### Example service
+
+Inside [Tomcat](tomcat/) directory there are two batch files that
+provide complete solution to run and manage Apache Tomcat as
+windows service.
+
+
+You can put example [winservice](tomcat/winservice.bat) and [servicemgr](tomcat/servicemgr.bat)
 batch files into your `tomcat/bin` directory. Modify Tomcat versions in
 servicemgr.bat file as needed and then type...
 
+[servicemgr](omcat/servicemgr.bat) is a simple batch file
+that can be used instead typing multiple commands.
+
+To create a Tomcat service, put that file inside `tomcat/bin` directory
+and type ...
 ```no-highlight
 
 > servicemgr.bat create Tomcat10
->
-> sc start Tomcat10
+
 ```
 
-... or follow next steps
+Before executing that command, edit `servicemgr.bat` and modify
+`TOMCAT_DISPLAY` and `TOMCAT_FULLVER` variables to match the Tomcat
+version you are using. You can actually just put any string
+for `DisplayName=` and `sc description ...` directly as fits.
 
-#### Step 2:
+After creating a service, edit `winservice.bat` file and modify
+JAVA_HOME to yours actual jdk location. You can replace that line
+with JRE_HOME. You can set JAVA_HOME or JRE_HOME inside
+System Environment, but then you must remove the `/s` switch inside
+servicemgr.bat `sc create ...` command, because with `/s` switch, SvcBatch
+will remove any *unsafe* environment variable.
+
+That's it! Now, just type ...
+```no-highlight
+
+> sc start Tomcat10
+  or ...
+> net start Tomcat10
+
+```
+
+### Step by step
+
+Instead above example, you can create your own
+service batch file by following next few steps.
+
+#### Step 1:
 Create a batch file named `tomcatsvc.bat` inside `tomcat/bin`
 with the following content
 
@@ -38,8 +78,8 @@ catalina.bat run
 
 ```
 
-#### Step 3:
-Install service by opening command prompt with Administrator
+#### Step 2:
+Create service by opening command prompt with Administrator
 privileges inside your `tomcat/bin` directory
 
 ```no-highlight
@@ -68,7 +108,7 @@ blanks are not typos :D
 Check [SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create)
 for detailed description how to use the SC utility to create a service
 
-#### Step 4:
+#### Step 3:
 Start the service by entering
 
 ```no-highlight
@@ -76,7 +116,7 @@ Start the service by entering
 
 ```
 
-#### Step 5:
+#### Step 4:
 Get full java thread dump
 
 ```no-highlight
@@ -90,7 +130,7 @@ The output is written to SvcBatch.log file.
 This feature is enabled only if `/b` command line switch was
 defined at service's install.
 
-#### Step 6:
+#### Step 5:
 Rotate log files
 This will move Logs/SvcBatch.log to Logs/SvcBatch.log.1
 and create a new Logs/SvcBatch.log file
@@ -101,7 +141,7 @@ Read the Log Rotation section for more details.
 
 ```
 
-#### Step 7:
+#### Step 6:
 Stop the service by entering
 
 ```no-highlight
@@ -109,10 +149,12 @@ Stop the service by entering
 
 ```
 
-#### Step 8:
-Uninstall the service by entering
+#### Step 7:
+Delete the service by entering
 
 ```no-highlight
 > sc.exe delete Tomcat
 
 ```
+
+**!!!** Ensure the service was stopped before deletion
