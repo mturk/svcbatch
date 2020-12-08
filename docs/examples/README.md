@@ -4,27 +4,28 @@ This directory contains various examples explaining how
 to run and deploy SvcBatch utility inside different
 environments and target applications.
 
+More content will be added as we go.
 
 ### dummyservice.bat
 
-This is simple example that shows how to
-create, run and delete SvcBatch service.
+This is example batch that shows how to create,
+run and delete SvcBatch service.
 
 ### Apache Tomcat
 
-Check [Apache Tomcat](apachetomcat.md) for more details
-how to simply create and run Apache Tomcat as Windows
-service.
+Open [apachetomcat.md](apachetomcat.md) for more details
+how to create and run Apache Tomcat as Windows service.
 
 ### Python
 
-Check [Python](python.md) for some examples how to
-easily convert Python applications to Windows services.
+Open [python.md](python.md) for detailed explanation
+about how to easily convert Python applications to Windows services.
 
 ### Ruby
 
-Inside [Ruby directory](ruby) you can find simple
-web server example.
+Inside [ruby](ruby) directory you can find simple
+web server example and a batch file that is used as
+service wrapper.
 
 Put `svcbatch.exe` into that directory and create
 the service by typing
@@ -32,16 +33,21 @@ the service by typing
 ```no-highlight
 
 > rbhttpserver.bat create
+
+... you should see something like below ...
+
 [SC] CreateService SUCCESS
 [SC] ChangeServiceConfig SUCCESS
 
 ```
 
-After that start the service by typing
+After that, start the service by typing
 
 ```no-highlight
 
 > sc start rbhttpserver
+
+  SC should display something like this ...
 
 SERVICE_NAME: rbhttpserver
         TYPE               : 10  WIN32_OWN_PROCESS
@@ -56,10 +62,14 @@ SERVICE_NAME: rbhttpserver
 
 ```
 
-You can test if it works by typing ...
+Get response from our web server by typing ...
+
 ```no-highlight
 
 # curl -v http://localhost:8088
+
+... This is typical output
+
 *   Trying ::1:8088...
 * Connected to localhost (::1) port 8088 (#0)
 > GET / HTTP/1.1
