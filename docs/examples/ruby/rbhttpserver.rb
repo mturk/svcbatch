@@ -1,4 +1,18 @@
 #!/usr/bin/env ruby
+# Licensed to the Apache Software Foundation (ASF) under one or more
+# contributor license agreements.  See the NOTICE file distributed with
+# this work for additional information regarding copyright ownership.
+# The ASF licenses this file to You under the Apache License, Version 2.0
+# (the "License"); you may not use this file except in compliance with
+# the License.  You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 require 'webrick'
 
@@ -11,20 +25,3 @@ server.mount_proc '/' do |req, res|
 end
 
 server.start
-
-
-
-
-# After that, make the script an executable.
-#
-# To start the server, run ./script/http_server.rb
-
-# Start HTTP server
-#./script/http_server.rb
-# => [2015-08-02 07:19:17] INFO  WEBrick 1.3.1
-# => [2015-08-02 07:19:17] INFO  ruby 2.2.2 (2015-04-13) [x86_64-linux]
-# => [2015-08-02 07:19:17] INFO  WEBrick::HTTPServer#start: pid=15600 port=8000
-# To check if the server is running correctly, invoke curl – you may need to install this program on your machine.
-
-# curl http://localhost:8088
-# => Example Domain Cleartext
