@@ -66,21 +66,21 @@ by using **SC** Windows utility.
 
 
 ```no-highlight
-> sc create onedummysvc binPath= ""%CD%\svcbatch.exe" /c /s pyservice.bat"
+> sc create pyservice binPath= ""%CD%\svcbatch.exe" /c /s pyservice.bat"
 
 ```
 
 After installation you can use SCM to start or stop the service.
 
 ```no-highlight
-> sc start onedummysvc
+> sc start pyservice
 
 ```
 
 To stop the service type
 
 ```no-highlight
-> sc stop onedummysvc
+> sc stop pyservice
 
 ```
 

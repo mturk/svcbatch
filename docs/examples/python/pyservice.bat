@@ -28,7 +28,7 @@ goto End
 :doInstall
 rem
 rem
-sc create onedummysvc binPath= ""%cd%\svcbatch.exe" /c /s %~nx0"
+sc create %~n0 binPath= ""%cd%\svcbatch.exe" /c /s %~nx0"
 sc privs ssvc1 SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
 
 :End

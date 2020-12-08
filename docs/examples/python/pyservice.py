@@ -7,7 +7,7 @@ One dummy infinite loop
 import time
 
 def main():
-    print("Python dummypyservice.py started", flush=True)
+    print("Python pyservice.py started", flush=True)
 
     while True:
         time.sleep(5)
