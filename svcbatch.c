@@ -1074,7 +1074,7 @@ static void logprintf(const char *format, ...)
  * Create service log file and rotate any previous
  * files in the Logs directory.
  */
-static DWORD opensvclog(int ssp)
+static DWORD openlogfile(int ssp)
 {
     HANDLE   lh = 0;
     wchar_t *logfn;
@@ -1166,7 +1166,7 @@ static void logconfig(void)
 /**
  * Simple log rotation
  */
-static DWORD rotatesvclog(void)
+static DWORD rotatelogfile(void)
 {
     static int rotatecount = 1;
     DWORD rv;
@@ -1182,19 +1182,19 @@ static DWORD rotatesvclog(void)
         FlushFileBuffers(logfhandle);
         SAFE_CLOSE_HANDLE(logfhandle);
     }
-    if ((rv = opensvclog(0)) == 0) {
+    if ((rv = openlogfile(0)) == 0) {
         logprintf("Log generation   : %d", rotatecount++);
         logconfig();
     }
     LeaveCriticalSection(&logservicelock);
     if (rv) {
         setsvcstatusexit(rv);
-        svcsyserror(__LINE__, rv, L"rotatesvclog");
+        svcsyserror(__LINE__, rv, L"rotatelogfile");
     }
     return rv;
 }
 
-static void closesvclog(void)
+static void closelogfile(void)
 {
     EnterCriticalSection(&logservicelock);
     if (IS_VALID_HANDLE(logfhandle)) {
@@ -1211,25 +1211,25 @@ static void closesvclog(void)
     LeaveCriticalSection(&logservicelock);
 }
 
-static DWORD WINAPI svcstopthread(LPVOID unused)
+static DWORD WINAPI stopthread(LPVOID unused)
 {
     static LONG volatile sstarted = 0;
     const char yn[2] = { 'Y', '\n'};
     DWORD wr;
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "   started");
+    dbgprintf(__FUNCTION__, "      started");
 #endif
 
     if (getservicestate() != SERVICE_RUNNING) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "   not running");
+        dbgprintf(__FUNCTION__, "      not running");
 #endif
         XENDTHREAD(0);
     }
     if (InterlockedIncrement(&sstarted) > 1) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "   already started");
+        dbgprintf(__FUNCTION__, "      already started");
 #endif
         XENDTHREAD(0);
     }
@@ -1254,7 +1254,7 @@ static DWORD WINAPI svcstopthread(LPVOID unused)
      * enabled or disabled by any process without affecting existing processes.
      */
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "   CTRL_C_EVENT raised");
+    dbgprintf(__FUNCTION__, "      CTRL_C_EVENT raised");
 #endif
     SetConsoleCtrlHandler(0, 1);
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
@@ -1298,10 +1298,10 @@ static DWORD WINAPI svcstopthread(LPVOID unused)
     {
         DWORD rc;
         if (GetExitCodeProcess(cmdexeproc.hProcess, &rc) == 0)
-            dbgprintf(__FUNCTION__, "   GetExitCodeProcess failed");
+            dbgprintf(__FUNCTION__, "      GetExitCodeProcess failed");
         else
-            dbgprintf(__FUNCTION__, "   GetExitCodeProcess %d", rc);
-        dbgprintf(__FUNCTION__, "   done");
+            dbgprintf(__FUNCTION__, "      GetExitCodeProcess %d", rc);
+        dbgprintf(__FUNCTION__, "      done");
     }
 #endif
 
@@ -1309,12 +1309,12 @@ static DWORD WINAPI svcstopthread(LPVOID unused)
     XENDTHREAD(0);
 }
 
-static DWORD WINAPI svcpipethread(LPVOID unused)
+static DWORD WINAPI iopipethread(LPVOID unused)
 {
     DWORD  rc = 0;
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "   started");
+    dbgprintf(__FUNCTION__, "    started");
 #endif
     for (;;) {
         BYTE  rb[HBUFSIZ];
@@ -1342,22 +1342,22 @@ static DWORD WINAPI svcpipethread(LPVOID unused)
     }
 #if defined(_DBGVIEW)
     if (rc == ERROR_BROKEN_PIPE)
-        dbgprintf(__FUNCTION__, "   done ERROR_BROKEN_PIPE");
+        dbgprintf(__FUNCTION__, "    done ERROR_BROKEN_PIPE");
     else if (rc == ERROR_NO_DATA)
-        dbgprintf(__FUNCTION__, "   done ERROR_NO_DATA");
+        dbgprintf(__FUNCTION__, "    done ERROR_NO_DATA");
     else
-        dbgprintf(__FUNCTION__, "   done %d", rc);
+        dbgprintf(__FUNCTION__, "    done %d", rc);
 #endif
 
     XENDTHREAD(0);
 }
 
-static DWORD WINAPI svcmonitorthread(LPVOID unused)
+static DWORD WINAPI monitorthread(LPVOID unused)
 {
     DWORD  wr;
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "started");
+    dbgprintf(__FUNCTION__, "   started");
 #endif
 
     while ((wr = WaitForSingleObject(monitorevent, INFINITE)) == WAIT_OBJECT_0) {
@@ -1365,13 +1365,13 @@ static DWORD WINAPI svcmonitorthread(LPVOID unused)
 
         if (cc == 0) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "quit signaled");
+            dbgprintf(__FUNCTION__, "   quit signaled");
 #endif
             break;
         }
         else if (cc == SVCBATCH_CTRL_BREAK) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "break signaled");
+            dbgprintf(__FUNCTION__, "   break signaled");
 #endif
             EnterCriticalSection(&logservicelock);
             if (IS_VALID_HANDLE(logfhandle)) {
@@ -1393,17 +1393,17 @@ static DWORD WINAPI svcmonitorthread(LPVOID unused)
         }
         else if (cc == SVCBATCH_CTRL_ROTATE) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "rotate signaled");
+            dbgprintf(__FUNCTION__, "   rotate signaled");
 #endif
-            if (rotatesvclog() != 0) {
+            if (rotatelogfile() != 0) {
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "rotate log failed");
+                dbgprintf(__FUNCTION__, "   rotate log failed");
 #endif
                 /**
                  * Logfile rotation failed.
                  * Create stop thread which will stop the service.
                  */
-                xcreatethread(1, &svcstopthread, 0);
+                xcreatethread(1, &stopthread, 0);
                 break;
             }
         }
@@ -1412,7 +1412,7 @@ static DWORD WINAPI svcmonitorthread(LPVOID unused)
 #if defined(_DBGVIEW)
     if (wr != WAIT_OBJECT_0)
         dbgprintf(__FUNCTION__, "wait failed: %d", wr);
-    dbgprintf(__FUNCTION__, "done");
+    dbgprintf(__FUNCTION__, "   done");
 #endif
     XENDTHREAD(0);
 }
@@ -1464,14 +1464,14 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
         case SERVICE_CONTROL_PRESHUTDOWN:
 #endif
         case SERVICE_CONTROL_STOP:
-            xcreatethread(1, &svcstopthread, 0);
+            xcreatethread(1, &stopthread, 0);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak == 0)
                 return ERROR_CALL_NOT_IMPLEMENTED;
         case SVCBATCH_CTRL_ROTATE:
             /**
-             * Signal to svcmonitorthread that
+             * Signal to monitorthread that
              * user send custom service control
              */
             InterlockedExchange(&servicectrlnum, ctrl);
@@ -1486,7 +1486,7 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
     return 0;
 }
 
-static DWORD WINAPI svcworkerthread(LPVOID unused)
+static DWORD WINAPI workerthread(LPVOID unused)
 {
     STARTUPINFOW si;
     wchar_t *cmdline;
@@ -1496,7 +1496,7 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
 
     memset(&si, 0, sizeof(STARTUPINFOW));
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " started");
+    dbgprintf(__FUNCTION__, "    started");
 #endif
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     /**
@@ -1515,8 +1515,8 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
      */
     cmdline = xwcsvarcat(arg0, L" /D /C \"", arg1, L"\"", 0);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " program %S", comspecexe);
-    dbgprintf(__FUNCTION__, " cmdline %S", cmdline);
+    dbgprintf(__FUNCTION__, "    program %S", comspecexe);
+    dbgprintf(__FUNCTION__, "    cmdline %S", cmdline);
 #endif
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -1540,7 +1540,7 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
         goto finished;
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " childid %d", cmdexeproc.dwProcessId);
+    dbgprintf(__FUNCTION__, "    child id %d", cmdexeproc.dwProcessId);
 #endif
 
     /**
@@ -1550,9 +1550,9 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
     SAFE_CLOSE_HANDLE(redirectedstdinr);
 
     wh[0] = cmdexeproc.hProcess;
-    wh[1] = xcreatethread(0, &svcpipethread, 0);
+    wh[1] = xcreatethread(0, &iopipethread, 0);
     if (IS_INVALID_HANDLE(wh[1])) {
-        svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"svcpipethread");
+        svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"iopipethread");
         CloseHandle(cmdexeproc.hThread);
         TerminateProcess(cmdexeproc.hProcess, ERROR_OUTOFMEMORY);
         setsvcstatusexit(ERROR_TOO_MANY_TCBS);
@@ -1570,7 +1570,7 @@ static DWORD WINAPI svcworkerthread(LPVOID unused)
 finished:
     SetEvent(processended);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " done rv %d", servicestatus.dwServiceSpecificExitCode);
+    dbgprintf(__FUNCTION__, "    done rv %d", servicestatus.dwServiceSpecificExitCode);
 #endif
     InterlockedExchange(&servicectrlnum, 0);
     SetEvent(monitorevent);
@@ -1612,8 +1612,8 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dbgprintf(__FUNCTION__, "     started %S", servicename);
 #endif
 
-    if ((rv = opensvclog(1)) != 0) {
-        svcsyserror(__LINE__, rv, L"OpenLog");
+    if ((rv = openlogfile(1)) != 0) {
+        svcsyserror(__LINE__, rv, L"OpenLogfile");
         exit(rv);
         return;
     }
@@ -1644,16 +1644,16 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     if ((rv = createiopipes()) != 0)
         goto finished;
-    wh[0] = xcreatethread(0, &svcmonitorthread, 0);
+    wh[0] = xcreatethread(0, &monitorthread, 0);
     if (IS_INVALID_HANDLE(wh[0])) {
         rv = ERROR_TOO_MANY_TCBS;
-        svcsyserror(__LINE__, rv, L"svcmonitorthread");
+        svcsyserror(__LINE__, rv, L"monitorthread");
         goto finished;
     }
-    wh[1] = xcreatethread(0, &svcworkerthread,  0);
+    wh[1] = xcreatethread(0, &workerthread,  0);
     if (IS_INVALID_HANDLE(wh[1])) {
         rv = ERROR_TOO_MANY_TCBS;
-        svcsyserror(__LINE__, rv, L"svcworkerthread");
+        svcsyserror(__LINE__, rv, L"workerthread");
         SignalObjectAndWait(monitorevent, wh[0], INFINITE, 0);
         goto finished;
     }
@@ -1681,7 +1681,7 @@ finished:
     SAFE_CLOSE_HANDLE(redirectedstdinr);
     SAFE_CLOSE_HANDLE(cmdexeproc.hProcess);
 
-    closesvclog();
+    closelogfile();
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "     done");
 #endif
@@ -1692,7 +1692,7 @@ finished:
 /**
  * Needed to release conhost.exe
  */
-static void __cdecl svcconsolecleanup(void)
+static void __cdecl cconsolecleanup(void)
 {
     SetConsoleCtrlHandler(consolehandler, 0);
     FreeConsole();
@@ -1701,7 +1701,7 @@ static void __cdecl svcconsolecleanup(void)
 /**
  * Cleanup created resources ...
  */
-static void __cdecl svcobjectscleanup(void)
+static void __cdecl objectscleanup(void)
 {
     DeleteCriticalSection(&logservicelock);
     DeleteCriticalSection(&scmservicelock);
@@ -1823,7 +1823,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          * AllocConsole should create new set of
          * standard i/o handles
          */
-        atexit(svcconsolecleanup);
+        atexit(cconsolecleanup);
         hstdin = GetStdHandle(STD_INPUT_HANDLE);
     }
     if (IS_INVALID_HANDLE(hstdin))
@@ -1948,7 +1948,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     InitializeCriticalSection(&scmservicelock);
     InitializeCriticalSection(&logservicelock);
-    atexit(svcobjectscleanup);
+    atexit(objectscleanup);
 
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
