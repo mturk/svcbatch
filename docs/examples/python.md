@@ -87,5 +87,5 @@ To stop the service type
 ### Example files
 
 The above examples can be found inside
-[python3](python3/) directory.
+[python](python/) directory.
 
