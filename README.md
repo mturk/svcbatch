@@ -172,7 +172,15 @@ will create any runtime data files.
 
 If set the **path** parameter will be used as
 location where SvcBatch.log files will be created.
-SvcBath will create **path** directory if it doesn't exist.
+SvcBatch will create **path** directory if it doesn't exist.
+
+If not set, SvcBatch will create and use **SVCBTCH_SERVICE_HOME\Logs**
+directory as a location for log files and any runtime data
+that has to be created.
+
+This directory has to be unique for each service instance. Otherwise
+service will fail if another service already opened SvacBatch.log
+in that location.
 
 ### -s
 **Use safe environment**
