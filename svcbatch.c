@@ -1089,10 +1089,14 @@ static DWORD openlogfile(int ssp)
     logstartedtime = GetTickCount64();
 
     if ((logfn = logfilename) == 0) {
-        if ((CreateDirectoryW(loglocation, 0) == 0) &&
+        wchar_t *n = loglocation;
+        if ((CreateDirectoryW(n, 0) == 0) &&
             (GetLastError() != ERROR_ALREADY_EXISTS))
             return GetLastError();
+        if ((loglocation = getrealpathname(n, 1)) == 0)
+            return GetLastError();
         logfn = xwcsappend(loglocation, L"\\SvcBatch.log");
+        xfree(n);
     }
     if (GetFileAttributesW(logfn) != INVALID_FILE_ATTRIBUTES) {
         wchar_t *lognn;
