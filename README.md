@@ -102,11 +102,12 @@ It also rotates (renames) previous log files if the files are
 present inside `Logs` directory using the following procedure:
 
 * If present move `SvcBatch.log` to `SvcBatch.log.0`
+* If present move `SvcBatch.log.3` to `SvcBatch.log.4`
+
+  This means that `SvcBatch.log.4` will be overwritten, so make sure
+  to backup `SvcBatch.log.4` before log rotation occurs if needed
+
 * If present move `SvcBatch.log.2` to `SvcBatch.log.3`
-
-  This means that `SvcBatch.log.3` will be overwritten, so make sure
-  to backup `SvcBatch.log.3` before log rotation occurs if needed
-
 * If present move `SvcBatch.log.1` to `SvcBatch.log.2`
 * If present move `SvcBatch.log.0` to `SvcBatch.log.1`
 * Create new `SvcBatch.log` and use it as current logfile.
@@ -211,7 +212,7 @@ current svcbatch.exe ABI. This can be used by batch
 file to determine the SvcBatch functionality.
 
 The ABI version is defined in svcbatch.h file and
-it's current value is **20201207**
+it's current value is **20201209**
 
 #### SVCBATCH_SERVICE_BASE
 

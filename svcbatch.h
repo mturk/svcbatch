@@ -46,15 +46,16 @@
  * 20201201   (0.9.1-dev)       Initial version
  * 20201205   (0.9.3-dev)       Add parent signaling support
  * 20201207   (0.9.4-dev)       Drop parent signaling support
+ * 20201209   (0.9.5-dev)       Increase maxlog to SvcBatch.log.4
  *
  */
-#define SVCBATCH_VERSION_ABI    "20201207"
+#define SVCBATCH_VERSION_ABI    "20201209"
 
 
 /**
  * Maximum number of SvcBatch.log.N files
  */
-#define SVCBATCH_MAX_LOGS       3
+#define SVCBATCH_MAX_LOGS       4
 
 #define BBUFSIZ                 512
 #define SBUFSIZ                 1024
