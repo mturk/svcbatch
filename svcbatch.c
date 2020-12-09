@@ -1752,7 +1752,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 continue;
             }
             if (loglocation == zerostring) {
-                loglocation = xwcsdup(p);
+                loglocation = expandenvironment(p);
                 if (loglocation == 0)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
