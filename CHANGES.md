@@ -7,9 +7,11 @@ For a full list of changes, see the [git commit log][log]
 
 ## v0.9.5
 
+ * Increase the number of log files to 4
+ * Switch ABI to 20201209
  * Drop support for exitonerror
  * Cleanup code and remove unused and duplicate stuff
- * Update documentation
+ * Update documentation and add more examples
 
 ## v0.9.4
 
