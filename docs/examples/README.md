@@ -16,6 +16,12 @@ run and delete SvcBatch service.
 Open [apachetomcat.md](apachetomcat.md) for more details
 how to create and run Apache Tomcat as Windows service.
 
+### JBoss EAP
+
+Open [jbosseap.md](jbosseap.md) for more details
+how to create and run JBoss EAP as Windows service.
+
+
 ### Python
 
 Open [python.md](python.md) for detailed explanation
