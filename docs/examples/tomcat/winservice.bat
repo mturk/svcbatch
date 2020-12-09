@@ -20,8 +20,9 @@ rem
 rem
 setlocal
 rem
-rem Set JAVA_HOME or JRE_HOME to desired JDK/JRE
-set "JAVA_HOME=c:\Tools\jdk-15.0.1"
+rem Set JAVA_HOME or JRE_HOME your JDK/JRE installation
+rem set "JAVA_HOME=C:\Java\java-11-openjdk-11.0.9.11-3.windows.redhat.x86_64"
+set "JRE_HOME=C:\Java\java-15-openjdk-jre-15.0.1.9-1.windows.redhat.x86_64"
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo.
 rem Run Apache Tomcat

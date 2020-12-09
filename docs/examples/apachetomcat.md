@@ -1,19 +1,21 @@
 # Running Apache Tomcat
 
-This is simple example how to use SvcBatch to run Apache Tomcat
+This example shows how to use SvcBatch to run Apache Tomcat
 as a Windows service.
 
 Ensure that you have at least jdk version 8 installed, so that
-java.exe does not exit on user log off.
+jvm does not exit on user log off.
 
 
 ### Prerequisites
 
 Download latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
 and put `svcbatch.exe` into your `tomcat/bin` directory.
+
 SvcBatch executable can be shared between multiple Tomcat instances.
 Simply put `svcbatch.exe` into desired directory and modify
-your service create scripts to pass the full path to `svcbatch.exe`
+your service create scripts to set working directory  using `/W`
+commandline option for each different instance.
 
 
 ### Example service
