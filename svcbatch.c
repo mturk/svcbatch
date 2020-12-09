@@ -1751,9 +1751,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
             }
-
             if (loglocation == zerostring) {
-                loglocation = getrealpathname(p, 1);
+                loglocation = xwcsdup(p);
                 if (loglocation == 0)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
