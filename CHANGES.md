@@ -5,6 +5,10 @@ For a full list of changes, see the [git commit log][log]
 
   [log]: https://github.com/mturk/svcbatch/commits/
 
+## v0.9.6
+
+
+
 ## v0.9.5
 
  * Increase the number of log files to 4
