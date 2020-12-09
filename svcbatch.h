@@ -47,6 +47,7 @@
  * 20201205   (0.9.3-dev)       Add parent signaling support
  * 20201207   (0.9.4-dev)       Drop parent signaling support
  * 20201209   (0.9.5-dev)       Increase maxlog to SvcBatch.log.4
+ *                              Allow to specify log directory
  *
  */
 #define SVCBATCH_VERSION_ABI    "20201209"

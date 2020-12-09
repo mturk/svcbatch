@@ -164,6 +164,15 @@ other services running with the same account.
 The batch file can set **PATH** to desired value
 and then call the actual application.
 
+### -o [path]
+**Output directory**
+
+This option allows to set the output directory where SvcBatch
+will create any runtime data files.
+
+If set the **path** parameter will be used as
+location where SvcBatch.log files will be created.
+SvcBath will create **path** directory if it doesn't exist.
 
 ### -s
 **Use safe environment**

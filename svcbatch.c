@@ -43,6 +43,7 @@ static wchar_t  *batchdirname     = 0;
 static wchar_t  *svcbatchexe      = 0;
 static wchar_t  *servicebase      = 0;
 
+static wchar_t  *loglocation      = 0;
 static wchar_t  *logfilename      = 0;
 static HANDLE    logfhandle       = 0;
 
@@ -1088,12 +1089,10 @@ static DWORD openlogfile(int ssp)
     logstartedtime = GetTickCount64();
 
     if ((logfn = logfilename) == 0) {
-        wchar_t *ld = xwcsconcat(servicehome, L"\\Logs");
-
-        if ((CreateDirectoryW(ld, 0) == 0) &&
+        if ((CreateDirectoryW(loglocation, 0) == 0) &&
             (GetLastError() != ERROR_ALREADY_EXISTS))
             return GetLastError();
-        logfn = xwcsappend(ld, L"\\SvcBatch.log");
+        logfn = xwcsappend(loglocation, L"\\SvcBatch.log");
     }
     if (GetFileAttributesW(logfn) != INVALID_FILE_ATTRIBUTES) {
         wchar_t *lognn;
@@ -1752,6 +1751,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
             }
+
+            if (loglocation == zerostring) {
+                loglocation = getrealpathname(p, 1);
+                if (loglocation == 0)
+                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
+                continue;
+            }
             hasopts = 0;
             if ((p[0] == L'-') || (p[0] == L'/')) {
                 if (p[1] == L'\0')
@@ -1770,6 +1776,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'c':
                     case L'C':
                         cleanpath    = 1;
+                    break;
+                    case L'o':
+                    case L'O':
+                        loglocation = zerostring;
                     break;
                     case L's':
                     case L'S':
@@ -1873,7 +1883,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (SetCurrentDirectoryW(servicehome) == 0)
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
-
+    if (loglocation == 0)
+        loglocation = xwcsconcat(servicehome, L"\\Logs");
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;
