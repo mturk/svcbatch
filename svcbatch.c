@@ -78,7 +78,7 @@ static HANDLE    redirectedpipewr = 0;
 static HANDLE    redirectedpiperd = 0;
 static HANDLE    redirectedstdinw = 0;
 static HANDLE    redirectedstdinr = 0;
-static ULONGLONG logstartedtime;
+static ULONGLONG locktickcounter;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 
@@ -839,12 +839,9 @@ static int runningasservice(void)
 
         if (GetUserObjectInformationW(ws, UOI_NAME, name,
                                       BBUFSIZ, &len)) {
-            if (strstartswith(name, L"Service-")) {
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "session %S", name);
-#endif
+            if (strstartswith(name, L"Service-"))
                 rv = 1;
-            }
+                
         }
         if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
                                       DSIZEOF(uf), &len)) {
@@ -891,7 +888,8 @@ static void reportsvcstatus(DWORD status, DWORD param)
         goto finished;
     }
     if (status == 0) {
-        SetServiceStatus(statushandle, &servicestatus);
+        if (status == SERVICE_RUNNING)
+            SetServiceStatus(statushandle, &servicestatus);
         goto finished;
     }
     servicestatus.dwControlsAccepted = 0;
@@ -1038,7 +1036,7 @@ static void logwrline(const char *str)
      * DD:HH:MM:SS.mmm format
      *
      */
-    ct = GetTickCount64() - logstartedtime;
+    ct = GetTickCount64() - locktickcounter;
     ms = (int)((ct % MS_IN_SECOND));
     ss = (int)((ct / MS_IN_SECOND) % 60);
     mm = (int)((ct / MS_IN_MINUTE) % 60);
@@ -1079,52 +1077,49 @@ static void logprintf(const char *format, ...)
  */
 static DWORD openlogfile(int ssp)
 {
-    HANDLE   lh = 0;
-    wchar_t *logfn;
     wchar_t  sfx[4] = { L'.', L'\0', L'\0', L'\0' };
     int i;
     SECURITY_ATTRIBUTES sa;
     SYSTEMTIME tt;
 
-    logstartedtime = GetTickCount64();
+    locktickcounter = GetTickCount64();
 
-    if ((logfn = logfilename) == 0) {
+    if (logfilename == 0) {
         wchar_t *n = loglocation;
         if ((CreateDirectoryW(n, 0) == 0) &&
             (GetLastError() != ERROR_ALREADY_EXISTS))
             return GetLastError();
-        if ((loglocation = getrealpathname(n, 1)) == 0)
-            return GetLastError();
-        logfn = xwcsappend(loglocation, L"\\SvcBatch.log");
-        xfree(n);
+        if (isrelativepath(loglocation)) {
+            if ((loglocation = getrealpathname(n, 1)) == 0)
+                return GetLastError();
+            xfree(n);
+        }
+        logfilename = xwcsappend(loglocation, L"\\SvcBatch.log");
     }
-    if (GetFileAttributesW(logfn) != INVALID_FILE_ATTRIBUTES) {
+    if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
         wchar_t *lognn;
 
         sfx[1] = L'0';
-        lognn = xwcsconcat(logfn, sfx);
-        if (MoveFileExW(logfn, lognn, 0) == 0)
+        lognn = xwcsconcat(logfilename, sfx);
+        if (MoveFileExW(logfilename, lognn, 0) == 0)
             return GetLastError();
         xfree(lognn);
     }
-    GetLocalTime(&tt);
     sa.nLength = DSIZEOF(sa);
     sa.lpSecurityDescriptor = 0;
     sa.bInheritHandle       = 0;
 
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    lh = CreateFileW(logfn,
-                     GENERIC_WRITE,
-                     FILE_SHARE_READ,
-                     &sa, CREATE_NEW,
-                     FILE_ATTRIBUTE_NORMAL, 0);
+    logfhandle = CreateFileW(logfilename,
+                             GENERIC_WRITE,
+                             FILE_SHARE_READ,
+                            &sa, CREATE_NEW,
+                             FILE_ATTRIBUTE_NORMAL, 0);
 
-    if (IS_INVALID_HANDLE(lh))
+    if (IS_INVALID_HANDLE(logfhandle))
         return GetLastError();
 
-    logfilename = logfn;
-    logfhandle  = lh;
     /**
      * Rotate previous log files
      */
@@ -1132,14 +1127,14 @@ static DWORD openlogfile(int ssp)
         wchar_t *logpn;
 
         sfx[1] = L'0' + i - 1;
-        logpn  = xwcsconcat(logfn, sfx);
+        logpn  = xwcsconcat(logfilename, sfx);
 
         if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
             wchar_t *lognn;
 
             sfx[1] = L'0' + i;
-            lognn = xwcsconcat(logfn, sfx);
-            if (MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING) == 0)
+            logfilename = xwcsconcat(logfilename, sfx);
+            if (MoveFileExW(logpn, logfilename, MOVEFILE_REPLACE_EXISTING) == 0)
                 return GetLastError();
             xfree(lognn);
             if (ssp)
@@ -1148,6 +1143,7 @@ static DWORD openlogfile(int ssp)
         xfree(logpn);
     }
 
+    GetLocalTime(&tt);
     logwrline(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
     logprintf("Log opened       : %d-%.2d-%.2d %.2d:%.2d:%.2d",
                tt.wYear, tt.wMonth, tt.wDay,
@@ -1887,7 +1883,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
     if (loglocation == 0)
-        loglocation = xwcsconcat(servicehome, L"\\Logs");
+        loglocation = xwcsdup(L"Logs");
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;
