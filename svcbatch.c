@@ -73,11 +73,14 @@ static HANDLE    monitorevent     = 0;
  * Set when pipe and process threads end
  */
 static HANDLE    processended     = 0;
+/**
+ * Child process redirection pipes
+ */ 
+static HANDLE    stdoutputpipew   = 0;
+static HANDLE    stdoutputpiper   = 0;
+static HANDLE    stdinputpipewr   = 0;
+static HANDLE    stdinputpiperd   = 0;
 
-static HANDLE    redirectedpipewr = 0;
-static HANDLE    redirectedpiperd = 0;
-static HANDLE    redirectedstdinw = 0;
-static HANDLE    redirectedstdinr = 0;
 static ULONGLONG locktickcounter;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
@@ -928,7 +931,7 @@ static DWORD createiopipes(void)
     /**
      * Create stdin pipe
      */
-    if (CreatePipe(&redirectedstdinr, &sh, sa, 0) == 0) {
+    if (CreatePipe(&stdinputpiperd, &sh, sa, 0) == 0) {
         rc = svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
         goto finished;
     }
@@ -937,7 +940,7 @@ static DWORD createiopipes(void)
      * inheritable
      */
     if (DuplicateHandle(cp, sh, cp,
-                        &redirectedstdinw, 0, 0,
+                        &stdinputpipewr, 0, 0,
                         DUPLICATE_SAME_ACCESS) == 0) {
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
         goto finished;
@@ -950,7 +953,7 @@ static DWORD createiopipes(void)
     /**
      * Create stdout/stderr pipe
      */
-    if (CreatePipe(&sh, &redirectedpipewr, sa, 0) == 0) {
+    if (CreatePipe(&sh, &stdoutputpipew, sa, 0) == 0) {
         rc = svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
         goto finished;
     }
@@ -959,7 +962,7 @@ static DWORD createiopipes(void)
      * inheritable
      */
     if (DuplicateHandle(cp, sh, cp,
-                        &redirectedpiperd, 0, 0,
+                        &stdoutputpiper, 0, 0,
                         DUPLICATE_SAME_ACCESS) == 0)
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
 
@@ -1249,7 +1252,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
      */
     if (WaitForSingleObject(processended,
                             SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT)
-        WriteFile(redirectedstdinw, yn, 2, &wr, 0);
+        WriteFile(stdinputpipewr, yn, 2, &wr, 0);
 
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT + SVCBATCH_PENDING_WAIT);
     /**
@@ -1301,7 +1304,7 @@ static DWORD WINAPI iopipethread(LPVOID unused)
         BYTE  rb[HBUFSIZ];
         DWORD rd = 0;
 
-        if ((ReadFile(redirectedpiperd, rb, HBUFSIZ, &rd, 0) == 0) || (rd == 0)) {
+        if ((ReadFile(stdoutputpiper, rb, HBUFSIZ, &rd, 0) == 0) || (rd == 0)) {
             /**
              * Read from child failed.
              * ERROR_BROKEN_PIPE or ERROR_NO_DATA means that
@@ -1504,9 +1507,9 @@ static DWORD WINAPI workerthread(LPVOID unused)
 
     si.cb         = DSIZEOF(STARTUPINFOW);
     si.dwFlags    = STARTF_USESTDHANDLES;
-    si.hStdInput  = redirectedstdinr;
-    si.hStdOutput = redirectedpipewr;
-    si.hStdError  = redirectedpipewr;
+    si.hStdInput  = stdinputpiperd;
+    si.hStdOutput = stdoutputpipew;
+    si.hStdError  = stdoutputpipew;
 
     if (CreateProcessW(comspecexe, cmdline, 0, 0, 1,
                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
@@ -1527,8 +1530,8 @@ static DWORD WINAPI workerthread(LPVOID unused)
     /**
      * Close our side of the pipes
      */
-    SAFE_CLOSE_HANDLE(redirectedpipewr);
-    SAFE_CLOSE_HANDLE(redirectedstdinr);
+    SAFE_CLOSE_HANDLE(stdoutputpipew);
+    SAFE_CLOSE_HANDLE(stdinputpiperd);
 
     wh[0] = cmdexeproc.hProcess;
     wh[1] = xcreatethread(0, &iopipethread, 0);
@@ -1656,10 +1659,10 @@ finished:
     SAFE_CLOSE_HANDLE(wh[0]);
     SAFE_CLOSE_HANDLE(wh[1]);
 
-    SAFE_CLOSE_HANDLE(redirectedpipewr);
-    SAFE_CLOSE_HANDLE(redirectedpiperd);
-    SAFE_CLOSE_HANDLE(redirectedstdinw);
-    SAFE_CLOSE_HANDLE(redirectedstdinr);
+    SAFE_CLOSE_HANDLE(stdoutputpipew);
+    SAFE_CLOSE_HANDLE(stdoutputpiper);
+    SAFE_CLOSE_HANDLE(stdinputpipewr);
+    SAFE_CLOSE_HANDLE(stdinputpiperd);
     SAFE_CLOSE_HANDLE(cmdexeproc.hProcess);
 
     closelogfile();
