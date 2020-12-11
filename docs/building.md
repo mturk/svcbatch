@@ -1,4 +1,4 @@
-# Building SvcBatch
+## Building SvcBatch
 
 This project contains source code for SvcBatch, a program
 that runs batch files as Windows services.
@@ -6,8 +6,12 @@ that runs batch files as Windows services.
 The build process supports only command line tools
 for both Microsoft and GCC compilers.
 
+SvcBatch release comes with **svcbatch.exe** binary.
+In case you wish to create your own binary build,
+download or clone SvcBatch sources and follow
+few standard rules.
 
-## Prerequisites
+### Prerequisites
 
 To compile SvcBatch from source code you will need either
 Microsoft C/C++ Compiler from Microsoft Visual Studio 2010
@@ -19,13 +23,6 @@ The official distributions are build using
 compiler provided with Windows Driver Kit version 7.1.0
 
 
-## Build
-
-SvcBatch release comes with **svcbatch.exe** binary.
-In case you wish to create your own binary build,
-download or clone SvcBatch sources and follow
-few standard rules.
-
 ### Build using CMSC
 
 Presuming that you have downloaded and unzip [CMSC release](https://github.com/mturk/cmsc/releases)
@@ -34,7 +31,7 @@ in the root of C drive.
 Open command prompt in the directory where you have
 downloaded or cloned SvcBatch and do the following
 
-```no-highlight
+```cmd
 > C:\cmsc-15.0_33\setenv.bat
 Using default architecture: x64
 Setting build environment for win-x64/0x0601
@@ -66,7 +63,7 @@ eg, `C:\Program Files\Visual Studio 2017\VC\Auxiliary\Build`
 
 After setting compiler, use the following
 
-```no-highlight
+```cmd
 > cd C:\Some\Location\svcbatch
 > nmake -f Makefile.mak
 
@@ -80,14 +77,14 @@ The binary should be inside **x64** subdirectory.
 Makefile has two additional targets which can be useful
 for SvcBatch development and maintenance
 
-```no-highlight
+```cmd
 > nmake -f Makefile.mak clean
 ```
 
 This will remove all produced binaries and object files
 by simply deleting **x64** subdirectory.
 
-```no-highlight
+```cmd
 > nmake -f Makefile.mak install PREFIX=C:\some\directory
 ```
 
@@ -109,7 +106,7 @@ utility.
 This option can be enabled at compile time by using
 the following:
 
-```no-highlight
+```cmd
 > nmake -f Makefile.mak _DBGVIEW=1
 ```
 
@@ -118,7 +115,7 @@ For more information about DebugView check the
 official site.
 
 
-## Build using mingw64
+### Build using mingw64
 
 SvcBatch can be build using GCC compiler from msys2.
 You will need to install [msys2](https://www.msys2.org)
@@ -128,7 +125,7 @@ install required packages: base-devel and mingw-w64-x86_64-toolchain
 if they are not already installed.
 
 For example
-```no-highlight
+```sh
 
 # pacman --noconfirm -Sy base-devel
 # pacman --noconfirm -Sy mingw-w64-x86_64-toolchain
@@ -137,9 +134,9 @@ For example
 Restart the shell with `-mingw64` parameter or open `mingw64.exe`
 terminal and cd to SvcBach source directory and type
 
-```no-highlight
+```sh
 
-# make -f Makefile.gmk
+$ make -f Makefile.gmk
 ```
 
 In case there are no compile errors the svcbatch.exe is located
@@ -147,9 +144,9 @@ inside **x64** subdirectory.
 
 As with **nmake** you can invoke **clean** or **install** targets...
 
-```no-highlight
+```sh
 
-# make -f Makefile.gmk _DBGVIEW=1 PREFIX=/c/Workplace/builds install
+$ make -f Makefile.gmk _DBGVIEW=1 PREFIX=/c/Workplace/builds install
 ```
 
 ## Creating Release
