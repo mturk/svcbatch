@@ -37,7 +37,6 @@ with your application.
   - [Private Environment Variables](#private-environment-variables)
   - [Custom Control Codes](#custom-control-codes)
   - [Stop and Shutdown](#stop-and-shutdown)
-- [Contributing](#contributing)
 - [License](#license)
 
 # Getting Started
@@ -347,11 +346,6 @@ SvcBatch will give another 20 seconds for all processes to exit.
 After that timeout it will simply kill each descendant process
 by calling `TerminateProcess` for every process that originated
 from svcbatch.exe.
-
-# Contributing
-
-SvcBatch is an open source project, and is thus built with
-your contributions.
 
 # License
 
