@@ -15,7 +15,7 @@ and depends only on win32 API. There are no configuration
 files or installation requirements, so it can be easily distributed
 alongside any application that requires Windows service functionality.
 
-Read the rest of the documentation and check [examples](docs/examples/)
+Read the rest of the documentation and check [Examples](#examples)
 for some overview and ideas how to use and deploy SvcBatch
 with your application.
 
@@ -88,7 +88,7 @@ type something like this...
 
 ```
 
-Check [Examples](docs/examples/) section for more
+Check [Examples](#examples) section for more
 detailed usage.
 
 
@@ -107,11 +107,14 @@ descendant process tree on shutdown.
 # Examples
 
 To get an overview how the SvcBatch is used with real
-application check the documentation [Examples](docs/examples/)
+application check the [documentation](docs/index.md)
 section for some basic deployment guideline.
 
 
 # Main Features
+
+Here are listed some of the main features provided by
+SvcBatch.
 
 ## Log Rotation
 
@@ -243,7 +246,7 @@ provide more info about running environment to batch file.
 Here is the list of environment variables that
 SvcBatch sets for each instance.
 
-#### SVCBATCH_VERSION_ABI
+* **SVCBATCH_VERSION_ABI**
 
 This environment variable is set to the value of
 current svcbatch.exe ABI. This can be used by batch
@@ -252,20 +255,20 @@ file to determine the SvcBatch functionality.
 The ABI version is defined in svcbatch.h file and
 it's current value is **20201209**
 
-#### SVCBATCH_SERVICE_BASE
+* **SVCBATCH_SERVICE_BASE**
 
 This variable is set to the directory of the SvcBatch
 executable.
 
-#### SVCBATCH_SERVICE_SELF
+* **SVCBATCH_SERVICE_SELF**
 
 This variable is set to SvcBatch executable name.
 
-#### SVCBATCH_SERVICE_HOME
+* **SVCBATCH_SERVICE_HOME**
 
 This variable is set to the service working directory.
 
-#### SVCBATCH_SERVICE_NAME
+* **SVCBATCH_SERVICE_NAME**
 
 This variable is set to the actual service name
 defined with `sc create [service name] ...`
@@ -281,7 +284,7 @@ echo Running service %SVCBATCH_SERVICE_NAME%
 
 ```
 
-#### SVCBATCH_SERVICE_UUID
+* **SVCBATCH_SERVICE_UUID**
 
 This is service's unique identifier in UUID hex format
 `01234567-89ab-cdef-0123-456789abcdef` and it is
