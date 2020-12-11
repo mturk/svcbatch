@@ -92,17 +92,18 @@ Check [Examples](#examples) section for more
 detailed usage.
 
 
-**Notice!**
-If the program started from service batch file creates
-its own child processes ensure to setup the following
-privileges to the service
+* **Notice**
 
-```cmd
-> sc privs myservice SeDebugPrivilege
-```
+  If the program started from service batch file creates
+  its own child processes ensure to setup the following
+  privileges to the service
 
-This will allow SvcBatch to terminate the entire
-descendant process tree on shutdown.
+  ```cmd
+  > sc privs myservice SeDebugPrivilege
+  ```
+
+  This will allow SvcBatch to terminate the entire
+  descendant process tree on shutdown.
 
 # Examples
 
@@ -320,14 +321,14 @@ Use `sc.exe control [service name] 233` to send
 `CTRL_BREAK_EVENT` to all child processes.
 Again as with log rotate, the **233** is our custom control code.
 
-**Important!**
+* **Important**
 
-This option is enabled at service install time with `/b` command
-switch option.
+  This option is enabled at service install time with `/b` command
+  switch option.
 
-Do not send `CTRL_BREAK_EVENT` if the batch file runs a process
-that does not have custom `CTRL_BREAK_EVENT` console handler.
-By default the process will exit and service will either fail or hang.
+  Do not send `CTRL_BREAK_EVENT` if the batch file runs a process
+  that does not have custom `CTRL_BREAK_EVENT` console handler.
+  By default the process will exit and service will either fail or hang.
 
 ## Stop and Shutdown
 
