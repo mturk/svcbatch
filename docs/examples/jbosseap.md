@@ -16,14 +16,14 @@ command line option for each different instance.
 
 ### Example service
 
-Inside the [JBoss EAP](jboeseap/) directory there are two batch files that
+Inside the [JBoss EAP](jbosseap/) directory there are two batch files that
 provide the complete solution to run and manage JBoss EAP as
 windows service.
 
 
-Put [winservice](jboeseap/winservice.bat) and [servicemgr](jboeseap/servicemgr.bat)
+Put [winservice](jbosseap/winservice.bat) and [servicemgr](jbosseap/servicemgr.bat)
 batch files into your `jboes-eap-x.x/bin` directory.
-[servicemgr](jboeseap/servicemgr.bat) is a simple batch file
+[servicemgr](jbosseap/servicemgr.bat) is a simple batch file
 that can be used instead typing multiple commands.
 
 Before executing `servicemgr.bat` edit `servicemgr.bat` and modify
