@@ -24,7 +24,7 @@ windows service.
 Put [winservice](jbosseap/winservice.bat) and [servicemgr](jbosseap/servicemgr.bat)
 batch files into your `jboes-eap-x.x/bin` directory.
 [servicemgr](jbosseap/servicemgr.bat) is a batch file
-that is meant to be used to manage the services.
+used to manage the services.
 
 Before executing `servicemgr.bat` edit `servicemgr.bat` and modify
 `JBOSSEAP_DISPLAY` variable to match the exact version you are using. You can put any string
