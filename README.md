@@ -19,6 +19,28 @@ Read the rest of the documentation and check [examples](docs/examples/)
 for some overview and ideas how to use and deploy SvcBatch
 with your application.
 
+* Github: [https://github.com/mturk/svcbatch](https://github.com/mturk/svcbatch)
+* Docs: [Documentation](docs/index.md)
+
+# Table of Contents
+
+- [SvcBatch: Overview](#svcbatch-overview)
+- [Table of Contents](#table-of-contents)
+- [Getting Started](#getting-started)
+  - [Supported Windows Versions](#supported-windows-versions)
+  - [Building(#building)
+  - [Creating Services](#creating-services)
+- [Examples](#examples)
+- [Main Features(#main-features)
+  - [Log Rotation](#log-rotation)
+  - [Command Line Options](#command-line-options)
+  - [Private Environment Variables](#private-environment-variables)
+  - [Custom Control Codes](#custom-control-codes)
+  - [Stop and Shutdown](#stop-and-shutdown)
+- [Contributing](#contributing)
+- [License](#license)
+
+# Getting Started
 
 ## Supported Windows Versions
 
@@ -34,7 +56,7 @@ directions explained in [Building](docs/building.md) document.
 SvcBatch is targetet for Windows 64-bit versions, so make sure
 to use 64-bit compiler.
 
-## Creating services
+## Creating Services
 
 SvcBatch does not contain any code for service management.
 Users should use Microsoft's `sc.exe` utility to
@@ -61,7 +83,7 @@ is to put `svcbatch.exe` in the same directory where your
 `myservice.bat` file is located. Open command prompt and
 type something like this...
 
-```no-highlight
+```cnd
 > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat"
 
 ```
@@ -70,20 +92,19 @@ Check [Examples](docs/examples/) section for more
 detailed usage.
 
 
-#### Notice
-
+**Notice!**
 If the program started from service batch file creates
 its own child processes ensure to setup the following
 privileges to the service
 
-```no-highlight
+```cmd
 > sc privs myservice SeDebugPrivilege
 ```
 
 This will allow SvcBatch to terminate the entire
 descendant process tree on shutdown.
 
-## Examples
+# Examples
 
 To get an overview how the SvcBatch is used with real
 application check the documentation [Examples](docs/examples/)
@@ -118,7 +139,7 @@ log rotation at any time while the service is running.
 Note that **234** is our custom service control code.
 
 
-## Command line options
+## Command Line Options
 
 SvcBatch command line options allow user to customize
 service deployments. Options are case insensitive and both `-` and `/` can be
@@ -213,7 +234,7 @@ to the path of the batch file if it was defined
 as absolute path. Otherwise directory of svcbatch.exe
 will be used as working directory.
 
-## Private environment variables
+## Private Environment Variables
 
 SvcBatch sets few private environment variables that
 provide more info about running environment to batch file.
@@ -281,7 +302,7 @@ rd /S /Q "%TEMP%\%SVCBATCH_SERVICE_UUID%"
 
 ```
 
-## Custom control codes
+## Custom Control Codes
 
 SvcBatch can send `CTRL_BREAK_EVENT` signal to its child processes.
 
@@ -293,7 +314,7 @@ Use `sc.exe control [service name] 233` to send
 `CTRL_BREAK_EVENT` to all child processes.
 Again as with log rotate, the **233** is our custom control code.
 
-### Important!
+**Important!**
 
 This option is enabled at service install time with `/b` command
 switch option.
@@ -319,6 +340,11 @@ SvcBatch will give another 20 seconds for all processes to exit.
 After that timeout it will simply kill each descendant process
 by calling `TerminateProcess` for every process that originated
 from svcbatch.exe.
+
+# Contributing
+
+SvcBatch is an open source project, and is thus built with
+your contributions.
 
 # License
 

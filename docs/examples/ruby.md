@@ -1,33 +1,4 @@
-# SvcBatch Examples
-
-This directory contains various examples explaining how
-to run and deploy SvcBatch utility inside different
-environments and target applications.
-
-More content will be added as we go.
-
-### dummyservice.bat
-
-This is example batch that shows how to create,
-run and delete SvcBatch service.
-
-### Apache Tomcat
-
-Open [apachetomcat.md](apachetomcat.md) for more details
-how to create and run Apache Tomcat as Windows service.
-
-### JBoss EAP
-
-Open [jbosseap.md](jbosseap.md) for more details
-how to create and run JBoss EAP as Windows service.
-
-
-### Python
-
-Open [python.md](python.md) for detailed explanation
-about how to easily convert Python applications to Windows services.
-
-### Ruby
+### Ruby Examples
 
 Inside [ruby](ruby) directory you can find simple
 web server example and a batch file that is used as
@@ -36,7 +7,7 @@ service wrapper.
 Put `svcbatch.exe` into that directory and create
 the service by typing
 
-```no-highlight
+```cmd
 
 > rbhttpserver.bat create
 
@@ -70,7 +41,7 @@ SERVICE_NAME: rbhttpserver
 
 Get response from our web server by typing ...
 
-```no-highlight
+```cmd
 
 # curl -v http://localhost:8088
 

@@ -1,4 +1,4 @@
-# Running Python scripts with SvcBatch
+## Running Python scripts with SvcBatch
 
 Python scripts can be easily run as Windows
 services using SvcBatch. All you need is to create a simple
@@ -6,7 +6,7 @@ batch file that will launch your Python interpreted and
 actual Python script.
 
 
-## Prerequisites
+### Prerequisites
 
 Install or download your favorite Python distribution
 and `svcbatch.exe` binary release (or build it from the source code)
@@ -63,27 +63,27 @@ Save that file in the same location where the
 Modify the batch file's `set "PATH= ...` if your Python
 install location is different then `C:\Program Files\Python38`
 
-## Installation
+### Installation
 
 Service installation and management tasks are done
 by using **SC** Windows utility.
 
 
-```no-highlight
+```cmd
 > sc create pyservice binPath= ""%CD%\svcbatch.exe" /c /s pyservice.bat"
 
 ```
 
 After installation you can use SCM to start or stop the service.
 
-```no-highlight
+```cmd
 > sc start pyservice
 
 ```
 
 To stop the service type
 
-```no-highlight
+```cmd
 > sc stop pyservice
 
 ```

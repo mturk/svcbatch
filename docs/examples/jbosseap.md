@@ -1,4 +1,4 @@
-# Running JBoss EAP
+## Running JBoss EAP
 
 This example shows how to use SvcBatch to run JBoss EAP
 as a Windows service.
@@ -26,7 +26,7 @@ batch files into your `jboes-eap-x.x/bin` directory.
 [servicemgr](jboeseap/servicemgr.bat) is a simple batch file
 that can be used instead typing multiple commands.
 
-```no-highlight
+```cmd
 
 > servicemgr.bat create JBossEap7
 
@@ -48,7 +48,7 @@ servicemgr.bat `sc create ...` command, because with `/s` switch,
 SvcBatch will remove any *unsafe* environment variable.
 
 That's it! Now, just type ...
-```no-highlight
+```cmd
 
 > sc start JBossEap7
   or ...

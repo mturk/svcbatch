@@ -1,4 +1,4 @@
-# Running Apache Tomcat
+## Running Apache Tomcat
 
 This example shows how to use SvcBatch to run Apache Tomcat
 as a Windows service.
@@ -30,7 +30,7 @@ batch files into your `tomcat/bin` directory.
 [servicemgr](omcat/servicemgr.bat) is a simple batch file
 that can be used instead typing multiple commands.
 
-```no-highlight
+```cmd
 
 > servicemgr.bat create Tomcat10
 
@@ -49,7 +49,7 @@ servicemgr.bat `sc create ...` command, because with `/s` switch, SvcBatch
 will remove any *unsafe* environment variable.
 
 That's it! Now, just type ...
-```no-highlight
+```cmd
 
 > sc start Tomcat10
   or ...
@@ -66,7 +66,7 @@ service batch file by following next few steps.
 Create a batch file named `tomcatsvc.bat` inside `tomcat/bin`
 with the following content
 
-```batchfile
+```cmd
 @echo off
 setlocal
 rem Set any environment variables here missing from LOCAL_SERVICE account
@@ -80,7 +80,7 @@ catalina.bat run
 Create service by opening command prompt with Administrator
 privileges inside your `tomcat/bin` directory
 
-```no-highlight
+```cmd
 
 > sc.exe create Tomcat DisplayName= "Apache Tomcat" binPath= ""%CD%\svcbatch.exe" /b tomcatsvc.bat"
   Optionally you can add ...
@@ -109,7 +109,7 @@ for detailed description how to use the SC utility to create a service
 #### Step 3:
 Start the service by entering
 
-```no-highlight
+```cmd
 > sc.exe start Tomcat
 
 ```
@@ -117,7 +117,7 @@ Start the service by entering
 #### Step 4:
 Get full java thread dump
 
-```no-highlight
+```cmd
 > sc.exe control Tomcat 233
 
 ```
@@ -134,7 +134,7 @@ This will move Logs/SvcBatch.log to Logs/SvcBatch.log.1
 and create a new Logs/SvcBatch.log file
 Read the Log Rotation section for more details.
 
-```no-highlight
+```cmd
 > sc.exe control Tomcat 234
 
 ```
@@ -142,7 +142,7 @@ Read the Log Rotation section for more details.
 #### Step 6:
 Stop the service by entering
 
-```no-highlight
+```cmd
 > sc.exe stop Tomcat
 
 ```
@@ -150,7 +150,7 @@ Stop the service by entering
 #### Step 7:
 Delete the service by entering
 
-```no-highlight
+```cmd
 > sc.exe delete Tomcat
 
 ```
