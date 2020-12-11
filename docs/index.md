@@ -10,6 +10,7 @@ inside different environments and target applications.
 - [Installing and Using JBoss EAP](examples/jbosseap.md)
 - [Python Examples](examples/python.md)
 - [Ruby Examples](examples/ruby.md)
+- [Dummy Service Example: batchfile](examples/dummyservice.bat)
 
 ### Maintainer Help
 
