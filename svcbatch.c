@@ -179,32 +179,6 @@ static void xfree(void *m)
         free(m);
 }
 
-#if 0
-static void wafree(wchar_t **array)
-{
-    wchar_t **ptr = array;
-
-    if (array != 0) {
-        while (*ptr != 0)
-            free(*(ptr++));
-        free(array);
-    }
-}
-
-static char *xstrdup(const char *s)
-{
-    char   *p;
-    size_t  n;
-
-    if (((s) == 0) || (*(s) == '\0'))
-        return 0;
-    n = strlen(s);
-    p = (char *)xmalloc(n + 2);
-    memcpy(p, s, n);
-    return p;
-}
-#endif
-
 static wchar_t *xwcsdup(const wchar_t *s)
 {
     wchar_t *p;
@@ -358,7 +332,6 @@ static int wcshavespace(const wchar_t *s)
     return 0;
 }
 
-
 /**
  * Remove trailing backslash and path separator(s)
  */
@@ -416,7 +389,6 @@ static wchar_t *xuuidstring(void)
 
     return b;
 }
-
 
 #if defined(_DBGVIEW)
 /**
@@ -841,7 +813,7 @@ static int runningasservice(void)
                                       BBUFSIZ, &len)) {
             if (strstartswith(name, L"Service-"))
                 rv = 1;
-                
+
         }
         if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
                                       DSIZEOF(uf), &len)) {
@@ -1151,6 +1123,7 @@ static DWORD openlogfile(int ssp)
 
     return 0;
 }
+
 /**
  * Write basic configuration when new logfile is created.
  */
