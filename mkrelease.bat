@@ -31,7 +31,7 @@ set "SvcBatchVer=%~1"
 rem
 rem Set path for ClamAV and 7za
 rem
-set "PATH=C:\usr\clamav;C:\usr\tools;%PATH%"
+set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"
 rem
 freshclam.exe --quiet
 pushd x64

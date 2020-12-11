@@ -5,6 +5,10 @@ For a full list of changes, see the [git commit log][log]
 
   [log]: https://github.com/mturk/svcbatch/commits/
 
+
+## v0.9.7
+
+
 ## v0.9.6
 
  * Restore original SvcBach.log if rotation fails
