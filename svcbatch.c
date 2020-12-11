@@ -1105,8 +1105,8 @@ static DWORD openlogfile(int ssp)
             wchar_t *lognn;
 
             sfx[1] = L'0' + i;
-            logfilename = xwcsconcat(logfilename, sfx);
-            if (MoveFileExW(logpn, logfilename, MOVEFILE_REPLACE_EXISTING) == 0)
+            lognn = xwcsconcat(logfilename, sfx);
+            if (MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING) == 0)
                 return GetLastError();
             xfree(lognn);
             if (ssp)
