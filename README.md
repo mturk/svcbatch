@@ -141,6 +141,9 @@ present inside `Logs` directory using the following procedure:
 Users can use `sc.exe control [service name] 234` to initiate a
 log rotation at any time while the service is running.
 Note that **234** is our custom service control code.
+Number **234** has been randomly chosen, since win32
+API requires that this number must be larger then `127` and
+lower then `255`.
 
 
 ## Command Line Options
