@@ -125,17 +125,20 @@ for internal logging and capturing output from `cmd.exe`
 It also rotates (renames) previous log files if the files are
 present inside `Logs` directory using the following procedure:
 
-* If present move `SvcBatch.log` to `SvcBatch.log.0`
-* If present move `SvcBatch.log.3` to `SvcBatch.log.4`
+```no-highlight
 
-  This means that `SvcBatch.log.4` will be overwritten, so make sure
-  to backup `SvcBatch.log.4` before log rotation occurs if needed
+* If exists move SvcBatch.log to SvcBatch.log.0
+* If exists move SvcBatch.log.3 to SvcBatch.log.4
 
-* If present move `SvcBatch.log.2` to `SvcBatch.log.3`
-* If present move `SvcBatch.log.1` to `SvcBatch.log.2`
-* If present move `SvcBatch.log.0` to `SvcBatch.log.1`
-* Create new `SvcBatch.log` and use it as current logfile.
+  This means that SvcBatch.log.4 will be overwritten, so make sure
+  to backup SvcBatch.log.4 before log rotation occurs if needed
 
+* If exists move SvcBatch.log.2 to SvcBatch.log.3
+* If exists move SvcBatch.log.1 to SvcBatch.log.2
+* If exists move SvcBatch.log.0 to SvcBatch.log.1
+* Create new SvcBatch.log and use it as current log file.
+
+```
 
 User can use `sc.exe control [service name] 234` to initiate
 log rotation at any time while the service is running.
