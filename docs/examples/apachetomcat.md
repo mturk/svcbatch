@@ -31,10 +31,8 @@ batch files into your `tomcat/bin` directory.
 that can be used instead typing multiple commands.
 
 Before executing `servicemgr.bat`, edit `servicemgr.bat` and modify
-`TOMCAT_DISPLAY` and `TOMCAT_FULLVER` variables to match the Tomcat
-version you are using. You can actually just put any string
-for `DisplayName=` and `sc description ...` directly as fits.
-
+`DisplayName` and `description` parameters to match the Tomcat
+version you are using.
 
 ```cmd
 

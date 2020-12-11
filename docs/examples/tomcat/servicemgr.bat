@@ -15,7 +15,7 @@ rem See the License for the specific language governing permissions and
 rem limitations under the License.
 rem
 rem --------------------------------------------------
-rem Apache Tomcat Service Tool
+rem Apache Tomcat Service Management Tool
 rem
 rem Usage: servicemgr.bat create/delete/rotate/dump [service_name]
 rem
@@ -40,12 +40,9 @@ pushd ..
 set "SERVICE_HOME=%cd%"
 popd
 rem
-rem Change to actual Tomcat version
-set "TOMCAT_DISPLAY=Apache Tomcat 10.0"
-set "TOMCAT_FULLVER=Apache Tomcat 10.0.0"
-rem
 sc create "%SERVICE_NAME%" binPath= ""%SERVICE_BASE%\svcbatch.exe" /w "%SERVICE_HOME%" /b /s /c .\bin\winservice.bat"
-sc config "%SERVICE_NAME%" DisplayName= "%TOMCAT_DISPLAY% %SERVICE_NAME% Service"
+sc config "%SERVICE_NAME%" DisplayName= "Apache Tomcat 10.0 %SERVICE_NAME% Service"
+sc description "%SERVICE_NAME%" "Apache Tomcat 10.0.0 Server - https://tomcat.apache.org/"
 
 rem Ensure the networking services are running
 rem and that service is started on system startup
@@ -54,7 +51,6 @@ sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= auto
 rem Set required privileges so we can kill process tree
 rem even if Tomcat created multiple child processes.
 sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
-sc description "%SERVICE_NAME%" "%TOMCAT_FULLVER% Server - https://tomcat.apache.org/"
 goto End
 
 rem

@@ -16,7 +16,7 @@ command line option for each different instance.
 
 ### Example service
 
-Inside the [JBoss EAP](jbosseap/) directory there are two batch files that
+Inside the [jbosseap](jbosseap/) directory there are two batch files that
 provide the complete solution to run and manage JBoss EAP as
 windows service.
 
