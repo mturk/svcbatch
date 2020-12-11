@@ -1050,6 +1050,8 @@ static void logprintf(const char *format, ...)
 static DWORD openlogfile(int ssp)
 {
     wchar_t  sfx[4] = { L'.', L'\0', L'\0', L'\0' };
+    wchar_t *logpb = 0;
+    DWORD rc;
     int i;
     SECURITY_ATTRIBUTES sa;
     SYSTEMTIME tt;
@@ -1069,13 +1071,10 @@ static DWORD openlogfile(int ssp)
         logfilename = xwcsappend(loglocation, L"\\SvcBatch.log");
     }
     if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
-        wchar_t *lognn;
-
         sfx[1] = L'0';
-        lognn = xwcsconcat(logfilename, sfx);
-        if (MoveFileExW(logfilename, lognn, 0) == 0)
+        logpb = xwcsconcat(logfilename, sfx);
+        if (MoveFileExW(logfilename, logpb, 0) == 0)
             return GetLastError();
-        xfree(lognn);
     }
     sa.nLength = DSIZEOF(sa);
     sa.lpSecurityDescriptor = 0;
@@ -1090,7 +1089,7 @@ static DWORD openlogfile(int ssp)
                              FILE_ATTRIBUTE_NORMAL, 0);
 
     if (IS_INVALID_HANDLE(logfhandle))
-        return GetLastError();
+        goto failed;
 
     /**
      * Rotate previous log files
@@ -1107,21 +1106,29 @@ static DWORD openlogfile(int ssp)
             sfx[1] = L'0' + i;
             lognn = xwcsconcat(logfilename, sfx);
             if (MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING) == 0)
-                return GetLastError();
+                goto failed;
             xfree(lognn);
             if (ssp)
                 reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         }
         xfree(logpn);
     }
+    xfree(logpb);
 
     GetLocalTime(&tt);
     logwrline(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
     logprintf("Log opened       : %d-%.2d-%.2d %.2d:%.2d:%.2d",
                tt.wYear, tt.wMonth, tt.wDay,
                tt.wHour, tt.wMinute, tt.wSecond);
-
     return 0;
+
+failed:
+    rc = GetLastError();
+    if (logpb != 0) {
+        MoveFileExW(logpb, logfilename, MOVEFILE_REPLACE_EXISTING);
+        xfree(logpb);
+    }
+    return rc;
 }
 
 /**
