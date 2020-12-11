@@ -154,16 +154,16 @@ as batch file to execute.
 Command line options are defined at service install time, so
 make sure to get familiar with `sc.exe` utility.
 
-### -b
-**Enable sending CTRL_BREAK_EVENT**
+* **-b**
+  **Enable sending CTRL_BREAK_EVENT**
 
 This option enables our custom service control
 code to send `CTRL_BREAK_EVENT` to the child processes.
 
 Check *Custom control codes* section below for more details
 
-### -c
-**Use clean PATH**
+* **-c**
+  **Use clean PATH environment variable**
 
 This option will replace **PATH** environment variable with minimal
 set of paths that are needed to run the batch file.
@@ -188,8 +188,8 @@ other services running with the same account.
 The batch file can set **PATH** to desired value
 and then call the actual application.
 
-### -o [path]
-**Output directory**
+* **-o [path]**
+  Set Output directory to **path**
 
 This option allows to set the output directory where SvcBatch
 will create any runtime data files.
@@ -206,8 +206,8 @@ This directory has to be unique for each service instance. Otherwise
 service will fail if another service already opened SvacBatch.log
 in that location.
 
-### -s
-**Use safe environment**
+* **-s**
+  **Use safe environment**
 
 Remove all environment variables for child
 processes, except the system ones.
@@ -223,9 +223,8 @@ all other environment variables not belonging to that set
 will be omitted from child process environment.
 
 
-### -w [path]
-
-Set service working directory to **path**
+* **-w [path]**
+  Set service working directory to **path**
 
 This option allows to explicitly set the working
 directory. This allows to have relative path
@@ -248,62 +247,61 @@ SvcBatch sets for each instance.
 
 * **SVCBATCH_VERSION_ABI**
 
-This environment variable is set to the value of
-current svcbatch.exe ABI. This can be used by batch
-file to determine the SvcBatch functionality.
+  This environment variable is set to the value of
+  current svcbatch.exe ABI. This can be used by batch
+  file to determine the SvcBatch functionality.
 
-The ABI version is defined in svcbatch.h file and
-it's current value is **20201209**
+  The ABI version is defined in svcbatch.h file and
+  it's current value is **20201209**
 
 * **SVCBATCH_SERVICE_BASE**
 
-This variable is set to the directory of the SvcBatch
-executable.
+  This variable is set to the directory of the SvcBatch
+  executable.
 
 * **SVCBATCH_SERVICE_SELF**
 
-This variable is set to SvcBatch executable name.
+  This variable is set to SvcBatch executable name.
 
 * **SVCBATCH_SERVICE_HOME**
 
-This variable is set to the service working directory.
+  This variable is set to the service working directory.
 
 * **SVCBATCH_SERVICE_NAME**
 
-This variable is set to the actual service name
-defined with `sc create [service name] ...`
+  This variable is set to the actual service name
+  defined with `sc create [service name] ...`
 
-```batchfile
-@echo off
-rem
-rem Simple example
-rem
+  ```batchfile
+  @echo off
+  rem
+  rem Simple example
+  rem
 
-echo Running service %SVCBATCH_SERVICE_NAME%
+  echo Running service %SVCBATCH_SERVICE_NAME%
 
-
-```
+  ```
 
 * **SVCBATCH_SERVICE_UUID**
 
-This is service's unique identifier in UUID hex format
-`01234567-89ab-cdef-0123-456789abcdef` and it is
-randomly generated on service startup.
+  This is service's unique identifier in UUID hex format
+  `01234567-89ab-cdef-0123-456789abcdef` and it is
+  randomly generated on service startup.
 
-`SVCBATCH_SERVICE_UUID` can be used inside batch file
-when unique identifier is needed.
+  `SVCBATCH_SERVICE_UUID` can be used inside batch file
+  when unique identifier is needed.
 
-```batchfile
-rem
-rem Create unique temp directoy
-rem
-md "%TEMP%\%SVCBATCH_SERVICE_UUID%"
-...
-... do some work using that directory
-...
-rd /S /Q "%TEMP%\%SVCBATCH_SERVICE_UUID%"
+  ```batchfile
+  rem
+  rem Create unique temp directoy
+  rem
+  md "%TEMP%\%SVCBATCH_SERVICE_UUID%"
+  ...
+  ... do some work using that directory
+  ...
+  rd /S /Q "%TEMP%\%SVCBATCH_SERVICE_UUID%"
 
-```
+  ```
 
 ## Custom Control Codes
 
