@@ -27,7 +27,7 @@ windows service.
 
 Put [winservice](tomcat/winservice.bat) and [servicemgr](tomcat/servicemgr.bat)
 batch files into your `tomcat/bin` directory.
-[servicemgr](omcat/servicemgr.bat) is a simple batch file
+[servicemgr](tomcat/servicemgr.bat) is a simple batch file
 that can be used instead typing multiple commands.
 
 Before executing `servicemgr.bat`, edit `servicemgr.bat` and modify
