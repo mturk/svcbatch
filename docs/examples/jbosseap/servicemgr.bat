@@ -3,7 +3,7 @@ rem
 rem ---------------------------------------------------------------
 rem JBoss EAP Service Management Tool
 rem
-rem Usage: servicemgr.bat create/delete/rotate/dump [service_name]
+rem Usage: servicemgr.bat create/delete/rotate/dump [<service_name>] [server_mode]
 rem
 rem ---------------------------------------------------------------
 rem
