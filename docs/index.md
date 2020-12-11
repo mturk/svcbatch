@@ -11,9 +11,6 @@ inside different environments and target applications.
 - [Python Examples](examples/python.md)
 - [Ruby Examples](examples/ruby.md)
 
+### Maintainer Help
 
-## Building SvcBatch
-
-To build SvcBatch executable from source code
-please read the following guideline [Building](building.md)
-
+- [Building SvcBatch](building.md)
