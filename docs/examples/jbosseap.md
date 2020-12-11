@@ -5,19 +5,19 @@ as a Windows service.
 
 ### Prerequisites
 
-Download latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
+Download the latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
 and put `svcbatch.exe` into your `jboes-eap-x.x/bin` directory.
 
-SvcBatch executable can be shared between multiple JBoss instances.
-Simply put `svcbatch.exe` into desired directory and modify
-your service create scripts to set output directory  using `-o`
+The SvcBatch executable can be shared between multiple JBoss instances.
+Put `svcbatch.exe` into the desired directory and modify
+your service create scripts to set the output directory  using `-o`
 command line option for each different instance.
 
 
 ### Example service
 
-Inside [JBoss EAP](jboeseap/) directory there are two batch files that
-provide complete solution to run and manage JBoss EAP as
+Inside the [JBoss EAP](jboeseap/) directory there are two batch files that
+provide the complete solution to run and manage JBoss EAP as
 windows service.
 
 
@@ -25,6 +25,10 @@ Put [winservice](jboeseap/winservice.bat) and [servicemgr](jboeseap/servicemgr.b
 batch files into your `jboes-eap-x.x/bin` directory.
 [servicemgr](jboeseap/servicemgr.bat) is a simple batch file
 that can be used instead typing multiple commands.
+
+Before executing `servicemgr.bat` edit `servicemgr.bat` and modify
+`JBOSSEAP_DISPLAY` variable to match the exact version you are using. You can put any string
+for `DisplayName=` and `sc description ...` directly as fits.
 
 ```cmd
 
@@ -36,12 +40,7 @@ that can be used instead typing multiple commands.
 
 ```
 
-Before executing that command, edit `servicemgr.bat` and modify
-`JBOSSEAP_DISPLAY` variable to match the exact version.
-version you are using. You can actually just put any string
-for `DisplayName=` and `sc description ...` directly as fits.
-
-After creating a service, edit `winservice.bat` file and modify
+After creating a service, edit the `winservice.bat` file and modify
 JAVA_HOME to your actual jdk location. You can set JAVA_HOME to
 System Environment, but then you must remove the `/s` switch inside
 servicemgr.bat `sc create ...` command, because with `/s` switch,

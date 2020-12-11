@@ -1,17 +1,15 @@
 # SvcBatch: Overview
 
-SvcBatch is a program that allows to run batch file
-as Windows service.
+SvcBatch is a program that allows users to run batch files as Windows service.
 
-Program's main goal is to run any application as Windows
-service by using a batch file wrapper as application launcher.
+The program's main goal is to run any application as a Windows
+service by using a batch file wrapper as an application launcher.
 This is particularly useful when running Java applications or
-scripts written in Perl, Python, Ruby, etc... without the need
+for scripts written in Perl, Python, Ruby, etc... without the need
 for a specialized service wrapper.
 
-SvcBatch was designed to be simple to use and lightweight with small
-memory footprint. It is written in around 2K lines of pure **C** code,
-and depends only on win32 API. There are no configuration
+SvcBatch was designed to be simple to use and lightweight, with a small
+memory footprint. Its only dependency is win32 API, and only has around 2K lines of **C** code. There are no configuration
 files or installation requirements, so it can be easily distributed
 alongside any application that requires Windows service functionality.
 
@@ -50,36 +48,36 @@ to run this application.
 
 ## Building
 
-To build the SvcBatch from source code follow
+To build the SvcBatch from source code follow the
 directions explained in [Building](docs/building.md) document.
-SvcBatch is targetet for Windows 64-bit versions, so make sure
+SvcBatch is targetted for Windows 64-bit versions, so make sure
 to use 64-bit compiler.
 
 ## Creating Services
 
 SvcBatch does not contain any code for service management.
 Users should use Microsoft's `sc.exe` utility to
-create, configure, manage and delete services.
-Sc is integral part of every Windows distribution and
+create, configure, manage, and delete services.
+`Sc` is an integral part of every Windows distribution and
 there is no need to replicate that functionality internally.
 Check [Microsoft's SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-config)
-for detailed description how to use the SC utility to create
+for detailed description how to use the `SC` utility to create
 and manage services.
 
 SvcBatch uses System's `cmd.exe` as a shell to run a batch file.
-Thus the batch file is an *actual* service application from
-concept point of view.
+Thus the batch file is an *actual* service application from a
+conceptual point of view.
 
 The batch file should behave like a *service* and must never
-exit. Any exit is treated as error because from SCM
+exit. Any exit is treated as an error because from the SCM
 (Service Control Manager) point of view it is the same
-as service failure. On Stop or Shutdown events signaled
-by SCM, SvcBatch will send CTRL_C signal to cmd.exe, as
-if user hit Ctrl+C keys in interactive console session.
+as a service failure. On Stop or Shutdown events signaled
+by SCM, SvcBatch will send a CTRL_C signal to cmd.exe, as
+if a user hit Ctrl+C keys in interactive console session.
 
 The simplest way to create a service for your batch file
 is to put `svcbatch.exe` in the same directory where your
-`myservice.bat` file is located. Open command prompt and
+`myservice.bat` file is located. Open the command prompt and
 type something like this...
 
 ```cnd
@@ -93,9 +91,9 @@ detailed usage.
 
 * **Notice**
 
-  If the program started from service batch file creates
-  its own child processes ensure to setup the following
-  privileges to the service
+  If the program started from a service batch file creates
+  its own child processes, ensure you setup the following
+  privileges to the service:
 
   ```cmd
   > sc privs myservice SeDebugPrivilege
@@ -106,8 +104,8 @@ detailed usage.
 
 # Examples
 
-To get an overview how the SvcBatch is used with real
-application check the [documentation](docs/index.md)
+To get an overview on how the SvcBatch is used with the real
+application, check the [documentation](docs/index.md)
 section for some basic deployment guideline.
 
 
@@ -118,8 +116,8 @@ SvcBatch.
 
 ## Log Rotation
 
-By default SvcBatch on startup creates a `Logs` directory inside its
-working directory and creates a SvcBatch.log file that is used both
+By default SvcBatch, on startup, creates a `Logs` directory inside its
+working directory and creates an SvcBatch.log file that is used both
 for internal logging and capturing output from `cmd.exe`
 
 It also rotates (renames) previous log files if the files are
@@ -140,19 +138,19 @@ present inside `Logs` directory using the following procedure:
 
 ```
 
-User can use `sc.exe control [service name] 234` to initiate
+Users can use `sc.exe control [service name] 234` to initiate a
 log rotation at any time while the service is running.
 Note that **234** is our custom service control code.
 
 
 ## Command Line Options
 
-SvcBatch command line options allow user to customize
+SvcBatch command line options allow users to customize
 service deployments. Options are case insensitive and both `-` and `/` can be
-used as switches. This means that `/o /O -o and -O` can be used for the same option..
+used as switches. This means that `/b /B -b and -B` can be used for the same option..
 
 After handling switches SvcBatch will use the last argument
-as batch file to execute.
+as the batch file to execute.
 
 Command line options are defined at service install time, so
 make sure to get familiar with `sc.exe` utility.
@@ -173,7 +171,7 @@ make sure to get familiar with `sc.exe` utility.
   This option will replace **PATH** environment variable with minimal
   set of paths that are needed to run the batch file.
 
-  The path of svcbatch.exe is used as first path element.
+  The path of svcbatch.exe is used as the first path element.
   For example if you have installed a service with svcbatch.exe from
   `C:\Program Files\SvcBatch\svcbatch.exe` then the **PATH** environment
   variable will be set to:
@@ -190,25 +188,25 @@ make sure to get familiar with `sc.exe` utility.
 
   This option is useful to separate the service from
   other services running with the same account.
-  The batch file can set **PATH** to desired value
+  The batch file can set **PATH** to the desired value
   and then call the actual application.
 
 * **-o [path]**
 
   Set Output directory to **path**
 
-  This option allows to set the output directory where SvcBatch
+  This option allows a user to set the output directory, which is where SvcBatch
   will create any runtime data files.
 
-  If set the **path** parameter will be used as
+  If set, the **path** parameter will be used as the
   location where SvcBatch.log files will be created.
-  SvcBatch will create **path** directory if it doesn't exist.
+  SvcBatch will create a **path** directory if it doesn't exist.
 
-  If not set, SvcBatch will create and use **SVCBTCH_SERVICE_HOME\Logs**
+  If not set, SvcBatch will create and use the  **SVCBTCH_SERVICE_HOME\Logs**
   directory as a location for log files and any runtime data
   that has to be created.
 
-  This directory has to be unique for each service instance. Otherwise
+  This directory has to be unique for each service instance. Otherwise the
   service will fail if another service already opened SvacBatch.log
   in that location.
 
@@ -216,38 +214,38 @@ make sure to get familiar with `sc.exe` utility.
 
   **Use safe environment**
 
-  Remove all environment variables for child
+  Removes all environment variables for child
   processes, except the system ones.
 
   This option allows every batch file to have a clean
   environment, regardless of how many variables are
-  defined for `LOCAL_SERVICE` account.
+  defined for the `LOCAL_SERVICE` account.
 
   Check [svcbatch.c](svcbatch.c) **safewinenv[]**
   string array for a complete list of environment variables
-  that are passed to child process. If this option is set
+  that are passed to child processes. If this option is set,
   all other environment variables not belonging to that set
-  will be omitted from child process environment.
+  will be omitted from the child process environment.
 
 
 * **-w [path]**
 
-  Set service working directory to **path**
+  Set service working directory to **path**.
 
-  This option allows to explicitly set the working
-  directory. This allows to have relative path
-  for batch file parameter and common location for
+  This option enables users to explicitly set the working
+  directory. This allows for having a relative path
+  for batch file parameters and a common location for
   svcbatch.exe.
 
   If not specified, the working directory is set
   to the path of the batch file if it was defined
-  as absolute path. Otherwise directory of svcbatch.exe
-  will be used as working directory.
+  as an absolute path. Otherwise directory of svcbatch.exe
+  will be used as the working directory.
 
 ## Private Environment Variables
 
-SvcBatch sets few private environment variables that
-provide more info about running environment to batch file.
+SvcBatch sets a few private environment variables that
+provide more info about running environments to batch files.
 
 
 Here is the list of environment variables that
@@ -255,11 +253,10 @@ SvcBatch sets for each instance.
 
 * **SVCBATCH_VERSION_ABI**
 
-  This environment variable is set to the value of
-  current svcbatch.exe ABI. This can be used by batch
+  This environment variable is set to the current value of svcbatch.exe ABI. This can be used by the batch
   file to determine the SvcBatch functionality.
 
-  The ABI version is defined in svcbatch.h file and
+  The ABI version is defined in the svcbatch.h file and
   it's current value is **20201209**
 
 * **SVCBATCH_SERVICE_BASE**
@@ -269,7 +266,7 @@ SvcBatch sets for each instance.
 
 * **SVCBATCH_SERVICE_SELF**
 
-  This variable is set to SvcBatch executable name.
+  This variable is set to the SvcBatch executable name.
 
 * **SVCBATCH_SERVICE_HOME**
 
@@ -292,7 +289,7 @@ SvcBatch sets for each instance.
 
 * **SVCBATCH_SERVICE_UUID**
 
-  This is service's unique identifier in UUID hex format
+  This is the service's unique identifier in UUID hex format
   `01234567-89ab-cdef-0123-456789abcdef` and it is
   randomly generated on service startup.
 
@@ -316,12 +313,12 @@ SvcBatch sets for each instance.
 SvcBatch can send `CTRL_BREAK_EVENT` signal to its child processes.
 
 This allows programs like **java.exe** to act upon that signal.
-For example JVM will dump full thread stack in the same way
+For example JVM will dump it's full thread stack in the same way
 as if user hit the `CTRL` and `Break` keys in interactive console.
 
 Use `sc.exe control [service name] 233` to send
 `CTRL_BREAK_EVENT` to all child processes.
-Again as with log rotate, the **233** is our custom control code.
+Again, as with log rotate, the **233** is our custom control code.
 
 * **Important**
 
@@ -329,13 +326,13 @@ Again as with log rotate, the **233** is our custom control code.
   switch option.
 
   Do not send `CTRL_BREAK_EVENT` if the batch file runs a process
-  that does not have custom `CTRL_BREAK_EVENT` console handler.
-  By default the process will exit and service will either fail or hang.
+  that does not have a custom `CTRL_BREAK_EVENT` console handler.
+  By default the process will exit and the service will either fail or hang.
 
 ## Stop and Shutdown
 
-When you type `sc.exe stop myservice` or when machine gets into
-shutdown state SvcBatch running as a service will receive
+When you type `sc.exe stop myservice` or when your machine gets into the
+shutdown state, SvcBatch running as a service will receive
 stop or shutdown event. SvcBatch will send `CTRL_C_EVENT` to its
 child processes.
 

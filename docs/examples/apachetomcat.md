@@ -3,25 +3,25 @@
 This example shows how to use SvcBatch to run Apache Tomcat
 as a Windows service.
 
-Ensure that you have at least jdk version 8 installed, so that
-jvm does not exit on user log off.
-
 
 ### Prerequisites
 
-Download latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
+Ensure that you have at least jdk version 8 installed, so that
+jvm does not exit on user log off.
+
+Download the latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
 and put `svcbatch.exe` into your `tomcat/bin` directory.
 
-SvcBatch executable can be shared between multiple Tomcat instances.
-Simply put `svcbatch.exe` into desired directory and modify
-your service create scripts to set working directory  using `/W`
+The SvcBatch executable can be shared between multiple Tomcat instances.
+Put `svcbatch.exe` into the desired directory and modify
+your service create scripts to set the working directory  using `/W`
 commandline option for each different instance.
 
 
 ### Example service
 
-Inside [Tomcat](tomcat/) directory there are two batch files that
-provide complete solution to run and manage Apache Tomcat as
+Inside the [Tomcat](tomcat/) directory there are two batch files that
+provide the complete solution to run and manage Apache Tomcat as
 windows service.
 
 
@@ -30,19 +30,20 @@ batch files into your `tomcat/bin` directory.
 [servicemgr](omcat/servicemgr.bat) is a simple batch file
 that can be used instead typing multiple commands.
 
+Before executing `servicemgr.bat`, edit `servicemgr.bat` and modify
+`TOMCAT_DISPLAY` and `TOMCAT_FULLVER` variables to match the Tomcat
+version you are using. You can actually just put any string
+for `DisplayName=` and `sc description ...` directly as fits.
+
+
 ```cmd
 
 > servicemgr.bat create Tomcat10
 
 ```
 
-Before executing that command, edit `servicemgr.bat` and modify
-`TOMCAT_DISPLAY` and `TOMCAT_FULLVER` variables to match the Tomcat
-version you are using. You can actually just put any string
-for `DisplayName=` and `sc description ...` directly as fits.
-
 After creating a service, edit `winservice.bat` file and modify
-JAVA_HOME to yours actual jdk location. You can replace that line
+JAVA_HOME to your actual jdk location. You can replace that line
 with JRE_HOME. You can set JAVA_HOME or JRE_HOME inside
 System Environment, but then you must remove the `/s` switch inside
 servicemgr.bat `sc create ...` command, because with `/s` switch, SvcBatch
@@ -60,7 +61,7 @@ That's it! Now, just type ...
 ### Step by step
 
 Instead above example, you can create your own
-service batch file by following next few steps.
+service batch file by following the next few steps.
 
 #### Step 1:
 Create a batch file named `tomcatsvc.bat` inside `tomcat/bin`
@@ -77,7 +78,7 @@ catalina.bat run
 ```
 
 #### Step 2:
-Create service by opening command prompt with Administrator
+Create a service by opening command prompt with Administrator
 privileges inside your `tomcat/bin` directory
 
 ```cmd
@@ -103,7 +104,7 @@ which require a space after equal character. This means that you have
 to use `start= auto` since `start=auto` will fail. Yes those
 blanks are not typos :D
 
-Check [SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create)
+Check the [SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create)
 for detailed description how to use the SC utility to create a service
 
 #### Step 3:
@@ -115,7 +116,7 @@ Start the service by entering
 ```
 
 #### Step 4:
-Get full java thread dump
+Get the full java thread dump
 
 ```cmd
 > sc.exe control Tomcat 233
