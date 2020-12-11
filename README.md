@@ -155,86 +155,91 @@ Command line options are defined at service install time, so
 make sure to get familiar with `sc.exe` utility.
 
 * **-b**
+
   **Enable sending CTRL_BREAK_EVENT**
 
-This option enables our custom service control
-code to send `CTRL_BREAK_EVENT` to the child processes.
+  This option enables our custom service control
+  code to send `CTRL_BREAK_EVENT` to the child processes.
 
-Check *Custom control codes* section below for more details
+  See [Custom Control Codes](#custom-control-codes) section below for more details
 
 * **-c**
+
   **Use clean PATH environment variable**
 
-This option will replace **PATH** environment variable with minimal
-set of paths that are needed to run the batch file.
+  This option will replace **PATH** environment variable with minimal
+  set of paths that are needed to run the batch file.
 
-The path of svcbatch.exe is used as first path element.
-For example if you have installed a service with svcbatch.exe from
-`C:\Program Files\SvcBatch\svcbatch.exe` then the **PATH** environment
-variable will be set to:
+  The path of svcbatch.exe is used as first path element.
+  For example if you have installed a service with svcbatch.exe from
+  `C:\Program Files\SvcBatch\svcbatch.exe` then the **PATH** environment
+  variable will be set to:
 
 
-```no-highlight
-    C:\Program Files\SvcBatch;
-    C:\Working\Directory;
-    %SystemRoot%\System32;
-    %SystemRoot%;
-    %SystemRoot%\System32\Wbem;
-    %SystemRoot%\System32\WindowsPowerShell\v1.0"
-```
+  ```no-highlight
+      C:\Program Files\SvcBatch;
+      C:\Working\Directory;
+      %SystemRoot%\System32;
+      %SystemRoot%;
+      %SystemRoot%\System32\Wbem;
+      %SystemRoot%\System32\WindowsPowerShell\v1.0"
+  ```
 
-This option is useful to separate the service from
-other services running with the same account.
-The batch file can set **PATH** to desired value
-and then call the actual application.
+  This option is useful to separate the service from
+  other services running with the same account.
+  The batch file can set **PATH** to desired value
+  and then call the actual application.
 
 * **-o [path]**
+
   Set Output directory to **path**
 
-This option allows to set the output directory where SvcBatch
-will create any runtime data files.
+  This option allows to set the output directory where SvcBatch
+  will create any runtime data files.
 
-If set the **path** parameter will be used as
-location where SvcBatch.log files will be created.
-SvcBatch will create **path** directory if it doesn't exist.
+  If set the **path** parameter will be used as
+  location where SvcBatch.log files will be created.
+  SvcBatch will create **path** directory if it doesn't exist.
 
-If not set, SvcBatch will create and use **SVCBTCH_SERVICE_HOME\Logs**
-directory as a location for log files and any runtime data
-that has to be created.
+  If not set, SvcBatch will create and use **SVCBTCH_SERVICE_HOME\Logs**
+  directory as a location for log files and any runtime data
+  that has to be created.
 
-This directory has to be unique for each service instance. Otherwise
-service will fail if another service already opened SvacBatch.log
-in that location.
+  This directory has to be unique for each service instance. Otherwise
+  service will fail if another service already opened SvacBatch.log
+  in that location.
 
 * **-s**
+
   **Use safe environment**
 
-Remove all environment variables for child
-processes, except the system ones.
+  Remove all environment variables for child
+  processes, except the system ones.
 
-This option allows every batch file to have a clean
-environment, regardless of how many variables are
-defined for `LOCAL_SERVICE` account.
+  This option allows every batch file to have a clean
+  environment, regardless of how many variables are
+  defined for `LOCAL_SERVICE` account.
 
-Check [svcbatch.c](svcbatch.c) **safewinenv[]**
-string array for a complete list of environment variables
-that are passed to child process. If this option is set
-all other environment variables not belonging to that set
-will be omitted from child process environment.
+  Check [svcbatch.c](svcbatch.c) **safewinenv[]**
+  string array for a complete list of environment variables
+  that are passed to child process. If this option is set
+  all other environment variables not belonging to that set
+  will be omitted from child process environment.
 
 
 * **-w [path]**
+
   Set service working directory to **path**
 
-This option allows to explicitly set the working
-directory. This allows to have relative path
-for batch file parameter and common location for
-svcbatch.exe.
+  This option allows to explicitly set the working
+  directory. This allows to have relative path
+  for batch file parameter and common location for
+  svcbatch.exe.
 
-If not specified, the working directory is set
-to the path of the batch file if it was defined
-as absolute path. Otherwise directory of svcbatch.exe
-will be used as working directory.
+  If not specified, the working directory is set
+  to the path of the batch file if it was defined
+  as absolute path. Otherwise directory of svcbatch.exe
+  will be used as working directory.
 
 ## Private Environment Variables
 
