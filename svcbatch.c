@@ -75,7 +75,7 @@ static HANDLE    monitorevent     = 0;
 static HANDLE    processended     = 0;
 /**
  * Child process redirection pipes
- */ 
+ */
 static HANDLE    stdoutputpipew   = 0;
 static HANDLE    stdoutputpiper   = 0;
 static HANDLE    stdinputpipewr   = 0;
@@ -661,7 +661,7 @@ static HANDLE xcreatethread(int detach,
     return h;
 }
 
-static wchar_t *expandenvironment(const wchar_t *str)
+static wchar_t *expandenvstrings(const wchar_t *str)
 {
     wchar_t  *buf = 0;
     int       bsz = MBUFSIZ;
@@ -697,7 +697,7 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 
     if (IS_EMPTY_WCS(path))
         return 0;
-    if ((es = expandenvironment(path)) == 0)
+    if ((es = expandenvstrings(path)) == 0)
         return 0;
 
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, 0,
@@ -778,9 +778,9 @@ static int resolvesvcbatchexe(void)
 
 /**
  * Get the full path of the batch file
- * and get its directoy
+ * and get its directory
  *
- * Note that input param must have file extension.
+ * Note that input parameter must have file extension.
  */
 static int resolvebatchname(const wchar_t *batch)
 {
@@ -1140,10 +1140,11 @@ failed:
 static void logconfig(void)
 {
     logprintf("Service name     : %S", servicename);
-    logprintf("Service id       : %S", serviceuuid);
+    logprintf("Service uuid     : %S", serviceuuid);
     logprintf("Batch file       : %S", svcbatchfile);
     logprintf("Base directory   : %S", servicebase);
     logprintf("Working directory: %S", servicehome);
+    logprintf("Runtime directory: %S", loglocation);
     logfflush();
 }
 
@@ -1735,7 +1736,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 continue;
             }
             if (loglocation == zerostring) {
-                loglocation = expandenvironment(p);
+                loglocation = expandenvstrings(p);
                 if (loglocation == 0)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
@@ -1783,7 +1784,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              * First argument after options is batch file
              * that we are going to execute.
              */
-            if ((bname = expandenvironment(p)) == 0)
+            if ((bname = expandenvstrings(p)) == 0)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
         }
         else {
@@ -1911,7 +1912,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                  stdwinpaths, 0);
         xfree(opath);
 
-        if ((opath = expandenvironment(cp)) == 0)
+        if ((opath = expandenvstrings(cp)) == 0)
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
         xfree(cp);
     }
