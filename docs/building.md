@@ -71,6 +71,16 @@ After setting compiler, use the following
 
 The binary should be inside **x64** subdirectory.
 
+Using Visual Studio there is and option to create
+svcbatch.exe that is statically linked to MSVCRT
+library, which enables produced binary to not
+depend on MSVCRT runtime dll's.
+
+Simply add `_STATIC_MSVCRT=1` as nmake parameter:
+```cmd
+> nmake -f Makefile.mak _STATIC_MSVCRT=1
+
+```
 
 ### Makefile targets
 
@@ -126,9 +136,8 @@ if they are not already installed.
 
 For example
 ```sh
-
-# pacman --noconfirm -Sy base-devel
-# pacman --noconfirm -Sy mingw-w64-x86_64-toolchain
+$ pacman --noconfirm -Sy base-devel
+$ pacman --noconfirm -Sy mingw-w64-x86_64-toolchain
 ```
 
 Restart the shell with `-mingw64` parameter or open `mingw64.exe`
