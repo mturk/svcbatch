@@ -20,12 +20,13 @@ or any later version. Alternatively you use
 
 The official distributions are build using
 [Custom Microsoft Compiler Toolkit](https://github.com/mturk/cmsc)
-compiler provided with Windows Driver Kit version 7.1.0
+compiler bundle.
 
 
 ### Build using CMSC
 
-Presuming that you have downloaded and unzipped [CMSC release](https://github.com/mturk/cmsc/releases)
+Presuming that you have downloaded and unzipped
+[CMSC release](https://github.com/mturk/cmsc/releases)
 in the root of C drive.
 
 Open command prompt in the directory where you have
@@ -41,6 +42,7 @@ Setting build environment for win-x64/0x0601
 Microsoft (R) Program Maintenance Utility Version 9.00.30729.207
 ...
 ```
+
 In case there are no compile errors, svcbatch.exe is located
 inside **x64** subdirectory.
 
@@ -71,12 +73,10 @@ After setting the compiler, use the following
 
 The binary should be inside **x64** subdirectory.
 
-Using Visual Studio there is an option to create
-svcbatch.exe that is statically linked to the MSVCRT
-library, which enables the produced binary to not
-depend on MSVCRT runtime dll's.
+Using Visual Studio, svcbatch.exe can be built
+as statically linked to the MSVCRT library.
 
-Simply add `_STATIC_MSVCRT=1` as nmake parameter:
+Add `_STATIC_MSVCRT=1` as nmake parameter:
 ```cmd
 > nmake -f Makefile.mak _STATIC_MSVCRT=1
 
@@ -180,10 +180,10 @@ and put **7za.exe** somewhere in the PATH.
 After compilation, run the [release](../mkrelease.bat) batch file
 to create required metadata and release assets.
 
-Edit **svcbatch-0.0.0.txt** file and remove the directory
+Edit **svcbatch-x.y.z.txt** file and remove the directory
 part of svcbatch,exe. Also remove the scan time data
 (*those are usually last three lines*)
 The content of this file has to be put in GitHub release description box.
 
-Finally add the **svcbatch-0.0.0-win-x64.zip** and **svcbatch-0.0.0-sha256.txt**
+Finally add the **svcbatch-x.y.z-win-x64.zip** and **svcbatch-x.y.z-sha256.txt**
 files to the release assets.
