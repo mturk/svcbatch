@@ -6,9 +6,9 @@ that runs batch files as Windows services.
 The build process supports only command line tools
 for both Microsoft and GCC compilers.
 
-SvcBatch release comes with **svcbatch.exe** binary.
+SvcBatch release comes with the **svcbatch.exe** binary.
 In case you wish to create your own binary build,
-download or clone SvcBatch sources and follow
+download or clone SvcBatch sources and follow a
 few standard rules.
 
 ### Prerequisites
@@ -25,7 +25,7 @@ compiler provided with Windows Driver Kit version 7.1.0
 
 ### Build using CMSC
 
-Presuming that you have downloaded and unzip [CMSC release](https://github.com/mturk/cmsc/releases)
+Presuming that you have downloaded and unzipped [CMSC release](https://github.com/mturk/cmsc/releases)
 in the root of C drive.
 
 Open command prompt in the directory where you have
@@ -46,13 +46,13 @@ inside **x64** subdirectory.
 
 ### Build using Visual Studio
 
-To build the SvcBatch using already installed Visual Studio,
+To build the SvcBatch using an already installed Visual Studio,
 you will need to open the Visual Studio native x64 command
 line tool. The rest is almost the same as with CMSC toolkit.
 
 Here is the example for Visual Studio 2012
 
-Inside Start menu select Microsoft Visual Studio 2012 then
+Inside the Start menu select Microsoft Visual Studio 2012 then
 click on Visual Studio Tools and click on
 Open `VC2012 x64 Native Tools Command Prompt`.
 
@@ -61,7 +61,7 @@ and call `vcvars64.bat` from Visual Studio install location
 eg, `C:\Program Files\Visual Studio 2017\VC\Auxiliary\Build`
 
 
-After setting compiler, use the following
+After setting the compiler, use the following
 
 ```cmd
 > cd C:\Some\Location\svcbatch
@@ -71,9 +71,9 @@ After setting compiler, use the following
 
 The binary should be inside **x64** subdirectory.
 
-Using Visual Studio there is and option to create
-svcbatch.exe that is statically linked to MSVCRT
-library, which enables produced binary to not
+Using Visual Studio there is an option to create
+svcbatch.exe that is statically linked to the MSVCRT
+library, which enables the produced binary to not
 depend on MSVCRT runtime dll's.
 
 Simply add `_STATIC_MSVCRT=1` as nmake parameter:
@@ -92,7 +92,7 @@ for SvcBatch development and maintenance
 ```
 
 This will remove all produced binaries and object files
-by simply deleting **x64** subdirectory.
+by deleting **x64** subdirectory.
 
 ```cmd
 > nmake -f Makefile.mak install PREFIX=C:\some\directory
@@ -102,13 +102,13 @@ Standard makefile install target that will
 copy the executable to the PREFIX location.
 
 This can be useful if you are building SvcBatch with
-some Continuous build application that need produced
+some Continuous build application that needs produced
 binaries at a specific location for later use.
 
 ### DebugView support
 
 For debug and development purposes you can compile
-SvcBatch with `_DBGVIEW` option that will enable
+SvcBatch with the `_DBGVIEW` option that will enable
 internal tracing which can be viewed by using
 [SysInternals DebugView](https://download.sysinternals.com/files/DebugView.zip)
 utility.
@@ -127,7 +127,7 @@ official site.
 
 ### Build using mingw64
 
-SvcBatch can be build using GCC compiler from msys2.
+SvcBatch can be built using GCC compiler from msys2.
 You will need to install [msys2](https://www.msys2.org)
 
 After installing msys2 open msys2 shell and
@@ -167,23 +167,23 @@ for more guidelines.
 
 Before publishing new SvcBatch version run the anti virus scan on produced binaries.
 Download latest version of [ClamAV](https://www.clamav.net/downloads)
-and run installer or unzip the portable version to some directory of
-choice and do required setup. Check
+and run the installer or unzip the portable version to some directory of
+choice and do the required setup. Check
 [Installing](https://www.clamav.net/documents/installing-clamav-on-windows)
 section for more info about ClamAV installation and setup.
 
 To create a .zip distribution archive download
-and extract 7-zip standalone console version from
+and extract the 7-zip standalone console version from
 [7-Zip Extra](https://www.7-zip.org/a/7z1900-extra.7z)
 and put **7za.exe** somewhere in the PATH.
 
 After compilation, run the [release](../mkrelease.bat) batch file
 to create required metadata and release assets.
 
-Edit **svcbatch-0.0.0.txt** file and remove directory
+Edit **svcbatch-0.0.0.txt** file and remove the directory
 part of svcbatch,exe. Also remove the scan time data
 (*those are usually last three lines*)
 The content of this file has to be put in GitHub release description box.
 
-Finally add **svcbatch-0.0.0-win-x64.zip** and **svcbatch-0.0.0-sha256.txt**
+Finally add the **svcbatch-0.0.0-win-x64.zip** and **svcbatch-0.0.0-sha256.txt**
 files to the release assets.

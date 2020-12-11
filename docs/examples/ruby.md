@@ -1,7 +1,7 @@
 ### Ruby Examples
 
-Inside [ruby](ruby) directory you can find simple
-web server example and a batch file that is used as
+Inside the [ruby](ruby) directory you can find a simple
+web server example and a batch file that is used as a
 service wrapper.
 
 Put `svcbatch.exe` into that directory and create
