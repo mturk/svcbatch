@@ -1679,9 +1679,6 @@ static void __cdecl cconsolecleanup(void)
  */
 static void __cdecl objectscleanup(void)
 {
-    DeleteCriticalSection(&logfilelock);
-    DeleteCriticalSection(&servicelock);
-
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopevent);
     SAFE_CLOSE_HANDLE(monitorevent);
