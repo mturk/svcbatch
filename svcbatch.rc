@@ -41,7 +41,7 @@ BEGIN
             VALUE "LegalCopyright",     SVCBATCH_COPYRIGHT
             VALUE "OriginalFilename",   SVCBATCH_NAME ".exe"
             VALUE "ProductName",        SVCBATCH_SVCNAME
-            VALUE "ProductVersion",     SVCBATCH_VERSION_STR "." SVCBATCH_VERSION_ABI
+            VALUE "ProductVersion",     SVCBATCH_VERSION_STR
         END
     END
     BLOCK "VarFileInfo"
