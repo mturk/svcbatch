@@ -255,22 +255,10 @@ provide more info about running environments to batch files.
 Here is the list of environment variables that
 SvcBatch sets for each instance.
 
-* **SVCBATCH_VERSION_ABI**
-
-  This environment variable is set to the current value of svcbatch.exe ABI.
-  This can be used by the batch file to determine the SvcBatch functionality.
-
-  The ABI version is defined in the svcbatch.h file and
-  it's current value is **20201212**
-
 * **SVCBATCH_SERVICE_BASE**
 
   This variable is set to the directory of the SvcBatch
   executable.
-
-* **SVCBATCH_SERVICE_SELF**
-
-  This variable is set to the SvcBatch executable name.
 
 * **SVCBATCH_SERVICE_HOME**
 
@@ -294,6 +282,11 @@ SvcBatch sets for each instance.
   echo Running service %SVCBATCH_SERVICE_NAME%
 
   ```
+
+* **SVCBATCH_SERVICE_SELF**
+
+  This variable is set to the SvcBatch executable name.
+
 
 * **SVCBATCH_SERVICE_UUID**
 

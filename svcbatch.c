@@ -95,10 +95,11 @@ static const wchar_t *removeenv[] = {
     L"_=",
     L"!::=",
     L"!;=",
-    L"SVCBATCH_VERSION_ABI=",
     L"SVCBATCH_SERVICE_BASE=",
     L"SVCBATCH_SERVICE_HOME=",
+    L"SVCBATCH_SERVICE_LOGS=",
     L"SVCBATCH_SERVICE_NAME=",
+    L"SVCBATCH_SERVICE_SELF=",
     L"SVCBATCH_SERVICE_UUID=",
     L"PATH=",
     0
@@ -1590,7 +1591,6 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * Add additional environment variables
      * They are unique to this service instance
      */
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_VERSION_ABI=",  CPP_WIDEN(SVCBATCH_VERSION_ABI));
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGS=", loglocation);

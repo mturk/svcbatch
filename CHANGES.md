@@ -8,7 +8,7 @@ For a full list of changes, see the [git commit log][log]
 
 ## v0.9.7
 
- * Switched ABI to 20201212
+ * Drop entire ABI concept
  * Add SVCBATCH_SERVICE_LOGS variable
  * Drop serviceended event because there are no console shutdown signals
 

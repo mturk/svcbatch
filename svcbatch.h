@@ -41,20 +41,6 @@
 #define SVCBATCH_ISDEV_VERSION  1
 
 /**
- * ABI version info
- *
- * 20201201   (0.9.1-dev)       Initial version
- * 20201205   (0.9.3-dev)       Add parent signaling support
- * 20201207   (0.9.4-dev)       Drop parent signaling support
- * 20201209   (0.9.5-dev)       Increase maxlog to SvcBatch.log.4
- *                              Allow to specify log directory
- * 20201212   (0.9.7-dev)       Add SVCBATCH_SERVICE_LOGS variable
- *
- */
-#define SVCBATCH_VERSION_ABI    "20201212"
-
-
-/**
  * Maximum number of SvcBatch.log.N files
  */
 #define SVCBATCH_MAX_LOGS       4
