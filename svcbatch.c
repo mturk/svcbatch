@@ -1593,6 +1593,7 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_VERSION_ABI=",  CPP_WIDEN(SVCBATCH_VERSION_ABI));
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGS=", loglocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_SELF=", svcbatchexe);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
@@ -1844,7 +1845,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (loglocation == 0)
         loglocation = xwcsdup(L"Logs");
-    dupwenvp = waalloc(envc + 8);
+    dupwenvp = waalloc(envc + 10);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;
         const wchar_t  *p = wenv[i];
