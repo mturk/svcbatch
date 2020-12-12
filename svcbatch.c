@@ -88,8 +88,6 @@ static const wchar_t *stdwinpaths = L";"    \
 /**
  * The following environment variables
  * are removed from the provided environment.
- * SVCBATCH_ variables are lated added and
- * are unique for each service instance
  */
 static const wchar_t *removeenv[] = {
     L"_=",
