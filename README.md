@@ -9,7 +9,8 @@ for scripts written in Perl, Python, Ruby, etc... without the need
 for a specialized service wrapper.
 
 SvcBatch was designed to be simple to use and lightweight, with a small
-memory footprint. Its only dependency is win32 API, and only has around 2K lines of **C** code. There are no configuration
+memory footprint. Its only dependency is win32 API, and only has
+around 2K lines of **C** code. There are no configuration
 files or installation requirements, so it can be easily distributed
 alongside any application that requires Windows service functionality.
 
@@ -50,7 +51,7 @@ to run this application.
 
 To build the SvcBatch from source code follow the
 directions explained in [Building](docs/building.md) document.
-SvcBatch is targetted for Windows 64-bit versions, so make sure
+SvcBatch is targeted for Windows 64-bit versions, so make sure
 to use 64-bit compiler.
 
 ## Creating Services
