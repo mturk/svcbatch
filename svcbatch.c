@@ -1714,7 +1714,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     for (i = 1; i < argc; i++) {
         const wchar_t *p = wargv[i];
         if (p[0] == L'\0')
-            return svcsyserror(__LINE__, 0, L"Empty cmdline argument");
+            return svcsyserror(__LINE__, 0, L"Empty command line argument");
         if (hasopts) {
             if (servicehome == zerostring) {
                 servicehome = getrealpathname(p, 1);
@@ -1731,11 +1731,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             hasopts = 0;
             if ((p[0] == L'-') || (p[0] == L'/')) {
                 if (p[1] == L'\0')
-                    return svcsyserror(__LINE__, 0, L"Invalid cmdline option");
+                    return svcsyserror(__LINE__, 0, L"Invalid command line option");
                 if (p[2] == L'\0')
                     hasopts = 1;
                 else if (p[0] == L'-')
-                    return svcsyserror(__LINE__, 0, L"Invalid cmdline option");
+                    return svcsyserror(__LINE__, 0, L"Invalid command line option");
             }
             if (hasopts) {
                 switch (p[1]) {
@@ -1749,7 +1749,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     break;
                     case L'o':
                     case L'O':
-                        loglocation = zerostring;
+                        loglocation  = zerostring;
                     break;
                     case L's':
                     case L'S':
@@ -1760,7 +1760,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         servicehome = zerostring;
                     break;
                     default:
-                        return svcsyserror(__LINE__, 0, L"Unknown cmdline option");
+                        return svcsyserror(__LINE__, 0, L"Unknown command line option");
                     break;
                 }
                 continue;
