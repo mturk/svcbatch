@@ -8,6 +8,7 @@ For a full list of changes, see the [git commit log][log]
 
 ## v0.9.7
 
+ * Drop serviceended event because there are no console shutdown signals
 
 ## v0.9.6
 

@@ -53,12 +53,6 @@ static wchar_t  *servicehome      = 0;
 static wchar_t  *serviceuuid      = 0;
 
 /**
- * Signaled by service main thread
- * when the service is about to report
- * SERVICE_STOPPED
- */
-static HANDLE    serviceended     = 0;
-/**
  * Signaled by service stop thread
  * when stop child process is finished.
  * servicemain must wait for that event
@@ -1408,13 +1402,7 @@ BOOL WINAPI consolehandler(DWORD ctrl)
         case CTRL_CLOSE_EVENT:
         case CTRL_SHUTDOWN_EVENT:
             /**
-             * Wait for SvcBatch to terminate, but respond
-             * after a reasonable time to tell the system
-             * that we did attempt to shut ourselves down.
-             *
-             * Use 30 seconds as timeout value
-             * which is the time according to MSDN for
-             * services to react on system shutdown
+             * Do we need that signal?
              */
             EnterCriticalSection(&logfilelock);
             if (IS_VALID_HANDLE(logfhandle)) {
@@ -1422,7 +1410,6 @@ BOOL WINAPI consolehandler(DWORD ctrl)
                 logwrline("CTRL_SHUTDOWN_EVENT signaled");
             }
             LeaveCriticalSection(&logfilelock);
-            WaitForSingleObject(serviceended, SVCBATCH_STOP_WAIT);
         break;
         case CTRL_C_EVENT:
         case CTRL_BREAK_EVENT:
@@ -1448,6 +1435,12 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
 #if defined(SERVICE_CONTROL_PRESHUTDOWN)
         case SERVICE_CONTROL_PRESHUTDOWN:
 #endif
+            EnterCriticalSection(&logfilelock);
+            if (IS_VALID_HANDLE(logfhandle)) {
+                logfflush();
+                logwrline("Service SHUTDOWN signaled");
+            }
+            LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
             xcreatethread(1, &stopthread, 0);
         break;
@@ -1479,7 +1472,6 @@ static DWORD WINAPI workerthread(LPVOID unused)
     wchar_t *arg1;
     HANDLE   wh[2] = {0, 0};
 
-    memset(&si, 0, sizeof(STARTUPINFOW));
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "    started");
 #endif
@@ -1505,7 +1497,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
 #endif
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-
+    memset(&si, 0, sizeof(STARTUPINFOW));
     si.cb         = DSIZEOF(STARTUPINFOW);
     si.dwFlags    = STARTF_USESTDHANDLES;
     si.hStdInput  = stdinputpiperd;
@@ -1670,7 +1662,6 @@ finished:
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "     done");
 #endif
-    SetEvent(serviceended);
     reportsvcstatus(SERVICE_STOPPED, rv);
 }
 
@@ -1693,7 +1684,6 @@ static void __cdecl objectscleanup(void)
 
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopevent);
-    SAFE_CLOSE_HANDLE(serviceended);
     SAFE_CLOSE_HANDLE(monitorevent);
 }
 
@@ -1933,10 +1923,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     svcstopevent = CreateEventW(&sa, 1, 1, 0);
     processended = CreateEventW(&sa, 1, 0, 0);
-    serviceended = CreateEventW(&sa, 1, 0, 0);
     monitorevent = CreateEventW(&sa, 1, 0, 0);
-    if (IS_INVALID_HANDLE(serviceended) ||
-        IS_INVALID_HANDLE(processended) ||
+    if (IS_INVALID_HANDLE(processended) ||
         IS_INVALID_HANDLE(svcstopevent) ||
         IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, ERROR_OUTOFMEMORY, L"CreateEvent");
