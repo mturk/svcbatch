@@ -229,17 +229,6 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     return rv;
 }
 
-static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
-{
-    wchar_t *rv;
-
-    if (IS_EMPTY_WCS(s2))
-        return s1;
-    rv = xwcsconcat(s1, s2);
-    xfree(s1);
-    return rv;
-}
-
 static wchar_t *xwcsvarcat(const wchar_t *p, ...)
 {
     const wchar_t *ap;
