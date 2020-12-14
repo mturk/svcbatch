@@ -38,7 +38,7 @@ rem
 rem Change to actual JBoss EAP version
 set "JBOSSEAP_DISPLAY=JBoss EAP 7.4"
 rem
-sc create "%SERVICE_NAME%" binPath= ""%SERVICE_BASE%\svcbatch.exe" -o "%SERVICE_RUNTIME_DIR%\log" -b -s -c winservice.bat"
+sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" -o \"%SERVICE_RUNTIME_DIR%\log\" -b -s -c winservice.bat"
 sc config "%SERVICE_NAME%" DisplayName= "%JBOSSEAP_DISPLAY% %SERVICE_NAME% Service"
 
 rem Ensure the networking services are running
