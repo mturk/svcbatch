@@ -214,6 +214,8 @@ make sure to get familiar with `sc.exe` utility.
   service will fail if another service already opened SvacBatch.log
   in that location.
 
+  **SVCBATCH_SERVICE_LOGDIR** will be set to **path**.
+
 * **-s**
 
   **Use safe environment**
@@ -264,7 +266,7 @@ SvcBatch sets for each instance.
 
   This variable is set to the service working directory.
 
-* **SVCBATCH_SERVICE_LOGS**
+* **SVCBATCH_SERVICE_LOGDIR**
 
   This variable is set to the service runtime directory.
 
