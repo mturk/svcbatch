@@ -38,7 +38,7 @@
 /**
  * Set to zero for non dev versions
  */
-#define SVCBATCH_ISDEV_VERSION  1
+#define SVCBATCH_ISDEV_VERSION  0
 
 /**
  * Maximum number of SvcBatch.log.N files
