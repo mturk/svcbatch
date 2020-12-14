@@ -1514,7 +1514,9 @@ static DWORD WINAPI workerthread(LPVOID unused)
     ResumeThread(cchild.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     CloseHandle(cchild.hThread);
-
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "    service running");
+#endif
     WaitForMultipleObjects(2, wh, 1, INFINITE);
     CloseHandle(wh[1]);
 
