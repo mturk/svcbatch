@@ -1023,7 +1023,7 @@ static void logconfig(void)
     logprintf("Batch file       : %S", svcbatchfile);
     logprintf("Base directory   : %S", servicebase);
     logprintf("Working directory: %S", servicehome);
-    logprintf("Runtime directory: %S", loglocation);
+    logprintf("Log directory    : %S", loglocation);
     logfflush();
 }
 
