@@ -25,11 +25,12 @@
 
 static volatile LONG         monitorsignum  = 0;
 static SERVICE_STATUS_HANDLE statushandle   = 0;
-static PROCESS_INFORMATION   cmdexeproc;
-static SERVICE_STATUS        servicestatus;
+static PROCESS_INFORMATION   cchild;
+static SERVICE_STATUS        svcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
 
+static wchar_t  *comspec          = 0;
 static wchar_t **dupwenvp         = 0;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = 0;
@@ -42,31 +43,29 @@ static wchar_t  *svcbatchfile     = 0;
 static wchar_t  *batchdirname     = 0;
 static wchar_t  *svcbatchexe      = 0;
 static wchar_t  *servicebase      = 0;
-
-static wchar_t  *loglocation      = 0;
-static wchar_t  *logfilename      = 0;
-static HANDLE    logfhandle       = 0;
-
-static wchar_t  *comspecexe       = 0;
 static wchar_t  *servicename      = 0;
 static wchar_t  *servicehome      = 0;
 static wchar_t  *serviceuuid      = 0;
 
+static wchar_t  *loglocation      = 0;
+static wchar_t  *logfilename      = 0;
+static HANDLE    logfhandle       = 0;
+static ULONGLONG logtickcount;
+
 /**
  * Signaled by service stop thread
- * when stop child process is finished.
- * servicemain must wait for that event
- * after main child is finished or killed
+ * when done.
  */
-static HANDLE    svcstopevent     = 0;
+static HANDLE    svcstopended     = 0;
+/**
+ * Set when pipe and process threads
+ * are done.
+ */
+static HANDLE    processended     = 0;
 /**
  * Set when SCM sends Custom signal
  */
 static HANDLE    monitorevent     = 0;
-/**
- * Set when pipe and process threads end
- */
-static HANDLE    processended     = 0;
 /**
  * Child process redirection pipes
  */
@@ -74,8 +73,6 @@ static HANDLE    stdoutputpipew   = 0;
 static HANDLE    stdoutputpiper   = 0;
 static HANDLE    stdinputpipewr   = 0;
 static HANDLE    stdinputpiperd   = 0;
-
-static ULONGLONG locktickcounter;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 
@@ -339,12 +336,10 @@ static void rmtrailingsep(wchar_t *s)
  */
 static int isrelativepath(const wchar_t *path)
 {
-    wchar_t p = path[0];
-
-    if (p == L'\\')
+    if (path[0] == L'\\')
         return 0;
 
-    if ((p < 128) && (isalpha(p) != 0) && (path[1] == L':'))
+    if ((path[0] < 128) && (isalpha(path[0]) != 0) && (path[1] == L':'))
         return 0;
     else
         return 1;
@@ -567,7 +562,7 @@ static DWORD killprocesstree(DWORD pid, UINT err)
          */
         killprocesstree(pid, err);
     }
-    if (pid == cmdexeproc.dwProcessId)
+    if (pid == cchild.dwProcessId)
         return 0;
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, " %d terminating", pid);
@@ -604,17 +599,17 @@ static DWORD killprocessmain(UINT err)
     DWORD x = 0;
     DWORD r = 0;
 
-    if (IS_INVALID_HANDLE(cmdexeproc.hProcess))
+    if (IS_INVALID_HANDLE(cchild.hProcess))
         return 0;
 #if defined(_DBGTRACE)
-    dbgprintf(__FUNCTION__, " %d", cmdexeproc.dwProcessId);
+    dbgprintf(__FUNCTION__, " %d", cchild.dwProcessId);
 #endif
-    if (GetExitCodeProcess(cmdexeproc.hProcess, &x)) {
+    if (GetExitCodeProcess(cchild.hProcess, &x)) {
         if (x == STILL_ACTIVE) {
 #if defined(_DBGTRACE)
-            dbgprintf(__FUNCTION__, " %d STILL_ACTIVE", cmdexeproc.dwProcessId);
+            dbgprintf(__FUNCTION__, " %d STILL_ACTIVE", cchild.dwProcessId);
 #endif
-            if (TerminateProcess(cmdexeproc.hProcess, err) == 0)
+            if (TerminateProcess(cchild.hProcess, err) == 0)
                 r = GetLastError();
         }
     }
@@ -622,7 +617,7 @@ static DWORD killprocessmain(UINT err)
         r = GetLastError();
     }
 #if defined(_DBGTRACE)
-    dbgprintf(__FUNCTION__, " %d done %d ", cmdexeproc.dwProcessId, r);
+    dbgprintf(__FUNCTION__, " %d done %d ", cchild.dwProcessId, r);
 #endif
 
     return r;
@@ -821,7 +816,7 @@ static int runningasservice(void)
 static void setsvcstatusexit(DWORD e)
 {
     EnterCriticalSection(&servicelock);
-    servicestatus.dwServiceSpecificExitCode = e;
+    svcstatus.dwServiceSpecificExitCode = e;
     LeaveCriticalSection(&servicelock);
 }
 
@@ -830,7 +825,7 @@ static DWORD getservicestate(void)
     DWORD cs;
 
     EnterCriticalSection(&servicelock);
-    cs = servicestatus.dwCurrentState;
+    cs = svcstatus.dwCurrentState;
     LeaveCriticalSection(&servicelock);
     return cs;
 }
@@ -840,42 +835,42 @@ static void reportsvcstatus(DWORD status, DWORD param)
     static DWORD cpcnt = 1;
 
     EnterCriticalSection(&servicelock);
-    if (servicestatus.dwCurrentState == SERVICE_STOPPED) {
+    if (svcstatus.dwCurrentState == SERVICE_STOPPED) {
         status = SERVICE_STOPPED;
         goto finished;
     }
     if (status == 0) {
         if (status == SERVICE_RUNNING)
-            SetServiceStatus(statushandle, &servicestatus);
+            SetServiceStatus(statushandle, &svcstatus);
         goto finished;
     }
-    servicestatus.dwControlsAccepted = 0;
-    servicestatus.dwCheckPoint       = 0;
-    servicestatus.dwWaitHint         = 0;
+    svcstatus.dwControlsAccepted = 0;
+    svcstatus.dwCheckPoint       = 0;
+    svcstatus.dwWaitHint         = 0;
 
     if (status == SERVICE_RUNNING) {
-        servicestatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
-                                            SERVICE_ACCEPT_SHUTDOWN;
+        svcstatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
+                                        SERVICE_ACCEPT_SHUTDOWN;
 #if defined(SERVICE_ACCEPT_PRESHUTDOWN)
-        servicestatus.dwControlsAccepted |= SERVICE_ACCEPT_PRESHUTDOWN;
+        svcstatus.dwControlsAccepted |= SERVICE_ACCEPT_PRESHUTDOWN;
 #endif
         cpcnt = 1;
     }
     else if (status == SERVICE_STOPPED) {
         if (param != 0)
-            servicestatus.dwServiceSpecificExitCode = param;
-        if (servicestatus.dwServiceSpecificExitCode == 0 &&
-            servicestatus.dwCurrentState != SERVICE_STOP_PENDING)
-            servicestatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
-        if (servicestatus.dwServiceSpecificExitCode != 0)
-            servicestatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+            svcstatus.dwServiceSpecificExitCode = param;
+        if (svcstatus.dwServiceSpecificExitCode == 0 &&
+            svcstatus.dwCurrentState != SERVICE_STOP_PENDING)
+            svcstatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
+        if (svcstatus.dwServiceSpecificExitCode != 0)
+            svcstatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
     else {
-        servicestatus.dwCheckPoint = cpcnt++;
-        servicestatus.dwWaitHint   = param;
+        svcstatus.dwCheckPoint = cpcnt++;
+        svcstatus.dwWaitHint   = param;
     }
-    servicestatus.dwCurrentState = status;
-    if (SetServiceStatus(statushandle, &servicestatus) == 0)
+    svcstatus.dwCurrentState = status;
+    if (SetServiceStatus(statushandle, &svcstatus) == 0)
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
 
 finished:
@@ -911,38 +906,29 @@ static DWORD createiopipes(void)
     if ((sa = getnullacl(1)) == 0)
         return svcsyserror(__LINE__, ERROR_ACCESS_DENIED, L"SetSecurityDescriptorDacl");
     /**
-     * Create stdin pipe
+     * Create stdin pipe, with write side
+     * of the pipe as non inheritable.
      */
     if (CreatePipe(&stdinputpiperd, &sh, sa, 0) == 0) {
         rc = svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
         goto finished;
     }
-    /**
-     * Create write side of the pipe as non
-     * inheritable
-     */
     if (DuplicateHandle(cp, sh, cp,
                         &stdinputpipewr, 0, 0,
                         DUPLICATE_SAME_ACCESS) == 0) {
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
         goto finished;
     }
-    /**
-     * Close the inheritable write handle
-     */
     SAFE_CLOSE_HANDLE(sh);
 
     /**
-     * Create stdout/stderr pipe
+     * Create stdout/stderr pipe, with read side
+     * of the pipe as non inheritable
      */
     if (CreatePipe(&sh, &stdoutputpipew, sa, 0) == 0) {
         rc = svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
         goto finished;
     }
-    /**
-     * Create read side of the pipe as non
-     * inheritable
-     */
     if (DuplicateHandle(cp, sh, cp,
                         &stdoutputpiper, 0, 0,
                         DUPLICATE_SAME_ACCESS) == 0)
@@ -993,7 +979,7 @@ static void logwrline(const char *str)
      * DD:HH:MM:SS.mmm format
      *
      */
-    ct = GetTickCount64() - locktickcounter;
+    ct = GetTickCount64() - logtickcount;
     ms = (int)((ct % MS_IN_SECOND));
     ss = (int)((ct / MS_IN_SECOND) % 60);
     mm = (int)((ct / MS_IN_MINUTE) % 60);
@@ -1028,6 +1014,20 @@ static void logprintf(const char *format, ...)
 }
 
 /**
+ * Write basic configuration when new logfile is created.
+ */
+static void logconfig(void)
+{
+    logprintf("Service name     : %S", servicename);
+    logprintf("Service uuid     : %S", serviceuuid);
+    logprintf("Batch file       : %S", svcbatchfile);
+    logprintf("Base directory   : %S", servicebase);
+    logprintf("Working directory: %S", servicehome);
+    logprintf("Runtime directory: %S", loglocation);
+    logfflush();
+}
+
+/**
  *
  * Create service log file and rotate any previous
  * files in the Logs directory.
@@ -1041,7 +1041,7 @@ static DWORD openlogfile(int ssp)
     SECURITY_ATTRIBUTES sa;
     SYSTEMTIME tt;
 
-    locktickcounter = GetTickCount64();
+    logtickcount = GetTickCount64();
 
     if (logfilename == 0) {
         wchar_t *n = loglocation;
@@ -1117,23 +1117,9 @@ failed:
 }
 
 /**
- * Write basic configuration when new logfile is created.
- */
-static void logconfig(void)
-{
-    logprintf("Service name     : %S", servicename);
-    logprintf("Service uuid     : %S", serviceuuid);
-    logprintf("Batch file       : %S", svcbatchfile);
-    logprintf("Base directory   : %S", servicebase);
-    logprintf("Working directory: %S", servicehome);
-    logprintf("Runtime directory: %S", loglocation);
-    logfflush();
-}
-
-/**
  * Simple log rotation
  */
-static DWORD rotatelogfile(void)
+static DWORD rotatelogs(void)
 {
     static int rotatecount = 1;
     DWORD rv;
@@ -1156,7 +1142,7 @@ static DWORD rotatelogfile(void)
     LeaveCriticalSection(&logfilelock);
     if (rv) {
         setsvcstatusexit(rv);
-        svcsyserror(__LINE__, rv, L"rotatelogfile");
+        svcsyserror(__LINE__, rv, L"rotatelogs");
     }
     return rv;
 }
@@ -1204,7 +1190,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
      * Set stop event to non signaled.
      * This ensures that main thread will wait until we finish
      */
-    ResetEvent(svcstopevent);
+    ResetEvent(svcstopended);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     EnterCriticalSection(&logfilelock);
@@ -1249,10 +1235,10 @@ static DWORD WINAPI stopthread(LPVOID unused)
         /**
          * WAIT_TIMEOUT means that child is
          * still running and we need to terminate
-         * cmdexeproc tree by brute force
+         * child tree by brute force
          */
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
-        rc = killprocesstree(cmdexeproc.dwProcessId, ERROR_INVALID_FUNCTION);
+        rc = killprocesstree(cchild.dwProcessId, ERROR_INVALID_FUNCTION);
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocesstree");
         rc = killprocessmain(ERROR_INVALID_FUNCTION);
@@ -1264,7 +1250,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
 #if defined(_DBGVIEW)
     {
         DWORD rc;
-        if (GetExitCodeProcess(cmdexeproc.hProcess, &rc) == 0)
+        if (GetExitCodeProcess(cchild.hProcess, &rc) == 0)
             dbgprintf(__FUNCTION__, "      GetExitCodeProcess failed");
         else
             dbgprintf(__FUNCTION__, "      GetExitCodeProcess %d", rc);
@@ -1272,7 +1258,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
     }
 #endif
 
-    SetEvent(svcstopevent);
+    SetEvent(svcstopended);
     XENDTHREAD(0);
 }
 
@@ -1360,11 +1346,11 @@ static DWORD WINAPI monitorthread(LPVOID unused)
         }
         else if (cc == SVCBATCH_CTRL_ROTATE) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "   rotate signaled");
+            dbgprintf(__FUNCTION__, "   log rotation signaled");
 #endif
-            if (rotatelogfile() != 0) {
+            if (rotatelogs() != 0) {
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "   rotate log failed");
+                dbgprintf(__FUNCTION__, "   log rotation failed");
 #endif
                 /**
                  * Logfile rotation failed.
@@ -1467,10 +1453,10 @@ static DWORD WINAPI workerthread(LPVOID unused)
     /**
      * Create a command line
      */
-    if (wcshavespace(comspecexe))
-        arg0 = xwcsvarcat(L"\"", comspecexe,   L"\"", 0);
+    if (wcshavespace(comspec))
+        arg0 = xwcsvarcat(L"\"", comspec,   L"\"", 0);
     else
-        arg0 = comspecexe;
+        arg0 = comspec;
     if (wcshavespace(svcbatchfile))
         arg1 = xwcsvarcat(L"\"", svcbatchfile, L"\"", 0);
     else
@@ -1480,7 +1466,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
      */
     cmdline = xwcsvarcat(arg0, L" /D /C \"", arg1, L"\"", 0);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    program %S", comspecexe);
+    dbgprintf(__FUNCTION__, "    program %S", comspec);
     dbgprintf(__FUNCTION__, "    cmdline %S", cmdline);
 #endif
 
@@ -1492,11 +1478,11 @@ static DWORD WINAPI workerthread(LPVOID unused)
     si.hStdOutput = stdoutputpipew;
     si.hStdError  = stdoutputpipew;
 
-    if (CreateProcessW(comspecexe, cmdline, 0, 0, 1,
+    if (CreateProcessW(comspec, cmdline, 0, 0, 1,
                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
                        wenvblock,
                        servicehome,
-                       &si, &cmdexeproc) == 0) {
+                       &si, &cchild) == 0) {
         /**
          * CreateProcess failed ... nothing we can do.
          */
@@ -1505,7 +1491,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
         goto finished;
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    child id %d", cmdexeproc.dwProcessId);
+    dbgprintf(__FUNCTION__, "    child id %d", cchild.dwProcessId);
 #endif
 
     /**
@@ -1514,20 +1500,20 @@ static DWORD WINAPI workerthread(LPVOID unused)
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
 
-    wh[0] = cmdexeproc.hProcess;
+    wh[0] = cchild.hProcess;
     wh[1] = xcreatethread(0, &iopipethread, 0);
     if (IS_INVALID_HANDLE(wh[1])) {
         svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"iopipethread");
-        CloseHandle(cmdexeproc.hThread);
-        TerminateProcess(cmdexeproc.hProcess, ERROR_OUTOFMEMORY);
+        CloseHandle(cchild.hThread);
+        TerminateProcess(cchild.hProcess, ERROR_OUTOFMEMORY);
         setsvcstatusexit(ERROR_TOO_MANY_TCBS);
         goto finished;
     }
 
     SetConsoleCtrlHandler(consolehandler, 1);
-    ResumeThread(cmdexeproc.hThread);
+    ResumeThread(cchild.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    CloseHandle(cmdexeproc.hThread);
+    CloseHandle(cchild.hThread);
 
     WaitForMultipleObjects(2, wh, 1, INFINITE);
     CloseHandle(wh[1]);
@@ -1535,7 +1521,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
 finished:
     SetEvent(processended);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    done rv %d", servicestatus.dwServiceSpecificExitCode);
+    dbgprintf(__FUNCTION__, "    done rv %d", svcstatus.dwServiceSpecificExitCode);
 #endif
     InterlockedExchange(&monitorsignum, 0);
     SetEvent(monitorevent);
@@ -1556,8 +1542,8 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
     wchar_t     *ep;
     HANDLE       wh[2] = { 0, 0};
 
-    servicestatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
-    servicestatus.dwCurrentState = SERVICE_START_PENDING;
+    svcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
+    svcstatus.dwCurrentState = SERVICE_START_PENDING;
 
     if (argc == 0) {
         svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"Missing servicename");
@@ -1630,10 +1616,13 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * for worker and monitor threads to finish.
      */
     WaitForMultipleObjects(2, wh, 1, INFINITE);
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "     wait for stop");
+#endif
     /**
      * Wait for stop thread to finish if started
      */
-    WaitForSingleObject(svcstopevent, SVCBATCH_STOP_WAIT);
+    WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
 
 finished:
 
@@ -1644,7 +1633,7 @@ finished:
     SAFE_CLOSE_HANDLE(stdoutputpiper);
     SAFE_CLOSE_HANDLE(stdinputpipewr);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
-    SAFE_CLOSE_HANDLE(cmdexeproc.hProcess);
+    SAFE_CLOSE_HANDLE(cchild.hProcess);
 
     closelogfile();
 #if defined(_DBGVIEW)
@@ -1668,7 +1657,7 @@ static void __cdecl cconsolecleanup(void)
 static void __cdecl objectscleanup(void)
 {
     SAFE_CLOSE_HANDLE(processended);
-    SAFE_CLOSE_HANDLE(svcstopevent);
+    SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(monitorevent);
 }
 
@@ -1812,7 +1801,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     if ((cpath = xgetenv(L"COMSPEC")) == 0)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC");
-    if ((comspecexe = getrealpathname(cpath, 0)) == 0)
+    if ((comspec = getrealpathname(cpath, 0)) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, cpath);
     xfree(cpath);
 
@@ -1843,7 +1832,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (loglocation == 0)
         loglocation = xwcsdup(L"Logs");
-    dupwenvp = waalloc(envc + 10);
+    dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;
         const wchar_t  *p = wenv[i];
@@ -1897,8 +1886,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
 
-    memset(&cmdexeproc,    0, sizeof(PROCESS_INFORMATION));
-    memset(&servicestatus, 0, sizeof(SERVICE_STATUS));
+    memset(&cchild,    0, sizeof(PROCESS_INFORMATION));
+    memset(&svcstatus, 0, sizeof(SERVICE_STATUS));
 
     sa.nLength              = DSIZEOF(sa);
     sa.bInheritHandle       = 0;
@@ -1906,11 +1895,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Create logic state events
      */
-    svcstopevent = CreateEventW(&sa, 1, 1, 0);
+    svcstopended = CreateEventW(&sa, 1, 1, 0);
     processended = CreateEventW(&sa, 1, 0, 0);
     monitorevent = CreateEventW(&sa, 1, 0, 0);
     if (IS_INVALID_HANDLE(processended) ||
-        IS_INVALID_HANDLE(svcstopevent) ||
+        IS_INVALID_HANDLE(svcstopended) ||
         IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, ERROR_OUTOFMEMORY, L"CreateEvent");
 
