@@ -26,7 +26,7 @@ batch files into your `jboes-eap-x.x/bin` directory.
 [servicemgr](jbosseap/servicemgr.bat) is a batch file
 used to manage the services.
 
-Before executing `servicemgr.bat` edit `servicemgr.bat` and modify
+Before executing [servicemgr](jbosseap/servicemgr.bat) edit `servicemgr.bat` and modify
 `JBOSSEAP_DISPLAY` variable to match the exact version you are using. You can put any string
 for `DisplayName=` and `sc description ...` directly as fits.
 
@@ -40,10 +40,10 @@ for `DisplayName=` and `sc description ...` directly as fits.
 
 ```
 
-After creating a service, edit the `winservice.bat` file and modify
-JAVA_HOME to your actual jdk location. You can set JAVA_HOME to
+After creating a service, edit the [winservice](jbosseap/winservice.bat)
+file and modify JAVA_HOME to your actual jdk location. You can set JAVA_HOME to
 System Environment, but then you must remove the `/s` switch inside
-servicemgr.bat `sc create ...` command, because with `/s` switch,
+`servicemgr.bat` `sc create ...` command, because with `/s` switch,
 SvcBatch will remove any *unsafe* environment variable.
 
 That's it! Now, just type ...
