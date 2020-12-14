@@ -6,6 +6,10 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v0.9.8
+
+
+
 ## v0.9.7
 
  * Drop entire ABI concept
