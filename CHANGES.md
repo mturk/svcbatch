@@ -10,7 +10,7 @@ For a full list of changes, see the [git commit log][log]
 
  * Drop entire ABI concept
  * Add SVCBATCH_SERVICE_LOGS variable
- * Drop serviceended event because there are no console shutdown signals
+ * Drop console shutdown signals
 
 ## v0.9.6
 
