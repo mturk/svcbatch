@@ -42,9 +42,8 @@ with your application.
 
 ## Supported Windows Versions
 
-The minimum supported Windows Version is `NT 6.1 64-bit`.
-This means that you will need at least `Windows 7 SP1` or `Windows Server 2008 R2`
-to run this application.
+The minimum supported version is *Windows 7 SP1* or
+*Windows Server 2008 R2* 64-bit.
 
 
 ## Building
