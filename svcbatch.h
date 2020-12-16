@@ -31,14 +31,14 @@
 /**
  * Version info
  */
-#define SVCBATCH_MAJOR_VERSION  0
-#define SVCBATCH_MINOR_VERSION  9
-#define SVCBATCH_PATCH_VERSION  9
+#define SVCBATCH_MAJOR_VERSION  1
+#define SVCBATCH_MINOR_VERSION  0
+#define SVCBATCH_PATCH_VERSION  0
 
 /**
  * Set to zero for non dev versions
  */
-#define SVCBATCH_ISDEV_VERSION  0
+#define SVCBATCH_ISDEV_VERSION  1
 
 /**
  * Maximum number of SvcBatch.log.N files
