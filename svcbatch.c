@@ -336,13 +336,13 @@ static void rmtrailingsep(wchar_t *s)
  */
 static int isrelativepath(const wchar_t *path)
 {
-    if ((path[0] == L'\\') && (path[1] == L'\\'))
-        return 0;
-
-    if ((path[0] < 128) && (isalpha(path[0]) != 0) && (path[1] == L':'))
-        return 0;
-    else
-        return 1;
+    if (path[0] < 128) {
+        if ((path[0] == L'\\') && (path[1] == L'\\'))
+            return 0;
+        if ((isalpha(path[0]) != 0) && (path[1] == L':'))
+            return 0;
+    }
+    return 1;
 }
 
 static wchar_t *xuuidstring(void)
