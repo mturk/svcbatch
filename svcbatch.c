@@ -1123,7 +1123,7 @@ failed:
 static DWORD rotatelogs(void)
 {
     static int rotatecount = 1;
-    DWORD rv;
+    DWORD rv = ERROR_FILE_NOT_FOUND;
 
     EnterCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(logfhandle)) {
@@ -1135,10 +1135,10 @@ static DWORD rotatelogs(void)
                   tt.wHour, tt.wMinute, tt.wSecond);
         FlushFileBuffers(logfhandle);
         SAFE_CLOSE_HANDLE(logfhandle);
-    }
-    if ((rv = openlogfile(0)) == 0) {
-        logprintf("Log generation   : %d", rotatecount++);
-        logconfig();
+        if ((rv = openlogfile(0)) == 0) {
+            logprintf("Log generation   : %d", rotatecount++);
+            logconfig();
+        }
     }
     LeaveCriticalSection(&logfilelock);
     if (rv) {
