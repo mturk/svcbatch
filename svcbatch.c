@@ -1771,7 +1771,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         else {
             /**
-             * extra parameters
+             * We have extra parameters after batch file.
+             * This is user install error.
              */
             return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
         }
