@@ -23,12 +23,12 @@
 #include <process.h>
 #include "svcbatch.h"
 
-static volatile LONG         monitorsignum  = 0;
-static SERVICE_STATUS_HANDLE statushandle   = 0;
-static PROCESS_INFORMATION   cchild;
-static SERVICE_STATUS        svcstatus;
+static volatile LONG         monitorsig  = 0;
+static SERVICE_STATUS_HANDLE hsvcstatus  = 0;
+static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
+static PROCESS_INFORMATION   cchild;
 
 static wchar_t  *comspec          = 0;
 static wchar_t **dupwenvp         = 0;
@@ -816,7 +816,7 @@ static int runningasservice(void)
 static void setsvcstatusexit(DWORD e)
 {
     EnterCriticalSection(&servicelock);
-    svcstatus.dwServiceSpecificExitCode = e;
+    ssvcstatus.dwServiceSpecificExitCode = e;
     LeaveCriticalSection(&servicelock);
 }
 
@@ -825,7 +825,7 @@ static DWORD getservicestate(void)
     DWORD cs;
 
     EnterCriticalSection(&servicelock);
-    cs = svcstatus.dwCurrentState;
+    cs = ssvcstatus.dwCurrentState;
     LeaveCriticalSection(&servicelock);
     return cs;
 }
@@ -835,42 +835,42 @@ static void reportsvcstatus(DWORD status, DWORD param)
     static DWORD cpcnt = 1;
 
     EnterCriticalSection(&servicelock);
-    if (svcstatus.dwCurrentState == SERVICE_STOPPED) {
+    if (ssvcstatus.dwCurrentState == SERVICE_STOPPED) {
         status = SERVICE_STOPPED;
         goto finished;
     }
     if (status == 0) {
         if (status == SERVICE_RUNNING)
-            SetServiceStatus(statushandle, &svcstatus);
+            SetServiceStatus(hsvcstatus, &ssvcstatus);
         goto finished;
     }
-    svcstatus.dwControlsAccepted = 0;
-    svcstatus.dwCheckPoint       = 0;
-    svcstatus.dwWaitHint         = 0;
+    ssvcstatus.dwControlsAccepted = 0;
+    ssvcstatus.dwCheckPoint       = 0;
+    ssvcstatus.dwWaitHint         = 0;
 
     if (status == SERVICE_RUNNING) {
-        svcstatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
-                                        SERVICE_ACCEPT_SHUTDOWN;
+        ssvcstatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
+                                         SERVICE_ACCEPT_SHUTDOWN;
 #if defined(SERVICE_ACCEPT_PRESHUTDOWN)
-        svcstatus.dwControlsAccepted |= SERVICE_ACCEPT_PRESHUTDOWN;
+        ssvcstatus.dwControlsAccepted |= SERVICE_ACCEPT_PRESHUTDOWN;
 #endif
         cpcnt = 1;
     }
     else if (status == SERVICE_STOPPED) {
         if (param != 0)
-            svcstatus.dwServiceSpecificExitCode = param;
-        if (svcstatus.dwServiceSpecificExitCode == 0 &&
-            svcstatus.dwCurrentState != SERVICE_STOP_PENDING)
-            svcstatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
-        if (svcstatus.dwServiceSpecificExitCode != 0)
-            svcstatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+            ssvcstatus.dwServiceSpecificExitCode = param;
+        if (ssvcstatus.dwServiceSpecificExitCode == 0 &&
+            ssvcstatus.dwCurrentState != SERVICE_STOP_PENDING)
+            ssvcstatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
+        if (ssvcstatus.dwServiceSpecificExitCode != 0)
+            ssvcstatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
     else {
-        svcstatus.dwCheckPoint = cpcnt++;
-        svcstatus.dwWaitHint   = param;
+        ssvcstatus.dwCheckPoint = cpcnt++;
+        ssvcstatus.dwWaitHint   = param;
     }
-    svcstatus.dwCurrentState = status;
-    if (SetServiceStatus(statushandle, &svcstatus) == 0)
+    ssvcstatus.dwCurrentState = status;
+    if (SetServiceStatus(hsvcstatus, &ssvcstatus) == 0)
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
 
 finished:
@@ -1321,7 +1321,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
 #endif
 
     while ((wr = WaitForSingleObject(monitorevent, INFINITE)) == WAIT_OBJECT_0) {
-        LONG cc = InterlockedExchange(&monitorsignum, 0);
+        LONG cc = InterlockedExchange(&monitorsig, 0);
 
         if (cc == 0) {
 #if defined(_DBGVIEW)
@@ -1439,7 +1439,7 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
              * Signal to monitorthread that
              * user send custom service control
              */
-            InterlockedExchange(&monitorsignum, ctrl);
+            InterlockedExchange(&monitorsig, ctrl);
             SetEvent(monitorevent);
         case SERVICE_CONTROL_INTERROGATE:
             reportsvcstatus(0, 0);
@@ -1539,9 +1539,9 @@ static DWORD WINAPI workerthread(LPVOID unused)
 finished:
     SetEvent(processended);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    done rv %d", svcstatus.dwServiceSpecificExitCode);
+    dbgprintf(__FUNCTION__, "    done rv %d", ssvcstatus.dwServiceSpecificExitCode);
 #endif
-    InterlockedExchange(&monitorsignum, 0);
+    InterlockedExchange(&monitorsig, 0);
     SetEvent(monitorevent);
 
     XENDTHREAD(0);
@@ -1560,8 +1560,8 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
     wchar_t     *ep;
     HANDLE       wh[2] = { 0, 0};
 
-    svcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
-    svcstatus.dwCurrentState = SERVICE_START_PENDING;
+    ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
+    ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
 
     if (argc == 0) {
         svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"Missing servicename");
@@ -1569,9 +1569,9 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
         return;
     }
 
-    servicename  = xwcsdup(argv[0]);
-    statushandle = RegisterServiceCtrlHandlerExW(servicename, servicehandler, 0);
-    if (IS_INVALID_HANDLE(statushandle)) {
+    servicename = xwcsdup(argv[0]);
+    hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, 0);
+    if (IS_INVALID_HANDLE(hsvcstatus)) {
         svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx");
         exit(ERROR_INVALID_HANDLE);
         return;
@@ -1905,8 +1905,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
 
-    memset(&cchild,    0, sizeof(PROCESS_INFORMATION));
-    memset(&svcstatus, 0, sizeof(SERVICE_STATUS));
+    memset(&cchild,     0, sizeof(PROCESS_INFORMATION));
+    memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
 
     sa.nLength              = DSIZEOF(sa);
     sa.bInheritHandle       = 0;
