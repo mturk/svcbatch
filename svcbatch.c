@@ -1171,6 +1171,12 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
     const char yn[2] = { 'Y', '\n'};
     DWORD wr;
 
+    if (InterlockedIncrement(&sstarted) > 1) {
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "      already started");
+#endif
+        XENDTHREAD(0);
+    }
     /**
      * Set stop event to non signaled.
      * This ensures that main thread will wait until we finish
@@ -1183,12 +1189,6 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
     if (getservicestate() != SERVICE_RUNNING) {
 #if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "      not running");
-#endif
-        goto finished;
-    }
-    if (InterlockedIncrement(&sstarted) > 1) {
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "      already started");
 #endif
         goto finished;
     }
