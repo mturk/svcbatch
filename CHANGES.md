@@ -9,7 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.0.0
 
  * First release
-
+ * Cleanup code
 
 ## v0.9.9
 
