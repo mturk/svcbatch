@@ -1044,11 +1044,11 @@ static DWORD openlogfile(int ssp)
     logtickcount = GetTickCount64();
 
     if (logfilename == 0) {
-        wchar_t *n = loglocation;
-        if ((CreateDirectoryW(n, 0) == 0) &&
+        if ((CreateDirectoryW(loglocation, 0) == 0) &&
             (GetLastError() != ERROR_ALREADY_EXISTS))
             return GetLastError();
         if (isrelativepath(loglocation)) {
+            wchar_t *n = loglocation;
             if ((loglocation = getrealpathname(n, 1)) == 0)
                 return GetLastError();
             xfree(n);
