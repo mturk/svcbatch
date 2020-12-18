@@ -941,10 +941,7 @@ static DWORD logappend(LPCVOID buf, DWORD len)
 }
 
 /**
- * Set file pointer to the end and write CRLF
- * Always use logfflush when start
- * logging so that pipe thread data is separated
- * from our log messages
+ * Set log file pointer to the EOF and write CRLF
  */
 static void logfflush(void)
 {
