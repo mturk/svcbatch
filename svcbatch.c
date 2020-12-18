@@ -1170,15 +1170,15 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
     const char yn[2] = { 'Y', '\n'};
     DWORD wr;
 
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "      started");
-#endif
-
     /**
      * Set stop event to non signaled.
      * This ensures that main thread will wait until we finish
      */
     ResetEvent(svcstopended);
+
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "      started");
+#endif
     if (getservicestate() != SERVICE_RUNNING) {
 #if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "      not running");
@@ -1423,7 +1423,7 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            xcreatethread(1, &stopthread, INVALID_HANDLE_VALUE);
+            xcreatethread(1, &stopthread, (LPVOID)servicename);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak == 0)
