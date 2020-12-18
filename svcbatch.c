@@ -1464,7 +1464,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
      * Create a command line
      */
     if (wcshavespace(comspec))
-        arg0 = xwcsvarcat(L"\"", comspec,   L"\"", 0);
+        arg0 = xwcsvarcat(L"\"", comspec,      L"\"", 0);
     else
         arg0 = comspec;
     if (wcshavespace(svcbatchfile))
