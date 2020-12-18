@@ -1053,7 +1053,8 @@ static DWORD openlogfile(int ssp)
                 return GetLastError();
             xfree(n);
         }
-        logfilename = xwcsconcat(loglocation, L"\\SvcBatch.log");
+        logfilename = xwcsconcat(loglocation,
+                                 L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
     }
     if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
         sfx[1] = L'0';
