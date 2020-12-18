@@ -1371,7 +1371,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
     }
 #if defined(_DBGVIEW)
     if (wr != WAIT_OBJECT_0)
-        dbgprintf(__FUNCTION__, "wait failed: %d", wr);
+        dbgprintf(__FUNCTION__, "   wait failed: %d", wr);
     dbgprintf(__FUNCTION__, "   done");
 #endif
     XENDTHREAD(0);
@@ -1393,11 +1393,16 @@ BOOL WINAPI consolehandler(DWORD ctrl)
             LeaveCriticalSection(&logfilelock);
         break;
         case CTRL_C_EVENT:
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "  CTRL_C_EVENT signaled");
+#endif
+        break;
         case CTRL_BREAK_EVENT:
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "  CTRL_BREAK_EVENT signaled");
+#endif
+        break;
         case CTRL_LOGOFF_EVENT:
-            /**
-             * TRUE means that we handled the signal
-             */
         break;
         default:
 #if defined(_DBGVIEW)
@@ -1440,6 +1445,9 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
             reportsvcstatus(0, 0);
         break;
         default:
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "  unknown ctrl %d", ctrl);
+#endif
             return ERROR_CALL_NOT_IMPLEMENTED;
         break;
     }
