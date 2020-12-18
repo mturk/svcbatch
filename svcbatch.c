@@ -818,16 +818,6 @@ static void setsvcstatusexit(DWORD e)
     LeaveCriticalSection(&servicelock);
 }
 
-static DWORD getservicestate(void)
-{
-    DWORD cs;
-
-    EnterCriticalSection(&servicelock);
-    cs = ssvcstatus.dwCurrentState;
-    LeaveCriticalSection(&servicelock);
-    return cs;
-}
-
 static void reportsvcstatus(DWORD status, DWORD param)
 {
     static DWORD cpcnt = 1;
@@ -1180,12 +1170,6 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "      started");
 #endif
-    if (getservicestate() != SERVICE_RUNNING) {
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "      not running");
-#endif
-        goto finished;
-    }
     if (reportscm)
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
@@ -1258,7 +1242,6 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
     }
 #endif
 
-finished:
     SetEvent(svcstopended);
     XENDTHREAD(0);
 }
