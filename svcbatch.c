@@ -29,6 +29,7 @@ static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
 static PROCESS_INFORMATION   cchild;
+static SECURITY_ATTRIBUTES   sazero;
 
 static wchar_t  *comspec          = 0;
 static wchar_t **dupwenvp         = 0;
@@ -1035,7 +1036,6 @@ static DWORD openlogfile(int ssp)
     wchar_t *logpb = 0;
     DWORD rc;
     int i;
-    SECURITY_ATTRIBUTES sa;
     SYSTEMTIME tt;
 
     logtickcount = GetTickCount64();
@@ -1059,16 +1059,13 @@ static DWORD openlogfile(int ssp)
         if (MoveFileExW(logfilename, logpb, 0) == 0)
             return GetLastError();
     }
-    sa.nLength = DSIZEOF(sa);
-    sa.lpSecurityDescriptor = 0;
-    sa.bInheritHandle       = 0;
 
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     logfhandle = CreateFileW(logfilename,
                              GENERIC_WRITE,
                              FILE_SHARE_READ,
-                            &sa, CREATE_NEW,
+                            &sazero, CREATE_NEW,
                              FILE_ATTRIBUTE_NORMAL, 0);
 
     if (IS_INVALID_HANDLE(logfhandle))
@@ -1690,7 +1687,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         usesafeenv = 0;
     int         hasopts    = 1;
     HANDLE      hstdin;
-    SECURITY_ATTRIBUTES  sa;
     SERVICE_TABLE_ENTRYW se[2];
 
     if (wenv != 0) {
@@ -1904,16 +1900,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     memset(&cchild,     0, sizeof(PROCESS_INFORMATION));
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
-
-    sa.nLength              = DSIZEOF(sa);
-    sa.bInheritHandle       = 0;
-    sa.lpSecurityDescriptor = 0;
+    memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
+    sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
     /**
      * Create logic state events
      */
-    svcstopended = CreateEventW(&sa, 1, 1, 0);
-    processended = CreateEventW(&sa, 1, 0, 0);
-    monitorevent = CreateEventW(&sa, 1, 0, 0);
+    svcstopended = CreateEventW(&sazero, 1, 1, 0);
+    processended = CreateEventW(&sazero, 1, 0, 0);
+    monitorevent = CreateEventW(&sazero, 1, 0, 0);
     if (IS_INVALID_HANDLE(processended) ||
         IS_INVALID_HANDLE(svcstopended) ||
         IS_INVALID_HANDLE(monitorevent))
