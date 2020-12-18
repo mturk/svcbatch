@@ -332,11 +332,11 @@ static void rmtrailingsep(wchar_t *s)
 
 /**
  * Check if the path doesn't start
- * with \ (something like \\?\) or C:\
+ * with \\ (something like \\?\) or C:\
  */
 static int isrelativepath(const wchar_t *path)
 {
-    if (path[0] == L'\\')
+    if ((path[0] == L'\\') && (path[1] == L'\\'))
         return 0;
 
     if ((path[0] < 128) && (isalpha(path[0]) != 0) && (path[1] == L':'))
