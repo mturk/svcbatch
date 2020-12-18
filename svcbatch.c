@@ -399,8 +399,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 
 static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
 {
-    DWORD len = 0;
-
+    DWORD len;
     len = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
                          FORMAT_MESSAGE_IGNORE_INSERTS,
                          0,
@@ -795,16 +794,14 @@ static int runningasservice(void)
                 rv = 1;
 
         }
+        /**
+         * Check if Window station has visible display surfaces
+         * Interactive session are not supported.
+         */
         if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
                                       DSIZEOF(uf), &len)) {
-            if (uf.dwFlags == WSF_VISIBLE) {
-                /**
-                 * Window station has visible display surfaces
-                 * Interactive session can lead to unpredictable
-                 * results.
-                 */
+            if (uf.dwFlags == WSF_VISIBLE)
                 rv = 0;
-            }
         }
     }
     return rv;
