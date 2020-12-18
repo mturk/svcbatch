@@ -1164,7 +1164,7 @@ static void closelogfile(void)
     LeaveCriticalSection(&logfilelock);
 }
 
-static DWORD WINAPI stopthread(LPVOID unused)
+static DWORD WINAPI stopthread(LPVOID reportscm)
 {
     static LONG volatile sstarted = 0;
     const char yn[2] = { 'Y', '\n'};
@@ -1174,24 +1174,25 @@ static DWORD WINAPI stopthread(LPVOID unused)
     dbgprintf(__FUNCTION__, "      started");
 #endif
 
-    if (getservicestate() != SERVICE_RUNNING) {
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "      not running");
-#endif
-        XENDTHREAD(0);
-    }
-    if (InterlockedIncrement(&sstarted) > 1) {
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "      already started");
-#endif
-        XENDTHREAD(0);
-    }
     /**
      * Set stop event to non signaled.
      * This ensures that main thread will wait until we finish
      */
     ResetEvent(svcstopended);
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+    if (getservicestate() != SERVICE_RUNNING) {
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "      not running");
+#endif
+        goto finished;
+    }
+    if (InterlockedIncrement(&sstarted) > 1) {
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "      already started");
+#endif
+        goto finished;
+    }
+    if (reportscm)
+        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     EnterCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(logfhandle)) {
@@ -1223,7 +1224,9 @@ static DWORD WINAPI stopthread(LPVOID unused)
                             SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT)
         WriteFile(stdinputpipewr, yn, 2, &wr, 0);
 
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT + SVCBATCH_PENDING_WAIT);
+    if (reportscm)
+        reportsvcstatus(SERVICE_STOP_PENDING,
+                        SVCBATCH_STOP_HINT + SVCBATCH_PENDING_WAIT);
     /**
      * Wait for main process to finish or times out.
      *
@@ -1237,7 +1240,8 @@ static DWORD WINAPI stopthread(LPVOID unused)
          * still running and we need to terminate
          * child tree by brute force
          */
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
+        if (reportscm)
+            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
         rc = killprocesstree(cchild.dwProcessId, ERROR_INVALID_FUNCTION);
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocesstree");
@@ -1245,7 +1249,8 @@ static DWORD WINAPI stopthread(LPVOID unused)
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocessmain");
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
+    if (reportscm)
+        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
 
 #if defined(_DBGVIEW)
     {
@@ -1258,6 +1263,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
     }
 #endif
 
+finished:
     SetEvent(svcstopended);
     XENDTHREAD(0);
 }
@@ -1416,7 +1422,8 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
             }
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
-            xcreatethread(1, &stopthread, 0);
+            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+            xcreatethread(1, &stopthread, INVALID_HANDLE_VALUE);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak == 0)
