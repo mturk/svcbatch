@@ -1797,7 +1797,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, cpath);
     xfree(cpath);
 
-    if (servicehome == 0 && isrelativepath(bname)) {
+    if ((servicehome == 0) && isrelativepath(bname)) {
         /**
          * Batch file is not absolute path
          * and we don't have provided workdir.
