@@ -1447,9 +1447,6 @@ static DWORD WINAPI workerthread(LPVOID unused)
         arg1 = xwcsvarcat(L"\"", svcbatchfile, L"\"", 0);
     else
         arg1 = svcbatchfile;
-    /**
-     * Everything after /C has to be one argument
-     */
     cmdline = xwcsvarcat(arg0, L" /D /C \"", arg1, L"\"", 0);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "    program %S", comspec);
