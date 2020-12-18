@@ -1333,8 +1333,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
                 dbgprintf(__FUNCTION__, "   log rotation failed");
 #endif
                 /**
-                 * Logfile rotation failed.
-                 * Create stop thread which will stop the service.
+                 * Create stop thread and exit.
                  */
                 xcreatethread(1, &stopthread, 0);
                 break;
