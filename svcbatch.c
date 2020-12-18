@@ -1291,13 +1291,12 @@ static DWORD WINAPI iopipethread(LPVOID unused)
 
 static DWORD WINAPI monitorthread(LPVOID unused)
 {
-    DWORD  wr;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "   started");
 #endif
 
-    while ((wr = WaitForSingleObject(monitorevent, INFINITE)) == WAIT_OBJECT_0) {
+    while (WaitForSingleObject(monitorevent, INFINITE) == WAIT_OBJECT_0) {
         LONG cc = InterlockedExchange(&monitorsig, 0);
 
         if (cc == 0) {
@@ -1347,8 +1346,6 @@ static DWORD WINAPI monitorthread(LPVOID unused)
         ResetEvent(monitorevent);
     }
 #if defined(_DBGVIEW)
-    if (wr != WAIT_OBJECT_0)
-        dbgprintf(__FUNCTION__, "   wait failed: %d", wr);
     dbgprintf(__FUNCTION__, "   done");
 #endif
     XENDTHREAD(0);
