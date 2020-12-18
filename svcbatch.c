@@ -1609,12 +1609,15 @@ void WINAPI servicemain(DWORD argc, wchar_t **argv)
      */
     WaitForMultipleObjects(2, wh, 1, INFINITE);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "     wait for stop");
+    dbgprintf(__FUNCTION__, "     wait for stop thread to finish");
 #endif
     /**
      * Wait for stop thread to finish if started
      */
     WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "     svcstopended");
+#endif
 
 finished:
 
