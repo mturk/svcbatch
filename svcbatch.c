@@ -1809,7 +1809,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     if (resolvebatchname(bname) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, bname);
-
+    xfree(bname);
     if (servicehome == 0) {
         /**
          * Use batch file directory as new cwd
