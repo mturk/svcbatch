@@ -37,7 +37,7 @@ downloaded or cloned SvcBatch and do the following
 Using default architecture: x64
 Setting build environment for win-x64/0x0601
 
-> nmake -f Makefile.mak
+> nmake -f Makefile.mak _STATIC_MSVCRT=1
 
 Microsoft (R) Program Maintenance Utility Version 9.00.30729.207
 ...
@@ -95,11 +95,11 @@ This will remove all produced binaries and object files
 by deleting **x64** subdirectory.
 
 ```cmd
-> nmake -f Makefile.mak install PREFIX=C:\some\directory
+> nmake -f Makefile.mak install INSTALLDIR=C:\some\directory
 ```
 
 Standard makefile install target that will
-copy the executable to the PREFIX location.
+copy the executable to the `%INSTALLDIR%\bin` location.
 
 This can be useful if you are building SvcBatch with
 some Continuous build application that needs produced

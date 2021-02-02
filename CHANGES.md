@@ -8,7 +8,7 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.0.1
 
-
+ * Use static msvcrt for release builds
 
 ## v1.0.0
 
