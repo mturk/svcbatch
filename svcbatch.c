@@ -1344,7 +1344,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
     XENDTHREAD(0);
 }
 
-BOOL WINAPI consolehandler(DWORD ctrl)
+static BOOL WINAPI consolehandler(DWORD ctrl)
 {
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
@@ -1381,7 +1381,7 @@ BOOL WINAPI consolehandler(DWORD ctrl)
     return TRUE;
 }
 
-DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
+static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
 {
     switch(ctrl) {
         case SERVICE_CONTROL_SHUTDOWN:
@@ -1516,7 +1516,7 @@ finished:
  * This thread is created by SCM. SCM should provide
  * the service name as first argument.
  */
-void WINAPI servicemain(DWORD argc, wchar_t **argv)
+static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
     int          i;
     DWORD        rv    = 0;
