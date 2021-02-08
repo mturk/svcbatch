@@ -37,7 +37,7 @@ downloaded or cloned SvcBatch and do the following
 Using default architecture: x64
 Setting build environment for win-x64/0x0601
 
-> nmake -f Makefile.mak _STATIC_MSVCRT=1
+> nmake _STATIC_MSVCRT=1
 
 Microsoft (R) Program Maintenance Utility Version 9.00.30729.207
 ...
@@ -67,7 +67,7 @@ After setting the compiler, use the following
 
 ```cmd
 > cd C:\Some\Location\svcbatch
-> nmake -f Makefile.mak
+> nmake
 
 ```
 
@@ -78,7 +78,7 @@ as statically linked to the MSVCRT library.
 
 Add `_STATIC_MSVCRT=1` as nmake parameter:
 ```cmd
-> nmake -f Makefile.mak _STATIC_MSVCRT=1
+> nmake _STATIC_MSVCRT=1
 
 ```
 
@@ -88,14 +88,14 @@ Makefile has two additional targets which can be useful
 for SvcBatch development and maintenance
 
 ```cmd
-> nmake -f Makefile.mak clean
+> nmake clean
 ```
 
 This will remove all produced binaries and object files
 by deleting **x64** subdirectory.
 
 ```cmd
-> nmake -f Makefile.mak install INSTALLDIR=C:\some\directory
+> nmake install INSTALLDIR=C:\some\directory
 ```
 
 Standard makefile install target that will
@@ -117,7 +117,7 @@ This option can be enabled at compile time by using
 the following:
 
 ```cmd
-> nmake -f Makefile.mak _DBGVIEW=1
+> nmake _DBGVIEW=1
 ```
 
 For more information about DebugView check the

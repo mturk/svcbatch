@@ -6,6 +6,10 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v1.0.2
+
+ * New release
+
 ## v1.0.1
 
  * Use static msvcrt for release builds
