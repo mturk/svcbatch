@@ -64,14 +64,5 @@ $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	@$(LN) $(LNOPTS) $(OBJECTS) $(LDLIBS) -o $@
 	@$(RL) $@
 
-ifeq "$(PREFIX)" ""
-install:
-	$(error PREFIX is not defined. Use `make install PREFIX=directory`)
-else
-install : all
-	@mkdir -p $(PREFIX)/bin
-	@cp $(OUTPUT) $(PREFIX)/$(TARGET)
-endif
-
 clean:
 	@rm -rf $(WORKDIR)

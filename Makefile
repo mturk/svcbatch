@@ -60,16 +60,5 @@ $(WORKDIR):
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LFLAGS) $(OBJECTS) $(LDLIBS) /out:$(OUTPUT)
 
-!IF !DEFINED(PREFIX) || "$(PREFIX)" == ""
-install:
-	@echo PREFIX is not defined
-	@echo Use `nmake install PREFIX=directory`
-	@echo.
-	@exit /B 1
-!ELSE
-install : all
-	@xcopy /I /Y /Q "$(WORKDIR)\*.exe" "$(PREFIX)"
-!ENDIF
-
 clean:
 	@-rd /S /Q $(WORKDIR) 2>NUL

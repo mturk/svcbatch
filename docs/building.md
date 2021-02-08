@@ -84,7 +84,7 @@ Add `_STATIC_MSVCRT=1` as nmake parameter:
 
 ### Makefile targets
 
-Makefile has two additional targets which can be useful
+Makefile has additional target which can be useful
 for SvcBatch development and maintenance
 
 ```cmd
@@ -93,17 +93,6 @@ for SvcBatch development and maintenance
 
 This will remove all produced binaries and object files
 by deleting **x64** subdirectory.
-
-```cmd
-> nmake install INSTALLDIR=C:\some\directory
-```
-
-Standard makefile install target that will
-copy the executable to the `%INSTALLDIR%\bin` location.
-
-This can be useful if you are building SvcBatch with
-some Continuous build application that needs produced
-binaries at a specific location for later use.
 
 ### DebugView support
 
@@ -150,13 +139,6 @@ $ make -f Makefile.gmk
 
 In case there are no compile errors the svcbatch.exe is located
 inside **x64** subdirectory.
-
-As with **nmake** you can invoke **clean** or **install** targets...
-
-```sh
-
-$ make -f Makefile.gmk _DBGVIEW=1 PREFIX=/c/Workplace/builds install
-```
 
 ## Creating Release
 

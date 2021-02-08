@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.0.2
 
  * New release
+ * Drop make install
 
 ## v1.0.1
 
