@@ -29,21 +29,22 @@ exit /b 1
 :haveVersion
 set "SvcBatchVer=%~1"
 rem
+set "ReleaseName=svcbatch-%SvcBatchVer%-win-x64"
+rem
 rem Set path for ClamAV and 7za
 rem
 set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"
 rem
 freshclam.exe --quiet
 pushd x64
-echo ## Binary release v%SvcBatchVer% > svcbatch-%SvcBatchVer%.txt
-echo. >> svcbatch-%SvcBatchVer%.txt
-echo. >> svcbatch-%SvcBatchVer%.txt
-echo ```no-highlight >> svcbatch-%SvcBatchVer%.txt
-clamscan.exe --version >> svcbatch-%SvcBatchVer%.txt
-clamscan.exe --bytecode=no svcbatch.exe >> svcbatch-%SvcBatchVer%.txt
-echo ``` >> svcbatch-%SvcBatchVer%.txt
-7za.exe a -bd svcbatch-%SvcBatchVer%-win-x64.zip svcbatch.exe ..\LICENSE.txt
-sigtool.exe --sha256 svcbatch.exe > svcbatch-%SvcBatchVer%-sha256.txt
-sigtool.exe --sha256 svcbatch-%SvcBatchVer%-win-x64.zip >> svcbatch-%SvcBatchVer%-sha256.txt
+echo ## Binary release v%SvcBatchVer% > %ReleaseName%.txt
+echo. >> %ReleaseName%.txt
+echo. >> %ReleaseName%.txt
+echo ```no-highlight >> %ReleaseName%.txt
+clamscan.exe --version >> %ReleaseName%.txt
+clamscan.exe --bytecode=no svcbatch.exe >> %ReleaseName%.txt
+echo ``` >> %ReleaseName%.txt
+7za.exe a -bd %ReleaseName%.zip svcbatch.exe
+sigtool.exe --sha256 %ReleaseName%.zip >> %ReleaseName%-sha256.txt
 popd
 rem
