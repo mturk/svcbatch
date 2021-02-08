@@ -865,9 +865,9 @@ finished:
     LeaveCriticalSection(&servicelock);
 }
 
-static PSECURITY_ATTRIBUTES getnullacl(BOOL inheritable)
+static PSECURITY_ATTRIBUTES getnullacl(void)
 {
-    static BYTE sb[SECURITY_DESCRIPTOR_MIN_LENGTH];
+    static BYTE sb[BBUFSIZ];
     static SECURITY_ATTRIBUTES  sa;
     static PSECURITY_DESCRIPTOR sd = 0;
 
@@ -875,12 +875,13 @@ static PSECURITY_ATTRIBUTES getnullacl(BOOL inheritable)
         sd = (PSECURITY_DESCRIPTOR)sb;
         if ((InitializeSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION) == 0) ||
             (SetSecurityDescriptorDacl(sd, 1, (PACL)0, 0) == 0)) {
+            sd = 0;
             return 0;
         }
     }
     sa.nLength              = DSIZEOF(SECURITY_ATTRIBUTES);
     sa.lpSecurityDescriptor = sd;
-    sa.bInheritHandle       = inheritable;
+    sa.bInheritHandle       = 1;
     return &sa;
 }
 
@@ -891,7 +892,7 @@ static DWORD createiopipes(void)
     HANDLE sh = 0;
     HANDLE cp = GetCurrentProcess();
 
-    if ((sa = getnullacl(1)) == 0)
+    if ((sa = getnullacl()) == 0)
         return svcsyserror(__LINE__, ERROR_ACCESS_DENIED, L"SetSecurityDescriptorDacl");
     /**
      * Create stdin pipe, with write side
@@ -1146,7 +1147,7 @@ static void closelogfile(void)
     LeaveCriticalSection(&logfilelock);
 }
 
-static DWORD WINAPI stopthread(LPVOID reportscm)
+static DWORD WINAPI stopthread(LPVOID unused)
 {
     static LONG volatile sstarted = 0;
     const char yn[2] = { 'Y', '\n'};
@@ -1167,8 +1168,7 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "      started");
 #endif
-    if (reportscm)
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     EnterCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(logfhandle)) {
@@ -1200,9 +1200,8 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
                             SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT)
         WriteFile(stdinputpipewr, yn, 2, &wr, 0);
 
-    if (reportscm)
-        reportsvcstatus(SERVICE_STOP_PENDING,
-                        SVCBATCH_STOP_HINT + SVCBATCH_PENDING_WAIT);
+    reportsvcstatus(SERVICE_STOP_PENDING,
+                    SVCBATCH_STOP_HINT + SVCBATCH_PENDING_WAIT);
     /**
      * Wait for main process to finish or times out.
      *
@@ -1216,8 +1215,7 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
          * still running and we need to terminate
          * child tree by brute force
          */
-        if (reportscm)
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
+        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
         rc = killprocesstree(cchild.dwProcessId, ERROR_INVALID_FUNCTION);
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocesstree");
@@ -1225,8 +1223,7 @@ static DWORD WINAPI stopthread(LPVOID reportscm)
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocessmain");
     }
-    if (reportscm)
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
 
 #if defined(_DBGVIEW)
     {
@@ -1399,7 +1396,7 @@ DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            xcreatethread(1, &stopthread, (LPVOID)servicename);
+            xcreatethread(1, &stopthread, 0);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak == 0)
@@ -1721,7 +1718,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     break;
                     case L'w':
                     case L'W':
-                        servicehome = zerostring;
+                        servicehome  = zerostring;
                     break;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown command line option");
