@@ -385,9 +385,9 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_list ap;
 
     n = _snprintf(buff, blen,
-                 "[%.4lu] %s ",
-                 GetCurrentThreadId(),
-                 funcname);
+                  "[%.4lu] %s ",
+                  GetCurrentThreadId(),
+                  funcname);
     bp = buff + n;
     va_start(ap, format);
     _vsnprintf(bp, blen - n, format, ap);
