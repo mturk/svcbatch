@@ -26,8 +26,6 @@
 # pragma warning(disable: 4100 4244 4702)
 #endif
 
-#define SVCBATCH_NAME           "SvcBatch"
-#define SVCBATCH_SVCNAME        "SvcBatch Service"
 /**
  * Version info
  */
@@ -40,16 +38,14 @@
  */
 #define SVCBATCH_ISDEV_VERSION  1
 
+#define SVCBATCH_NAME           "SvcBatch"
+#define SVCBATCH_SVCNAME        "SvcBatch Service"
+
 /**
  * Maximum number of SvcBatch.log.N files
  */
 #define SVCBATCH_MAX_LOGS       4
 #define SVCBATCH_LOG_BASE       L"Logs"
-
-#define BBUFSIZ                 512
-#define SBUFSIZ                 1024
-#define MBUFSIZ                 2048
-#define HBUFSIZ                 8192
 
 /**
  * Custom SCM control code that
@@ -85,6 +81,11 @@
 #define MS_IN_SECOND            1000
 #define MS_IN_MINUTE            60000
 #define MS_IN_HOUR              3600000
+
+#define BBUFSIZ                 512
+#define SBUFSIZ                 1024
+#define MBUFSIZ                 2048
+#define HBUFSIZ                 8192
 
 /**
  * Helper macros
