@@ -823,15 +823,8 @@ static void reportsvcstatus(DWORD status, DWORD param)
     static DWORD cpcnt = 1;
 
     EnterCriticalSection(&servicelock);
-    if (ssvcstatus.dwCurrentState == SERVICE_STOPPED) {
-        status = SERVICE_STOPPED;
+    if (ssvcstatus.dwCurrentState == SERVICE_STOPPED)
         goto finished;
-    }
-    if (status == 0) {
-        if (ssvcstatus.dwCurrentState == SERVICE_RUNNING)
-            SetServiceStatus(hsvcstatus, &ssvcstatus);
-        goto finished;
-    }
     ssvcstatus.dwControlsAccepted = 0;
     ssvcstatus.dwCheckPoint       = 0;
     ssvcstatus.dwWaitHint         = 0;
@@ -1391,7 +1384,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             EnterCriticalSection(&logfilelock);
             if (IS_VALID_HANDLE(logfhandle)) {
                 logfflush();
-                logwrline("Service SHUTDOWN signaled");
+                logprintf("Service SHUTDOWN (0x%08x) signaled", ctrl);
             }
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
@@ -1408,8 +1401,8 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
              */
             InterlockedExchange(&monitorsig, ctrl);
             SetEvent(monitorevent);
+        break;
         case SERVICE_CONTROL_INTERROGATE:
-            reportsvcstatus(0, 0);
         break;
         default:
 #if defined(_DBGVIEW)

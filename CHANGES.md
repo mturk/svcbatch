@@ -8,7 +8,7 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.0.3
 
- * Ensure SERVICE_CONTROL_INTERROGATE is reported
+ * No need to report SERVICE_CONTROL_INTERROGATE
  * Provide only comspec filename as argv0
 
 
