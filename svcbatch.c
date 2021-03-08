@@ -965,12 +965,11 @@ static void logwrline(const char *str)
     hh = (int)((ct / MS_IN_HOUR)   % 24);
     dd = (int)((ct / MS_IN_DAY));
 
-    memset(buf, 0, BBUFSIZ);
-    _snprintf(buf, BBUFSIZ - 2,
-              "[%.2d:%.2d:%.2d:%.2d.%.3d] [%.4lu:%.4lu] ",
-              dd, hh, mm, ss, ms,
-              GetCurrentProcessId(),
-              GetCurrentThreadId());
+    sprintf(buf,
+            "[%.2d:%.2d:%.2d:%.2d.%.3d] [%.4lu:%.4lu] ",
+            dd, hh, mm, ss, ms,
+            GetCurrentProcessId(),
+            GetCurrentThreadId());
     WriteFile(logfhandle, buf, (DWORD)strlen(buf), &w, 0);
     WriteFile(logfhandle, str, (DWORD)strlen(str), &w, 0);
 
