@@ -76,6 +76,7 @@ static HANDLE    stdinputpipewr   = 0;
 static HANDLE    stdinputpiperd   = 0;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
+static const char   CRLF[4]       = { '\r', '\n', '\0', '\0' };
 
 static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32;"              \
@@ -939,10 +940,8 @@ static DWORD logappend(LPCVOID buf, DWORD len)
  */
 static void logfflush(void)
 {
-    char  b[2] = {'\r', '\n'};
-
     FlushFileBuffers(logfhandle);
-    logappend(b, 2);
+    logappend(CRLF, 2);
 }
 
 static void logwrline(const char *str)
@@ -974,10 +973,7 @@ static void logwrline(const char *str)
     WriteFile(logfhandle, buf, (DWORD)strlen(buf), &w, 0);
     WriteFile(logfhandle, str, (DWORD)strlen(str), &w, 0);
 
-    buf[0] = '\r';
-    buf[1] = '\n';
-
-    WriteFile(logfhandle, buf, 2, &w, 0);
+    WriteFile(logfhandle, CRLF, 2, &w, 0);
 }
 
 static void logprintf(const char *format, ...)
