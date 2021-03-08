@@ -1535,7 +1535,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     if ((rv = openlogfile(1)) != 0) {
         svcsyserror(__LINE__, rv, L"OpenLogfile");
-        exit(rv);
+        reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
     logconfig();
