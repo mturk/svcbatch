@@ -567,8 +567,12 @@ static DWORD killprocesstree(DWORD pid, UINT err)
 #endif
         killprocesstree(pid, err);
     }
-    if (pid == cchild.dwProcessId)
+    if (pid == cchild.dwProcessId) {
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, " %d is child pid", pid);
+#endif
         return 0;
+    }
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, " %d terminating", pid);
 #endif
@@ -591,8 +595,9 @@ static DWORD killprocesstree(DWORD pid, UINT err)
         }
 #endif
     }
-    else
+    else {
         r = GetLastError();
+    }
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, " %d done %d", pid, r);
 #endif
@@ -604,11 +609,15 @@ static DWORD killprocessmain(UINT err)
     DWORD x = 0;
     DWORD r = 0;
 
-    if (IS_INVALID_HANDLE(cchild.hProcess))
-        return 0;
 #if defined(_DBGTRACE)
     dbgprintf(__FUNCTION__, " %d", cchild.dwProcessId);
 #endif
+    if (IS_INVALID_HANDLE(cchild.hProcess)) {
+#if defined(_DBGTRACE)
+        dbgprintf(__FUNCTION__, " %d INVALID_HANDLE", cchild.dwProcessId);
+#endif
+        return 0;
+    }
     if (GetExitCodeProcess(cchild.hProcess, &x)) {
         if (x == STILL_ACTIVE) {
 #if defined(_DBGTRACE)
