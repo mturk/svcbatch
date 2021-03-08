@@ -1467,12 +1467,6 @@ static DWORD WINAPI workerthread(LPVOID unused)
     dbgprintf(__FUNCTION__, "    child id %d", cchild.dwProcessId);
 #endif
 
-    /**
-     * Close our side of the pipes
-     */
-    SAFE_CLOSE_HANDLE(stdoutputpipew);
-    SAFE_CLOSE_HANDLE(stdinputpiperd);
-
     wh[0] = cchild.hProcess;
     wh[1] = xcreatethread(0, &iopipethread, 0);
     if (IS_INVALID_HANDLE(wh[1])) {
@@ -1482,6 +1476,11 @@ static DWORD WINAPI workerthread(LPVOID unused)
         setsvcstatusexit(ERROR_TOO_MANY_TCBS);
         goto finished;
     }
+    /**
+     * Close our side of the pipes
+     */
+    SAFE_CLOSE_HANDLE(stdoutputpipew);
+    SAFE_CLOSE_HANDLE(stdinputpiperd);
 
     SetConsoleCtrlHandler(consolehandler, 1);
     ResumeThread(cchild.hThread);
