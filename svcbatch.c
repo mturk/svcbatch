@@ -505,7 +505,7 @@ static DWORD killprocesstree(DWORD pid, UINT err)
 {
     DWORD  r = 0;
     DWORD  c = 0;
-    DWORD  a[BBUFSIZ];
+    DWORD  a[SBUFSIZ];
     DWORD  i, x;
     HANDLE h;
     HANDLE p;
@@ -526,9 +526,9 @@ static DWORD killprocesstree(DWORD pid, UINT err)
     }
     do {
         if (e.th32ParentProcessID == pid) {
-            if (c == BBUFSIZ) {
+            if (c == SBUFSIZ) {
                 /**
-                 * Process has more then 512 child processes !?
+                 * Process has more then 1K child processes !?
                  */
 #if defined(_DBGVIEW)
                 dbgprintf(__FUNCTION__, " %d overflow", pid);
@@ -558,10 +558,13 @@ static DWORD killprocesstree(DWORD pid, UINT err)
 #endif
         killprocesstree(a[i], err);
     }
-    if (c == BBUFSIZ) {
+    if (c == SBUFSIZ) {
         /**
          * Do recursive call on overflow
          */
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, " %d killing recursive ...", pid);
+#endif
         killprocesstree(pid, err);
     }
     if (pid == cchild.dwProcessId)
