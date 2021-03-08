@@ -1007,7 +1007,7 @@ static void logconfig(void)
  * Create service log file and rotate any previous
  * files in the Logs directory.
  */
-static DWORD openlogfile(int ssp)
+static DWORD openlogfile(void)
 {
     wchar_t  sfx[4] = { L'.', L'\0', L'\0', L'\0' };
     wchar_t *logpb = 0;
@@ -1037,7 +1037,7 @@ static DWORD openlogfile(int ssp)
             return GetLastError();
     }
 
-    if (ssp)
+    if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     logfhandle = CreateFileW(logfilename,
                              GENERIC_WRITE,
@@ -1065,7 +1065,7 @@ static DWORD openlogfile(int ssp)
             if (MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING) == 0)
                 goto failed;
             xfree(lognn);
-            if (ssp)
+            if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
                 reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         }
         xfree(logpn);
@@ -1106,7 +1106,7 @@ static DWORD rotatelogs(void)
                   tt.wHour, tt.wMinute, tt.wSecond);
         FlushFileBuffers(logfhandle);
         SAFE_CLOSE_HANDLE(logfhandle);
-        if ((rv = openlogfile(0)) == 0) {
+        if ((rv = openlogfile()) == 0) {
             logprintf("Log generation   : %d", rotatecount++);
             logconfig();
         }
@@ -1533,7 +1533,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dbgprintf(__FUNCTION__, "     started %S", servicename);
 #endif
 
-    if ((rv = openlogfile(1)) != 0) {
+    if ((rv = openlogfile()) != 0) {
         svcsyserror(__LINE__, rv, L"OpenLogfile");
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
