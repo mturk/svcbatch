@@ -1248,7 +1248,7 @@ static DWORD WINAPI iopipethread(LPVOID unused)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "    started");
 #endif
-    for (;;) {
+    while (rc == 0) {
         BYTE  rb[HBUFSIZ];
         DWORD rd = 0;
 
@@ -1259,18 +1259,15 @@ static DWORD WINAPI iopipethread(LPVOID unused)
              * child process closed its side of the pipe.
              */
             rc = GetLastError();
-            break;
         }
-
-        EnterCriticalSection(&logfilelock);
-        if (IS_VALID_HANDLE(logfhandle))
-            rc = logappend(rb, rd);
-        else
-            rc = ERROR_NO_MORE_FILES;
-        LeaveCriticalSection(&logfilelock);
-
-        if (rc != 0)
-            break;
+        else {
+            EnterCriticalSection(&logfilelock);
+            if (IS_VALID_HANDLE(logfhandle))
+                rc = logappend(rb, rd);
+            else
+                rc = ERROR_NO_MORE_FILES;
+            LeaveCriticalSection(&logfilelock);
+        }
     }
 #if defined(_DBGVIEW)
     if (rc == ERROR_BROKEN_PIPE)
