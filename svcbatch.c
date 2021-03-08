@@ -1808,7 +1808,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
     if (loglocation == 0)
-        loglocation = xwcsdup(L"Logs");
+        loglocation = xwcsdup(SVCBATCH_LOG_BASE);
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;

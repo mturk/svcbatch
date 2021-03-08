@@ -44,6 +44,7 @@
  * Maximum number of SvcBatch.log.N files
  */
 #define SVCBATCH_MAX_LOGS       4
+#define SVCBATCH_LOG_BASE       L"Logs"
 
 #define BBUFSIZ                 512
 #define SBUFSIZ                 1024
