@@ -379,22 +379,22 @@ static wchar_t *xuuidstring(void)
  */
 static void dbgprintf(const char *funcname, const char *format, ...)
 {
-    char    buff[MBUFSIZ];
+    char    buf[MBUFSIZ];
     char   *bp;
     size_t  blen = MBUFSIZ - 2;
     int     n;
     va_list ap;
 
-    n = _snprintf(buff, blen,
+    memset(buf, 0, MBUFSIZ);
+    n = _snprintf(buf, blen,
                   "[%.4lu] %s ",
                   GetCurrentThreadId(),
                   funcname);
-    bp = buff + n;
+    bp = buf + n;
     va_start(ap, format);
     _vsnprintf(bp, blen - n, format, ap);
     va_end(ap);
-    buff[MBUFSIZ - 1] = '\0';
-    OutputDebugStringA(buff);
+    OutputDebugStringA(buf);
 }
 
 #endif
@@ -462,8 +462,8 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     HANDLE         es = 0;
     const wchar_t *errarg[9];
 
+    memset(buf, 0, SBUFSIZ * sizeof(wchar_t));
     _snwprintf(buf, SBUFSIZ - 2, L"svcbatch.c(%d) %s", line, err);
-    buf[SBUFSIZ - 1] = L'\0';
 
     errarg[0] = L"The " CPP_WIDEN(SVCBATCH_SVCNAME) L" named";
     if (IS_EMPTY_WCS(servicename))
@@ -479,6 +479,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     errarg[8] = 0;
 
     if (ern) {
+        memset(erd, 0, SBUFSIZ * sizeof(wchar_t));
         xwinapierror(erd, SBUFSIZ, ern);
         errarg[4] = L": ";
         errarg[5] = erd;
@@ -964,12 +965,12 @@ static void logwrline(const char *str)
     hh = (int)((ct / MS_IN_HOUR)   % 24);
     dd = (int)((ct / MS_IN_DAY));
 
+    memset(buf, 0, BBUFSIZ);
     _snprintf(buf, BBUFSIZ - 2,
               "[%.2d:%.2d:%.2d:%.2d.%.3d] [%.4lu:%.4lu] ",
               dd, hh, mm, ss, ms,
               GetCurrentProcessId(),
               GetCurrentThreadId());
-    buf[BBUFSIZ - 1] = '\0';
     WriteFile(logfhandle, buf, (DWORD)strlen(buf), &w, 0);
     WriteFile(logfhandle, str, (DWORD)strlen(str), &w, 0);
 
@@ -981,10 +982,10 @@ static void logprintf(const char *format, ...)
     char    bp[MBUFSIZ];
     va_list ap;
 
+    memset(bp, 0, MBUFSIZ);
     va_start(ap, format);
     _vsnprintf(bp, MBUFSIZ - 2, format, ap);
     va_end(ap);
-    bp[MBUFSIZ - 1] = '\0';
     logwrline(bp);
 }
 
