@@ -1149,6 +1149,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
     static LONG volatile sstarted = 0;
     const char yn[2] = { 'Y', '\n'};
     DWORD wr;
+    BOOL  sc;
 
     if (InterlockedIncrement(&sstarted) > 1) {
 #if defined(_DBGVIEW)
@@ -1181,11 +1182,21 @@ static DWORD WINAPI stopthread(LPVOID unused)
      * enabled or disabled by any process without affecting existing processes.
      */
 #if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "      raising CTRL_C_EVENT");
+#endif
+    sc = SetConsoleCtrlHandler(0, 1);
+#if defined(_DBGVIEW)
+    if (sc == 0)
+        dbgprintf(__FUNCTION__, "      SetConsoleCtrlHandler failed %d", GetLastError());
+#endif
+    GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+    if (sc) {
+        Sleep(100);
+        SetConsoleCtrlHandler(0, 0);
+    }
+#if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "      CTRL_C_EVENT raised");
 #endif
-    SetConsoleCtrlHandler(0, 1);
-    GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-    SetConsoleCtrlHandler(0, 0);
     /**
      * Wait some time for process to finish.
      *
