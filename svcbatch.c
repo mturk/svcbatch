@@ -1197,6 +1197,8 @@ static DWORD WINAPI stopthread(LPVOID unused)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "      CTRL_C_EVENT raised");
 #endif
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+
     /**
      * Wait some time for process to finish.
      *
@@ -1223,7 +1225,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
          * still running and we need to terminate
          * child tree by brute force
          */
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
+        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         rc = killprocesstree(cchild.dwProcessId, ERROR_INVALID_FUNCTION);
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocesstree");
@@ -1231,7 +1233,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocessmain");
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
 #if defined(_DBGVIEW)
     {
@@ -1494,7 +1496,6 @@ static DWORD WINAPI workerthread(LPVOID unused)
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
 
-    SetConsoleCtrlHandler(consolehandler, 1);
     ResumeThread(cchild.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     CloseHandle(cchild.hThread);
@@ -1555,7 +1556,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         return;
     }
     logconfig();
-
+    SetConsoleCtrlHandler(consolehandler, 1);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     /**
      * Add additional environment variables
