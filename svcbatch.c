@@ -919,10 +919,8 @@ static DWORD createiopipes(void)
      * Create stdout/stderr pipe, with read side
      * of the pipe as non inheritable
      */
-    if (CreatePipe(&sh, &stdoutputpipew, sa, 0) == 0) {
-        rc = svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
-        goto finished;
-    }
+    if (CreatePipe(&sh, &stdoutputpipew, sa, 0) == 0)
+        return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
     if (DuplicateHandle(cp, sh, cp,
                         &stdoutputpiper, 0, 0,
                         DUPLICATE_SAME_ACCESS) == 0)
