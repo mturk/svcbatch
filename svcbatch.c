@@ -412,10 +412,16 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
                          0);
     if (len) {
         /**
-         * Remove embedded newline (\r\n) if present.
+         * Remove trailing spaces.
+         */
+        do {
+            buf[len--] = L'\0';
+        } while ((len > 0) && ((buf[len] == L'.') || (buf[len] < 33)));
+        /**
+         * Change embedded newline (\r\n\t) to space if present.
          */
         while (len-- > 0) {
-            if ((buf[len] == L'\r') || (buf[len] == L'\n'))
+            if (iswspace(buf[len]))
                 buf[len] = L' ';
         }
     }
