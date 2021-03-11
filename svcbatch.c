@@ -664,13 +664,18 @@ static HANDLE xcreatethread(int detach,
 static wchar_t *expandenvstrings(const wchar_t *str)
 {
     wchar_t  *buf = 0;
-    int       bsz = MBUFSIZ;
-    int       len = 0;
+    int       bsz;
+    int       len;
 
+    if ((bsz = (int)xwcslen(str)) == 0) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return 0;
+    }
     if (wcschr(str, L'%') == 0)
         buf = xwcsdup(str);
 
     while (buf == 0) {
+        bsz = ALIGN_DEFAULT(bsz);
         buf = xwalloc(bsz);
         len = ExpandEnvironmentStringsW(str, buf, bsz - 1);
         if (len == 0) {
