@@ -390,7 +390,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 
     memset(buf, 0, MBUFSIZ);
     n = _snprintf(buf, blen,
-                  "[%.4lu] %s ",
+                  "[%.4lu] %-16s ",
                   GetCurrentThreadId(),
                   funcname);
     bp = buf + n;
@@ -521,7 +521,7 @@ static DWORD killprocesstree(DWORD pid, UINT err)
     PROCESSENTRY32W e;
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " %d", pid);
+    dbgprintf(__FUNCTION__, "%d", pid);
 #endif
     h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (IS_INVALID_HANDLE(h))
@@ -540,7 +540,7 @@ static DWORD killprocesstree(DWORD pid, UINT err)
                  * Process has more then 1K child processes !?
                  */
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, " %d overflow", pid);
+                dbgprintf(__FUNCTION__, "%d overflow", pid);
 #endif
                 break;
             }
@@ -556,14 +556,14 @@ static DWORD killprocesstree(DWORD pid, UINT err)
     CloseHandle(h);
 
 #if defined(_DBGTRACE)
-    dbgprintf(__FUNCTION__, " %d has %d subtrees", pid, c);
+    dbgprintf(__FUNCTION__, "%d has %d subtrees", pid, c);
 #endif
     for (i = 0; i < c; i++) {
         /**
          * Terminate each child and its children
          */
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, " %d killing subtree: %d", pid, a[i]);
+        dbgprintf(__FUNCTION__, "%d killing subtree: %d", pid, a[i]);
 #endif
         killprocesstree(a[i], err);
     }
@@ -572,35 +572,35 @@ static DWORD killprocesstree(DWORD pid, UINT err)
          * Do recursive call on overflow
          */
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, " %d killing recursive ...", pid);
+        dbgprintf(__FUNCTION__, "%d killing recursive ...", pid);
 #endif
         killprocesstree(pid, err);
     }
     if (pid == cchild.dwProcessId) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, " %d is child pid", pid);
+        dbgprintf(__FUNCTION__, "%d is child pid", pid);
 #endif
         return 0;
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " %d terminating", pid);
+    dbgprintf(__FUNCTION__, "%d terminating", pid);
 #endif
     p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, pid);
     if (GetExitCodeProcess(p, &x)) {
         if (x == STILL_ACTIVE) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, " %d STILL_ACTIVE", pid);
+            dbgprintf(__FUNCTION__, "%d STILL_ACTIVE", pid);
 #endif
             if (TerminateProcess(p, err) == 0)
                 r = GetLastError();
 #if defined(_DBGVIEW)
             if (r)
-                dbgprintf(__FUNCTION__, " %d terminate failed: %d", pid, r);
+                dbgprintf(__FUNCTION__, "%d terminate failed: %d", pid, r);
 #endif
         }
 #if defined(_DBGVIEW)
         else {
-            dbgprintf(__FUNCTION__, " %d EXIT_CODE %d ", pid, x);
+            dbgprintf(__FUNCTION__, "%d EXIT_CODE %d ", pid, x);
         }
 #endif
     }
@@ -608,7 +608,7 @@ static DWORD killprocesstree(DWORD pid, UINT err)
         r = GetLastError();
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, " %d done %d", pid, r);
+    dbgprintf(__FUNCTION__, "%d done %d", pid, r);
 #endif
     return r;
 }
@@ -619,18 +619,18 @@ static DWORD killprocessmain(UINT err)
     DWORD r = 0;
 
 #if defined(_DBGTRACE)
-    dbgprintf(__FUNCTION__, " %d", cchild.dwProcessId);
+    dbgprintf(__FUNCTION__, "%d", cchild.dwProcessId);
 #endif
     if (IS_INVALID_HANDLE(cchild.hProcess)) {
 #if defined(_DBGTRACE)
-        dbgprintf(__FUNCTION__, " %d INVALID_HANDLE", cchild.dwProcessId);
+        dbgprintf(__FUNCTION__, "%d INVALID_HANDLE", cchild.dwProcessId);
 #endif
         return 0;
     }
     if (GetExitCodeProcess(cchild.hProcess, &x)) {
         if (x == STILL_ACTIVE) {
 #if defined(_DBGTRACE)
-            dbgprintf(__FUNCTION__, " %d STILL_ACTIVE", cchild.dwProcessId);
+            dbgprintf(__FUNCTION__, "%d STILL_ACTIVE", cchild.dwProcessId);
 #endif
             if (TerminateProcess(cchild.hProcess, err) == 0)
                 r = GetLastError();
@@ -640,7 +640,7 @@ static DWORD killprocessmain(UINT err)
         r = GetLastError();
     }
 #if defined(_DBGTRACE)
-    dbgprintf(__FUNCTION__, " %d done %d ", cchild.dwProcessId, r);
+    dbgprintf(__FUNCTION__, "%d done %d ", cchild.dwProcessId, r);
 #endif
 
     return r;
@@ -1171,7 +1171,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
 
     if (InterlockedIncrement(&sstarted) > 1) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "      already started");
+        dbgprintf(__FUNCTION__, "already started");
 #endif
         XENDTHREAD(0);
     }
@@ -1182,7 +1182,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
     ResetEvent(svcstopended);
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "      started");
+    dbgprintf(__FUNCTION__, "started");
 #endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
@@ -1200,12 +1200,12 @@ static DWORD WINAPI stopthread(LPVOID unused)
      * enabled or disabled by any process without affecting existing processes.
      */
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "      raising CTRL_C_EVENT");
+    dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT");
 #endif
     sc = SetConsoleCtrlHandler(0, 1);
 #if defined(_DBGVIEW)
     if (sc == 0)
-        dbgprintf(__FUNCTION__, "      SetConsoleCtrlHandler failed %d", GetLastError());
+        dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %d", GetLastError());
 #endif
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
     if (sc) {
@@ -1213,7 +1213,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
         SetConsoleCtrlHandler(0, 0);
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "      CTRL_C_EVENT raised");
+    dbgprintf(__FUNCTION__, "CTRL_C_EVENT raised");
 #endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
@@ -1257,10 +1257,10 @@ static DWORD WINAPI stopthread(LPVOID unused)
     {
         DWORD rc;
         if (GetExitCodeProcess(cchild.hProcess, &rc) == 0)
-            dbgprintf(__FUNCTION__, "      GetExitCodeProcess failed");
+            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed");
         else
-            dbgprintf(__FUNCTION__, "      GetExitCodeProcess %d", rc);
-        dbgprintf(__FUNCTION__, "      done");
+            dbgprintf(__FUNCTION__, "GetExitCodeProcess %d", rc);
+        dbgprintf(__FUNCTION__, "done");
     }
 #endif
 
@@ -1273,7 +1273,7 @@ static DWORD WINAPI iopipethread(LPVOID unused)
     DWORD  rc = 0;
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    started");
+    dbgprintf(__FUNCTION__, "started");
 #endif
     while (rc == 0) {
         BYTE  rb[HBUFSIZ];
@@ -1298,11 +1298,11 @@ static DWORD WINAPI iopipethread(LPVOID unused)
     }
 #if defined(_DBGVIEW)
     if (rc == ERROR_BROKEN_PIPE)
-        dbgprintf(__FUNCTION__, "    done ERROR_BROKEN_PIPE");
+        dbgprintf(__FUNCTION__, "done ERROR_BROKEN_PIPE");
     else if (rc == ERROR_NO_DATA)
-        dbgprintf(__FUNCTION__, "    done ERROR_NO_DATA");
+        dbgprintf(__FUNCTION__, "done ERROR_NO_DATA");
     else
-        dbgprintf(__FUNCTION__, "    done %d", rc);
+        dbgprintf(__FUNCTION__, "done %d", rc);
 #endif
 
     XENDTHREAD(0);
@@ -1312,7 +1312,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
 {
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "   started");
+    dbgprintf(__FUNCTION__, "started");
 #endif
 
     while (WaitForSingleObject(monitorevent, INFINITE) == WAIT_OBJECT_0) {
@@ -1320,13 +1320,13 @@ static DWORD WINAPI monitorthread(LPVOID unused)
 
         if (cc == 0) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "   quit signaled");
+            dbgprintf(__FUNCTION__, "quit signaled");
 #endif
             break;
         }
         else if (cc == SVCBATCH_CTRL_BREAK) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "   break signaled");
+            dbgprintf(__FUNCTION__, "break signaled");
 #endif
             EnterCriticalSection(&logfilelock);
             if (IS_VALID_HANDLE(logfhandle)) {
@@ -1348,11 +1348,11 @@ static DWORD WINAPI monitorthread(LPVOID unused)
         }
         else if (cc == SVCBATCH_CTRL_ROTATE) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "   log rotation signaled");
+            dbgprintf(__FUNCTION__, "log rotation signaled");
 #endif
             if (rotatelogs() != 0) {
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "   log rotation failed");
+                dbgprintf(__FUNCTION__, "log rotation failed");
 #endif
                 /**
                  * Create stop thread and exit.
@@ -1364,7 +1364,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
         ResetEvent(monitorevent);
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "   done");
+    dbgprintf(__FUNCTION__, "done");
 #endif
     XENDTHREAD(0);
 }
@@ -1386,19 +1386,19 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         break;
         case CTRL_C_EVENT:
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "  CTRL_C_EVENT signaled");
+            dbgprintf(__FUNCTION__, "CTRL_C_EVENT signaled");
 #endif
         break;
         case CTRL_BREAK_EVENT:
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "  CTRL_BREAK_EVENT signaled");
+            dbgprintf(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
 #endif
         break;
         case CTRL_LOGOFF_EVENT:
         break;
         default:
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "  unknown ctrl %d", ctrl);
+            dbgprintf(__FUNCTION__, "unknown ctrl %d", ctrl);
 #endif
             return FALSE;
         break;
@@ -1438,7 +1438,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
         default:
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "  unknown ctrl %d", ctrl);
+            dbgprintf(__FUNCTION__, "unknown ctrl %d", ctrl);
 #endif
             return ERROR_CALL_NOT_IMPLEMENTED;
         break;
@@ -1455,7 +1455,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
     HANDLE   wh[2] = {0, 0};
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    started");
+    dbgprintf(__FUNCTION__, "started");
 #endif
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     /**
@@ -1471,8 +1471,8 @@ static DWORD WINAPI workerthread(LPVOID unused)
         arg1 = svcbatchfile;
     cmdline = xwcsvarcat(arg0, L" /D /C \"", arg1, L"\"", 0);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    program %S", comspec);
-    dbgprintf(__FUNCTION__, "    cmdline %S", cmdline);
+    dbgprintf(__FUNCTION__, "program %S", comspec);
+    dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 #endif
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -1496,7 +1496,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
         goto finished;
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    child id %d", cchild.dwProcessId);
+    dbgprintf(__FUNCTION__, "child id %d", cchild.dwProcessId);
 #endif
 
     wh[0] = cchild.hProcess;
@@ -1518,7 +1518,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
     reportsvcstatus(SERVICE_RUNNING, 0);
     CloseHandle(cchild.hThread);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    service running");
+    dbgprintf(__FUNCTION__, "service running");
 #endif
     WaitForMultipleObjects(2, wh, 1, INFINITE);
     CloseHandle(wh[1]);
@@ -1526,7 +1526,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
 finished:
     SetEvent(processended);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "    done rv %d", ssvcstatus.dwServiceSpecificExitCode);
+    dbgprintf(__FUNCTION__, "done rv %d", ssvcstatus.dwServiceSpecificExitCode);
 #endif
     InterlockedExchange(&monitorsig, 0);
     SetEvent(monitorevent);
@@ -1565,7 +1565,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "     started %S", servicename);
+    dbgprintf(__FUNCTION__, "started %S", servicename);
 #endif
 
     if ((rv = openlogfile()) != 0) {
@@ -1614,7 +1614,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         goto finished;
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "     running");
+    dbgprintf(__FUNCTION__, "running");
 #endif
     /**
      * This is main wait loop that waits
@@ -1622,14 +1622,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      */
     WaitForMultipleObjects(2, wh, 1, INFINITE);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "     wait for stop thread to finish");
+    dbgprintf(__FUNCTION__, "wait for stop thread to finish");
 #endif
     /**
      * Wait for stop thread to finish if started
      */
     WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "     svcstopended");
+    dbgprintf(__FUNCTION__, "svcstopended");
 #endif
 
 finished:
@@ -1645,7 +1645,7 @@ finished:
 
     closelogfile();
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "     done");
+    dbgprintf(__FUNCTION__, "done");
 #endif
     reportsvcstatus(SERVICE_STOPPED, rv);
 }
