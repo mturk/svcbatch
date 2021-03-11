@@ -586,6 +586,13 @@ static DWORD killprocesstree(DWORD pid, UINT err)
     dbgprintf(__FUNCTION__, "%d terminating", pid);
 #endif
     p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, pid);
+    if (IS_INVALID_HANDLE(p)) {
+        r = GetLastError();
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "%d open failed: %d", pid, r);
+#endif
+        return r;
+    }
     if (GetExitCodeProcess(p, &x)) {
         if (x == STILL_ACTIVE) {
 #if defined(_DBGVIEW)
@@ -607,6 +614,7 @@ static DWORD killprocesstree(DWORD pid, UINT err)
     else {
         r = GetLastError();
     }
+    CloseHandle(p);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "%d done %d", pid, r);
 #endif
