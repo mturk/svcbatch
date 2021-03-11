@@ -428,9 +428,10 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
                 buf[len] = L' ';
         }
     }
-    else
+    else {
         _snwprintf(buf, bufsize, L"Unknown Win32 error code: %d", statcode);
-
+        buf[bufsize - 1] = L'\0';
+    }
 }
 
 static int setupeventlog(void)
@@ -488,7 +489,6 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     errarg[8] = 0;
 
     if (ern) {
-        memset(erd, 0, SBUFSIZ * sizeof(wchar_t));
         xwinapierror(erd, SBUFSIZ, ern);
         errarg[4] = L": ";
         errarg[5] = erd;
