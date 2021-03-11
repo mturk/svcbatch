@@ -1212,9 +1212,6 @@ static DWORD WINAPI stopthread(LPVOID unused)
         Sleep(100);
         SetConsoleCtrlHandler(0, 0);
     }
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "raised  CTRL_C_EVENT");
-#endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     /**
@@ -1225,9 +1222,12 @@ static DWORD WINAPI stopthread(LPVOID unused)
      * user reply to "Terminate batch job (Y/N)?"
      */
     if (WaitForSingleObject(processended,
-                            SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT)
+                            SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT) {
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "sending Y to child");
+#endif
         WriteFile(stdinputpipewr, yn, 2, &wr, 0);
-
+    }
     reportsvcstatus(SERVICE_STOP_PENDING,
                     SVCBATCH_STOP_HINT + SVCBATCH_PENDING_WAIT);
     /**
@@ -1251,7 +1251,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocessmain");
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
 
 #if defined(_DBGVIEW)
     {
@@ -1663,6 +1663,9 @@ static void __cdecl cconsolecleanup(void)
 {
     SetConsoleCtrlHandler(consolehandler, 0);
     FreeConsole();
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "done");
+#endif
 }
 
 /**
@@ -1673,6 +1676,9 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(monitorevent);
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "done");
+#endif
 }
 
 /**
@@ -1924,10 +1930,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[1].lpServiceName = 0;
     se[1].lpServiceProc = 0;
 
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "start service");
+#endif
     if (StartServiceCtrlDispatcherW(se) == 0)
         return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
 #if defined(_DBGVIEW)
-    OutputDebugStringA("Game over");
+    dbgprintf(__FUNCTION__, "done");
 #endif
     return 0;
 }
