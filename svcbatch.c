@@ -1010,6 +1010,17 @@ static void logprintf(const char *format, ...)
     logwrline(bp);
 }
 
+static void logwrtime(const char *hdr)
+{
+    SYSTEMTIME tt;
+
+    GetLocalTime(&tt);
+    logprintf("%-16s : %d-%.2d-%.2d %.2d:%.2d:%.2d",
+              hdr,
+              tt.wYear, tt.wMonth, tt.wDay,
+              tt.wHour, tt.wMinute, tt.wSecond);
+}
+
 /**
  * Write basic configuration when new logfile is created.
  */
@@ -1035,7 +1046,6 @@ static DWORD openlogfile(void)
     wchar_t *logpb = 0;
     DWORD rc;
     int i;
-    SYSTEMTIME tt;
 
     logtickcount = GetTickCount64();
 
@@ -1094,11 +1104,8 @@ static DWORD openlogfile(void)
     }
     xfree(logpb);
 
-    GetLocalTime(&tt);
     logwrline(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
-    logprintf("Log opened       : %d-%.2d-%.2d %.2d:%.2d:%.2d",
-               tt.wYear, tt.wMonth, tt.wDay,
-               tt.wHour, tt.wMinute, tt.wSecond);
+    logwrtime("Log opened");
     return 0;
 
 failed:
@@ -1120,12 +1127,8 @@ static DWORD rotatelogs(void)
 
     EnterCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(logfhandle)) {
-        SYSTEMTIME tt;
-        GetLocalTime(&tt);
         logfflush();
-        logprintf("Log rotated %d-%.2d-%.2d %.2d:%.2d:%.2d",
-                  tt.wYear, tt.wMonth, tt.wDay,
-                  tt.wHour, tt.wMinute, tt.wSecond);
+        logwrtime("Log rotated");
         FlushFileBuffers(logfhandle);
         SAFE_CLOSE_HANDLE(logfhandle);
         if ((rv = openlogfile()) == 0) {
@@ -1145,13 +1148,8 @@ static void closelogfile(void)
 {
     EnterCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(logfhandle)) {
-        SYSTEMTIME tt;
-        GetLocalTime(&tt);
-
         logfflush();
-        logprintf("Log closed %d-%.2d-%.2d %.2d:%.2d:%.2d",
-                   tt.wYear, tt.wMonth, tt.wDay,
-                   tt.wHour, tt.wMinute, tt.wSecond);
+        logwrtime("Log closed");
         FlushFileBuffers(logfhandle);
         SAFE_CLOSE_HANDLE(logfhandle);
     }
