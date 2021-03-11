@@ -1213,7 +1213,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
         SetConsoleCtrlHandler(0, 0);
     }
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "CTRL_C_EVENT raised");
+    dbgprintf(__FUNCTION__, "raised  CTRL_C_EVENT");
 #endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
@@ -1255,9 +1255,9 @@ static DWORD WINAPI stopthread(LPVOID unused)
 
 #if defined(_DBGVIEW)
     {
-        DWORD rc;
+        DWORD rc = 0;
         if (GetExitCodeProcess(cchild.hProcess, &rc) == 0)
-            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed");
+            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed %d", GetLastError());
         else
             dbgprintf(__FUNCTION__, "GetExitCodeProcess %d", rc);
         dbgprintf(__FUNCTION__, "done");
@@ -1298,11 +1298,12 @@ static DWORD WINAPI iopipethread(LPVOID unused)
     }
 #if defined(_DBGVIEW)
     if (rc == ERROR_BROKEN_PIPE)
-        dbgprintf(__FUNCTION__, "done ERROR_BROKEN_PIPE");
+        dbgprintf(__FUNCTION__, "ERROR_BROKEN_PIPE");
     else if (rc == ERROR_NO_DATA)
-        dbgprintf(__FUNCTION__, "done ERROR_NO_DATA");
+        dbgprintf(__FUNCTION__, "ERROR_NO_DATA");
     else
-        dbgprintf(__FUNCTION__, "done %d", rc);
+        dbgprintf(__FUNCTION__, "err=%d", rc);
+    dbgprintf(__FUNCTION__, "done");
 #endif
 
     XENDTHREAD(0);
@@ -1528,10 +1529,15 @@ static DWORD WINAPI workerthread(LPVOID unused)
 finished:
     SetEvent(processended);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "done rv %d", ssvcstatus.dwServiceSpecificExitCode);
+    if (ssvcstatus.dwServiceSpecificExitCode)
+        dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%d",
+                  ssvcstatus.dwServiceSpecificExitCode);
 #endif
     InterlockedExchange(&monitorsig, 0);
     SetEvent(monitorevent);
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "done");
+#endif
 
     XENDTHREAD(0);
 }
