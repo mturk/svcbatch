@@ -295,15 +295,13 @@ static int envsort(const void *arg1, const void *arg2)
     return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
 }
 
-static wchar_t *xreplacepathsep(wchar_t *s)
+static void xreplacepathsep(wchar_t *p)
 {
-    wchar_t *p = s;
     while (*p != L'\0') {
         if (*p == L'/')
             *p = L'\\';
         p++;
     }
-    return s;
 }
 
 static int wcshavespace(const wchar_t *s)
@@ -319,11 +317,16 @@ static int wcshavespace(const wchar_t *s)
 /**
  * Remove trailing backslash and path separator(s)
  */
-static void rmtrailingsep(wchar_t *s)
+static void rmtrailingps(wchar_t *s)
 {
-    int i = (int)xwcslen(s);
+    int i;
 
-    xreplacepathsep(s);
+    if (IS_EMPTY_WCS(s))
+        return;
+    for (i = 0; s[i] != L'\0'; i++) {
+        if (s[i] == L'/')
+            s[i] =  L'\\';
+    }
     while (--i > 0) {
         if ((s[i] == L'\\') || (s[i] == L';'))
             s[i] = L'\0';
@@ -680,7 +683,7 @@ static wchar_t *expandenvstrings(const wchar_t *str)
             bsz = len + 1;
         }
     }
-    return xreplacepathsep(buf);
+    return buf;
 }
 
 static wchar_t *getrealpathname(const wchar_t *path, int isdir)
@@ -696,7 +699,7 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
         return 0;
     if ((es = expandenvstrings(path)) == 0)
         return 0;
-
+    rmtrailingps(es);
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, 0,
                      OPEN_EXISTING, fa, 0);
     xfree(es);
@@ -1698,6 +1701,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 loglocation = expandenvstrings(p);
                 if (loglocation == 0)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
+                rmtrailingps(loglocation);
                 continue;
             }
             hasopts = 0;
@@ -1745,6 +1749,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              */
             if ((bname = expandenvstrings(p)) == 0)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
+            xreplacepathsep(bname);
         }
         else {
             /**
@@ -1876,9 +1881,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
         xfree(cp);
     }
-    else {
-        rmtrailingsep(opath);
-    }
+    rmtrailingps(opath);
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
 
