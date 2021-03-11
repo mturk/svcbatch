@@ -1539,7 +1539,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
     int          i;
     DWORD        rv    = 0;
-    size_t       eblen = 0;
+    int          eblen = 0;
     wchar_t     *ep;
     HANDLE       wh[2] = { 0, 0};
 
@@ -1589,9 +1589,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     wenvblock = xwalloc(eblen + 2);
     for (i = 0, ep = wenvblock; i < dupwenvc; i++) {
-        eblen = xwcslen(dupwenvp[i]);
-        wmemcpy(ep, dupwenvp[i], eblen);
-        ep += eblen + 1;
+        int nn = xwcslen(dupwenvp[i]);
+        wmemcpy(ep, dupwenvp[i], nn);
+        ep += nn + 1;
     }
 
     if ((rv = createiopipes()) != 0)
