@@ -200,12 +200,12 @@ static wchar_t *xgetenv(const wchar_t *s)
     return d;
 }
 
-static size_t xwcslen(const wchar_t *s)
+static int xwcslen(const wchar_t *s)
 {
     if (IS_EMPTY_WCS(s))
         return 0;
     else
-        return wcslen(s);
+        return (int)wcslen(s);
 }
 
 static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
@@ -231,9 +231,9 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
 {
     const wchar_t *ap;
     wchar_t *cp, *rp;
-    size_t  sls[32];
-    size_t  len = 0;
-    int     cnt = 1;
+    int  sls[32];
+    int  len = 0;
+    int  cnt = 1;
     va_list vap;
 
     /* Pass one --- find length of required string */
@@ -667,7 +667,7 @@ static wchar_t *expandenvstrings(const wchar_t *str)
     int       bsz;
     int       len;
 
-    if ((bsz = (int)xwcslen(str)) == 0) {
+    if ((bsz = xwcslen(str)) == 0) {
         SetLastError(ERROR_INVALID_PARAMETER);
         return 0;
     }
@@ -768,7 +768,7 @@ static int resolvesvcbatchexe(void)
     svcbatchexe = getrealpathname(buf, 0);
     xfree(buf);
     if (svcbatchexe != 0) {
-        int i = (int)xwcslen(svcbatchexe);
+        int i = xwcslen(svcbatchexe);
         while (--i > 0) {
             if (svcbatchexe[i] == L'\\') {
                 svcbatchexe[i] = L'\0';
@@ -795,7 +795,7 @@ static int resolvebatchname(const wchar_t *batch)
     if (IS_EMPTY_WCS(svcbatchfile))
         return 0;
 
-    i = (int)xwcslen(svcbatchfile);
+    i = xwcslen(svcbatchfile);
     while (--i > 0) {
         if (svcbatchfile[i] == L'\\') {
             svcbatchfile[i] = L'\0';
