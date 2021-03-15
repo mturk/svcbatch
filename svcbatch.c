@@ -607,12 +607,15 @@ static DWORD killprocesstree(DWORD pid, UINT err)
         }
 #if defined(_DBGVIEW)
         else {
-            dbgprintf(__FUNCTION__, "%d EXIT_CODE %d ", pid, x);
+            dbgprintf(__FUNCTION__, "%d EXIT_CODE=%d ", pid, x);
         }
 #endif
     }
     else {
         r = GetLastError();
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "%d GetExitCodeProcess failed: %d", pid, r);
+#endif
     }
     CloseHandle(p);
 #if defined(_DBGVIEW)
