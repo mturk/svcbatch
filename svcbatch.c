@@ -1089,7 +1089,7 @@ static DWORD openlogfile(void)
         if (MoveFileExW(logfilename, logpb, 0) == 0) {
             rc = GetLastError();
             xfree(logpb);
-            return rc;
+            return svcsyserror(__LINE__, rc, L"MoveFileExW");
         }
     }
 
