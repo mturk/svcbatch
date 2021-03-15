@@ -1086,8 +1086,11 @@ static DWORD openlogfile(void)
     if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
         sfx[1] = L'0';
         logpb = xwcsconcat(logfilename, sfx);
-        if (MoveFileExW(logfilename, logpb, 0) == 0)
-            return GetLastError();
+        if (MoveFileExW(logfilename, logpb, 0) == 0) {
+            rc = GetLastError();
+            xfree(logpb);
+            return rc;
+        }
     }
 
     if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
