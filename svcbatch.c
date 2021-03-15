@@ -1236,7 +1236,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
 #endif
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
     if (sc) {
-        Sleep(100);
+        Sleep(SVCBATCH_PENDING_INIT);
         SetConsoleCtrlHandler(0, 0);
     }
     for (i = 0; i < 10; i++) {
