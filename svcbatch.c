@@ -1264,6 +1264,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
                 if (i > 8)
                     break;
             }
+            FlushFileBuffers(stdinputpipewr);
         }
         else {
 #if defined(_DBGVIEW)
