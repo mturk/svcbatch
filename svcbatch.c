@@ -1066,7 +1066,7 @@ static DWORD openlogfile(void)
     wchar_t  sfx[4] = { L'.', L'\0', L'\0', L'\0' };
     wchar_t *logpb = 0;
     DWORD rc;
-    int i;
+    int i, m = 0;
 
     logtickcount = GetTickCount64();
 
@@ -1118,11 +1118,19 @@ static DWORD openlogfile(void)
 
             sfx[1] = L'0' + i;
             lognn = xwcsconcat(logfilename, sfx);
-            if (MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING) == 0)
+            if (MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING) == 0) {
+                rc = GetLastError();
+                if (m > 0)
+                    svcsyserror(__LINE__, rc, L"MoveFileExW already executed");
+                xfree(logpn);
+                xfree(lognn);
+                SetLastError(rc);
                 goto failed;
+            }
             xfree(lognn);
             if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
                 reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+            m++;
         }
         xfree(logpn);
     }
