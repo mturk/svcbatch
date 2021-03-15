@@ -467,13 +467,13 @@ static int setupeventlog(void)
 
 static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 {
-    wchar_t        buf[SBUFSIZ];
-    wchar_t        erd[SBUFSIZ];
+    wchar_t        buf[MBUFSIZ];
+    wchar_t        erd[MBUFSIZ];
     HANDLE         es = 0;
     const wchar_t *errarg[10];
 
-    _snwprintf(buf, SBUFSIZ - 2, L"svcbatch.c(%d) %s", line, err);
-    buf[SBUFSIZ - 1] = L'\0';
+    _snwprintf(buf, MBUFSIZ - 2, L"svcbatch.c(%d) %s", line, err);
+    buf[MBUFSIZ - 1] = L'\0';
     errarg[0] = L"The " CPP_WIDEN(SVCBATCH_SVCNAME) L" named";
     if (IS_EMPTY_WCS(servicename))
         errarg[1] = L"(undefined)";
@@ -489,11 +489,13 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     errarg[9] = 0;
 
     if (ern) {
-        xwinapierror(erd, SBUFSIZ, ern);
+        xwinapierror(erd, MBUFSIZ, ern);
         errarg[4] = L": ";
         errarg[5] = erd;
+        errarg[6] = L"\r\n";
     }
     else {
+        errarg[4] = L"\r\n";
         ern = ERROR_INVALID_PARAMETER;
     }
     if (setupeventlog())
