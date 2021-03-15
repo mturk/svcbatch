@@ -1257,11 +1257,13 @@ static DWORD WINAPI stopthread(LPVOID unused)
              * Write Y to stdin pipe in case cmd.exe waits for
              * user reply to "Terminate batch job (Y/N)?"
              */
-            sc = WriteFile(stdinputpipewr, yn, 2, &wr, 0);
+            if (WriteFile(stdinputpipewr, yn, 2, &wr, 0) == 0) {
 #if defined(_DBGVIEW)
-            if (sc == 0)
                 dbgprintf(__FUNCTION__, "#%d WriteFile Y failed %d", i, GetLastError());
 #endif
+                if (i > 8)
+                    break;
+            }
         }
         else {
 #if defined(_DBGVIEW)
