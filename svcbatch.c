@@ -1262,7 +1262,11 @@ static DWORD WINAPI stopthread(LPVOID unused)
      * We are waiting at most for SVCBATCH_STOP_HINT
      * timeout and then kill all child processes.
      */
-    if (WaitForSingleObject(processended, SVCBATCH_STOP_HINT / 2) == WAIT_TIMEOUT) {
+    ws = WaitForSingleObject(processended, SVCBATCH_STOP_HINT / 2);
+    if (ws != WAIT_OBJECT_0) {
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "Child is still active (%d), terminating", ws);
+#endif
         /**
          * WAIT_TIMEOUT means that child is
          * still running and we need to terminate
