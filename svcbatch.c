@@ -1177,8 +1177,9 @@ static DWORD WINAPI stopthread(LPVOID unused)
 {
     static LONG volatile sstarted = 0;
     const char yn[2] = { 'Y', '\n'};
-    DWORD wr;
+    DWORD wr, ws, rc;
     BOOL  sc;
+    int   i;
 
     if (InterlockedIncrement(&sstarted) > 1) {
 #if defined(_DBGVIEW)
@@ -1223,32 +1224,45 @@ static DWORD WINAPI stopthread(LPVOID unused)
         Sleep(100);
         SetConsoleCtrlHandler(0, 0);
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+    for (i = 0; i < 10; i++) {
+        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
-    /**
-     * Wait some time for process to finish.
-     *
-     * If still active write Y to stdin pipe
-     * to handle case when cmd.exe waits for
-     * user reply to "Terminate batch job (Y/N)?"
-     */
-    if (WaitForSingleObject(processended,
-                            SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT) {
+        ws = WaitForSingleObject(processended, i == 0 ? 200 : SVCBATCH_PENDING_WAIT);
+        if (ws == WAIT_OBJECT_0) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "sending Y to child");
+            dbgprintf(__FUNCTION__, "#%d processended", i);
 #endif
-        WriteFile(stdinputpipewr, yn, 2, &wr, 0);
+            goto finished;
+        }
+        else if (ws == WAIT_TIMEOUT) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "#%d sending Y to child", i);
+#endif
+            /**
+             * Write Y to stdin pipe in case cmd.exe waits for
+             * user reply to "Terminate batch job (Y/N)?"
+             */
+            sc = WriteFile(stdinputpipewr, yn, 2, &wr, 0);
+#if defined(_DBGVIEW)
+            if (sc == 0)
+                dbgprintf(__FUNCTION__, "#%d WriteFile Y failed %d", i, GetLastError());
+#endif
+        }
+        else {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "#%d WaitForSingleObject failed %d", i, GetLastError());
+#endif
+            break;
+        }
     }
-    reportsvcstatus(SERVICE_STOP_PENDING,
-                    SVCBATCH_STOP_HINT + SVCBATCH_PENDING_WAIT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
     /**
      * Wait for main process to finish or times out.
      *
      * We are waiting at most for SVCBATCH_STOP_HINT
      * timeout and then kill all child processes.
      */
-    if (WaitForSingleObject(processended, SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
-        DWORD rc;
+    if (WaitForSingleObject(processended, SVCBATCH_STOP_HINT / 2) == WAIT_TIMEOUT) {
         /**
          * WAIT_TIMEOUT means that child is
          * still running and we need to terminate
@@ -1262,17 +1276,16 @@ static DWORD WINAPI stopthread(LPVOID unused)
         if (rc != 0)
             svcsyserror(__LINE__, rc, L"killprocessmain");
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_PENDING_WAIT);
+
+finished:
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
 #if defined(_DBGVIEW)
-    {
-        DWORD rc = 0;
-        if (GetExitCodeProcess(cchild.hProcess, &rc) == 0)
-            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed %d", GetLastError());
-        else
-            dbgprintf(__FUNCTION__, "GetExitCodeProcess %d", rc);
-        dbgprintf(__FUNCTION__, "done");
-    }
+    if (GetExitCodeProcess(cchild.hProcess, &rc) == 0)
+        dbgprintf(__FUNCTION__, "GetExitCodeProcess failed %d", GetLastError());
+    else
+        dbgprintf(__FUNCTION__, "GetExitCodeProcess %d", rc);
+    dbgprintf(__FUNCTION__, "done");
 #endif
 
     SetEvent(svcstopended);
