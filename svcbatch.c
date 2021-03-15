@@ -1020,10 +1020,10 @@ static void logprintf(const char *format, ...)
     char    bp[MBUFSIZ];
     va_list ap;
 
-    memset(bp, 0, MBUFSIZ);
     va_start(ap, format);
     _vsnprintf(bp, MBUFSIZ - 2, format, ap);
     va_end(ap);
+    bp[MBUFSIZ - 1] = '\0';
     logwrline(bp);
 }
 
