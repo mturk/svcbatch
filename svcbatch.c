@@ -1273,6 +1273,9 @@ static DWORD WINAPI stopthread(LPVOID unused)
         }
     }
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "wait for processended signal");
+#endif
     /**
      * Wait for main process to finish or times out.
      *
