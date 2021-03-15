@@ -76,6 +76,7 @@
 #define SVCBATCH_STOP_HINT      20000
 #define SVCBATCH_STOP_WAIT      30000
 #define SVCBATCH_PENDING_WAIT   1000
+#define SVCBATCH_PENDING_INIT   200
 
 #define MS_IN_DAY               86400000
 #define MS_IN_SECOND            1000

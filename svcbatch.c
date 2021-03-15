@@ -1227,7 +1227,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
     for (i = 0; i < 10; i++) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
-        ws = WaitForSingleObject(processended, i == 0 ? 200 : SVCBATCH_PENDING_WAIT);
+        ws = WaitForSingleObject(processended, i == 0 ? SVCBATCH_PENDING_INIT : SVCBATCH_PENDING_WAIT);
         if (ws == WAIT_OBJECT_0) {
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "#%d processended", i);
