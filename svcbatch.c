@@ -470,23 +470,23 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     wchar_t        buf[SBUFSIZ];
     wchar_t        erd[SBUFSIZ];
     HANDLE         es = 0;
-    const wchar_t *errarg[9];
+    const wchar_t *errarg[10];
 
-    memset(buf, 0, SBUFSIZ * sizeof(wchar_t));
     _snwprintf(buf, SBUFSIZ - 2, L"svcbatch.c(%d) %s", line, err);
-
+    buf[SBUFSIZ - 1] = L'\0';
     errarg[0] = L"The " CPP_WIDEN(SVCBATCH_SVCNAME) L" named";
     if (IS_EMPTY_WCS(servicename))
         errarg[1] = L"(undefined)";
     else
         errarg[1] = servicename;
-    errarg[2] = L"reported the following error:\r\n>>>";
+    errarg[2] = L"reported the following error:\r\n";
     errarg[3] = buf;
     errarg[4] = 0;
     errarg[5] = 0;
     errarg[6] = 0;
     errarg[7] = 0;
     errarg[8] = 0;
+    errarg[9] = 0;
 
     if (ern) {
         xwinapierror(erd, SBUFSIZ, ern);
