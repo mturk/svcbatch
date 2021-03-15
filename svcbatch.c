@@ -818,6 +818,7 @@ static int resolvebatchname(const wchar_t *batch)
     return 0;
 }
 
+#if defined(_CHECK_IF_SERVICE)
 static int runningasservice(void)
 {
     int     rv = 0;
@@ -846,6 +847,7 @@ static int runningasservice(void)
     }
     return rv;
 }
+#endif
 
 /**
  * ServiceStatus support functions.
@@ -1814,6 +1816,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Check if we are running as service
      */
+#if defined(_CHECK_IF_SERVICE)
     if (runningasservice() == 0) {
         fputs("\n" SVCBATCH_NAME " " SVCBATCH_VERSION_STR, stderr);
         fputs(" "  SVCBATCH_BUILD_STAMP, stderr);
@@ -1821,6 +1824,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fputs("This program can only run as Windows Service\n", stderr);
         return 1;
     }
+#endif
     if (bname == 0)
         return svcsyserror(__LINE__, 0, L"Missing batch file");
 
