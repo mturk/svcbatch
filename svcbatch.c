@@ -27,6 +27,7 @@ static SERVICE_STATUS_HANDLE hsvcstatus  = 0;
 static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
+static CRITICAL_SECTION      objectslock;
 static PROCESS_INFORMATION   cchild;
 static SECURITY_ATTRIBUTES   sazero;
 static HANDLE                cchildjob   = 0;
@@ -1045,7 +1046,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
 {
     static LONG volatile sstarted = 0;
     const char yn[2] = { 'Y', '\n'};
-    DWORD wr, ws, rc;
+    DWORD wr, ws;
     BOOL  sc;
     int   i;
 
@@ -1147,6 +1148,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
          * child tree by brute force
          */
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+        SAFE_CLOSE_HANDLE(cchild.hProcess);
         SAFE_CLOSE_HANDLE(cchildjob);
     }
 
@@ -1154,10 +1156,6 @@ finished:
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
 #if defined(_DBGVIEW)
-    if (GetExitCodeProcess(cchild.hProcess, &rc) == 0)
-        dbgprintf(__FUNCTION__, "GetExitCodeProcess failed %d", GetLastError());
-    else
-        dbgprintf(__FUNCTION__, "GetExitCodeProcess %d", rc);
     dbgprintf(__FUNCTION__, "done");
 #endif
 
@@ -1595,6 +1593,11 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(cchildjob);
+
+    DeleteCriticalSection(&logfilelock);
+    DeleteCriticalSection(&servicelock);
+    DeleteCriticalSection(&objectslock);
+
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 #endif
@@ -1615,6 +1618,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         hasopts    = 1;
     HANDLE      hstdin;
     SERVICE_TABLE_ENTRYW se[2];
+
+    InitializeCriticalSection(&objectslock);
+    InitializeCriticalSection(&servicelock);
+    InitializeCriticalSection(&logfilelock);
 
     if (wenv != 0) {
         while (wenv[envc] != 0)
@@ -1845,8 +1852,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (IS_INVALID_HANDLE(cchildjob))
         return svcsyserror(__LINE__, GetLastError(), L"CreateJobBobject");
 
-    InitializeCriticalSection(&servicelock);
-    InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
 
     se[0].lpServiceName = zerostring;
