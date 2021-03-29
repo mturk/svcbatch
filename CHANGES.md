@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.0.3
 
  * No need to report SERVICE_CONTROL_INTERROGATE
+ * Use Job to close child processes instead tlhelp32 API
 
 
 ## v1.0.2

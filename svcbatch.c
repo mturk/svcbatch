@@ -15,7 +15,6 @@
 
 #include <windows.h>
 #include <wincrypt.h>
-#include <tlhelp32.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +29,7 @@ static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
 static PROCESS_INFORMATION   cchild;
 static SECURITY_ATTRIBUTES   sazero;
+static HANDLE                cchildjob   = 0;
 
 static wchar_t  *comspec          = 0;
 static wchar_t **dupwenvp         = 0;
@@ -510,153 +510,6 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         DeregisterEventSource(es);
     }
     return ern;
-}
-
-static DWORD killprocesstree(DWORD pid, UINT err)
-{
-    DWORD  r = 0;
-    DWORD  c = 0;
-    DWORD  a[SBUFSIZ];
-    DWORD  i, x;
-    HANDLE h;
-    HANDLE p;
-    PROCESSENTRY32W e;
-
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "%d", pid);
-#endif
-    h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (IS_INVALID_HANDLE(h))
-        return GetLastError();
-
-    e.dwSize = DSIZEOF(PROCESSENTRY32W);
-    if (Process32FirstW(h, &e) == 0) {
-        r = GetLastError();
-        CloseHandle(h);
-        return r == ERROR_NO_MORE_FILES ? 0 : r;
-    }
-    do {
-        if (e.th32ParentProcessID == pid) {
-            if (c == SBUFSIZ) {
-                /**
-                 * Process has more then 1K child processes !?
-                 */
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "%d overflow", pid);
-#endif
-                break;
-            }
-            p = OpenProcess(PROCESS_QUERY_INFORMATION, 0, e.th32ProcessID);
-            if (IS_VALID_HANDLE(p)) {
-                if (GetExitCodeProcess(p, &x))
-                    a[c++] = e.th32ProcessID;
-                CloseHandle(p);
-            }
-        }
-
-    } while (Process32NextW(h, &e));
-    CloseHandle(h);
-
-#if defined(_DBGTRACE)
-    dbgprintf(__FUNCTION__, "%d has %d subtrees", pid, c);
-#endif
-    for (i = 0; i < c; i++) {
-        /**
-         * Terminate each child and its children
-         */
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "%d killing subtree: %d", pid, a[i]);
-#endif
-        killprocesstree(a[i], err);
-    }
-    if (c == SBUFSIZ) {
-        /**
-         * Do recursive call on overflow
-         */
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "%d killing recursive ...", pid);
-#endif
-        killprocesstree(pid, err);
-    }
-    if (pid == cchild.dwProcessId) {
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "%d is child pid", pid);
-#endif
-        return 0;
-    }
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "%d terminating", pid);
-#endif
-    p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, pid);
-    if (IS_INVALID_HANDLE(p)) {
-        r = GetLastError();
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "%d open failed: %d", pid, r);
-#endif
-        return r;
-    }
-    if (GetExitCodeProcess(p, &x)) {
-        if (x == STILL_ACTIVE) {
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "%d STILL_ACTIVE", pid);
-#endif
-            if (TerminateProcess(p, err) == 0)
-                r = GetLastError();
-#if defined(_DBGVIEW)
-            if (r)
-                dbgprintf(__FUNCTION__, "%d terminate failed: %d", pid, r);
-#endif
-        }
-#if defined(_DBGVIEW)
-        else {
-            dbgprintf(__FUNCTION__, "%d EXIT_CODE=%d ", pid, x);
-        }
-#endif
-    }
-    else {
-        r = GetLastError();
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "%d GetExitCodeProcess failed: %d", pid, r);
-#endif
-    }
-    CloseHandle(p);
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "%d done %d", pid, r);
-#endif
-    return r;
-}
-
-static DWORD killprocessmain(UINT err)
-{
-    DWORD x = 0;
-    DWORD r = 0;
-
-#if defined(_DBGTRACE)
-    dbgprintf(__FUNCTION__, "%d", cchild.dwProcessId);
-#endif
-    if (IS_INVALID_HANDLE(cchild.hProcess)) {
-#if defined(_DBGTRACE)
-        dbgprintf(__FUNCTION__, "%d INVALID_HANDLE", cchild.dwProcessId);
-#endif
-        return 0;
-    }
-    if (GetExitCodeProcess(cchild.hProcess, &x)) {
-        if (x == STILL_ACTIVE) {
-#if defined(_DBGTRACE)
-            dbgprintf(__FUNCTION__, "%d STILL_ACTIVE", cchild.dwProcessId);
-#endif
-            if (TerminateProcess(cchild.hProcess, err) == 0)
-                r = GetLastError();
-        }
-    }
-    else {
-        r = GetLastError();
-    }
-#if defined(_DBGTRACE)
-    dbgprintf(__FUNCTION__, "%d done %d ", cchild.dwProcessId, r);
-#endif
-
-    return r;
 }
 
 static HANDLE xcreatethread(int detach,
@@ -1294,12 +1147,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
          * child tree by brute force
          */
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        rc = killprocesstree(cchild.dwProcessId, ERROR_INVALID_FUNCTION);
-        if (rc != 0)
-            svcsyserror(__LINE__, rc, L"killprocesstree");
-        rc = killprocessmain(ERROR_INVALID_FUNCTION);
-        if (rc != 0)
-            svcsyserror(__LINE__, rc, L"killprocessmain");
+        SAFE_CLOSE_HANDLE(cchildjob);
     }
 
 finished:
@@ -1503,6 +1351,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
     wchar_t *arg0;
     wchar_t *arg1;
     HANDLE   wh[2] = {0, 0};
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION job;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
@@ -1526,6 +1375,20 @@ static DWORD WINAPI workerthread(LPVOID unused)
 #endif
     if (createiopipes() != 0)
         goto finished;
+    memset(&job, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+    job.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_BREAKAWAY_OK |
+        JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
+        JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+    if (SetInformationJobObject(cchildjob,
+                               JobObjectExtendedLimitInformation,
+                               &job,
+                               sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION)) == 0) {
+        svcsyserror(__LINE__, GetLastError(), L"SetInformationJobObject");
+        goto finished;
+    }
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     memset(&si, 0, sizeof(STARTUPINFOW));
@@ -1555,12 +1418,16 @@ static DWORD WINAPI workerthread(LPVOID unused)
      */
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
-
+    if (AssignProcessToJobObject(cchildjob, cchild.hProcess) == 0) {
+        svcsyserror(__LINE__, GetLastError(), L"AssignProcessToJobObject");
+        TerminateProcess(cchild.hProcess, ERROR_ACCESS_DENIED);
+        setsvcstatusexit(ERROR_ACCESS_DENIED);
+        goto finished;
+    }
     wh[0] = cchild.hProcess;
     wh[1] = xcreatethread(0, &iopipethread, 0);
     if (IS_INVALID_HANDLE(wh[1])) {
         svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"iopipethread");
-        CloseHandle(cchild.hThread);
         TerminateProcess(cchild.hProcess, ERROR_OUTOFMEMORY);
         setsvcstatusexit(ERROR_TOO_MANY_TCBS);
         goto finished;
@@ -1568,7 +1435,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
 
     ResumeThread(cchild.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    CloseHandle(cchild.hThread);
+    SAFE_CLOSE_HANDLE(cchild.hThread);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "service running");
 #endif
@@ -1576,6 +1443,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
     CloseHandle(wh[1]);
 
 finished:
+    SAFE_CLOSE_HANDLE(cchild.hThread);
     SetEvent(processended);
 #if defined(_DBGVIEW)
     if (ssvcstatus.dwServiceSpecificExitCode)
@@ -1697,6 +1565,7 @@ finished:
     SAFE_CLOSE_HANDLE(stdinputpipewr);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
     SAFE_CLOSE_HANDLE(cchild.hProcess);
+    SAFE_CLOSE_HANDLE(cchildjob);
 
     closelogfile();
 #if defined(_DBGVIEW)
@@ -1725,6 +1594,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(monitorevent);
+    SAFE_CLOSE_HANDLE(cchildjob);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 #endif
@@ -1971,6 +1841,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         IS_INVALID_HANDLE(svcstopended) ||
         IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, ERROR_OUTOFMEMORY, L"CreateEvent");
+    cchildjob = CreateJobObjectW(&sazero, 0);
+    if (IS_INVALID_HANDLE(cchildjob))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateJobBobject");
 
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
