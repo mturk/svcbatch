@@ -93,8 +93,8 @@
  */
 #define IS_INVALID_HANDLE(_h)   (((_h) == NULL) || ((_h) == INVALID_HANDLE_VALUE))
 #define IS_VALID_HANDLE(_h)     (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))
-#define IS_EMPTY_WCS(_s)        ((_s == NULL)   || (*(_s) == L'\0'))
-#define DSIZEOF(_s)             ((DWORD)sizeof(_s))
+#define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == L'\0'))
+#define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 
 #define SAFE_CLOSE_HANDLE(_h)                                       \
     if (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))           \
@@ -105,7 +105,7 @@
 #define ALIGN_TO_BOUNDARY(_s, _b)               \
     (((_s) + ((_b) - 1)) & ~((_b) - 1))
 /** Default alignment */
-#define ALIGN_DEFAULT(_s) ALIGN_TO_BOUNDARY(_s, 8)
+#define ALIGN_DEFAULT(_s)       ALIGN_TO_BOUNDARY(_s, 8)
 
 #define XENDTHREAD(_r)          ExitThread(_r); return (_r)
 #define WAIT_OBJECT_1          (WAIT_OBJECT_0 + 1)

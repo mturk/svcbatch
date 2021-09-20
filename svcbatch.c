@@ -19,7 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
-#include <process.h>
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
@@ -489,15 +488,24 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     errarg[8] = NULL;
     errarg[9] = NULL;
 
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "%S %S", errarg[0], errarg[1]);
+#endif
     if (ern) {
         xwinapierror(erd, MBUFSIZ, ern);
         errarg[5] = L":";
         errarg[6] = erd;
         errarg[7] = L"\r\n";
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erd);
+#endif
     }
     else {
         errarg[5] = L"\r\n";
         ern = ERROR_INVALID_PARAMETER;
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "%S %S", buf, err);
+#endif
     }
     if (setupeventlog())
         es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
@@ -1845,7 +1853,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, ERROR_OUTOFMEMORY, L"CreateEvent");
     cchildjob = CreateJobObjectW(&sazero, NULL);
     if (IS_INVALID_HANDLE(cchildjob))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateJobBobject");
+        return svcsyserror(__LINE__, GetLastError(), L"CreateJobObject");
 
     atexit(objectscleanup);
 
