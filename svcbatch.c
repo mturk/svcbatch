@@ -362,7 +362,7 @@ static wchar_t *xuuidstring(void)
     if (!CryptAcquireContext(&h, NULL, NULL, PROV_RSA_FULL,
                              CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
         return NULL;
-    if (CryptGenRandom(h, 16, d) == 0)
+    if (!CryptGenRandom(h, 16, d))
         return NULL;
     CryptReleaseContext(h, 0);
     b = xwalloc(38);
@@ -520,10 +520,10 @@ static HANDLE xcreatethread(int detach,
     HANDLE h = CreateThread(NULL, 0, threadfn, param, 0, NULL);
 
     if (IS_INVALID_HANDLE(h))
-        return INVALID_HANDLE_VALUE;
+        return NULL;
     if (detach) {
         CloseHandle(h);
-        h = INVALID_HANDLE_VALUE;
+        h = NULL;
     }
     return h;
 }
@@ -934,7 +934,7 @@ static DWORD openlogfile(void)
     if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
         sfx[1] = L'0';
         logpb = xwcsconcat(logfilename, sfx);
-        if (MoveFileExW(logfilename, logpb, 0) == 0) {
+        if (!MoveFileExW(logfilename, logpb, 0)) {
             rc = GetLastError();
             xfree(logpb);
             return svcsyserror(__LINE__, rc, L"MoveFileExW");
@@ -1078,7 +1078,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
 #endif
     sc = SetConsoleCtrlHandler(NULL, TRUE);
 #if defined(_DBGVIEW)
-    if (sc == 0)
+    if (sc == FALSE)
         dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %d", GetLastError());
 #endif
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
@@ -1189,6 +1189,8 @@ static DWORD WINAPI iopipethread(LPVOID unused)
         dbgprintf(__FUNCTION__, "ERROR_BROKEN_PIPE");
     else if (rc == ERROR_NO_DATA)
         dbgprintf(__FUNCTION__, "ERROR_NO_DATA");
+    else if (rc == ERROR_NO_MORE_FILES)
+        dbgprintf(__FUNCTION__, "ERROR_NO_MORE_FILES, logfile closed");
     else
         dbgprintf(__FUNCTION__, "err=%d", rc);
     dbgprintf(__FUNCTION__, "done");
@@ -1412,6 +1414,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
     if (!AssignProcessToJobObject(cchildjob, cchild.hProcess)) {
         svcsyserror(__LINE__, GetLastError(), L"AssignProcessToJobObject");
         TerminateProcess(cchild.hProcess, ERROR_ACCESS_DENIED);
+        CloseHandle(cchild.hThread);
         setsvcstatusexit(ERROR_ACCESS_DENIED);
         goto finished;
     }
@@ -1420,13 +1423,14 @@ static DWORD WINAPI workerthread(LPVOID unused)
     if (IS_INVALID_HANDLE(wh[1])) {
         svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"iopipethread");
         TerminateProcess(cchild.hProcess, ERROR_OUTOFMEMORY);
+        CloseHandle(cchild.hThread);
         setsvcstatusexit(ERROR_TOO_MANY_TCBS);
         goto finished;
     }
 
     ResumeThread(cchild.hThread);
+    CloseHandle(cchild.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    SAFE_CLOSE_HANDLE(cchild.hThread);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "service running");
 #endif
@@ -1434,7 +1438,6 @@ static DWORD WINAPI workerthread(LPVOID unused)
     CloseHandle(wh[1]);
 
 finished:
-    SAFE_CLOSE_HANDLE(cchild.hThread);
     SetEvent(processended);
 #if defined(_DBGVIEW)
     if (ssvcstatus.dwServiceSpecificExitCode)
@@ -1461,7 +1464,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     DWORD        rv    = 0;
     int          eblen = 0;
     wchar_t     *ep;
-    HANDLE       wh[2] = { 0, 0};
+    HANDLE       wh[2] = { NULL, NULL};
 
     ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
@@ -1522,9 +1525,10 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     wh[1] = xcreatethread(0, &workerthread,  0);
     if (IS_INVALID_HANDLE(wh[1])) {
+        InterlockedExchange(&monitorsig, 0);
+        SignalObjectAndWait(monitorevent, wh[0], INFINITE, FALSE);
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"workerthread");
-        SignalObjectAndWait(monitorevent, wh[0], INFINITE, 0);
         goto finished;
     }
 #if defined(_DBGVIEW)
@@ -1839,7 +1843,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         IS_INVALID_HANDLE(svcstopended) ||
         IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, ERROR_OUTOFMEMORY, L"CreateEvent");
-    cchildjob = CreateJobObjectW(&sazero, 0);
+    cchildjob = CreateJobObjectW(&sazero, NULL);
     if (IS_INVALID_HANDLE(cchildjob))
         return svcsyserror(__LINE__, GetLastError(), L"CreateJobBobject");
 
