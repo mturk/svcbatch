@@ -97,12 +97,9 @@
 #define DSIZEOF(_s)             ((DWORD)sizeof(_s))
 
 #define SAFE_CLOSE_HANDLE(_h)                                       \
-    EnterCriticalSection(&objectslock);                             \
-    if (((_h) != 0) && ((_h) != INVALID_HANDLE_VALUE)) {            \
+    if (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))           \
         CloseHandle((_h));                                          \
-        (_h) = INVALID_HANDLE_VALUE;                                \
-    }                                                               \
-    LeaveCriticalSection(&objectslock)
+    (_h) = NULL
 
 /** Align to power of 2 boundary */
 #define ALIGN_TO_BOUNDARY(_s, _b)               \

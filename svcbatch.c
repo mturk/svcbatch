@@ -27,7 +27,6 @@ static SERVICE_STATUS_HANDLE hsvcstatus  = 0;
 static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
-static CRITICAL_SECTION      objectslock;
 static PROCESS_INFORMATION   cchild;
 static SECURITY_ATTRIBUTES   sazero;
 static HANDLE                cchildjob   = 0;
@@ -1596,7 +1595,6 @@ static void __cdecl objectscleanup(void)
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
-    DeleteCriticalSection(&objectslock);
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
@@ -1619,7 +1617,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     HANDLE      hstdin;
     SERVICE_TABLE_ENTRYW se[2];
 
-    InitializeCriticalSection(&objectslock);
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
 
