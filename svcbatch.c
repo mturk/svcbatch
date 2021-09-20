@@ -100,7 +100,7 @@ static const wchar_t *removeenv[] = {
     L"SVCBATCH_SERVICE_SELF=",
     L"SVCBATCH_SERVICE_UUID=",
     L"PATH=",
-    0
+    NULL
 };
 
 static const wchar_t *safewinenv[] = {
@@ -140,7 +140,7 @@ static const wchar_t *safewinenv[] = {
     L"USERNAME=",
     L"USERPROFILE=",
     L"WINDIR=",
-    0
+    NULL
 };
 
 /**
@@ -359,8 +359,8 @@ static wchar_t *xuuidstring(void)
     unsigned char d[16];
     const wchar_t xb16[] = L"0123456789abcdef";
 
-    if (CryptAcquireContext(&h, 0, 0, PROV_RSA_FULL,
-                            CRYPT_VERIFYCONTEXT | CRYPT_SILENT) == 0)
+    if (!CryptAcquireContext(&h, NULL, NULL, PROV_RSA_FULL,
+                             CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
         return NULL;
     if (CryptGenRandom(h, 16, d) == 0)
         return NULL;
@@ -408,12 +408,12 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
     DWORD len;
     len = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
                          FORMAT_MESSAGE_IGNORE_INSERTS,
-                         0,
+                         NULL,
                          statcode,
                          MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
                          buf,
                          bufsize,
-                         0);
+                         NULL);
     if (len) {
         /**
          * Remove trailing spaces.
@@ -448,9 +448,9 @@ static int setupeventlog(void)
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
                         L"SYSTEM\\CurrentControlSet\\Services\\" \
                         L"EventLog\\Application\\" CPP_WIDEN(SVCBATCH_SVCNAME),
-                        0, 0, 0,
+                        0, NULL, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
-                        0, &k, &c) != ERROR_SUCCESS)
+                        NULL, &k, &c) != ERROR_SUCCESS)
         return 0;
 
     if (c == REG_CREATED_NEW_KEY) {
@@ -500,14 +500,14 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         ern = ERROR_INVALID_PARAMETER;
     }
     if (setupeventlog())
-        es = RegisterEventSourceW(0, CPP_WIDEN(SVCBATCH_SVCNAME));
+        es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
     if (IS_VALID_HANDLE(es)) {
         /**
          * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
          * The event code in netmsg.dll is 3299
          */
         ReportEventW(es, EVENTLOG_ERROR_TYPE,
-                     0, 3299, 0, 9, 0, errarg, 0);
+                     0, 3299, NULL, 9, 0, errarg, NULL);
         DeregisterEventSource(es);
     }
     return ern;
@@ -517,7 +517,7 @@ static HANDLE xcreatethread(int detach,
                             DWORD (WINAPI *threadfn)(LPVOID),
                             LPVOID param)
 {
-    HANDLE h = CreateThread(0, 0, threadfn, param, 0, 0);
+    HANDLE h = CreateThread(NULL, 0, threadfn, param, 0, NULL);
 
     if (IS_INVALID_HANDLE(h))
         return INVALID_HANDLE_VALUE;
@@ -572,8 +572,8 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     if ((es = expandenvstrings(path)) == NULL)
         return NULL;
     rmtrailingps(es);
-    fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, 0,
-                     OPEN_EXISTING, fa, 0);
+    fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, NULL,
+                     OPEN_EXISTING, fa, NULL);
     xfree(es);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
@@ -617,7 +617,7 @@ static int resolvesvcbatchexe(void)
     while (buf == NULL) {
         DWORD len;
         buf = xwalloc(siz);
-        len = GetModuleFileNameW(0, buf, siz);
+        len = GetModuleFileNameW(NULL, buf, siz);
 
         if (len == 0) {
             xfree(buf);
@@ -748,7 +748,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwWaitHint   = param;
     }
     ssvcstatus.dwCurrentState = status;
-    if (SetServiceStatus(hsvcstatus, &ssvcstatus) == 0)
+    if (!SetServiceStatus(hsvcstatus, &ssvcstatus))
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
 
 finished:
@@ -763,15 +763,15 @@ static PSECURITY_ATTRIBUTES getnullacl(void)
 
     if (sd == NULL) {
         sd = (PSECURITY_DESCRIPTOR)sb;
-        if ((InitializeSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION) == 0) ||
-            (SetSecurityDescriptorDacl(sd, 1, (PACL)0, 0) == 0)) {
+        if (!InitializeSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION) ||
+            !SetSecurityDescriptorDacl(sd, TRUE, (PACL)NULL, FALSE)) {
             sd = NULL;
             return NULL;
         }
     }
     sa.nLength              = DSIZEOF(SECURITY_ATTRIBUTES);
     sa.lpSecurityDescriptor = sd;
-    sa.bInheritHandle       = 1;
+    sa.bInheritHandle       = TRUE;
     return &sa;
 }
 
@@ -788,11 +788,11 @@ static DWORD createiopipes(void)
      * Create stdin pipe, with write side
      * of the pipe as non inheritable.
      */
-    if (CreatePipe(&stdinputpiperd, &sh, sa, 0) == 0)
+    if (!CreatePipe(&stdinputpiperd, &sh, sa, 0))
         return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
-    if (DuplicateHandle(cp, sh, cp,
-                        &stdinputpipewr, 0, 0,
-                        DUPLICATE_SAME_ACCESS) == 0) {
+    if (!DuplicateHandle(cp, sh, cp,
+                         &stdinputpipewr, FALSE, 0,
+                         DUPLICATE_SAME_ACCESS)) {
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
         goto finished;
     }
@@ -802,11 +802,11 @@ static DWORD createiopipes(void)
      * Create stdout/stderr pipe, with read side
      * of the pipe as non inheritable
      */
-    if (CreatePipe(&sh, &stdoutputpipew, sa, 0) == 0)
+    if (!CreatePipe(&sh, &stdoutputpipew, sa, 0))
         return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
-    if (DuplicateHandle(cp, sh, cp,
-                        &stdoutputpiper, 0, 0,
-                        DUPLICATE_SAME_ACCESS) == 0)
+    if (!DuplicateHandle(cp, sh, cp,
+                         &stdoutputpiper, FALSE, 0,
+                         DUPLICATE_SAME_ACCESS))
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
 
 finished:
@@ -819,9 +819,9 @@ static DWORD logappend(LPCVOID buf, DWORD len)
     DWORD w;
     LARGE_INTEGER ee = {{ 0, 0}};
 
-    if (SetFilePointerEx(logfhandle, ee, 0, FILE_END) == 0)
+    if (!SetFilePointerEx(logfhandle, ee, NULL, FILE_END))
         return GetLastError();
-    if (WriteFile(logfhandle, buf, len, &w, 0) == 0)
+    if (!WriteFile(logfhandle, buf, len, &w, NULL))
         return GetLastError();
     else
         return 0;
@@ -861,10 +861,10 @@ static void logwrline(const char *str)
             dd, hh, mm, ss, ms,
             GetCurrentProcessId(),
             GetCurrentThreadId());
-    WriteFile(logfhandle, buf, (DWORD)strlen(buf), &w, 0);
-    WriteFile(logfhandle, str, (DWORD)strlen(str), &w, 0);
+    WriteFile(logfhandle, buf, (DWORD)strlen(buf), &w, NULL);
+    WriteFile(logfhandle, str, (DWORD)strlen(str), &w, NULL);
 
-    WriteFile(logfhandle, CRLF, 2, &w, 0);
+    WriteFile(logfhandle, CRLF, 2, &w, NULL);
 }
 
 static void logprintf(const char *format, ...)
@@ -919,7 +919,7 @@ static DWORD openlogfile(void)
     logtickcount = GetTickCount64();
 
     if (logfilename == NULL) {
-        if ((CreateDirectoryW(loglocation, 0) == 0) &&
+        if (!CreateDirectoryW(loglocation, 0) &&
             (GetLastError() != ERROR_ALREADY_EXISTS))
             return GetLastError();
         if (isrelativepath(loglocation)) {
@@ -947,7 +947,7 @@ static DWORD openlogfile(void)
                              GENERIC_WRITE,
                              FILE_SHARE_READ,
                             &sazero, CREATE_NEW,
-                             FILE_ATTRIBUTE_NORMAL, 0);
+                             FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (IS_INVALID_HANDLE(logfhandle))
         goto failed;
@@ -966,7 +966,7 @@ static DWORD openlogfile(void)
 
             sfx[1] = L'0' + i;
             lognn = xwcsconcat(logfilename, sfx);
-            if (MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING) == 0) {
+            if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
                 rc = GetLastError();
                 if (m > 0)
                     svcsyserror(__LINE__, rc, L"MoveFileExW already executed");
@@ -1076,7 +1076,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT");
 #endif
-    sc = SetConsoleCtrlHandler(0, 1);
+    sc = SetConsoleCtrlHandler(NULL, TRUE);
 #if defined(_DBGVIEW)
     if (sc == 0)
         dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %d", GetLastError());
@@ -1084,7 +1084,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
     if (sc) {
         Sleep(SVCBATCH_PENDING_INIT);
-        SetConsoleCtrlHandler(0, 0);
+        SetConsoleCtrlHandler(NULL, FALSE);
     }
     for (i = 0; i < 10; i++) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
@@ -1104,7 +1104,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
              * Write Y to stdin pipe in case cmd.exe waits for
              * user reply to "Terminate batch job (Y/N)?"
              */
-            if (WriteFile(stdinputpipewr, yn, 2, &wr, 0) == 0) {
+            if (!WriteFile(stdinputpipewr, yn, 2, &wr, NULL)) {
 #if defined(_DBGVIEW)
                 dbgprintf(__FUNCTION__, "#%d WriteFile Y failed %d", i, GetLastError());
 #endif
@@ -1167,7 +1167,7 @@ static DWORD WINAPI iopipethread(LPVOID unused)
         BYTE  rb[HBUFSIZ];
         DWORD rd = 0;
 
-        if ((ReadFile(stdoutputpiper, rb, HBUFSIZ, &rd, 0) == 0) || (rd == 0)) {
+        if (!ReadFile(stdoutputpiper, rb, HBUFSIZ, &rd, NULL) || (rd == 0)) {
             /**
              * Read from child failed.
              * ERROR_BROKEN_PIPE or ERROR_NO_DATA means that
@@ -1373,10 +1373,10 @@ static DWORD WINAPI workerthread(LPVOID unused)
         JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 
-    if (SetInformationJobObject(cchildjob,
-                               JobObjectExtendedLimitInformation,
-                               &job,
-                               sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION)) == 0) {
+    if (!SetInformationJobObject(cchildjob,
+                                 JobObjectExtendedLimitInformation,
+                                &job,
+                                 sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
         svcsyserror(__LINE__, GetLastError(), L"SetInformationJobObject");
         goto finished;
     }
@@ -1389,11 +1389,11 @@ static DWORD WINAPI workerthread(LPVOID unused)
     si.hStdOutput = stdoutputpipew;
     si.hStdError  = stdoutputpipew;
 
-    if (CreateProcessW(comspec, cmdline, 0, 0, 1,
-                       CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
-                       wenvblock,
-                       servicehome,
-                       &si, &cchild) == 0) {
+    if (!CreateProcessW(comspec, cmdline, NULL, NULL, TRUE,
+                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
+                        wenvblock,
+                        servicehome,
+                       &si, &cchild)) {
         /**
          * CreateProcess failed ... nothing we can do.
          */
@@ -1409,7 +1409,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
      */
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
-    if (AssignProcessToJobObject(cchildjob, cchild.hProcess) == 0) {
+    if (!AssignProcessToJobObject(cchildjob, cchild.hProcess)) {
         svcsyserror(__LINE__, GetLastError(), L"AssignProcessToJobObject");
         TerminateProcess(cchild.hProcess, ERROR_ACCESS_DENIED);
         setsvcstatusexit(ERROR_ACCESS_DENIED);
@@ -1430,7 +1430,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "service running");
 #endif
-    WaitForMultipleObjects(2, wh, 1, INFINITE);
+    WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
 
 finished:
@@ -1473,7 +1473,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
 
     servicename = xwcsdup(argv[0]);
-    hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, 0);
+    hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
     if (IS_INVALID_HANDLE(hsvcstatus)) {
         svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx");
         exit(ERROR_INVALID_HANDLE);
@@ -1490,7 +1490,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         return;
     }
     logconfig();
-    SetConsoleCtrlHandler(consolehandler, 1);
+    SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     /**
      * Add additional environment variables
@@ -1534,7 +1534,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * This is main wait loop that waits
      * for worker and monitor threads to finish.
      */
-    WaitForMultipleObjects(2, wh, 1, INFINITE);
+    WaitForMultipleObjects(2, wh, TRUE, INFINITE);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "wait for stop thread to finish");
 #endif
@@ -1570,7 +1570,7 @@ finished:
  */
 static void __cdecl cconsolecleanup(void)
 {
-    SetConsoleCtrlHandler(consolehandler, 0);
+    SetConsoleCtrlHandler(consolehandler, FALSE);
     FreeConsole();
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
@@ -1756,7 +1756,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
 
     if (servicehome != NULL) {
-        if (SetCurrentDirectoryW(servicehome) == 0)
+        if (!SetCurrentDirectoryW(servicehome))
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
 
@@ -1768,7 +1768,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          * Use batch file directory as new cwd
          */
         servicehome = batchdirname;
-        if (SetCurrentDirectoryW(servicehome) == 0)
+        if (!SetCurrentDirectoryW(servicehome))
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
     if (loglocation == NULL)
@@ -1832,9 +1832,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Create logic state events
      */
-    svcstopended = CreateEventW(&sazero, 1, 1, 0);
-    processended = CreateEventW(&sazero, 1, 0, 0);
-    monitorevent = CreateEventW(&sazero, 1, 0, 0);
+    svcstopended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
+    processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
+    monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended) ||
         IS_INVALID_HANDLE(svcstopended) ||
         IS_INVALID_HANDLE(monitorevent))
@@ -1853,7 +1853,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "start service");
 #endif
-    if (StartServiceCtrlDispatcherW(se) == 0)
+    if (!StartServiceCtrlDispatcherW(se))
         return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
