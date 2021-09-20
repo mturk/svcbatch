@@ -1256,7 +1256,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
                 /**
                  * Create stop thread and exit.
                  */
-                xcreatethread(1, &stopthread, 0);
+                xcreatethread(1, &stopthread, NULL);
                 break;
             }
         }
@@ -1320,7 +1320,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            xcreatethread(1, &stopthread, 0);
+            xcreatethread(1, &stopthread, NULL);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak == 0)
@@ -1427,7 +1427,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
         goto finished;
     }
     wh[0] = cchild.hProcess;
-    wh[1] = xcreatethread(0, &iopipethread, 0);
+    wh[1] = xcreatethread(0, &iopipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"iopipethread");
         TerminateProcess(cchild.hProcess, ERROR_OUTOFMEMORY);
@@ -1525,13 +1525,13 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         ep += nn + 1;
     }
 
-    wh[0] = xcreatethread(0, &monitorthread, 0);
+    wh[0] = xcreatethread(0, &monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"monitorthread");
         goto finished;
     }
-    wh[1] = xcreatethread(0, &workerthread,  0);
+    wh[1] = xcreatethread(0, &workerthread,  NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         InterlockedExchange(&monitorsig, 0);
         SignalObjectAndWait(monitorevent, wh[0], INFINITE, FALSE);
