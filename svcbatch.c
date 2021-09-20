@@ -1535,6 +1535,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     if (IS_INVALID_HANDLE(wh[1])) {
         InterlockedExchange(&monitorsig, 0);
         SignalObjectAndWait(monitorevent, wh[0], INFINITE, FALSE);
+        CloseHandle(wh[0]);
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"workerthread");
         goto finished;
@@ -1547,6 +1548,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * for worker and monitor threads to finish.
      */
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
+    CloseHandle(wh[0]);
+    CloseHandle(wh[1]);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "wait for stop thread to finish");
 #endif
@@ -1559,9 +1562,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 #endif
 
 finished:
-
-    SAFE_CLOSE_HANDLE(wh[0]);
-    SAFE_CLOSE_HANDLE(wh[1]);
 
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdoutputpiper);
