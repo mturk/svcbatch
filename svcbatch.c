@@ -818,8 +818,6 @@ static DWORD logappend(LPCVOID buf, DWORD len)
     DWORD w;
     LARGE_INTEGER ee = {{ 0, 0}};
 
-    if (IS_INVALID_HANDLE(logfhandle))
-        return ERROR_FILE_NOT_FOUND;
     if (SetFilePointerEx(logfhandle, ee, 0, FILE_END) == 0)
         return GetLastError();
     if (WriteFile(logfhandle, buf, len, &w, 0) == 0)
@@ -833,8 +831,6 @@ static DWORD logappend(LPCVOID buf, DWORD len)
  */
 static void logfflush(void)
 {
-    if (IS_INVALID_HANDLE(logfhandle))
-        return;
     FlushFileBuffers(logfhandle);
     logappend(CRLF, 2);
 }
@@ -846,8 +842,6 @@ static void logwrline(const char *str)
     int     dd, hh, mm, ss, ms;
     DWORD   w;
 
-    if (IS_INVALID_HANDLE(logfhandle))
-        return;
     /**
      * Calculate time since the log
      * was opened and convert it to
