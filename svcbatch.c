@@ -24,57 +24,57 @@
 
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
-static SERVICE_STATUS_HANDLE hsvcstatus  = 0;
+static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
 static PROCESS_INFORMATION   cchild;
 static SECURITY_ATTRIBUTES   sazero;
-static HANDLE                cchildjob   = 0;
+static HANDLE                cchildjob   = NULL;
 
-static wchar_t  *comspec          = 0;
-static wchar_t **dupwenvp         = 0;
+static wchar_t  *comspec          = NULL;
+static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
-static wchar_t  *wenvblock        = 0;
+static wchar_t  *wenvblock        = NULL;
 static int       hasctrlbreak     = 0;
 
 /**
  * Full path to the batch file
  */
-static wchar_t  *svcbatchfile     = 0;
-static wchar_t  *batchdirname     = 0;
-static wchar_t  *svcbatchexe      = 0;
-static wchar_t  *servicebase      = 0;
-static wchar_t  *servicename      = 0;
-static wchar_t  *servicehome      = 0;
-static wchar_t  *serviceuuid      = 0;
+static wchar_t  *svcbatchfile     = NULL;
+static wchar_t  *batchdirname     = NULL;
+static wchar_t  *svcbatchexe      = NULL;
+static wchar_t  *servicebase      = NULL;
+static wchar_t  *servicename      = NULL;
+static wchar_t  *servicehome      = NULL;
+static wchar_t  *serviceuuid      = NULL;
 
-static wchar_t  *loglocation      = 0;
-static wchar_t  *logfilename      = 0;
-static HANDLE    logfhandle       = 0;
+static wchar_t  *loglocation      = NULL;
+static wchar_t  *logfilename      = NULL;
+static HANDLE    logfhandle       = NULL;
 static ULONGLONG logtickcount;
 
 /**
  * Signaled by service stop thread
  * when done.
  */
-static HANDLE    svcstopended     = 0;
+static HANDLE    svcstopended     = NULL;
 /**
  * Set when pipe and process threads
  * are done.
  */
-static HANDLE    processended     = 0;
+static HANDLE    processended     = NULL;
 /**
  * Set when SCM sends Custom signal
  */
-static HANDLE    monitorevent     = 0;
+static HANDLE    monitorevent     = NULL;
 /**
  * Child process redirection pipes
  */
-static HANDLE    stdoutputpipew   = 0;
-static HANDLE    stdoutputpiper   = 0;
-static HANDLE    stdinputpipewr   = 0;
-static HANDLE    stdinputpiperd   = 0;
+static HANDLE    stdoutputpipew   = NULL;
+static HANDLE    stdoutputpiper   = NULL;
+static HANDLE    stdinputpipewr   = NULL;
+static HANDLE    stdinputpiperd   = NULL;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static const char   CRLF[4]       = { '\r', '\n', '\0', '\0' };
@@ -149,7 +149,7 @@ static const wchar_t *safewinenv[] = {
 static void *xmalloc(size_t size)
 {
     void *p = calloc(size, 1);
-    if (p == 0)
+    if (p == NULL)
         _exit(ERROR_OUTOFMEMORY);
 
     return p;
@@ -158,7 +158,7 @@ static void *xmalloc(size_t size)
 static wchar_t *xwalloc(size_t size)
 {
     wchar_t *p = (wchar_t *)calloc(size, sizeof(wchar_t));
-    if (p == 0)
+    if (p == NULL)
         _exit(ERROR_OUTOFMEMORY);
 
     return p;
@@ -171,7 +171,7 @@ static wchar_t **waalloc(size_t size)
 
 static void xfree(void *m)
 {
-    if (m != 0)
+    if (m != NULL)
         free(m);
 }
 
@@ -181,7 +181,7 @@ static wchar_t *xwcsdup(const wchar_t *s)
     size_t   n;
 
     if (IS_EMPTY_WCS(s))
-        return 0;
+        return NULL;
     n = wcslen(s);
     p = xwalloc(n + 2);
     wmemcpy(p, s, n);
@@ -192,7 +192,7 @@ static wchar_t *xgetenv(const wchar_t *s)
 {
     DWORD    n;
     wchar_t  e[2];
-    wchar_t *d = 0;
+    wchar_t *d = NULL;
 
     if ((n = GetEnvironmentVariableW(s, e, 1)) != 0) {
         d = xwalloc(n + 1);
@@ -216,7 +216,7 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     size_t l2 = xwcslen(s2);
 
     if ((l1 + l2) == 0)
-        return 0;
+        return NULL;
 
     cp = rv = xwalloc(l1 + l2 + 2);
 
@@ -241,7 +241,7 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
     sls[0] = xwcslen(p);
 
     va_start(vap, p);
-    while ((ap = va_arg(vap, const wchar_t *)) != 0) {
+    while ((ap = va_arg(vap, const wchar_t *)) != NULL) {
         sls[cnt] = xwcslen(ap);
         len += sls[cnt];
         if (cnt++ > 30)
@@ -251,7 +251,7 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
     len += sls[0];
 
     if (len == 0)
-        return 0;
+        return NULL;
     cp = rp = xwalloc(len + 2);
     if (sls[0] != 0) {
         wmemcpy(cp, p, sls[0]);
@@ -262,7 +262,7 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
     cnt = 1;
 
     va_start(vap, p);
-    while ((ap = va_arg(vap, const wchar_t *)) != 0) {
+    while ((ap = va_arg(vap, const wchar_t *)) != NULL) {
         if ((len = sls[cnt]) != 0) {
             wmemcpy(cp, ap, len);
             cp += len;
@@ -361,9 +361,9 @@ static wchar_t *xuuidstring(void)
 
     if (CryptAcquireContext(&h, 0, 0, PROV_RSA_FULL,
                             CRYPT_VERIFYCONTEXT | CRYPT_SILENT) == 0)
-        return 0;
+        return NULL;
     if (CryptGenRandom(h, 16, d) == 0)
-        return 0;
+        return NULL;
     CryptReleaseContext(h, 0);
     b = xwalloc(38);
     for (i = 0, x = 0; i < 16; i++) {
@@ -470,7 +470,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 {
     wchar_t        buf[BBUFSIZ];
     wchar_t        erd[MBUFSIZ];
-    HANDLE         es = 0;
+    HANDLE         es = NULL;
     const wchar_t *errarg[10];
 
     _snwprintf(buf, BBUFSIZ - 2, L"svcbatch.c(%d)", line);
@@ -483,11 +483,11 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     errarg[2] = L"reported the following error:\r\n";
     errarg[3] = buf;
     errarg[4] = err;
-    errarg[5] = 0;
-    errarg[6] = 0;
-    errarg[7] = 0;
-    errarg[8] = 0;
-    errarg[9] = 0;
+    errarg[5] = NULL;
+    errarg[6] = NULL;
+    errarg[7] = NULL;
+    errarg[8] = NULL;
+    errarg[9] = NULL;
 
     if (ern) {
         xwinapierror(erd, MBUFSIZ, ern);
@@ -530,28 +530,28 @@ static HANDLE xcreatethread(int detach,
 
 static wchar_t *expandenvstrings(const wchar_t *str)
 {
-    wchar_t  *buf = 0;
+    wchar_t  *buf = NULL;
     int       bsz;
     int       len;
 
     if ((bsz = xwcslen(str)) == 0) {
         SetLastError(ERROR_INVALID_PARAMETER);
-        return 0;
+        return NULL;
     }
     if (wcschr(str, L'%') == 0)
         buf = xwcsdup(str);
 
-    while (buf == 0) {
+    while (buf == NULL) {
         bsz = ALIGN_DEFAULT(bsz);
         buf = xwalloc(bsz);
         len = ExpandEnvironmentStringsW(str, buf, bsz - 1);
         if (len == 0) {
             xfree(buf);
-            return 0;
+            return NULL;
         }
         if (len >= bsz) {
             xfree(buf);
-            buf = 0;
+            buf = NULL;
             bsz = len + 1;
         }
     }
@@ -561,34 +561,34 @@ static wchar_t *expandenvstrings(const wchar_t *str)
 static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 {
     wchar_t    *es;
-    wchar_t    *buf  = 0;
+    wchar_t    *buf  = NULL;
     int         siz  = _MAX_FNAME;
     int         len  = 0;
     HANDLE      fh;
     DWORD       fa   = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
     if (IS_EMPTY_WCS(path))
-        return 0;
-    if ((es = expandenvstrings(path)) == 0)
-        return 0;
+        return NULL;
+    if ((es = expandenvstrings(path)) == NULL)
+        return NULL;
     rmtrailingps(es);
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, 0,
                      OPEN_EXISTING, fa, 0);
     xfree(es);
     if (IS_INVALID_HANDLE(fh))
-        return 0;
+        return NULL;
 
-    while (buf == 0) {
+    while (buf == NULL) {
         buf = xwalloc(siz);
         len = GetFinalPathNameByHandleW(fh, buf, siz - 1, VOLUME_NAME_DOS);
         if (len == 0) {
             CloseHandle(fh);
             xfree(buf);
-            return 0;
+            return NULL;
         }
         if (len >= siz) {
             xfree(buf);
-            buf = 0;
+            buf = NULL;
             siz = len + 1;
         }
     }
@@ -611,10 +611,10 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 
 static int resolvesvcbatchexe(void)
 {
-    wchar_t    *buf = 0;
+    wchar_t    *buf = NULL;
     DWORD       siz = BBUFSIZ;
 
-    while (buf == 0) {
+    while (buf == NULL) {
         DWORD len;
         buf = xwalloc(siz);
         len = GetModuleFileNameW(0, buf, siz);
@@ -629,7 +629,7 @@ static int resolvesvcbatchexe(void)
             else
                 return 0;
             xfree(buf);
-            buf = 0;
+            buf = NULL;
         }
     }
     svcbatchexe = getrealpathname(buf, 0);
@@ -759,14 +759,14 @@ static PSECURITY_ATTRIBUTES getnullacl(void)
 {
     static BYTE sb[BBUFSIZ];
     static SECURITY_ATTRIBUTES  sa;
-    static PSECURITY_DESCRIPTOR sd = 0;
+    static PSECURITY_DESCRIPTOR sd = NULL;
 
-    if (sd == 0) {
+    if (sd == NULL) {
         sd = (PSECURITY_DESCRIPTOR)sb;
         if ((InitializeSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION) == 0) ||
             (SetSecurityDescriptorDacl(sd, 1, (PACL)0, 0) == 0)) {
-            sd = 0;
-            return 0;
+            sd = NULL;
+            return NULL;
         }
     }
     sa.nLength              = DSIZEOF(SECURITY_ATTRIBUTES);
@@ -779,10 +779,10 @@ static DWORD createiopipes(void)
 {
     LPSECURITY_ATTRIBUTES sa;
     DWORD  rc = 0;
-    HANDLE sh = 0;
+    HANDLE sh = NULL;
     HANDLE cp = GetCurrentProcess();
 
-    if ((sa = getnullacl()) == 0)
+    if ((sa = getnullacl()) == NULL)
         return svcsyserror(__LINE__, ERROR_ACCESS_DENIED, L"SetSecurityDescriptorDacl");
     /**
      * Create stdin pipe, with write side
@@ -912,13 +912,13 @@ static void logconfig(void)
 static DWORD openlogfile(void)
 {
     wchar_t  sfx[4] = { L'.', L'\0', L'\0', L'\0' };
-    wchar_t *logpb = 0;
+    wchar_t *logpb = NULL;
     DWORD rc;
     int i, m = 0;
 
     logtickcount = GetTickCount64();
 
-    if (logfilename == 0) {
+    if (logfilename == NULL) {
         if ((CreateDirectoryW(loglocation, 0) == 0) &&
             (GetLastError() != ERROR_ALREADY_EXISTS))
             return GetLastError();
@@ -990,7 +990,7 @@ static DWORD openlogfile(void)
 
 failed:
     rc = GetLastError();
-    if (logpb != 0) {
+    if (logpb != NULL) {
         MoveFileExW(logpb, logfilename, MOVEFILE_REPLACE_EXISTING);
         xfree(logpb);
     }
@@ -1603,7 +1603,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         i;
     wchar_t    *opath;
     wchar_t    *cpath;
-    wchar_t    *bname = 0;
+    wchar_t    *bname = NULL;
     int         envc  = 0;
     int         cleanpath  = 0;
     int         usesafeenv = 0;
@@ -1614,8 +1614,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
 
-    if (wenv != 0) {
-        while (wenv[envc] != 0)
+    if (wenv != NULL) {
+        while (wenv[envc] != NULL)
             ++envc;
     }
     if (envc == 0)
@@ -1631,13 +1631,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (hasopts) {
             if (servicehome == zerostring) {
                 servicehome = getrealpathname(p, 1);
-                if (servicehome == 0)
+                if (servicehome == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
             }
             if (loglocation == zerostring) {
                 loglocation = expandenvstrings(p);
-                if (loglocation == 0)
+                if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 rmtrailingps(loglocation);
                 continue;
@@ -1680,12 +1680,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 continue;
             }
         }
-        if (bname == 0) {
+        if (bname == NULL) {
             /**
              * First argument after options is batch file
              * that we are going to execute.
              */
-            if ((bname = expandenvstrings(p)) == 0)
+            if ((bname = expandenvstrings(p)) == NULL)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
             xreplacepathsep(bname);
         }
@@ -1712,7 +1712,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return 1;
     }
 #endif
-    if (bname == 0)
+    if (bname == NULL)
         return svcsyserror(__LINE__, 0, L"Missing batch file");
 
     hstdin = GetStdHandle(STD_INPUT_HANDLE);
@@ -1731,22 +1731,22 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvesvcbatchexe() == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
 
-    if ((opath = xgetenv(L"PATH")) == 0)
+    if ((opath = xgetenv(L"PATH")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"PATH");
 
-    if ((serviceuuid = xuuidstring()) == 0)
+    if ((serviceuuid = xuuidstring()) == NULL)
         return svcsyserror(__LINE__, GetLastError(), L"CryptGenRandom");
 
     /**
      * Get full path to cmd.exe
      */
-    if ((cpath = xgetenv(L"COMSPEC")) == 0)
+    if ((cpath = xgetenv(L"COMSPEC")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC");
-    if ((comspec = getrealpathname(cpath, 0)) == 0)
+    if ((comspec = getrealpathname(cpath, 0)) == NULL)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, cpath);
     xfree(cpath);
 
-    if ((servicehome == 0) && isrelativepath(bname)) {
+    if ((servicehome == NULL) && isrelativepath(bname)) {
         /**
          * Batch file is not absolute path
          * and we don't have provided workdir.
@@ -1755,7 +1755,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         servicehome = servicebase;
     }
 
-    if (servicehome != 0) {
+    if (servicehome != NULL) {
         if (SetCurrentDirectoryW(servicehome) == 0)
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
@@ -1763,7 +1763,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(bname) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, bname);
     xfree(bname);
-    if (servicehome == 0) {
+    if (servicehome == NULL) {
         /**
          * Use batch file directory as new cwd
          */
@@ -1771,7 +1771,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (SetCurrentDirectoryW(servicehome) == 0)
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
-    if (loglocation == 0)
+    if (loglocation == NULL)
         loglocation = xwcsdup(SVCBATCH_LOG_BASE);
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
@@ -1782,8 +1782,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             continue;
         if (usesafeenv) {
             e = safewinenv;
-            p = 0;
-            while (*e != 0) {
+            p = NULL;
+            while (*e != NULL) {
                 if (strstartswith(wenv[i], *e)) {
                     /**
                      * Found safe environment variable
@@ -1796,28 +1796,28 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         else {
             e = removeenv;
-            while (*e != 0) {
+            while (*e != NULL) {
                 if (strstartswith(p, *e)) {
                     /**
                      * Skip private environment variable
                      */
-                    p = 0;
+                    p = NULL;
                     break;
                 }
                 e++;
             }
         }
-        if (p != 0)
+        if (p != NULL)
             dupwenvp[dupwenvc++] = xwcsdup(p);
     }
 
     if (cleanpath) {
         wchar_t *cp = xwcsvarcat(servicebase, L";",
                                  servicehome,
-                                 stdwinpaths, 0);
+                                 stdwinpaths, NULL);
         xfree(opath);
 
-        if ((opath = expandenvstrings(cp)) == 0)
+        if ((opath = expandenvstrings(cp)) == NULL)
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
         xfree(cp);
     }
@@ -1847,8 +1847,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
-    se[1].lpServiceName = 0;
-    se[1].lpServiceProc = 0;
+    se[1].lpServiceName = NULL;
+    se[1].lpServiceProc = NULL;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "start service");

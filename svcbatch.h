@@ -91,9 +91,9 @@
 /**
  * Helper macros
  */
-#define IS_INVALID_HANDLE(_h)   (((_h) == 0) || ((_h) == INVALID_HANDLE_VALUE))
-#define IS_VALID_HANDLE(_h)     (((_h) != 0) && ((_h) != INVALID_HANDLE_VALUE))
-#define IS_EMPTY_WCS(_s)        ((_s == 0)   || (*(_s) == L'\0'))
+#define IS_INVALID_HANDLE(_h)   (((_h) == NULL) || ((_h) == INVALID_HANDLE_VALUE))
+#define IS_VALID_HANDLE(_h)     (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))
+#define IS_EMPTY_WCS(_s)        ((_s == NULL)   || (*(_s) == L'\0'))
 #define DSIZEOF(_s)             ((DWORD)sizeof(_s))
 
 #define SAFE_CLOSE_HANDLE(_h)                                       \
