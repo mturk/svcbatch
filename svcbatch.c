@@ -23,6 +23,7 @@
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
+static volatile LONG         sstarted    = 0;
 static SERVICE_STATUS_HANDLE hsvcstatus  = 0;
 static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
@@ -1037,7 +1038,6 @@ static void closelogfile(void)
 
 static DWORD WINAPI stopthread(LPVOID unused)
 {
-    static LONG volatile sstarted = 0;
     const char yn[2] = { 'Y', '\n'};
     DWORD wr, ws;
     BOOL  sc;
