@@ -31,12 +31,12 @@
  */
 #define SVCBATCH_MAJOR_VERSION  1
 #define SVCBATCH_MINOR_VERSION  0
-#define SVCBATCH_PATCH_VERSION  3
+#define SVCBATCH_PATCH_VERSION  4
 
 /**
  * Set to zero for non dev versions
  */
-#define SVCBATCH_ISDEV_VERSION  0
+#define SVCBATCH_ISDEV_VERSION  1
 
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_SVCNAME        "SvcBatch Service"
