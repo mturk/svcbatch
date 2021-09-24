@@ -1268,6 +1268,24 @@ static DWORD WINAPI monitorthread(LPVOID unused)
     XENDTHREAD(0);
 }
 
+static DWORD WINAPI rotatethread(LPVOID unused)
+{
+
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "started");
+#endif
+
+    while (WaitForSingleObject(processended, 5000) == WAIT_TIMEOUT) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "tick");
+#endif
+    }
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "done");
+#endif
+    XENDTHREAD(0);
+}
+
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
     switch(ctrl) {
@@ -1442,6 +1460,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "service running");
 #endif
+    xcreatethread(1, &rotatethread, NULL);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
 
@@ -1607,6 +1626,51 @@ static void __cdecl objectscleanup(void)
 #endif
 }
 
+#if 0
+static int xsleepoption(const wchar_t *ws)
+{
+    int s = 0;
+
+    servicename = xgetenv(L"SVCBATCH_SERVICE_NAME");
+    serviceuuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
+    loglocation = xgetenv(L"SVCBATCH_SERVICE_LOGDIR");
+
+    svcuuidname = xwcsconcat(L"Local\\svcbatch-", serviceuuid);
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "%S uuid %S", servicename, svcuuidname);
+#endif
+    logfilename = xwcsconcat(loglocation,
+                             L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
+    svcuuidevent = OpenEventW(SYNCHRONIZE, FALSE, svcuuidname);
+    if (IS_INVALID_HANDLE(svcuuidevent))
+        return GetLastError();
+    if (!IS_EMPTY_WCS(ws))
+        s = _wtoi(ws);
+    if (s < 1)
+        s = 1;
+    while (WaitForSingleObject(svcuuidevent, s * 1000) == WAIT_TIMEOUT) {
+        WIN32_FILE_ATTRIBUTE_DATA ld;
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "tick %d", s);
+#endif
+        if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ld)) {
+            ULARGE_INTEGER ls;
+            ls.HighPart = ld.nFileSizeHigh;
+            ls.LowPart  = ld.nFileSizeLow;
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "logsize: %I64d", ls.QuadPart);
+#endif
+
+        }
+    }
+    SAFE_CLOSE_HANDLE(svcuuidevent);
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "done");
+#endif
+    return 0;
+}
+#endif
+
 /**
  * SvcBatch main program entry
  */
@@ -1622,9 +1686,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         hasopts    = 1;
     HANDLE      hstdin;
     SERVICE_TABLE_ENTRYW se[2];
-
-    InitializeCriticalSection(&servicelock);
-    InitializeCriticalSection(&logfilelock);
 
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
@@ -1727,19 +1788,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (bname == NULL)
         return svcsyserror(__LINE__, 0, L"Missing batch file");
 
-    hstdin = GetStdHandle(STD_INPUT_HANDLE);
-    if (IS_VALID_HANDLE(hstdin))
-        return svcsyserror(__LINE__, 0, L"Console already exists");
-    if (AllocConsole()) {
-        /**
-         * AllocConsole should create new set of
-         * standard i/o handles
-         */
-        atexit(cconsolecleanup);
-        hstdin = GetStdHandle(STD_INPUT_HANDLE);
-    }
-    if (IS_INVALID_HANDLE(hstdin))
-        return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
     if (resolvesvcbatchexe() == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
 
@@ -1855,7 +1903,23 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (IS_INVALID_HANDLE(cchildjob))
         return svcsyserror(__LINE__, GetLastError(), L"CreateJobObject");
 
+    InitializeCriticalSection(&servicelock);
+    InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
+
+    hstdin = GetStdHandle(STD_INPUT_HANDLE);
+    if (IS_VALID_HANDLE(hstdin))
+        return svcsyserror(__LINE__, 0, L"Console already exists");
+    if (AllocConsole()) {
+        /**
+         * AllocConsole should create new set of
+         * standard i/o handles
+         */
+        atexit(cconsolecleanup);
+        hstdin = GetStdHandle(STD_INPUT_HANDLE);
+    }
+    if (IS_INVALID_HANDLE(hstdin))
+        return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
 
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
