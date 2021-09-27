@@ -30,12 +30,15 @@ static CRITICAL_SECTION      logfilelock;
 static PROCESS_INFORMATION   cchild;
 static SECURITY_ATTRIBUTES   sazero;
 static HANDLE                cchildjob   = NULL;
+static LARGE_INTEGER         rotatetmo;
+static ULARGE_INTEGER        rotatesiz;
 
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
 static int       hasctrlbreak     = 0;
+static int       autorotate       = 0;
 
 /**
  * Full path to the batch file
@@ -919,9 +922,10 @@ static void logconfig(void)
  */
 static DWORD openlogfile(void)
 {
-    wchar_t  sfx[4] = { L'.', L'\0', L'\0', L'\0' };
+    wchar_t  sfx[24];
     wchar_t *logpb = NULL;
     DWORD rc;
+	WIN32_FILE_ATTRIBUTE_DATA ad;
     int i, m = 0;
 
     logtickcount = GetTickCount64();
@@ -939,8 +943,20 @@ static DWORD openlogfile(void)
         logfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
     }
-    if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
-        sfx[1] = L'0';
+	memset(sfx, 0, 48);
+    if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
+		if (autorotate) {
+			SYSTEMTIME st;
+
+			FileTimeToSystemTime(&ad.ftCreationTime, &st);
+			_snwprintf(sfx, 20, L".%04d-%02d%-02d.%02d%02d%02d",
+ 			           st.wYear, st.wMonth, st.wDay,
+					   st.wHour, st.wMinute, st.wSecond);
+		}
+		else {
+			sfx[0] = L'.';
+			sfx[1] = L'0';
+		}
         logpb = xwcsconcat(logfilename, sfx);
         if (!MoveFileExW(logfilename, logpb, 0)) {
             rc = GetLastError();
@@ -959,37 +975,38 @@ static DWORD openlogfile(void)
 
     if (IS_INVALID_HANDLE(logfhandle))
         goto failed;
+	if (autorotate == 0) {
+		/**
+		 * Rotate previous log files
+		 */
+		for (i = SVCBATCH_MAX_LOGS; i > 0; i--) {
+			wchar_t *logpn;
 
-    /**
-     * Rotate previous log files
-     */
-    for (i = SVCBATCH_MAX_LOGS; i > 0; i--) {
-        wchar_t *logpn;
+			sfx[1] = L'0' + i - 1;
+			logpn  = xwcsconcat(logfilename, sfx);
 
-        sfx[1] = L'0' + i - 1;
-        logpn  = xwcsconcat(logfilename, sfx);
+			if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
+				wchar_t *lognn;
 
-        if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
-            wchar_t *lognn;
-
-            sfx[1] = L'0' + i;
-            lognn = xwcsconcat(logfilename, sfx);
-            if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
-                rc = GetLastError();
-                if (m > 0)
-                    svcsyserror(__LINE__, rc, L"MoveFileExW already executed");
-                xfree(logpn);
-                xfree(lognn);
-                SetLastError(rc);
-                goto failed;
-            }
-            xfree(lognn);
-            if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
-                reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-            m++;
-        }
-        xfree(logpn);
-    }
+				sfx[1] = L'0' + i;
+				lognn = xwcsconcat(logfilename, sfx);
+				if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
+					rc = GetLastError();
+					if (m > 0)
+						svcsyserror(__LINE__, rc, L"MoveFileExW already executed");
+					xfree(logpn);
+					xfree(lognn);
+					SetLastError(rc);
+					goto failed;
+				}
+				xfree(lognn);
+				if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
+					reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+				m++;
+			}
+			xfree(logpn);
+		}
+	}
     xfree(logpb);
 
     logwrline(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
@@ -1596,6 +1613,102 @@ finished:
     reportsvcstatus(SERVICE_STOPPED, rv);
 }
 
+static int resolverotate(wchar_t *rp)
+{
+	SYSTEMTIME st;
+	SYSTEMTIME ct;
+	FILETIME   ft;
+
+	GetSystemTime(&st);
+	SystemTimeToFileTime(&st, &ft);
+	rotatetmo.QuadPart = ((LARGE_INTEGER *)&ft)->QuadPart + (ONE_DAY * 30);
+	rotatesiz.QuadPart = 0;
+
+	if (IS_EMPTY_WCS(rp)) {
+		if (autorotate)
+			return __LINE__;
+		else
+			return 0;
+	}
+	if (*rp == L'@') {
+		int     isutc = 0;
+		int     hh, mm, ss;
+		wchar_t *p, *sp;
+
+		if ((p = wcschr(rp + 1, L':')) == NULL)
+			return __LINE__;
+	    *(p++) = L'\0';
+		if ((iswdigit(*rp) == 0) || ((hh = _wtoi(rp)) > 23))
+			return __LINE__;
+		rp = p;
+		if ((p = wcschr(rp, L':')) == NULL)
+			return __LINE__;
+	    *(p++) = L'\0';
+		if ((iswdigit(*rp) == 0) || ((mm = _wtoi(rp)) > 59))
+			return __LINE__;
+		rp = p;
+		sp = p;
+		if ((p = wcschr(rp, L'U')) != NULL) {
+			*(p++) = L'\0';
+			isutc = 1;
+			rp = p;
+		}
+		if ((p = wcschr(rp, L'|')) != NULL)
+			*(p++) = L'\0';
+		if ((iswdigit(*sp) == 0) || ((ss = _wtoi(sp)) > 59))
+			return __LINE__;
+		rp = p;
+
+		if (isutc == 0) {
+			FILETIME fl = ft;
+			FileTimeToLocalFileTime(&fl, &ft);
+		}
+		/**
+		 * Add one day
+		 */
+		((ULARGE_INTEGER *)&ft)->QuadPart += ONE_DAY;
+		FileTimeToSystemTime(&ft, &ct);
+		ct.wHour   = hh;
+		ct.wMinute = mm;
+		ct.wSecond = ss;
+
+		SystemTimeToFileTime(&ct, &ft);
+		if (isutc == 0) {
+			FILETIME fl = ft;
+			LocalFileTimeToFileTime(&fl, &ft);
+		}
+		rotatetmo.QuadPart = ((LARGE_INTEGER *)&ft)->QuadPart;
+	}
+	if (rp != NULL) {
+		unsigned __int64 siz;
+		unsigned __int64 mux = 1;
+		wchar_t *ep;
+
+		siz = _wcstoui64(rp, &ep, 10);
+		if (siz == 0)
+			return __LINE__;
+		if (ep) {
+			switch (*ep) {
+				case L'K':
+					mux = KILOBYTES(1);
+				break;
+				case L'M':
+					mux = KILOBYTES(1024);
+				break;
+				case L'G':
+					mux = KILOBYTES(1024 * 1024);
+				break;
+				default:
+					return __LINE__;
+				break;
+			}
+		}
+		rotatesiz.QuadPart = siz * mux;
+		if ((rotatesiz.QuadPart < KILOBYTES(32)) || (rotatesiz.QuadPart > _I64_MAX))
+			return __LINE__;
+	}
+	return 0;
+}
 /**
  * Needed to release conhost.exe
  */
@@ -1680,6 +1793,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *opath;
     wchar_t    *cpath;
     wchar_t    *bname = NULL;
+	wchar_t    *autorotatep = NULL;
     int         envc  = 0;
     int         cleanpath  = 0;
     int         usesafeenv = 0;
@@ -1715,6 +1829,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 rmtrailingps(loglocation);
                 continue;
             }
+            if (autorotatep == zerostring) {
+                autorotatep = xwcsdup(p);
+                continue;
+            }
             hasopts = 0;
             if ((p[0] == L'-') || (p[0] == L'/')) {
                 if (p[1] == L'\0')
@@ -1737,6 +1855,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'o':
                     case L'O':
                         loglocation  = zerostring;
+                    break;
+                    case L'r':
+                    case L'R':
+						autorotate   = 1;
+                        autorotatep  = zerostring;
                     break;
                     case L's':
                     case L'S':
@@ -1833,6 +1956,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (loglocation == NULL)
         loglocation = xwcsdup(SVCBATCH_LOG_BASE);
+	if (autorotate) {
+		int rv = resolverotate(autorotatep);
+		if (rv)
+			return svcsyserror(rv, ERROR_INVALID_PARAMETER, autorotatep);
+	}
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;

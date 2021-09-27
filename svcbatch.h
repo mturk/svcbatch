@@ -87,6 +87,8 @@
 #define SBUFSIZ                 1024
 #define MBUFSIZ                 2048
 #define HBUFSIZ                 8192
+#define ONE_DAY					864000000000I64
+#define KILOBYTES(_x)			((_x) *	1024UI64)
 
 /**
  * Helper macros
