@@ -264,12 +264,34 @@ make sure to get familiar with `sc.exe` utility.
   is run each day at `17:00:00` hours or if log files gets
   larger then `100K` bytes.
 
+  ```no-highlight
+      sc create ... -r @17:00:00~100K
+  ```
+
+  If time is given without a colons, SvcBatch will use it
+  as minutes between log rotation.
+
+  ```no-highlight
+      sc create ... -r @60~200K
+  ```
+
+  The upper example will rotate logs each 60 minutes. In case
+  log file gets larger the 200Kbytes within that interval,
+  it will be rotated as well.
+
+
   The **rule** parameter uses the following format:
 
   ```no-highlight
       <[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
   ```
 
+  When this parameter is defined log rotation will not use
+  the logic defined in [Log Rotation](#log-rotation) section.
+
+  Intead rotating Svcbatch.log from `1...4` it will rotate
+  exiting `SvcBatch.log` to `SvcBatch.log.YYYY-MM-DD.hhmmss`.
+  Timestamp used is the last write time of `SvcBatch.log`
 
 ## Private Environment Variables
 
