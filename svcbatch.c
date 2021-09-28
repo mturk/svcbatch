@@ -895,8 +895,8 @@ static void logwrtime(const char *hdr)
 {
     SYSTEMTIME tt;
 
-    GetLocalTime(&tt);
-    logprintf("%-16s : %d-%.2d-%.2d %.2d:%.2d:%.2d",
+    GetSystemTime(&tt);
+    logprintf("%-16s : %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
               hdr,
               tt.wYear, tt.wMonth, tt.wDay,
               tt.wHour, tt.wMinute, tt.wSecond);
@@ -950,7 +950,7 @@ static DWORD openlogfile(void)
             SYSTEMTIME st;
 
             FileTimeToSystemTime(&ad.ftCreationTime, &st);
-            _snwprintf(sfx, 20, L".%04d-%02d%-02d.%02d%02d%02d",
+            _snwprintf(sfx, 20, L".%.4d-%.2d%-.2d.%.2d%.2d%.2d",
                        st.wYear, st.wMonth, st.wDay,
                        st.wHour, st.wMinute, st.wSecond);
         }
@@ -1753,7 +1753,7 @@ static int resolverotate(wchar_t *rp)
         ct.wMinute = mm;
         ct.wSecond = ss;
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotate @%02d:%02d:%02d", hh, mm, ss);
+        dbgprintf(__FUNCTION__, "rotate @%.2d:%.2d:%.2d", hh, mm, ss);
 #endif
         SystemTimeToFileTime(&ct, &ft);
         rotatetmo.HighPart  = ft.dwHighDateTime;
