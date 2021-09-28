@@ -1287,7 +1287,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
 static DWORD WINAPI rotatethread(LPVOID unused)
 {
     HANDLE wh[2];
-    DWORD  wc, rc;
+    DWORD  wc, rc, ms;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
@@ -1308,8 +1308,12 @@ static DWORD WINAPI rotatethread(LPVOID unused)
         svcsyserror(__LINE__, rc, L"SetWaitableTimer");
         goto finished;
     }
+    if (rotatesiz.QuadPart)
+        ms = SVCBATCH_LOGROTATE_HINT;
+    else
+        ms = INFINITE;
     do {
-        wc = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_LOGROTATE_HINT);
+        wc = WaitForMultipleObjects(2, wh, FALSE, ms);
         switch (wc) {
             case WAIT_TIMEOUT:
                 if (rotatesiz.QuadPart) {
