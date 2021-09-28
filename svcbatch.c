@@ -1309,7 +1309,7 @@ static DWORD WINAPI rotatethread(LPVOID unused)
         goto finished;
     }
     do {
-        wc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
+        wc = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_LOGROTATE_HINT);
         switch (wc) {
             case WAIT_TIMEOUT:
                 if (rotatesiz.QuadPart) {
