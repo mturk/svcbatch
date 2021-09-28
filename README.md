@@ -145,6 +145,10 @@ Number **234** has been randomly chosen, since win32
 API requires that this number must be larger then `127` and
 lower then `255`.
 
+By default log rotation will be executed each 30 days
+unles **-r [rule]** option is defined by internal watchdog
+thread.
+
 
 ## Command Line Options
 
