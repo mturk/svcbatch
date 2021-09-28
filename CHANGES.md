@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.0.4
 
  * In development
+ * Add support for log file auto rotation
 
 
 ## v1.0.3
