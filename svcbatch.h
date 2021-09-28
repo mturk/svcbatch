@@ -83,6 +83,7 @@
 #define SVCBATCH_PENDING_WAIT   1000
 #define SVCBATCH_PENDING_INIT   200
 #define SVCBATCH_MIN_LOGSIZE    CPP_INT64_C(32768)
+#define SVCBATCH_MIN_LOGRTIME   30
 #define SVCBATCH_LOGROTATE_HINT 15000
 
 #define MS_IN_DAY               86400000
@@ -94,8 +95,11 @@
 #define SBUFSIZ                 1024
 #define MBUFSIZ                 2048
 #define HBUFSIZ                 8192
+#define ONE_MINUTE              CPP_INT64_C(600000000)
+#define ONE_HOUR                CPP_INT64_C(36000000000)
 #define ONE_DAY                 CPP_INT64_C(864000000000)
 #define KILOBYTES(_x)           ((_x) * CPP_INT64_C(1024))
+#define MEGABYTES(_x)           ((_x) * CPP_INT64_C(1048576))
 
 /**
  * Helper macros

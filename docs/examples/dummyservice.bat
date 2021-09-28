@@ -51,7 +51,7 @@ rem
 set "SERVICE_NAME=adummysvc"
 rem Presuming this is the build tree ...
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" %~nx0"
+sc create "%SERVICE_NAME%" binPath= "\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" -r \"@30~100K\" %~nx0"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
 sc description "%SERVICE_NAME%" "One dummy SvcBatch service example"
 sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege

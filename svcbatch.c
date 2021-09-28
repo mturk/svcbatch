@@ -51,6 +51,7 @@ static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
+static wchar_t  *rotateparam      = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -316,6 +317,28 @@ static int wcshavespace(const wchar_t *s)
         s++;
     }
     return 0;
+}
+
+/**
+ * Length of dest assumed >= length of src
+ * Remove in place (src == dest) is legal.
+ */
+static wchar_t *xrmspaces(wchar_t *dest, const wchar_t *src)
+{
+    wchar_t *dp = NULL;
+
+    if (IS_EMPTY_WCS(src))
+        return dest;
+    while (*src != L'\0') {
+        if (!iswspace(*src)) {
+            if (dp == NULL)
+                dp = dest;
+            *dest++ = *src;
+        }
+        ++src;
+    }
+    *dest = L'\0';
+    return dp;
 }
 
 /**
@@ -949,7 +972,7 @@ static DWORD openlogfile(void)
         if (autorotate) {
             SYSTEMTIME st;
 
-            FileTimeToSystemTime(&ad.ftCreationTime, &st);
+            FileTimeToSystemTime(&ad.ftLastWriteTime, &st);
             _snwprintf(sfx, 20, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
                        st.wYear, st.wMonth, st.wDay,
                        st.wHour, st.wMinute, st.wSecond);
@@ -1058,6 +1081,142 @@ static void closelogfile(void)
         SAFE_CLOSE_HANDLE(logfhandle);
     }
     LeaveCriticalSection(&logfilelock);
+}
+
+/**
+ * Parse rotateparam option
+ * using the following rule
+ * <[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
+ */
+static int resolverotate(void)
+{
+    SYSTEMTIME st;
+    FILETIME   ft;
+    wchar_t   *rp = rotateparam;
+
+    GetSystemTime(&st);
+    SystemTimeToFileTime(&st, &ft);
+
+    rotatetmo.HighPart  = ft.dwHighDateTime;
+    rotatetmo.LowPart   = ft.dwLowDateTime;
+    rotatetmo.QuadPart += rotateint;
+
+    if (IS_EMPTY_WCS(rp)) {
+#if defined(_DBGVIEW)
+        SYSTEMTIME ct;
+
+        ft.dwHighDateTime = rotatetmo.HighPart;
+        ft.dwLowDateTime  = rotatetmo.LowPart;
+        FileTimeToSystemTime(&ft, &ct);
+
+        dbgprintf(__FUNCTION__, "rotate def %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+                  ct.wYear, ct.wMonth, ct.wDay,
+                  ct.wHour, ct.wMinute, ct.wSecond);
+#endif
+
+        if (autorotate)
+            return __LINE__;
+        else
+            return 0;
+    }
+    if (*rp == L'@') {
+        int      hh, mm, ss;
+        wchar_t *p;
+        ULARGE_INTEGER ui;
+        SYSTEMTIME     ct;
+
+        rp++;
+        /**
+         * Parse time interval
+         * TODO: Create some macros or __inline
+         *       for converting FILETIME to LARGE_INTEGER
+         *       and vice versa.
+         */
+        ui.HighPart  = ft.dwHighDateTime;
+        ui.LowPart   = ft.dwLowDateTime;
+        if ((p = wcschr(rp, L':')) == NULL) {
+            if ((p = wcschr(rp, L'~')) != NULL)
+                *(p++) = L'\0';
+            mm = _wtoi(rp);
+            rp = p;
+            if (mm < SVCBATCH_MIN_LOGRTIME)
+                return __LINE__;
+            rotateint    = mm * ONE_MINUTE;
+            ui.QuadPart += rotateint;
+            ft.dwHighDateTime = ui.HighPart;
+            ft.dwLowDateTime  = ui.LowPart;
+            FileTimeToSystemTime(&ft, &ct);
+        }
+        else {
+            *(p++) = L'\0';
+            hh = _wtoi(rp);
+            rp = p;
+            if ((p = wcschr(rp, L':')) == NULL)
+                return __LINE__;
+            *(p++) = L'\0';
+            mm = _wtoi(rp);
+            rp = p;
+            if ((p = wcschr(rp, L'~')) != NULL)
+                *(p++) = L'\0';
+            ss = _wtoi(rp);
+            rp = p;
+            if ((hh > 23) || (mm > 59) || (ss > 59))
+                return __LINE__;
+            rotateint    = ONE_DAY;
+            ui.QuadPart += rotateint;
+            ft.dwHighDateTime = ui.HighPart;
+            ft.dwLowDateTime  = ui.LowPart;
+            FileTimeToSystemTime(&ft, &ct);
+            ct.wHour   = hh;
+            ct.wMinute = mm;
+            ct.wSecond = ss;
+        }
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "rotate at  %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+                  ct.wYear, ct.wMonth, ct.wDay,
+                  ct.wHour, ct.wMinute, ct.wSecond);
+#endif
+        SystemTimeToFileTime(&ct, &ft);
+        rotatetmo.HighPart  = ft.dwHighDateTime;
+        rotatetmo.LowPart   = ft.dwLowDateTime;
+    }
+    if (rp != NULL) {
+        LONGLONG siz;
+        LONGLONG mux = CPP_INT64_C(1);
+        wchar_t *ep  = NULL;
+
+        siz = _wcstoi64(rp, &ep, 10);
+        if (siz < mux)
+            return __LINE__;
+        if (ep != NULL) {
+            wchar_t mm = towupper(*ep);
+            switch (mm) {
+                case L'K':
+                    mux = KILOBYTES(1);
+                break;
+                case L'M':
+                    mux = MEGABYTES(1);
+                break;
+                case L'G':
+                    mux = MEGABYTES(1024);
+                break;
+                default:
+                    return __LINE__;
+                break;
+            }
+        }
+        rotatesiz.QuadPart = siz * mux;
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "rotatesize %I64d bytes", rotatesiz.QuadPart);
+#endif
+        if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE) {
+            /**
+             * Ensure rotate size is at least SVCBATCH_MIN_LOGSIZE
+             */
+            return __LINE__;
+        }
+    }
+    return 0;
 }
 
 static DWORD WINAPI stopthread(LPVOID unused)
@@ -1298,6 +1457,7 @@ static DWORD WINAPI rotatethread(LPVOID unused)
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
+        xcreatethread(1, &stopthread, NULL);
         XENDTHREAD(0);
     }
     wh[1] = processended;
@@ -1306,28 +1466,26 @@ static DWORD WINAPI rotatethread(LPVOID unused)
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"SetWaitableTimer");
+        xcreatethread(1, &stopthread, NULL);
         goto finished;
     }
     if (rotatesiz.QuadPart)
         ms = SVCBATCH_LOGROTATE_HINT;
     else
         ms = INFINITE;
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "ms=%d");
-#endif
     do {
         wc = WaitForMultipleObjects(2, wh, FALSE, ms);
         switch (wc) {
             case WAIT_TIMEOUT:
                 if (rotatesiz.QuadPart) {
-#if defined(_DBGVIEW)
-                    dbgprintf(__FUNCTION__, "autorotate check");
-#endif
                     EnterCriticalSection(&logfilelock);
                     if (IS_VALID_HANDLE(logfhandle)) {
                         LARGE_INTEGER fs;
                         if (GetFileSizeEx(logfhandle, &fs)) {
                             if (fs.QuadPart >= rotatesiz.QuadPart) {
+#if defined(_DBGVIEW)
+                                dbgprintf(__FUNCTION__, "rotate by size");
+#endif
                                 LeaveCriticalSection(&logfilelock);
                                 if (rotatelogs() != 0) {
 #if defined(_DBGVIEW)
@@ -1357,7 +1515,7 @@ static DWORD WINAPI rotatethread(LPVOID unused)
             break;
             case WAIT_OBJECT_0:
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "autorotate timeout");
+                dbgprintf(__FUNCTION__, "rotate by time");
 #endif
                 if (rotatelogs() != 0) {
     #if defined(_DBGVIEW)
@@ -1587,6 +1745,7 @@ finished:
     XENDTHREAD(0);
 }
 
+
 /**
  * Main Service function
  * This thread is created by SCM. SCM should provide
@@ -1623,6 +1782,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     if ((rv = openlogfile()) != 0) {
         svcsyserror(__LINE__, rv, L"OpenLogfile");
+        reportsvcstatus(SERVICE_STOPPED, rv);
+        return;
+    }
+    if ((i = resolverotate()) != 0) {
+        svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
@@ -1703,111 +1867,6 @@ finished:
     reportsvcstatus(SERVICE_STOPPED, rv);
 }
 
-static int resolverotate(wchar_t *rp)
-{
-    SYSTEMTIME st;
-    FILETIME   ft;
-
-    GetSystemTime(&st);
-    SystemTimeToFileTime(&st, &ft);
-
-    rotatetmo.HighPart  = ft.dwHighDateTime;
-    rotatetmo.LowPart   = ft.dwLowDateTime;
-    rotatetmo.QuadPart += rotateint;
-
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "param: %S", rp);
-#endif
-
-    if (IS_EMPTY_WCS(rp)) {
-        if (autorotate)
-            return __LINE__;
-        else
-            return 0;
-    }
-    if (*rp == L'@') {
-        int      hh, mm, ss;
-        wchar_t *p;
-        ULARGE_INTEGER ui;
-        SYSTEMTIME     ct;
-
-        rp++;
-        rotateint = ONE_DAY;
-        if ((p = wcschr(rp, L':')) == NULL)
-            return __LINE__;
-        *(p++) = L'\0';
-        hh = _wtoi(rp);
-        rp = p;
-        if ((p = wcschr(rp, L':')) == NULL)
-            return __LINE__;
-        *(p++) = L'\0';
-        mm = _wtoi(rp);
-        rp = p;
-        if ((p = wcschr(rp, L'|')) != NULL)
-            *(p++) = L'\0';
-        ss = _wtoi(rp);
-        rp = p;
-        if ((hh > 23) || (mm > 59) || (ss > 59))
-            return __LINE__;
-        /**
-         * Add one day
-         * TODO: Create some macros or __inline
-         *       for converting FILETIME to LARGE_INTEGER
-         *       and vice versa.
-         */
-        ui.HighPart  = ft.dwHighDateTime;
-        ui.LowPart   = ft.dwLowDateTime;
-        ui.QuadPart += rotateint;
-        ft.dwHighDateTime = ui.HighPart;
-        ft.dwLowDateTime  = ui.LowPart;
-        FileTimeToSystemTime(&ft, &ct);
-        ct.wHour   = hh;
-        ct.wMinute = mm;
-        ct.wSecond = ss;
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotate @%.2d:%.2d:%.2d", hh, mm, ss);
-#endif
-        SystemTimeToFileTime(&ct, &ft);
-        rotatetmo.HighPart  = ft.dwHighDateTime;
-        rotatetmo.LowPart   = ft.dwLowDateTime;
-    }
-    if (rp != NULL) {
-        LONGLONG siz;
-        LONGLONG mux = CPP_INT64_C(1);
-        wchar_t *ep;
-
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotatesize: %S", rp);
-#endif
-        siz = _wcstoui64(rp, &ep, 10);
-        if (siz == 0)
-            return __LINE__;
-        if (ep) {
-            switch (*ep) {
-                case L'K':
-                    mux = KILOBYTES(1);
-                break;
-                case L'M':
-                    mux = KILOBYTES(1024);
-                break;
-                case L'G':
-                    mux = KILOBYTES(1024 * 1024);
-                break;
-                default:
-                    return __LINE__;
-                break;
-            }
-        }
-        rotatesiz.QuadPart = siz * mux;
-        if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE) {
-            /**
-             * Ensure rotate size is at least SVCBATCH_MIN_LOGSIZE
-             */
-            return __LINE__;
-        }
-    }
-    return 0;
-}
 /**
  * Needed to release conhost.exe
  */
@@ -1847,7 +1906,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *opath;
     wchar_t    *cpath;
     wchar_t    *bname = NULL;
-    wchar_t    *autorotatep = NULL;
     int         envc  = 0;
     int         cleanpath  = 0;
     int         usesafeenv = 0;
@@ -1883,8 +1941,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 rmtrailingps(loglocation);
                 continue;
             }
-            if (autorotatep == zerostring) {
-                autorotatep = xwcsdup(p);
+            if (rotateparam == zerostring) {
+                rotateparam = xrmspaces(xwcsdup(p), p);
+                if (IS_EMPTY_WCS(rotateparam))
+                    return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
                 continue;
             }
             hasopts = 0;
@@ -1913,7 +1973,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'r':
                     case L'R':
                         autorotate   = 1;
-                        autorotatep  = zerostring;
+                        rotateparam  = zerostring;
                     break;
                     case L's':
                     case L'S':
@@ -2010,8 +2070,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (loglocation == NULL)
         loglocation = xwcsdup(SVCBATCH_LOG_BASE);
-    if ((i = resolverotate(autorotatep)) != 0)
-        return svcsyserror(i, ERROR_INVALID_PARAMETER, autorotatep);
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;
