@@ -251,7 +251,19 @@ make sure to get familiar with `sc.exe` utility.
 
   **Rotate logs by size or time interval**
 
-  SvcBatch can automatically rotate log files.
+  SvcBatch can automatically rotate log files beside
+  explicit `sc.exe control [service name] 234` command.
+
+  Depending on the **rule** parameter service can rotate
+  log files at desired interval, once a day at specific time
+  or when log file gets larger then defined size.
+
+  Time and size values can be combined, that allows
+  to rotate logs at specific time or size which ever first.
+  For example one can define **rule** so that rotate logs
+  is run each day at `17:00:00` hours or if log files gets
+  larger then `100K` bytes.
+
   The **rule** parameter uses the following format:
 
   ```no-highlight
