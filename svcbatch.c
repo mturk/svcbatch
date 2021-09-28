@@ -151,9 +151,6 @@ static const wchar_t *safewinenv[] = {
     NULL
 };
 
-/**
- * Safe malloc which calls _exit in case of ERROR_OUTOFMEMORY
- */
 static void *xmalloc(size_t size)
 {
     void *p = calloc(size, 1);
@@ -245,7 +242,6 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
     int  cnt = 1;
     va_list vap;
 
-    /* Pass one --- find length of required string */
     sls[0] = xwcslen(p);
 
     va_start(vap, p);
@@ -266,7 +262,6 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
         cp += sls[0];
     }
 
-    /* Pass two --- copy the argument strings into the result space */
     cnt = 1;
 
     va_start(vap, p);
@@ -282,10 +277,6 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
     return rp;
 }
 
-/**
- * Check if str starts with src.
- * The check is case insensitive
- */
 static int strstartswith(const wchar_t *str, const wchar_t *src)
 {
     while (*str != L'\0') {
@@ -323,10 +314,6 @@ static int wcshavespace(const wchar_t *s)
     return 0;
 }
 
-/**
- * Length of dest assumed >= length of src
- * Remove in place (src == dest) is legal.
- */
 static wchar_t *xrmspaces(wchar_t *dest, const wchar_t *src)
 {
     wchar_t *dp = NULL;
@@ -345,9 +332,6 @@ static wchar_t *xrmspaces(wchar_t *dest, const wchar_t *src)
     return dp;
 }
 
-/**
- * Remove trailing backslash and path separator(s)
- */
 static void rmtrailingps(wchar_t *s)
 {
     int i;
@@ -407,10 +391,6 @@ static wchar_t *xuuidstring(void)
 }
 
 #if defined(_DBGVIEW)
-/**
- * Use DebugView from SysInternal to see debug messages
- * since we don't have interactive console
- */
 static void dbgprintf(const char *funcname, const char *format, ...)
 {
     char    buf[MBUFSIZ];
@@ -445,15 +425,9 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
                          bufsize,
                          NULL);
     if (len) {
-        /**
-         * Remove trailing spaces.
-         */
         do {
             buf[len--] = L'\0';
         } while ((len > 0) && ((buf[len] == L'.') || (buf[len] < 33)));
-        /**
-         * Change embedded newline (\r\n\t) to space if present.
-         */
         while (len-- > 0) {
             if (iswspace(buf[len]))
                 buf[len] = L' ';
@@ -1130,12 +1104,6 @@ static int resolverotate(void)
         SYSTEMTIME     ct;
 
         rp++;
-        /**
-         * Parse time interval
-         * TODO: Create some macros or __inline
-         *       for converting FILETIME to LARGE_INTEGER
-         *       and vice versa.
-         */
         ui.HighPart  = ft.dwHighDateTime;
         ui.LowPart   = ft.dwLowDateTime;
         if ((p = wcschr(rp, L':')) == NULL) {
@@ -1213,12 +1181,8 @@ static int resolverotate(void)
 #if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "rotatesize %I64d bytes", rotatesiz.QuadPart);
 #endif
-        if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE) {
-            /**
-             * Ensure rotate size is at least SVCBATCH_MIN_LOGSIZE
-             */
+        if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
             return __LINE__;
-        }
     }
     return 0;
 }
@@ -1236,10 +1200,6 @@ static DWORD WINAPI stopthread(LPVOID unused)
 #endif
         XENDTHREAD(0);
     }
-    /**
-     * Set stop event to non signaled.
-     * This ensures that main thread will wait until we finish
-     */
     ResetEvent(svcstopended);
 
 #if defined(_DBGVIEW)
@@ -1254,12 +1214,6 @@ static DWORD WINAPI stopthread(LPVOID unused)
     }
     LeaveCriticalSection(&logfilelock);
 
-    /**
-     * Calling SetConsoleCtrlHandler with the NULL and TRUE arguments
-     * causes the calling process to ignore CTRL+C signals.
-     * This attribute is inherited by child processes, but it can be
-     * enabled or disabled by any process without affecting existing processes.
-     */
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT");
 #endif
@@ -1568,9 +1522,6 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
         case CTRL_SHUTDOWN_EVENT:
-            /**
-             * Do we need that signal?
-             */
             EnterCriticalSection(&logfilelock);
             if (IS_VALID_HANDLE(logfhandle)) {
                 logfflush();
