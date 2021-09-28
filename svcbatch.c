@@ -1716,9 +1716,8 @@ static int resolverotate(wchar_t *rp)
             return 0;
     }
     if (*rp == L'@') {
-        int     isutc = 0;
         int     hh, mm, ss;
-        wchar_t *p, *sp;
+        wchar_t *p;
         ULARGE_INTEGER ui;
 
         rotateint = ONE_DAY;
@@ -1732,26 +1731,16 @@ static int resolverotate(wchar_t *rp)
         *(p++) = L'\0';
         mm = _wtoi(rp);
         rp = p;
-        sp = p;
-        if ((p = wcschr(rp, L'U')) != NULL) {
-            *(p++) = L'\0';
-            isutc = 1;
-            rp = p;
-        }
         if ((p = wcschr(rp, L'|')) != NULL)
             *(p++) = L'\0';
-        ss = _wtoi(sp);
+        ss = _wtoi(rp);
         rp = p;
         if ((hh > 23) || (mm > 59) || (ss > 59))
             return __LINE__;
-        if (isutc == 0) {
-            FILETIME fl = ft;
-            FileTimeToLocalFileTime(&fl, &ft);
-        }
         /**
          * Add one day
          * TODO: Create some macros or __inline
-         *       for converting FILETIME to ULARGE_INTEGER
+         *       for converting FILETIME to LARGE_INTEGER
          *       and vice versa.
          */
         ui.HighPart  = ft.dwHighDateTime;
@@ -1764,13 +1753,9 @@ static int resolverotate(wchar_t *rp)
         ct.wMinute = mm;
         ct.wSecond = ss;
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotate @%02d:%02d:%02d UTC=%d", hh, mm, ss, isutc);
+        dbgprintf(__FUNCTION__, "rotate @%02d:%02d:%02d", hh, mm, ss);
 #endif
         SystemTimeToFileTime(&ct, &ft);
-        if (isutc == 0) {
-            FILETIME fl = ft;
-            LocalFileTimeToFileTime(&fl, &ft);
-        }
         rotatetmo.HighPart  = ft.dwHighDateTime;
         rotatetmo.LowPart   = ft.dwLowDateTime;
     }
