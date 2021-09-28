@@ -41,9 +41,6 @@ static wchar_t  *wenvblock        = NULL;
 static int       hasctrlbreak     = 0;
 static int       autorotate       = 0;
 
-/**
- * Full path to the batch file
- */
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *batchdirname     = NULL;
 static wchar_t  *svcbatchexe      = NULL;
@@ -58,27 +55,10 @@ static wchar_t  *logfilename      = NULL;
 static HANDLE    logfhandle       = NULL;
 static ULONGLONG logtickcount;
 
-/**
- * Handle to the autorotate timer
- */
 static HANDLE    hrotatetimer     = NULL;
-/**
- * Signaled by service stop thread
- * when done.
- */
 static HANDLE    svcstopended     = NULL;
-/**
- * Set when pipe and process threads
- * are done.
- */
 static HANDLE    processended     = NULL;
-/**
- * Set when SCM sends Custom signal
- */
 static HANDLE    monitorevent     = NULL;
-/**
- * Child process redirection pipes
- */
 static HANDLE    stdoutputpipew   = NULL;
 static HANDLE    stdoutputpiper   = NULL;
 static HANDLE    stdinputpipewr   = NULL;
@@ -93,10 +73,6 @@ static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32\\Wbem;"        \
     L"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0";
 
-/**
- * The following environment variables
- * are removed from the provided environment.
- */
 static const wchar_t *removeenv[] = {
     L"_=",
     L"!::=",
@@ -661,12 +637,6 @@ static int resolvesvcbatchexe(void)
     return 0;
 }
 
-/**
- * Get the full path of the batch file
- * and get its directory
- *
- * Note that input parameter must have file extension.
- */
 static int resolvebatchname(const wchar_t *batch)
 {
     int i;
@@ -704,10 +674,6 @@ static int runningasservice(void)
                 rv = 1;
 
         }
-        /**
-         * Check if Window station has visible display surfaces
-         * Interactive session are not supported.
-         */
         if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
                                       DSIZEOF(uf), &len)) {
             if (uf.dwFlags == WSF_VISIBLE)
@@ -718,9 +684,6 @@ static int runningasservice(void)
 }
 #endif
 
-/**
- * ServiceStatus support functions.
- */
 static void setsvcstatusexit(DWORD e)
 {
     EnterCriticalSection(&servicelock);
@@ -840,9 +803,6 @@ static DWORD logappend(LPCVOID buf, DWORD len)
         return 0;
 }
 
-/**
- * Set log file pointer to the EOF and write CRLF
- */
 static void logfflush(void)
 {
     FlushFileBuffers(logfhandle);
@@ -856,12 +816,6 @@ static void logwrline(const char *str)
     int     dd, hh, mm, ss, ms;
     DWORD   w;
 
-    /**
-     * Calculate time since the log
-     * was opened and convert it to
-     * DD:HH:MM:SS.mmm format
-     *
-     */
     ct = GetTickCount64() - logtickcount;
     ms = (int)((ct % MS_IN_SECOND));
     ss = (int)((ct / MS_IN_SECOND) % 60);
@@ -903,9 +857,6 @@ static void logwrtime(const char *hdr)
               tt.wHour, tt.wMinute, tt.wSecond);
 }
 
-/**
- * Write basic configuration when new logfile is created.
- */
 static void logconfig(void)
 {
     logprintf("Service name     : %S", servicename);
@@ -917,11 +868,6 @@ static void logconfig(void)
     logfflush();
 }
 
-/**
- *
- * Create service log file and rotate any previous
- * files in the Logs directory.
- */
 static DWORD openlogfile(void)
 {
     wchar_t  sfx[24];
@@ -1061,11 +1007,6 @@ static void closelogfile(void)
     LeaveCriticalSection(&logfilelock);
 }
 
-/**
- * Parse rotateparam option
- * using the following rule
- * <[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
- */
 static int resolverotate(void)
 {
     SYSTEMTIME st;
@@ -1604,9 +1545,6 @@ static DWORD WINAPI workerthread(LPVOID unused)
     dbgprintf(__FUNCTION__, "started");
 #endif
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    /**
-     * Create a command line
-     */
     if (wcshavespace(comspec))
         arg0 = xwcsvarcat(L"\"", comspec, L"\"", 0);
     else
@@ -1650,9 +1588,6 @@ static DWORD WINAPI workerthread(LPVOID unused)
                         wenvblock,
                         servicehome,
                        &si, &cchild)) {
-        /**
-         * CreateProcess failed ... nothing we can do.
-         */
         setsvcstatusexit(GetLastError());
         svcsyserror(__LINE__, GetLastError(), L"CreateProcess");
         goto finished;
@@ -1708,12 +1643,6 @@ finished:
     XENDTHREAD(0);
 }
 
-
-/**
- * Main Service function
- * This thread is created by SCM. SCM should provide
- * the service name as first argument.
- */
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
     int          i;
@@ -1796,19 +1725,12 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "running");
 #endif
-    /**
-     * This is main wait loop that waits
-     * for worker and monitor threads to finish.
-     */
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[0]);
     CloseHandle(wh[1]);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "wait for stop thread to finish");
 #endif
-    /**
-     * Wait for stop thread to finish if started
-     */
     WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "svcstopended");
@@ -1830,9 +1752,6 @@ finished:
     reportsvcstatus(SERVICE_STOPPED, rv);
 }
 
-/**
- * Needed to release conhost.exe
- */
 static void __cdecl cconsolecleanup(void)
 {
     SetConsoleCtrlHandler(consolehandler, FALSE);
@@ -1842,9 +1761,6 @@ static void __cdecl cconsolecleanup(void)
 #endif
 }
 
-/**
- * Cleanup created resources ...
- */
 static void __cdecl objectscleanup(void)
 {
     SAFE_CLOSE_HANDLE(processended);
@@ -1860,9 +1776,6 @@ static void __cdecl objectscleanup(void)
 #endif
 }
 
-/**
- * SvcBatch main program entry
- */
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int         i;
@@ -1954,10 +1867,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             }
         }
         if (bname == NULL) {
-            /**
-             * First argument after options is batch file
-             * that we are going to execute.
-             */
             if ((bname = expandenvstrings(p)) == NULL)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
             xreplacepathsep(bname);
@@ -1973,9 +1882,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DBGVIEW)
     OutputDebugStringA("Lets go");
 #endif
-    /**
-     * Check if we are running as service
-     */
 #if defined(_CHECK_IF_SERVICE)
     if (runningasservice() == 0) {
         fputs("\n" SVCBATCH_NAME " " SVCBATCH_VERSION_STR, stderr);
@@ -1997,9 +1903,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if ((serviceuuid = xuuidstring()) == NULL)
         return svcsyserror(__LINE__, GetLastError(), L"CryptGenRandom");
 
-    /**
-     * Get full path to cmd.exe
-     */
     if ((cpath = xgetenv(L"COMSPEC")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC");
     if ((comspec = getrealpathname(cpath, 0)) == NULL)
@@ -2045,9 +1948,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             p = NULL;
             while (*e != NULL) {
                 if (strstartswith(wenv[i], *e)) {
-                    /**
-                     * Found safe environment variable
-                     */
                     p = wenv[i];
                     break;
                 }
@@ -2058,9 +1958,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             e = removeenv;
             while (*e != NULL) {
                 if (strstartswith(p, *e)) {
-                    /**
-                     * Skip private environment variable
-                     */
                     p = NULL;
                     break;
                 }
