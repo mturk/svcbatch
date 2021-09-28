@@ -59,6 +59,10 @@ static HANDLE    logfhandle       = NULL;
 static ULONGLONG logtickcount;
 
 /**
+ * Handle to the autorotate timer
+ */
+static HANDLE    hrotatetimer     = NULL;
+/**
  * Signaled by service stop thread
  * when done.
  */
@@ -1434,6 +1438,13 @@ static DWORD WINAPI monitorthread(LPVOID unused)
                 xcreatethread(1, &stopthread, NULL);
                 break;
             }
+            if (rotateint != ONE_DAY) {
+                if (IS_VALID_HANDLE(hrotatetimer)) {
+                    CancelWaitableTimer(hrotatetimer);
+                    rotatetmo.QuadPart += rotateint;
+                    SetWaitableTimer(hrotatetimer, &rotatetmo, 0, NULL, NULL, 0);
+                }
+            }
         }
         ResetEvent(monitorevent);
     }
@@ -1452,14 +1463,15 @@ static DWORD WINAPI rotatethread(LPVOID unused)
     dbgprintf(__FUNCTION__, "started");
 #endif
 
-    wh[0] = CreateWaitableTimerW(NULL, TRUE, NULL);
-    if (IS_INVALID_HANDLE(wh[0])) {
+    hrotatetimer = CreateWaitableTimerW(NULL, TRUE, NULL);
+    if (IS_INVALID_HANDLE(hrotatetimer)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
         xcreatethread(1, &stopthread, NULL);
         XENDTHREAD(0);
     }
+    wh[0] = hrotatetimer;
     wh[1] = processended;
 
     if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
@@ -1547,7 +1559,7 @@ finished:
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 #endif
-    CloseHandle(wh[0]);
+    SAFE_CLOSE_HANDLE(hrotatetimer);
     XENDTHREAD(0);
 }
 
