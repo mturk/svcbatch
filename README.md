@@ -247,6 +247,18 @@ make sure to get familiar with `sc.exe` utility.
   as an absolute path. Otherwise directory of svcbatch.exe
   will be used as the working directory.
 
+* **-r [rule]**
+
+  **Rotate logs by size or time interval**
+
+  SvcBatch can automatically rotate log files.
+  The **rule** parameter uses the following format:
+
+  ```no-highlight
+      <[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
+  ```
+
+
 ## Private Environment Variables
 
 SvcBatch sets a few private environment variables that
