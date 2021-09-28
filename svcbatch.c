@@ -1699,7 +1699,6 @@ finished:
 static int resolverotate(wchar_t *rp)
 {
     SYSTEMTIME st;
-    SYSTEMTIME ct;
     FILETIME   ft;
 
     GetSystemTime(&st);
@@ -1716,9 +1715,10 @@ static int resolverotate(wchar_t *rp)
             return 0;
     }
     if (*rp == L'@') {
-        int     hh, mm, ss;
+        int      hh, mm, ss;
         wchar_t *p;
         ULARGE_INTEGER ui;
+        SYSTEMTIME     ct;
 
         rotateint = ONE_DAY;
         if ((p = wcschr(rp + 1, L':')) == NULL)
@@ -1787,9 +1787,9 @@ static int resolverotate(wchar_t *rp)
             }
         }
         rotatesiz.QuadPart = siz * mux;
-        if (rotatesiz.QuadPart < KILOBYTES(32)) {
+        if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE) {
             /**
-             * Ensure rotate logfile size is at least 32K
+             * Ensure rotate size is at least SVCBATCH_MIN_LOGSIZE
              */
             return __LINE__;
         }
