@@ -30,8 +30,9 @@ static CRITICAL_SECTION      logfilelock;
 static PROCESS_INFORMATION   cchild;
 static SECURITY_ATTRIBUTES   sazero;
 static HANDLE                cchildjob   = NULL;
-static LARGE_INTEGER         rotatetmo;
-static ULARGE_INTEGER        rotatesiz;
+static LONGLONG              rotateint   = ONE_DAY * 30;
+static LARGE_INTEGER         rotatetmo   = {{ 0, 0} };
+static LARGE_INTEGER         rotatesiz   = {{ 0, 0}};
 
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
@@ -925,7 +926,7 @@ static DWORD openlogfile(void)
     wchar_t  sfx[24];
     wchar_t *logpb = NULL;
     DWORD rc;
-	WIN32_FILE_ATTRIBUTE_DATA ad;
+    WIN32_FILE_ATTRIBUTE_DATA ad;
     int i, m = 0;
 
     logtickcount = GetTickCount64();
@@ -943,20 +944,20 @@ static DWORD openlogfile(void)
         logfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
     }
-	memset(sfx, 0, 48);
+    memset(sfx, 0, 48);
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
-		if (autorotate) {
-			SYSTEMTIME st;
+        if (autorotate) {
+            SYSTEMTIME st;
 
-			FileTimeToSystemTime(&ad.ftCreationTime, &st);
-			_snwprintf(sfx, 20, L".%04d-%02d%-02d.%02d%02d%02d",
- 			           st.wYear, st.wMonth, st.wDay,
-					   st.wHour, st.wMinute, st.wSecond);
-		}
-		else {
-			sfx[0] = L'.';
-			sfx[1] = L'0';
-		}
+            FileTimeToSystemTime(&ad.ftCreationTime, &st);
+            _snwprintf(sfx, 20, L".%04d-%02d%-02d.%02d%02d%02d",
+                       st.wYear, st.wMonth, st.wDay,
+                       st.wHour, st.wMinute, st.wSecond);
+        }
+        else {
+            sfx[0] = L'.';
+            sfx[1] = L'0';
+        }
         logpb = xwcsconcat(logfilename, sfx);
         if (!MoveFileExW(logfilename, logpb, 0)) {
             rc = GetLastError();
@@ -973,40 +974,41 @@ static DWORD openlogfile(void)
                             &sazero, CREATE_NEW,
                              FILE_ATTRIBUTE_NORMAL, NULL);
 
-    if (IS_INVALID_HANDLE(logfhandle))
+    if (IS_INVALID_HANDLE(logfhandle)) {
         goto failed;
-	if (autorotate == 0) {
-		/**
-		 * Rotate previous log files
-		 */
-		for (i = SVCBATCH_MAX_LOGS; i > 0; i--) {
-			wchar_t *logpn;
+    }
+    if (autorotate == 0) {
+        /**
+         * Rotate previous log files
+         */
+        for (i = SVCBATCH_MAX_LOGS; i > 0; i--) {
+            wchar_t *logpn;
 
-			sfx[1] = L'0' + i - 1;
-			logpn  = xwcsconcat(logfilename, sfx);
+            sfx[1] = L'0' + i - 1;
+            logpn  = xwcsconcat(logfilename, sfx);
 
-			if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
-				wchar_t *lognn;
+            if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
+                wchar_t *lognn;
 
-				sfx[1] = L'0' + i;
-				lognn = xwcsconcat(logfilename, sfx);
-				if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
-					rc = GetLastError();
-					if (m > 0)
-						svcsyserror(__LINE__, rc, L"MoveFileExW already executed");
-					xfree(logpn);
-					xfree(lognn);
-					SetLastError(rc);
-					goto failed;
-				}
-				xfree(lognn);
-				if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
-					reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-				m++;
-			}
-			xfree(logpn);
-		}
-	}
+                sfx[1] = L'0' + i;
+                lognn = xwcsconcat(logfilename, sfx);
+                if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
+                    rc = GetLastError();
+                    if (m > 0)
+                        svcsyserror(__LINE__, rc, L"MoveFileExW already executed");
+                    xfree(logpn);
+                    xfree(lognn);
+                    SetLastError(rc);
+                    goto failed;
+                }
+                xfree(lognn);
+                if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
+                    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+                m++;
+            }
+            xfree(logpn);
+        }
+    }
     xfree(logpb);
 
     logwrline(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
@@ -1022,9 +1024,6 @@ failed:
     return rc;
 }
 
-/**
- * Simple log rotation
- */
 static DWORD rotatelogs(void)
 {
     static int rotatecount = 1;
@@ -1287,19 +1286,103 @@ static DWORD WINAPI monitorthread(LPVOID unused)
 
 static DWORD WINAPI rotatethread(LPVOID unused)
 {
+    HANDLE wh[2];
+    DWORD  wc, rc;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
 #endif
 
-    while (WaitForSingleObject(processended, 5000) == WAIT_TIMEOUT) {
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "tick");
-#endif
+    wh[0] = CreateWaitableTimerW(NULL, TRUE, NULL);
+    if (IS_INVALID_HANDLE(wh[0])) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
+        XENDTHREAD(0);
     }
+    wh[1] = processended;
+
+    if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"SetWaitableTimer");
+        goto finished;
+    }
+    do {
+        wc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
+        switch (wc) {
+            case WAIT_TIMEOUT:
+                if (rotatesiz.QuadPart) {
+#if defined(_DBGVIEW)
+                    dbgprintf(__FUNCTION__, "autorotate check");
+#endif
+                    EnterCriticalSection(&logfilelock);
+                    if (IS_VALID_HANDLE(logfhandle)) {
+                        LARGE_INTEGER fs;
+                        if (GetFileSizeEx(logfhandle, &fs)) {
+                            if (fs.QuadPart >= rotatesiz.QuadPart) {
+                                LeaveCriticalSection(&logfilelock);
+                                if (rotatelogs() != 0) {
+#if defined(_DBGVIEW)
+                                    dbgprintf(__FUNCTION__, "log rotation failed");
+#endif
+                                    xcreatethread(1, &stopthread, NULL);
+                                    goto finished;
+                                }
+                                EnterCriticalSection(&logfilelock);
+                            }
+                        }
+                        else {
+                            rc = GetLastError();
+                            LeaveCriticalSection(&logfilelock);
+                            setsvcstatusexit(rc);
+                            svcsyserror(__LINE__, rc, L"GetFileSizeEx");
+#if defined(_DBGVIEW)
+                            dbgprintf(__FUNCTION__, "get logfile size failed");
+#endif
+                            xcreatethread(1, &stopthread, NULL);
+                            goto finished;
+
+                        }
+                    }
+                    LeaveCriticalSection(&logfilelock);
+                }
+            break;
+            case WAIT_OBJECT_0:
+#if defined(_DBGVIEW)
+                dbgprintf(__FUNCTION__, "autorotate timeout");
+#endif
+                if (rotatelogs() != 0) {
+    #if defined(_DBGVIEW)
+                    dbgprintf(__FUNCTION__, "log rotation failed");
+    #endif
+                    goto finished;
+                }
+                rotatetmo.QuadPart += rotateint;
+                if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
+                    svcsyserror(__LINE__, GetLastError(), L"SetWaitableTimer");
+                    xcreatethread(1, &stopthread, NULL);
+                    goto finished;
+                }
+            break;
+            case WAIT_OBJECT_1:
+#if defined(_DBGVIEW)
+                dbgprintf(__FUNCTION__, "processended signaled");
+#endif
+            break;
+            default:
+#if defined(_DBGVIEW)
+                dbgprintf(__FUNCTION__, "wc=%d", wc);
+#endif
+            break;
+        }
+    } while ((wc == WAIT_OBJECT_0) || (wc == WAIT_TIMEOUT));
+
+finished:
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 #endif
+    CloseHandle(wh[0]);
     XENDTHREAD(0);
 }
 
@@ -1615,99 +1698,118 @@ finished:
 
 static int resolverotate(wchar_t *rp)
 {
-	SYSTEMTIME st;
-	SYSTEMTIME ct;
-	FILETIME   ft;
+    SYSTEMTIME st;
+    SYSTEMTIME ct;
+    FILETIME   ft;
 
-	GetSystemTime(&st);
-	SystemTimeToFileTime(&st, &ft);
-	rotatetmo.QuadPart = ((LARGE_INTEGER *)&ft)->QuadPart + (ONE_DAY * 30);
-	rotatesiz.QuadPart = 0;
+    GetSystemTime(&st);
+    SystemTimeToFileTime(&st, &ft);
 
-	if (IS_EMPTY_WCS(rp)) {
-		if (autorotate)
-			return __LINE__;
-		else
-			return 0;
-	}
-	if (*rp == L'@') {
-		int     isutc = 0;
-		int     hh, mm, ss;
-		wchar_t *p, *sp;
+    rotatetmo.HighPart  = ft.dwHighDateTime;
+    rotatetmo.LowPart   = ft.dwLowDateTime;
+    rotatetmo.QuadPart += rotateint;
 
-		if ((p = wcschr(rp + 1, L':')) == NULL)
-			return __LINE__;
-	    *(p++) = L'\0';
-		if ((iswdigit(*rp) == 0) || ((hh = _wtoi(rp)) > 23))
-			return __LINE__;
-		rp = p;
-		if ((p = wcschr(rp, L':')) == NULL)
-			return __LINE__;
-	    *(p++) = L'\0';
-		if ((iswdigit(*rp) == 0) || ((mm = _wtoi(rp)) > 59))
-			return __LINE__;
-		rp = p;
-		sp = p;
-		if ((p = wcschr(rp, L'U')) != NULL) {
-			*(p++) = L'\0';
-			isutc = 1;
-			rp = p;
-		}
-		if ((p = wcschr(rp, L'|')) != NULL)
-			*(p++) = L'\0';
-		if ((iswdigit(*sp) == 0) || ((ss = _wtoi(sp)) > 59))
-			return __LINE__;
-		rp = p;
+    if (IS_EMPTY_WCS(rp)) {
+        if (autorotate)
+            return __LINE__;
+        else
+            return 0;
+    }
+    if (*rp == L'@') {
+        int     isutc = 0;
+        int     hh, mm, ss;
+        wchar_t *p, *sp;
+        ULARGE_INTEGER ui;
 
-		if (isutc == 0) {
-			FILETIME fl = ft;
-			FileTimeToLocalFileTime(&fl, &ft);
-		}
-		/**
-		 * Add one day
-		 */
-		((ULARGE_INTEGER *)&ft)->QuadPart += ONE_DAY;
-		FileTimeToSystemTime(&ft, &ct);
-		ct.wHour   = hh;
-		ct.wMinute = mm;
-		ct.wSecond = ss;
+        rotateint = ONE_DAY;
+        if ((p = wcschr(rp + 1, L':')) == NULL)
+            return __LINE__;
+        *(p++) = L'\0';
+        hh = _wtoi(rp);
+        rp = p;
+        if ((p = wcschr(rp, L':')) == NULL)
+            return __LINE__;
+        *(p++) = L'\0';
+        mm = _wtoi(rp);
+        rp = p;
+        sp = p;
+        if ((p = wcschr(rp, L'U')) != NULL) {
+            *(p++) = L'\0';
+            isutc = 1;
+            rp = p;
+        }
+        if ((p = wcschr(rp, L'|')) != NULL)
+            *(p++) = L'\0';
+        ss = _wtoi(sp);
+        rp = p;
+        if ((hh > 23) || (mm > 59) || (ss > 59))
+            return __LINE__;
+        if (isutc == 0) {
+            FILETIME fl = ft;
+            FileTimeToLocalFileTime(&fl, &ft);
+        }
+        /**
+         * Add one day
+         * TODO: Create some macros or __inline
+         *       for converting FILETIME to ULARGE_INTEGER
+         *       and vice versa.
+         */
+        ui.HighPart  = ft.dwHighDateTime;
+        ui.LowPart   = ft.dwLowDateTime;
+        ui.QuadPart += rotateint;
+        ft.dwHighDateTime = ui.HighPart;
+        ft.dwLowDateTime  = ui.LowPart;
+        FileTimeToSystemTime(&ft, &ct);
+        ct.wHour   = hh;
+        ct.wMinute = mm;
+        ct.wSecond = ss;
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "rotate @%02d:%02d:%02d UTC=%d", hh, mm, ss, isutc);
+#endif
+        SystemTimeToFileTime(&ct, &ft);
+        if (isutc == 0) {
+            FILETIME fl = ft;
+            LocalFileTimeToFileTime(&fl, &ft);
+        }
+        rotatetmo.HighPart  = ft.dwHighDateTime;
+        rotatetmo.LowPart   = ft.dwLowDateTime;
+    }
+    if (rp != NULL) {
+        LONGLONG siz;
+        LONGLONG mux = CPP_INT64_C(1);
+        wchar_t *ep;
 
-		SystemTimeToFileTime(&ct, &ft);
-		if (isutc == 0) {
-			FILETIME fl = ft;
-			LocalFileTimeToFileTime(&fl, &ft);
-		}
-		rotatetmo.QuadPart = ((LARGE_INTEGER *)&ft)->QuadPart;
-	}
-	if (rp != NULL) {
-		unsigned __int64 siz;
-		unsigned __int64 mux = 1;
-		wchar_t *ep;
-
-		siz = _wcstoui64(rp, &ep, 10);
-		if (siz == 0)
-			return __LINE__;
-		if (ep) {
-			switch (*ep) {
-				case L'K':
-					mux = KILOBYTES(1);
-				break;
-				case L'M':
-					mux = KILOBYTES(1024);
-				break;
-				case L'G':
-					mux = KILOBYTES(1024 * 1024);
-				break;
-				default:
-					return __LINE__;
-				break;
-			}
-		}
-		rotatesiz.QuadPart = siz * mux;
-		if ((rotatesiz.QuadPart < KILOBYTES(32)) || (rotatesiz.QuadPart > _I64_MAX))
-			return __LINE__;
-	}
-	return 0;
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "rotatesize: %S", rp);
+#endif
+        siz = _wcstoui64(rp, &ep, 10);
+        if (siz == 0)
+            return __LINE__;
+        if (ep) {
+            switch (*ep) {
+                case L'K':
+                    mux = KILOBYTES(1);
+                break;
+                case L'M':
+                    mux = KILOBYTES(1024);
+                break;
+                case L'G':
+                    mux = KILOBYTES(1024 * 1024);
+                break;
+                default:
+                    return __LINE__;
+                break;
+            }
+        }
+        rotatesiz.QuadPart = siz * mux;
+        if (rotatesiz.QuadPart < KILOBYTES(32)) {
+            /**
+             * Ensure rotate logfile size is at least 32K
+             */
+            return __LINE__;
+        }
+    }
+    return 0;
 }
 /**
  * Needed to release conhost.exe
@@ -1739,51 +1841,6 @@ static void __cdecl objectscleanup(void)
 #endif
 }
 
-#if 0
-static int xsleepoption(const wchar_t *ws)
-{
-    int s = 0;
-
-    servicename = xgetenv(L"SVCBATCH_SERVICE_NAME");
-    serviceuuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
-    loglocation = xgetenv(L"SVCBATCH_SERVICE_LOGDIR");
-
-    svcuuidname = xwcsconcat(L"Local\\svcbatch-", serviceuuid);
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "%S uuid %S", servicename, svcuuidname);
-#endif
-    logfilename = xwcsconcat(loglocation,
-                             L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
-    svcuuidevent = OpenEventW(SYNCHRONIZE, FALSE, svcuuidname);
-    if (IS_INVALID_HANDLE(svcuuidevent))
-        return GetLastError();
-    if (!IS_EMPTY_WCS(ws))
-        s = _wtoi(ws);
-    if (s < 1)
-        s = 1;
-    while (WaitForSingleObject(svcuuidevent, s * 1000) == WAIT_TIMEOUT) {
-        WIN32_FILE_ATTRIBUTE_DATA ld;
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "tick %d", s);
-#endif
-        if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ld)) {
-            ULARGE_INTEGER ls;
-            ls.HighPart = ld.nFileSizeHigh;
-            ls.LowPart  = ld.nFileSizeLow;
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "logsize: %I64d", ls.QuadPart);
-#endif
-
-        }
-    }
-    SAFE_CLOSE_HANDLE(svcuuidevent);
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "done");
-#endif
-    return 0;
-}
-#endif
-
 /**
  * SvcBatch main program entry
  */
@@ -1793,7 +1850,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *opath;
     wchar_t    *cpath;
     wchar_t    *bname = NULL;
-	wchar_t    *autorotatep = NULL;
+    wchar_t    *autorotatep = NULL;
     int         envc  = 0;
     int         cleanpath  = 0;
     int         usesafeenv = 0;
@@ -1858,7 +1915,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     break;
                     case L'r':
                     case L'R':
-						autorotate   = 1;
+                        autorotate   = 1;
                         autorotatep  = zerostring;
                     break;
                     case L's':
@@ -1956,11 +2013,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (loglocation == NULL)
         loglocation = xwcsdup(SVCBATCH_LOG_BASE);
-	if (autorotate) {
-		int rv = resolverotate(autorotatep);
-		if (rv)
-			return svcsyserror(rv, ERROR_INVALID_PARAMETER, autorotatep);
-	}
+    if (autorotate) {
+        int rv = resolverotate(autorotatep);
+        if (rv)
+            return svcsyserror(rv, ERROR_INVALID_PARAMETER, autorotatep);
+    }
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;

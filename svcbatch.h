@@ -24,6 +24,11 @@
  */
 #if defined(_MSC_VER)
 # pragma warning(disable: 4100 4244 4702)
+# define CPP_INT64_C(_v)    (_v##I64)
+# define CPP_UINT64_C(_v)   (_v##UI64)
+#else
+# define CPP_INT64_C(_v)    (_v##LL)
+# define CPP_UINT64_C(_v)   (_v##ULL)
 #endif
 
 /**
@@ -87,8 +92,8 @@
 #define SBUFSIZ                 1024
 #define MBUFSIZ                 2048
 #define HBUFSIZ                 8192
-#define ONE_DAY					864000000000I64
-#define KILOBYTES(_x)			((_x) *	1024UI64)
+#define ONE_DAY                 CPP_INT64_C(864000000000)
+#define KILOBYTES(_x)           ((_x) * CPP_INT64_C(1024))
 
 /**
  * Helper macros
