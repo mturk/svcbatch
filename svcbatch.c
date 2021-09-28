@@ -950,7 +950,7 @@ static DWORD openlogfile(void)
             SYSTEMTIME st;
 
             FileTimeToSystemTime(&ad.ftCreationTime, &st);
-            _snwprintf(sfx, 20, L".%.4d-%.2d%-.2d.%.2d%.2d%.2d",
+            _snwprintf(sfx, 20, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
                        st.wYear, st.wMonth, st.wDay,
                        st.wHour, st.wMinute, st.wSecond);
         }
@@ -1312,6 +1312,9 @@ static DWORD WINAPI rotatethread(LPVOID unused)
         ms = SVCBATCH_LOGROTATE_HINT;
     else
         ms = INFINITE;
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "ms=%d");
+#endif
     do {
         wc = WaitForMultipleObjects(2, wh, FALSE, ms);
         switch (wc) {
@@ -1712,6 +1715,10 @@ static int resolverotate(wchar_t *rp)
     rotatetmo.LowPart   = ft.dwLowDateTime;
     rotatetmo.QuadPart += rotateint;
 
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "param: %S", rp);
+#endif
+
     if (IS_EMPTY_WCS(rp)) {
         if (autorotate)
             return __LINE__;
@@ -1724,8 +1731,9 @@ static int resolverotate(wchar_t *rp)
         ULARGE_INTEGER ui;
         SYSTEMTIME     ct;
 
+        rp++;
         rotateint = ONE_DAY;
-        if ((p = wcschr(rp + 1, L':')) == NULL)
+        if ((p = wcschr(rp, L':')) == NULL)
             return __LINE__;
         *(p++) = L'\0';
         hh = _wtoi(rp);
@@ -2002,11 +2010,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (loglocation == NULL)
         loglocation = xwcsdup(SVCBATCH_LOG_BASE);
-    if (autorotate) {
-        int rv = resolverotate(autorotatep);
-        if (rv)
-            return svcsyserror(rv, ERROR_INVALID_PARAMETER, autorotatep);
-    }
+    if ((i = resolverotate(autorotatep)) != 0)
+        return svcsyserror(i, ERROR_INVALID_PARAMETER, autorotatep);
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;
