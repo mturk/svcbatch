@@ -27,9 +27,9 @@ static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
-static PROCESS_INFORMATION   cchild;
 static SECURITY_ATTRIBUTES   sazero;
 static HANDLE                cchildjob   = NULL;
+static HANDLE                childproc   = NULL;
 static LONGLONG              rotateint   = ONE_DAY * 30;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0} };
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0}};
@@ -1220,7 +1220,7 @@ static DWORD WINAPI stopthread(LPVOID unused)
          * child tree by brute force
          */
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        SAFE_CLOSE_HANDLE(cchild.hProcess);
+        SAFE_CLOSE_HANDLE(childproc);
         SAFE_CLOSE_HANDLE(cchildjob);
     }
 
@@ -1536,7 +1536,8 @@ static DWORD WINAPI workerthread(LPVOID unused)
     wchar_t *arg0;
     wchar_t *arg1;
     HANDLE   wh[2];
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION job;
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
+    PROCESS_INFORMATION pi;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
@@ -1557,8 +1558,9 @@ static DWORD WINAPI workerthread(LPVOID unused)
 #endif
     if (createiopipes() != 0)
         goto finished;
-    memset(&job, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
-    job.BasicLimitInformation.LimitFlags =
+    memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+    memset(&pi, 0, sizeof(PROCESS_INFORMATION));
+    ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
         JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
         JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
@@ -1566,7 +1568,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
 
     if (!SetInformationJobObject(cchildjob,
                                  JobObjectExtendedLimitInformation,
-                                &job,
+                                &ji,
                                  sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
         svcsyserror(__LINE__, GetLastError(), L"SetInformationJobObject");
         goto finished;
@@ -1584,38 +1586,39 @@ static DWORD WINAPI workerthread(LPVOID unused)
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
                         wenvblock,
                         servicehome,
-                       &si, &cchild)) {
+                       &si, &pi)) {
         setsvcstatusexit(GetLastError());
         svcsyserror(__LINE__, GetLastError(), L"CreateProcess");
         goto finished;
     }
+    childproc = pi.hProcess;
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "child id %d", cchild.dwProcessId);
+    dbgprintf(__FUNCTION__, "child id %d", pi.dwProcessId);
 #endif
     /**
      * Close our side of the pipes
      */
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
-    if (!AssignProcessToJobObject(cchildjob, cchild.hProcess)) {
+    if (!AssignProcessToJobObject(cchildjob, childproc)) {
         svcsyserror(__LINE__, GetLastError(), L"AssignProcessToJobObject");
-        CloseHandle(cchild.hThread);
-        TerminateProcess(cchild.hProcess, ERROR_ACCESS_DENIED);
+        CloseHandle(pi.hThread);
+        TerminateProcess(childproc, ERROR_ACCESS_DENIED);
         setsvcstatusexit(ERROR_ACCESS_DENIED);
         goto finished;
     }
-    wh[0] = cchild.hProcess;
+    wh[0] = childproc;
     wh[1] = xcreatethread(0, &iopipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"iopipethread");
-        CloseHandle(cchild.hThread);
-        TerminateProcess(cchild.hProcess, ERROR_OUTOFMEMORY);
+        CloseHandle(pi.hThread);
+        TerminateProcess(childproc, ERROR_OUTOFMEMORY);
         setsvcstatusexit(ERROR_TOO_MANY_TCBS);
         goto finished;
     }
 
-    ResumeThread(cchild.hThread);
-    CloseHandle(cchild.hThread);
+    ResumeThread(pi.hThread);
+    CloseHandle(pi.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "service running");
@@ -1739,7 +1742,7 @@ finished:
 
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdoutputpiper);
-    SAFE_CLOSE_HANDLE(cchild.hProcess);
+    SAFE_CLOSE_HANDLE(childproc);
     SAFE_CLOSE_HANDLE(cchildjob);
 
     closelogfile();
@@ -1979,7 +1982,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
 
-    memset(&cchild,     0, sizeof(PROCESS_INFORMATION));
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
