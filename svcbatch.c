@@ -1599,8 +1599,8 @@ static DWORD WINAPI workerthread(LPVOID unused)
     SAFE_CLOSE_HANDLE(stdinputpiperd);
     if (!AssignProcessToJobObject(cchildjob, cchild.hProcess)) {
         svcsyserror(__LINE__, GetLastError(), L"AssignProcessToJobObject");
-        TerminateProcess(cchild.hProcess, ERROR_ACCESS_DENIED);
         CloseHandle(cchild.hThread);
+        TerminateProcess(cchild.hProcess, ERROR_ACCESS_DENIED);
         setsvcstatusexit(ERROR_ACCESS_DENIED);
         goto finished;
     }
@@ -1608,8 +1608,8 @@ static DWORD WINAPI workerthread(LPVOID unused)
     wh[1] = xcreatethread(0, &iopipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"iopipethread");
-        TerminateProcess(cchild.hProcess, ERROR_OUTOFMEMORY);
         CloseHandle(cchild.hThread);
+        TerminateProcess(cchild.hProcess, ERROR_OUTOFMEMORY);
         setsvcstatusexit(ERROR_TOO_MANY_TCBS);
         goto finished;
     }
