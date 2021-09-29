@@ -1543,14 +1543,14 @@ static DWORD WINAPI workerthread(LPVOID unused)
 #endif
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     if (wcshavespace(comspec))
-        arg0 = xwcsvarcat(L"\"", comspec, L"\"", 0);
+        arg0 = xwcsvarcat(L"\"", comspec, L"\"", NULL);
     else
         arg0 = comspec;
     if (wcshavespace(svcbatchfile))
-        arg1 = xwcsvarcat(L"\"", svcbatchfile, L"\"", 0);
+        arg1 = xwcsvarcat(L"\"", svcbatchfile, L"\"", NULL);
     else
         arg1 = svcbatchfile;
-    cmdline = xwcsvarcat(arg0, L" /D /C \"", arg1, L"\"", 0);
+    cmdline = xwcsvarcat(arg0, L" /D /C \"", arg1, L"\"", NULL);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "program %S", comspec);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
