@@ -1625,6 +1625,8 @@ static DWORD WINAPI workerthread(LPVOID unused)
     CloseHandle(wh[1]);
 
 finished:
+    SAFE_CLOSE_HANDLE(stdoutputpipew);
+    SAFE_CLOSE_HANDLE(stdinputpiperd);
     SetEvent(processended);
 #if defined(_DBGVIEW)
     if (ssvcstatus.dwServiceSpecificExitCode)
@@ -1737,8 +1739,6 @@ finished:
 
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdoutputpiper);
-    SAFE_CLOSE_HANDLE(stdinputpipewr);
-    SAFE_CLOSE_HANDLE(stdinputpiperd);
     SAFE_CLOSE_HANDLE(cchild.hProcess);
     SAFE_CLOSE_HANDLE(cchildjob);
 
