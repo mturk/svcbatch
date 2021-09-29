@@ -1119,9 +1119,6 @@ static int resolverotate(void)
             }
         }
         rotatesiz.QuadPart = siz * mux;
-#if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotatesize %I64d bytes", rotatesiz.QuadPart);
-#endif
         if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
             return __LINE__;
     }
@@ -1538,7 +1535,7 @@ static DWORD WINAPI workerthread(LPVOID unused)
     wchar_t *cmdline;
     wchar_t *arg0;
     wchar_t *arg1;
-    HANDLE   wh[2] = {0, 0};
+    HANDLE   wh[2];
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION job;
 
 #if defined(_DBGVIEW)
@@ -1649,7 +1646,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     DWORD        rv    = 0;
     int          eblen = 0;
     wchar_t     *ep;
-    HANDLE       wh[2] = { NULL, NULL};
+    HANDLE       wh[2];
 
     ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
