@@ -19,10 +19,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <process.h>
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
+static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
@@ -31,8 +33,8 @@ static SECURITY_ATTRIBUTES   sazero;
 static HANDLE                cchildjob   = NULL;
 static HANDLE                childproc   = NULL;
 static LONGLONG              rotateint   = ONE_DAY * 30;
-static LARGE_INTEGER         rotatetmo   = {{ 0, 0} };
-static LARGE_INTEGER         rotatesiz   = {{ 0, 0}};
+static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
+static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
@@ -48,11 +50,9 @@ static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
-static wchar_t  *rotateparam      = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
-static HANDLE    logfhandle       = NULL;
 static ULONGLONG logtickcount;
 
 static HANDLE    hrotatetimer     = NULL;
@@ -503,10 +503,12 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 }
 
 static HANDLE xcreatethread(int detach,
-                            DWORD (WINAPI *threadfn)(LPVOID),
-                            LPVOID param)
+                            unsigned int (__stdcall *threadfn)(void *))
 {
-    HANDLE h = CreateThread(NULL, 0, threadfn, param, 0, NULL);
+    unsigned u;
+    HANDLE   h;
+
+    h = (HANDLE)_beginthreadex(NULL, 0, threadfn, NULL, 0, &u);
 
     if (IS_INVALID_HANDLE(h))
         return NULL;
@@ -793,7 +795,7 @@ finished:
 static DWORD logappend(LPCVOID buf, DWORD len)
 {
     DWORD w;
-    LARGE_INTEGER ee = {{ 0, 0}};
+    LARGE_INTEGER ee = {{ 0, 0 }};
 
     if (!SetFilePointerEx(logfhandle, ee, NULL, FILE_END))
         return GetLastError();
@@ -1007,11 +1009,11 @@ static void closelogfile(void)
     LeaveCriticalSection(&logfilelock);
 }
 
-static int resolverotate(void)
+static int resolverotate(wchar_t *str)
 {
     SYSTEMTIME st;
     FILETIME   ft;
-    wchar_t   *rp = rotateparam;
+    wchar_t   *rp = str;
 
     GetSystemTime(&st);
     SystemTimeToFileTime(&st, &ft);
@@ -1047,7 +1049,8 @@ static int resolverotate(void)
         rp++;
         ui.HighPart  = ft.dwHighDateTime;
         ui.LowPart   = ft.dwLowDateTime;
-        if ((p = wcschr(rp, L':')) == NULL) {
+        p = wcschr(rp, L':');
+        if (p == NULL) {
             if ((p = wcschr(rp, L'~')) != NULL)
                 *(p++) = L'\0';
             mm = _wtoi(rp);
@@ -1125,11 +1128,10 @@ static int resolverotate(void)
     return 0;
 }
 
-static DWORD WINAPI stopthread(LPVOID unused)
+static unsigned int __stdcall stopthread(void *unused)
 {
     const char yn[2] = { 'Y', '\n'};
     DWORD wr, ws;
-    BOOL  sc;
     int   i;
 
     if (InterlockedIncrement(&sstarted) > 1) {
@@ -1155,16 +1157,16 @@ static DWORD WINAPI stopthread(LPVOID unused)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT");
 #endif
-    sc = SetConsoleCtrlHandler(NULL, TRUE);
-#if defined(_DBGVIEW)
-    if (sc == FALSE)
-        dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %d", GetLastError());
-#endif
-    GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-    if (sc) {
+    if (SetConsoleCtrlHandler(NULL, TRUE)) {
+        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         Sleep(SVCBATCH_PENDING_INIT);
         SetConsoleCtrlHandler(NULL, FALSE);
     }
+#if defined(_DBGVIEW)
+    else {
+        dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %d", GetLastError());
+    }
+#endif
     for (i = 0; i < 10; i++) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
@@ -1235,7 +1237,7 @@ finished:
     XENDTHREAD(0);
 }
 
-static DWORD WINAPI iopipethread(LPVOID unused)
+static unsigned int __stdcall iopipethread(void *unused)
 {
     DWORD  rc = 0;
 
@@ -1278,7 +1280,7 @@ static DWORD WINAPI iopipethread(LPVOID unused)
     XENDTHREAD(0);
 }
 
-static DWORD WINAPI monitorthread(LPVOID unused)
+static unsigned int __stdcall monitorthread(void *unused)
 {
 
 #if defined(_DBGVIEW)
@@ -1327,7 +1329,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
                 /**
                  * Create stop thread and exit.
                  */
-                xcreatethread(1, &stopthread, NULL);
+                xcreatethread(1, &stopthread);
                 break;
             }
             if (rotateint != ONE_DAY) {
@@ -1346,7 +1348,7 @@ static DWORD WINAPI monitorthread(LPVOID unused)
     XENDTHREAD(0);
 }
 
-static DWORD WINAPI rotatethread(LPVOID unused)
+static unsigned int __stdcall rotatethread(void *unused)
 {
     HANDLE wh[2];
     DWORD  wc, rc, ms;
@@ -1360,7 +1362,7 @@ static DWORD WINAPI rotatethread(LPVOID unused)
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
-        xcreatethread(1, &stopthread, NULL);
+        xcreatethread(1, &stopthread);
         XENDTHREAD(0);
     }
     wh[0] = hrotatetimer;
@@ -1370,7 +1372,7 @@ static DWORD WINAPI rotatethread(LPVOID unused)
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"SetWaitableTimer");
-        xcreatethread(1, &stopthread, NULL);
+        xcreatethread(1, &stopthread);
         goto finished;
     }
     if (rotatesiz.QuadPart)
@@ -1381,41 +1383,40 @@ static DWORD WINAPI rotatethread(LPVOID unused)
         wc = WaitForMultipleObjects(2, wh, FALSE, ms);
         switch (wc) {
             case WAIT_TIMEOUT:
-                if (rotatesiz.QuadPart) {
-                    EnterCriticalSection(&logfilelock);
-                    if (IS_VALID_HANDLE(logfhandle)) {
-                        LARGE_INTEGER fs;
-                        if (GetFileSizeEx(logfhandle, &fs)) {
-                            if (fs.QuadPart >= rotatesiz.QuadPart) {
+                EnterCriticalSection(&logfilelock);
+                if (IS_VALID_HANDLE(logfhandle)) {
+                    LARGE_INTEGER fs;
+                    if (GetFileSizeEx(logfhandle, &fs)) {
+                        if (fs.QuadPart >= rotatesiz.QuadPart) {
 #if defined(_DBGVIEW)
-                                dbgprintf(__FUNCTION__, "rotate by size");
+                            dbgprintf(__FUNCTION__, "rotate by size");
 #endif
+                            if (rotatelogs() != 0) {
                                 LeaveCriticalSection(&logfilelock);
-                                if (rotatelogs() != 0) {
 #if defined(_DBGVIEW)
-                                    dbgprintf(__FUNCTION__, "log rotation failed");
+                                dbgprintf(__FUNCTION__, "log rotation failed");
 #endif
-                                    xcreatethread(1, &stopthread, NULL);
-                                    goto finished;
-                                }
-                                EnterCriticalSection(&logfilelock);
+                                xcreatethread(1, &stopthread);
+                                goto finished;
                             }
                         }
-                        else {
-                            rc = GetLastError();
-                            LeaveCriticalSection(&logfilelock);
-                            setsvcstatusexit(rc);
-                            svcsyserror(__LINE__, rc, L"GetFileSizeEx");
-#if defined(_DBGVIEW)
-                            dbgprintf(__FUNCTION__, "get logfile size failed");
-#endif
-                            xcreatethread(1, &stopthread, NULL);
-                            goto finished;
-
-                        }
                     }
-                    LeaveCriticalSection(&logfilelock);
+                    else {
+                        rc = GetLastError();
+                        LeaveCriticalSection(&logfilelock);
+                        setsvcstatusexit(rc);
+                        svcsyserror(__LINE__, rc, L"GetFileSizeEx");
+                        xcreatethread(1, &stopthread);
+                        goto finished;
+
+                    }
                 }
+#if defined(_DBGVIEW)
+                else {
+                    dbgprintf(__FUNCTION__, "logfile handle closed");
+                }
+#endif
+                LeaveCriticalSection(&logfilelock);
             break;
             case WAIT_OBJECT_0:
 #if defined(_DBGVIEW)
@@ -1430,7 +1431,7 @@ static DWORD WINAPI rotatethread(LPVOID unused)
                 rotatetmo.QuadPart += rotateint;
                 if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
                     svcsyserror(__LINE__, GetLastError(), L"SetWaitableTimer");
-                    xcreatethread(1, &stopthread, NULL);
+                    xcreatethread(1, &stopthread);
                     goto finished;
                 }
             break;
@@ -1504,7 +1505,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            xcreatethread(1, &stopthread, NULL);
+            xcreatethread(1, &stopthread);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak == 0)
@@ -1529,15 +1530,16 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
     return 0;
 }
 
-static DWORD WINAPI workerthread(LPVOID unused)
+static unsigned int __stdcall workerthread(void *unused)
 {
     STARTUPINFOW si;
     wchar_t *cmdline;
     wchar_t *arg0;
     wchar_t *arg1;
     HANDLE   wh[2];
+    DWORD    rc;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
-    PROCESS_INFORMATION pi;
+    PROCESS_INFORMATION cp;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
@@ -1553,13 +1555,13 @@ static DWORD WINAPI workerthread(LPVOID unused)
         arg1 = svcbatchfile;
     cmdline = xwcsvarcat(arg0, L" /D /C \"", arg1, L"\"", NULL);
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "program %S", comspec);
+    dbgprintf(__FUNCTION__, "comspec %S", comspec);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 #endif
     if (createiopipes() != 0)
         goto finished;
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
-    memset(&pi, 0, sizeof(PROCESS_INFORMATION));
+    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
         JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
@@ -1570,7 +1572,9 @@ static DWORD WINAPI workerthread(LPVOID unused)
                                  JobObjectExtendedLimitInformation,
                                 &ji,
                                  sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
-        svcsyserror(__LINE__, GetLastError(), L"SetInformationJobObject");
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"SetInformationJobObject");
         goto finished;
     }
 
@@ -1586,14 +1590,15 @@ static DWORD WINAPI workerthread(LPVOID unused)
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
                         wenvblock,
                         servicehome,
-                       &si, &pi)) {
-        setsvcstatusexit(GetLastError());
-        svcsyserror(__LINE__, GetLastError(), L"CreateProcess");
+                       &si, &cp)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"CreateProcess");
         goto finished;
     }
-    childproc = pi.hProcess;
+    childproc = cp.hProcess;
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "child id %d", pi.dwProcessId);
+    dbgprintf(__FUNCTION__, "child id %d", cp.dwProcessId);
 #endif
     /**
      * Close our side of the pipes
@@ -1601,29 +1606,31 @@ static DWORD WINAPI workerthread(LPVOID unused)
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
     if (!AssignProcessToJobObject(cchildjob, childproc)) {
-        svcsyserror(__LINE__, GetLastError(), L"AssignProcessToJobObject");
-        CloseHandle(pi.hThread);
-        TerminateProcess(childproc, ERROR_ACCESS_DENIED);
-        setsvcstatusexit(ERROR_ACCESS_DENIED);
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"AssignProcessToJobObject");
+        CloseHandle(cp.hThread);
+        TerminateProcess(childproc, rc);
         goto finished;
     }
     wh[0] = childproc;
-    wh[1] = xcreatethread(0, &iopipethread, NULL);
+    wh[1] = xcreatethread(0, &iopipethread);
     if (IS_INVALID_HANDLE(wh[1])) {
-        svcsyserror(__LINE__, ERROR_TOO_MANY_TCBS, L"iopipethread");
-        CloseHandle(pi.hThread);
+        rc = ERROR_TOO_MANY_TCBS;
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"iopipethread");
+        CloseHandle(cp.hThread);
         TerminateProcess(childproc, ERROR_OUTOFMEMORY);
-        setsvcstatusexit(ERROR_TOO_MANY_TCBS);
         goto finished;
     }
 
-    ResumeThread(pi.hThread);
-    CloseHandle(pi.hThread);
+    ResumeThread(cp.hThread);
+    CloseHandle(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "service running");
 #endif
-    xcreatethread(1, &rotatethread, NULL);
+    xcreatethread(1, &rotatethread);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
 
@@ -1679,11 +1686,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
-    if ((i = resolverotate()) != 0) {
-        svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
-        reportsvcstatus(SERVICE_STOPPED, rv);
-        return;
-    }
     logconfig();
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -1709,13 +1711,13 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         ep += nn + 1;
     }
 
-    wh[0] = xcreatethread(0, &monitorthread, NULL);
+    wh[0] = xcreatethread(0, &monitorthread);
     if (IS_INVALID_HANDLE(wh[0])) {
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"monitorthread");
         goto finished;
     }
-    wh[1] = xcreatethread(0, &workerthread,  NULL);
+    wh[1] = xcreatethread(0, &workerthread);
     if (IS_INVALID_HANDLE(wh[1])) {
         InterlockedExchange(&monitorsig, 0);
         SignalObjectAndWait(monitorevent, wh[0], INFINITE, FALSE);
@@ -1782,7 +1784,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *opath;
     wchar_t    *cpath;
     wchar_t    *bname = NULL;
-    int         envc  = 0;
+    wchar_t    *rotateparam = NULL;
+
+    int         envc       = 0;
     int         cleanpath  = 0;
     int         usesafeenv = 0;
     int         hasopts    = 1;
@@ -1981,6 +1985,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     rmtrailingps(opath);
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
+    if ((i = resolverotate(rotateparam)) != 0)
+        return svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
 
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));

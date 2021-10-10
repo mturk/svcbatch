@@ -120,7 +120,7 @@
 /** Default alignment */
 #define ALIGN_DEFAULT(_s)       ALIGN_TO_BOUNDARY(_s, 8)
 
-#define XENDTHREAD(_r)          ExitThread(_r); return (_r)
+#define XENDTHREAD(_r)          _endthreadex(_r); return (_r)
 #define WAIT_OBJECT_1          (WAIT_OBJECT_0 + 1)
 #define WAIT_OBJECT_2          (WAIT_OBJECT_0 + 2)
 
