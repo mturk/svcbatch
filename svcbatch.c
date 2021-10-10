@@ -25,6 +25,8 @@
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = 0;
+static volatile LONG         rotatecount = 0;
+
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -993,7 +995,6 @@ failed:
 
 static DWORD rotatelogs(void)
 {
-    static int rotatecount = 1;
     DWORD rv = ERROR_FILE_NOT_FOUND;
     HANDLE h = NULL;
 
@@ -1006,7 +1007,8 @@ static DWORD rotatelogs(void)
         CloseHandle(h);
         rv = openlogfile();
         if (rv == 0) {
-            logprintf(logfhandle, "Log generation   : %d", rotatecount++);
+            int c = (int)InterlockedIncrement(&rotatecount);
+            logprintf(logfhandle, "Log generation   : %d", c);
             logconfig(logfhandle);
         }
     }
