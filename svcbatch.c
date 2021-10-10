@@ -2040,8 +2040,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     atexit(objectscleanup);
 
     hstdin = GetStdHandle(STD_INPUT_HANDLE);
-    if ((hstdin != NULL) && (hstdin != INVALID_HANDLE_VALUE))
-        return svcsyserror(__LINE__, 0, L"Console already exists");
+    if (hstdin != NULL)
+        return svcsyserror(__LINE__, GetLastError(), L"Console already exists");
     if (AllocConsole()) {
         /**
          * AllocConsole should create new set of
