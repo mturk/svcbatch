@@ -902,6 +902,8 @@ static DWORD openlogfile(void)
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
         DWORD m = MOVEFILE_REPLACE_EXISTING;
 
+        if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
+            reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         if (autorotate) {
             SYSTEMTIME st;
 
@@ -920,6 +922,15 @@ static DWORD openlogfile(void)
             rc = GetLastError();
             xfree(logpb);
             return svcsyserror(__LINE__, rc, L"MoveFileExW");
+        }
+    }
+    else {
+        rc = GetLastError();
+        if (rc != ERROR_FILE_NOT_FOUND) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "%d %S", GetLastError(), logfilename);
+#endif
+            return svcsyserror(__LINE__, rc, L"GetFileAttributesExW");
         }
     }
 
