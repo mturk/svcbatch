@@ -491,7 +491,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     }
     if (setupeventlog())
         es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
-    if (IS_VALID_HANDLE(es)) {
+    if (es != NULL) {
         /**
          * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
          * The event code in netmsg.dll is 3299
@@ -666,7 +666,7 @@ static int runningasservice(void)
     int     rv = 0;
     HWINSTA ws = GetProcessWindowStation();
 
-    if (IS_VALID_HANDLE(ws)) {
+    if (ws != NULL) {
         DWORD len;
         USEROBJECTFLAGS uf;
         wchar_t name[BBUFSIZ];
@@ -1351,7 +1351,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                 break;
             }
             if (rotateint != ONE_DAY) {
-                if (IS_VALID_HANDLE(hrotatetimer)) {
+                if (hrotatetimer) {
                     CancelWaitableTimer(hrotatetimer);
                     rotatetmo.QuadPart += rotateint;
                     SetWaitableTimer(hrotatetimer, &rotatetmo, 0, NULL, NULL, 0);
@@ -2040,7 +2040,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     atexit(objectscleanup);
 
     hstdin = GetStdHandle(STD_INPUT_HANDLE);
-    if (IS_VALID_HANDLE(hstdin))
+    if (hstdin != INVALID_HANDLE_VALUE)
         return svcsyserror(__LINE__, 0, L"Console already exists");
     if (AllocConsole()) {
         /**
@@ -2050,7 +2050,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         atexit(cconsolecleanup);
         hstdin = GetStdHandle(STD_INPUT_HANDLE);
     }
-    if (IS_INVALID_HANDLE(hstdin))
+    if (hstdin == INVALID_HANDLE_VALUE)
         return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
 
     se[0].lpServiceName = zerostring;

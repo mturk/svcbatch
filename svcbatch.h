@@ -105,7 +105,6 @@
  * Helper macros
  */
 #define IS_INVALID_HANDLE(_h)   (((_h) == NULL) || ((_h) == INVALID_HANDLE_VALUE))
-#define IS_VALID_HANDLE(_h)     (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))
 #define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == L'\0'))
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 
