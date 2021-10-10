@@ -1403,7 +1403,7 @@ static unsigned int __stdcall rotatethread(void *unused)
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
         xcreatethread(1, 0, &stopthread);
-        XENDTHREAD(0);
+        goto finished;
     }
     wh[0] = hrotatetimer;
     wh[1] = processended;
@@ -1436,6 +1436,7 @@ static unsigned int __stdcall rotatethread(void *unused)
 #endif
                             rc = rotatelogs();
                             if (rc != 0) {
+                                setsvcstatusexit(rc);
                                 xcreatethread(1, 0, &stopthread);
                             }
                         }
@@ -1446,7 +1447,6 @@ static unsigned int __stdcall rotatethread(void *unused)
                         setsvcstatusexit(rc);
                         svcsyserror(__LINE__, rc, L"GetFileSizeEx");
                         xcreatethread(1, 0, &stopthread);
-
                     }
                 }
                 else {
@@ -1464,8 +1464,11 @@ static unsigned int __stdcall rotatethread(void *unused)
                     if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
                         rc = GetLastError();
                         svcsyserror(__LINE__, rc, L"SetWaitableTimer");
-                        xcreatethread(1, 0, &stopthread);
                     }
+                }
+                if (rc != 0) {
+                    setsvcstatusexit(rc);
+                    xcreatethread(1, 0, &stopthread);
                 }
             break;
             case WAIT_OBJECT_1:
