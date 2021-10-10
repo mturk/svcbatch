@@ -995,7 +995,7 @@ failed:
 
 static DWORD rotatelogs(void)
 {
-    DWORD rv = ERROR_FILE_NOT_FOUND;
+    DWORD rv = 0;
     HANDLE h = NULL;
 
     EnterCriticalSection(&logfilelock);
