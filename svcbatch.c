@@ -1481,7 +1481,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                     }
                 }
                 else {
-                    rc = ERROR_FILE_NOT_FOUND;
+                    rc = ERROR_WAIT_NO_CHILDREN;
                 }
                 LeaveCriticalSection(&logfilelock);
             break;
@@ -1502,22 +1502,19 @@ static unsigned int __stdcall rotatethread(void *unused)
                     xcreatethread(1, 0, &stopthread);
                 }
             break;
+#if defined(_DBGVIEW)
             case WAIT_OBJECT_1:
-#if defined(_DBGVIEW)
                 dbgprintf(__FUNCTION__, "processended signaled");
-#endif
             break;
-            default:
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "wc=%d", wc);
 #endif
+            default:
             break;
         }
     } while ((rc == 0) && ((wc == WAIT_OBJECT_0) || (wc == WAIT_TIMEOUT)));
 
 finished:
 #if defined(_DBGVIEW)
-    if (rc)
+    if ((rc != 0) && (rc != ERROR_WAIT_NO_CHILDREN))
         dbgprintf(__FUNCTION__, "log rotation failed %d", rc);
     dbgprintf(__FUNCTION__, "done");
 #endif
