@@ -2040,7 +2040,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     atexit(objectscleanup);
 
     hstdin = GetStdHandle(STD_INPUT_HANDLE);
-    if (hstdin != INVALID_HANDLE_VALUE)
+    if ((hstdin != NULL) && (hstdin != INVALID_HANDLE_VALUE))
         return svcsyserror(__LINE__, 0, L"Console already exists");
     if (AllocConsole()) {
         /**
@@ -2050,7 +2050,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         atexit(cconsolecleanup);
         hstdin = GetStdHandle(STD_INPUT_HANDLE);
     }
-    if (hstdin == INVALID_HANDLE_VALUE)
+    if (IS_INVALID_HANDLE(hstdin))
         return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
 
     se[0].lpServiceName = zerostring;
@@ -2059,7 +2059,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[1].lpServiceProc = NULL;
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "start service");
+    dbgprintf(__FUNCTION__, "starting service");
 #endif
     if (!StartServiceCtrlDispatcherW(se))
         return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
