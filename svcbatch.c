@@ -66,7 +66,8 @@ static HANDLE    stdinputpipewr   = NULL;
 static HANDLE    stdinputpiperd   = NULL;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
-static const char   CRLF[4]       = { '\r', '\n', '\0', '\0' };
+static const char   CRLFA[4]      = { '\r', '\n', '\0', '\0' };
+static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 
 static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32;"              \
@@ -331,12 +332,10 @@ static void rmtrailingps(wchar_t *s)
  * Check if the path doesn't start
  * with \ or C:\
  */
-static int isrelativepath(const wchar_t *path)
+static int isrelativepath(const wchar_t *p)
 {
-    if (path[0] < 128) {
-        if (path[0] == L'\\')
-            return 0;
-        if ((isalpha(path[0]) != 0) && (path[1] == L':'))
+    if (p[0] < 128) {
+        if ((p[0] == L'\\') || (isalpha(p[0]) && (p[1] == L':')))
             return 0;
     }
     return 1;
@@ -477,13 +476,13 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         xwinapierror(erd, MBUFSIZ, ern);
         errarg[5] = L":";
         errarg[6] = erd;
-        errarg[7] = L"\r\n";
+        errarg[7] = CRLFW;
 #if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erd);
 #endif
     }
     else {
-        errarg[5] = L"\r\n";
+        errarg[5] = CRLFW;
         ern = ERROR_INVALID_PARAMETER;
 #if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "%S %S", buf, err);
@@ -811,7 +810,7 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 static void logfflush(HANDLE h)
 {
     FlushFileBuffers(h);
-    logappend(h, CRLF, 2);
+    logappend(h, CRLFA, 2);
 }
 
 static void logwrline(HANDLE h, const char *str)
@@ -836,7 +835,7 @@ static void logwrline(HANDLE h, const char *str)
     WriteFile(h, buf, (DWORD)strlen(buf), &w, NULL);
     WriteFile(h, str, (DWORD)strlen(str), &w, NULL);
 
-    WriteFile(h, CRLF, 2, &w, NULL);
+    WriteFile(h, CRLFA, 2, &w, NULL);
 }
 
 static void logprintf(HANDLE h, const char *format, ...)
