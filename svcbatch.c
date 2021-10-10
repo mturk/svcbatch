@@ -1208,30 +1208,24 @@ static unsigned int __stdcall stopthread(void *unused)
         ws = WaitForSingleObject(processended, wn);
         if (ws == WAIT_OBJECT_0) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "#%d processended", i);
+            dbgprintf(__FUNCTION__, "processended signaled");
 #endif
             goto finished;
         }
         else if (ws == WAIT_TIMEOUT) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "#%d sending Y to child", i);
+            dbgprintf(__FUNCTION__, "sending Y to child (attempt=%d)", i + 1);
 #endif
             /**
              * Write Y to stdin pipe in case cmd.exe waits for
              * user reply to "Terminate batch job (Y/N)?"
              */
-            if (!WriteFile(stdinputpipewr, yn, 2, &wr, NULL)) {
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "#%d WriteFile Y failed %lu", i, GetLastError());
-#endif
-                if (i > 8)
-                    break;
-            }
+            WriteFile(stdinputpipewr, yn, 2, &wr, NULL);
             FlushFileBuffers(stdinputpipewr);
         }
         else {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "#%d WaitForSingleObject failed %lu", i, GetLastError());
+            dbgprintf(__FUNCTION__, "WaitForSingleObject failed %lu", GetLastError());
 #endif
             break;
         }
@@ -1248,9 +1242,9 @@ static unsigned int __stdcall stopthread(void *unused)
      * timeout and then kill all child processes.
      */
     ws = WaitForSingleObject(processended, SVCBATCH_STOP_HINT / 2);
-    if (ws != WAIT_OBJECT_0) {
+    if (ws == WAIT_TIMEOUT) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "Child is still active (%lu), terminating", ws);
+        dbgprintf(__FUNCTION__, "Child is still active, terminating");
 #endif
         /**
          * WAIT_TIMEOUT means that child is
