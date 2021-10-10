@@ -2025,13 +2025,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Create logic state events
      */
     svcstopended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
+    if (IS_INVALID_HANDLE(svcstopended))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
+    if (IS_INVALID_HANDLE(processended))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
-    if (IS_INVALID_HANDLE(processended) ||
-        IS_INVALID_HANDLE(svcstopended) ||
-        IS_INVALID_HANDLE(monitorevent))
-        return svcsyserror(__LINE__, ERROR_OUTOFMEMORY, L"CreateEvent");
-    cchildjob = CreateJobObjectW(&sazero, NULL);
+    if (IS_INVALID_HANDLE(monitorevent))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
+    cchildjob    = CreateJobObjectW(&sazero, NULL);
     if (IS_INVALID_HANDLE(cchildjob))
         return svcsyserror(__LINE__, GetLastError(), L"CreateJobObject");
 
