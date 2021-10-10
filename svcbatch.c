@@ -930,7 +930,7 @@ static DWORD openlogfile(void)
         rc = GetLastError();
         if (rc != ERROR_FILE_NOT_FOUND) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "%d %S", GetLastError(), logfilename);
+            dbgprintf(__FUNCTION__, "%lu %S", GetLastError(), logfilename);
 #endif
             return svcsyserror(__LINE__, rc, L"GetFileAttributesExW");
         }
@@ -1195,7 +1195,7 @@ static unsigned int __stdcall stopthread(void *unused)
     }
 #if defined(_DBGVIEW)
     else {
-        dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %d", GetLastError());
+        dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %lu", GetLastError());
     }
 #endif
     for (i = 0; i < 10; i++) {
@@ -1218,7 +1218,7 @@ static unsigned int __stdcall stopthread(void *unused)
              */
             if (!WriteFile(stdinputpipewr, yn, 2, &wr, NULL)) {
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "#%d WriteFile Y failed %d", i, GetLastError());
+                dbgprintf(__FUNCTION__, "#%d WriteFile Y failed %lu", i, GetLastError());
 #endif
                 if (i > 8)
                     break;
@@ -1227,7 +1227,7 @@ static unsigned int __stdcall stopthread(void *unused)
         }
         else {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "#%d WaitForSingleObject failed %d", i, GetLastError());
+            dbgprintf(__FUNCTION__, "#%d WaitForSingleObject failed %lu", i, GetLastError());
 #endif
             break;
         }
@@ -1245,7 +1245,7 @@ static unsigned int __stdcall stopthread(void *unused)
     ws = WaitForSingleObject(processended, SVCBATCH_STOP_HINT / 2);
     if (ws != WAIT_OBJECT_0) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "Child is still active (%d), terminating", ws);
+        dbgprintf(__FUNCTION__, "Child is still active (%lu), terminating", ws);
 #endif
         /**
          * WAIT_TIMEOUT means that child is
@@ -1308,7 +1308,7 @@ static unsigned int __stdcall iopipethread(void *unused)
     else if (rc == ERROR_NO_MORE_FILES)
         dbgprintf(__FUNCTION__, "ERROR_NO_MORE_FILES, logfile closed");
     else
-        dbgprintf(__FUNCTION__, "err=%d", rc);
+        dbgprintf(__FUNCTION__, "err=%lu", rc);
     dbgprintf(__FUNCTION__, "done");
 #endif
 
@@ -1327,19 +1327,18 @@ static unsigned int __stdcall monitorthread(void *unused)
     wh[0] = monitorevent;
     wh[1] = processended;
     do {
-        LONG cc;
+        int cc;
 
         rc = 0;
         wc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
         switch (wc) {
             case WAIT_OBJECT_0:
-                cc = InterlockedExchange(&monitorsig, 0);
+                cc = (int)InterlockedExchange(&monitorsig, 0);
                 if (cc == 0) {
 #if defined(_DBGVIEW)
                     dbgprintf(__FUNCTION__, "quit signaled");
 #endif
-                    rc = ERROR_NO_MORE_FILES;
-                    break;
+                    rc = ERROR_WAIT_NO_CHILDREN;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
                     HANDLE h;
@@ -1373,9 +1372,6 @@ static unsigned int __stdcall monitorthread(void *unused)
 #endif
                     rc = rotatelogs();
                     if (rc != 0) {
-#if defined(_DBGVIEW)
-                        dbgprintf(__FUNCTION__, "log rotation failed");
-#endif
                         setsvcstatusexit(rc);
                         xcreatethread(1, 0, &stopthread);
                     }
@@ -1389,7 +1385,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                 }
 #if defined(_DBGVIEW)
                 else {
-                    dbgprintf(__FUNCTION__, "Unknown control: %ld", cc);
+                    dbgprintf(__FUNCTION__, "Unknown control: %d", cc);
                 }
 #endif
                 if (rc == 0)
@@ -1405,6 +1401,8 @@ static unsigned int __stdcall monitorthread(void *unused)
         }
     } while ((rc == 0) && (wc == WAIT_OBJECT_0));
 #if defined(_DBGVIEW)
+    if ((rc != 0) && (rc != ERROR_WAIT_NO_CHILDREN))
+        dbgprintf(__FUNCTION__, "log rotation failed: %lu", rc);
     dbgprintf(__FUNCTION__, "done");
 #endif
     XENDTHREAD(0);
@@ -1424,7 +1422,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     wc = WaitForSingleObject(processended, SVCBATCH_START_HINT);
     if (wc != WAIT_TIMEOUT) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "ended %d", wc);
+        dbgprintf(__FUNCTION__, "ended %lu", wc);
 #endif
         goto finished;
     }
@@ -1457,7 +1455,10 @@ static unsigned int __stdcall rotatethread(void *unused)
             case WAIT_TIMEOUT:
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
-                if (h != NULL) {
+                if (h == NULL) {
+                    rc = ERROR_NO_MORE_FILES;
+                }
+                else {
                     LARGE_INTEGER fs;
                     if (GetFileSizeEx(h, &fs)) {
                         InterlockedExchangePointer(&logfhandle, h);
@@ -1479,9 +1480,6 @@ static unsigned int __stdcall rotatethread(void *unused)
                         svcsyserror(__LINE__, rc, L"GetFileSizeEx");
                         xcreatethread(1, 0, &stopthread);
                     }
-                }
-                else {
-                    rc = ERROR_WAIT_NO_CHILDREN;
                 }
                 LeaveCriticalSection(&logfilelock);
             break;
@@ -1514,8 +1512,8 @@ static unsigned int __stdcall rotatethread(void *unused)
 
 finished:
 #if defined(_DBGVIEW)
-    if ((rc != 0) && (rc != ERROR_WAIT_NO_CHILDREN))
-        dbgprintf(__FUNCTION__, "log rotation failed %d", rc);
+    if (rc != 0)
+        dbgprintf(__FUNCTION__, "log rotation failed %lu", rc);
     dbgprintf(__FUNCTION__, "done");
 #endif
     SAFE_CLOSE_HANDLE(hrotatetimer);
@@ -1552,7 +1550,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         break;
         default:
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "unknown ctrl %d", ctrl);
+            dbgprintf(__FUNCTION__, "unknown ctrl %lu", ctrl);
 #endif
             return FALSE;
         break;
@@ -1596,7 +1594,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
         default:
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "unknown ctrl %d", ctrl);
+            dbgprintf(__FUNCTION__, "unknown ctrl %lu", ctrl);
 #endif
             return ERROR_CALL_NOT_IMPLEMENTED;
         break;
@@ -1672,7 +1670,7 @@ static unsigned int __stdcall workerthread(void *unused)
     }
     childproc = cp.hProcess;
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "child id %d", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "child id %lu", cp.dwProcessId);
 #endif
     /**
      * Close our side of the pipes
@@ -1714,7 +1712,7 @@ finished:
     SetEvent(processended);
 #if defined(_DBGVIEW)
     if (ssvcstatus.dwServiceSpecificExitCode)
-        dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%d",
+        dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%lu",
                   ssvcstatus.dwServiceSpecificExitCode);
     dbgprintf(__FUNCTION__, "done");
 #endif
