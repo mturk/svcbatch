@@ -412,7 +412,7 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
         }
     }
     else {
-        _snwprintf(buf, bufsize, L"Unknown Win32 error code: %d", statcode);
+        _snwprintf(buf, bufsize, L"Unknown Win32 error code: %lu", statcode);
         buf[bufsize - 1] = L'\0';
     }
 }
@@ -1159,7 +1159,7 @@ static int resolverotate(wchar_t *str)
 static unsigned int __stdcall stopthread(void *unused)
 {
     const char yn[2] = { 'Y', '\n'};
-    DWORD wr, ws;
+    DWORD  wr, ws, wn = SVCBATCH_PENDING_INIT;
     HANDLE h = NULL;
     int   i;
 
@@ -1201,7 +1201,7 @@ static unsigned int __stdcall stopthread(void *unused)
     for (i = 0; i < 10; i++) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
-        ws = WaitForSingleObject(processended, i == 0 ? SVCBATCH_PENDING_INIT : SVCBATCH_PENDING_WAIT);
+        ws = WaitForSingleObject(processended, wn);
         if (ws == WAIT_OBJECT_0) {
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "#%d processended", i);
@@ -1231,6 +1231,7 @@ static unsigned int __stdcall stopthread(void *unused)
 #endif
             break;
         }
+        wn = SVCBATCH_PENDING_WAIT;
     }
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 #if defined(_DBGVIEW)
@@ -1271,7 +1272,7 @@ finished:
 static unsigned int __stdcall iopipethread(void *unused)
 {
     DWORD  rc = 0;
-
+    DWORD  rn = 0;
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
 #endif
@@ -1280,7 +1281,7 @@ static unsigned int __stdcall iopipethread(void *unused)
         DWORD rd = 0;
         HANDLE h = NULL;
 
-        if (!ReadFile(stdoutputpiper, rb, HBUFSIZ, &rd, NULL) || (rd == 0)) {
+        if (!ReadFile(stdoutputpiper, rb, HBUFSIZ, &rd, NULL)) {
             /**
              * Read from child failed.
              * ERROR_BROKEN_PIPE or ERROR_NO_DATA means that
@@ -1292,10 +1293,18 @@ static unsigned int __stdcall iopipethread(void *unused)
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
 
-            if (h != NULL)
-                rc = logappend(h, rb, rd);
-            else
+            if (h != NULL) {
+                if (rd > 0)
+                    rc = logappend(h, rb, rd);
+                rn += rd;
+                if ((rn >= 65536) || (rd == 0)) {
+                    FlushFileBuffers(h);
+                    rn = 0;
+                }
+            }
+            else {
                 rc = ERROR_NO_MORE_FILES;
+            }
             InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
         }
@@ -1306,7 +1315,7 @@ static unsigned int __stdcall iopipethread(void *unused)
     else if (rc == ERROR_NO_DATA)
         dbgprintf(__FUNCTION__, "ERROR_NO_DATA");
     else if (rc == ERROR_NO_MORE_FILES)
-        dbgprintf(__FUNCTION__, "ERROR_NO_MORE_FILES, logfile closed");
+        dbgprintf(__FUNCTION__, "logfile closed");
     else
         dbgprintf(__FUNCTION__, "err=%lu", rc);
     dbgprintf(__FUNCTION__, "done");
