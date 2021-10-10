@@ -1004,7 +1004,8 @@ static DWORD rotatelogs(void)
         logwrtime(h, "Log rotated");
         FlushFileBuffers(h);
         CloseHandle(h);
-        if ((rv = openlogfile()) == 0) {
+        rv = openlogfile();
+        if (rv == 0) {
             logprintf(logfhandle, "Log generation   : %d", rotatecount++);
             logconfig(logfhandle);
         }
