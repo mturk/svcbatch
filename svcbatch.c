@@ -503,13 +503,13 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     return ern;
 }
 
-static HANDLE xcreatethread(int detach,
+static HANDLE xcreatethread(int detach, unsigned initflag,
                             unsigned int (__stdcall *threadfn)(void *))
 {
     unsigned u;
     HANDLE   h;
 
-    h = (HANDLE)_beginthreadex(NULL, 0, threadfn, NULL, 0, &u);
+    h = (HANDLE)_beginthreadex(NULL, 0, threadfn, NULL, initflag, &u);
 
     if (IS_INVALID_HANDLE(h))
         return NULL;
@@ -1347,7 +1347,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                 /**
                  * Create stop thread and exit.
                  */
-                xcreatethread(1, &stopthread);
+                xcreatethread(1, 0, &stopthread);
                 break;
             }
             if (rotateint != ONE_DAY) {
@@ -1381,7 +1381,7 @@ static unsigned int __stdcall rotatethread(void *unused)
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
-        xcreatethread(1, &stopthread);
+        xcreatethread(1, 0, &stopthread);
         XENDTHREAD(0);
     }
     wh[0] = hrotatetimer;
@@ -1391,7 +1391,7 @@ static unsigned int __stdcall rotatethread(void *unused)
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"SetWaitableTimer");
-        xcreatethread(1, &stopthread);
+        xcreatethread(1, 0, &stopthread);
         goto finished;
     }
     if (rotatesiz.QuadPart)
@@ -1417,7 +1417,7 @@ static unsigned int __stdcall rotatethread(void *unused)
 #if defined(_DBGVIEW)
                                 dbgprintf(__FUNCTION__, "log rotation failed");
 #endif
-                                xcreatethread(1, &stopthread);
+                                xcreatethread(1, 0, &stopthread);
                                 goto finished;
                             }
                         }
@@ -1428,7 +1428,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                         LeaveCriticalSection(&logfilelock);
                         setsvcstatusexit(rc);
                         svcsyserror(__LINE__, rc, L"GetFileSizeEx");
-                        xcreatethread(1, &stopthread);
+                        xcreatethread(1, 0, &stopthread);
                         goto finished;
 
                     }
@@ -1453,7 +1453,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                 rotatetmo.QuadPart += rotateint;
                 if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
                     svcsyserror(__LINE__, GetLastError(), L"SetWaitableTimer");
-                    xcreatethread(1, &stopthread);
+                    xcreatethread(1, 0, &stopthread);
                     goto finished;
                 }
             break;
@@ -1535,7 +1535,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            xcreatethread(1, &stopthread);
+            xcreatethread(1, 0, &stopthread);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak == 0)
@@ -1639,32 +1639,32 @@ static unsigned int __stdcall workerthread(void *unused)
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"AssignProcessToJobObject");
-        CloseHandle(cp.hThread);
         TerminateProcess(childproc, rc);
         goto finished;
     }
     wh[0] = childproc;
-    wh[1] = xcreatethread(0, &iopipethread);
+    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread);
     if (IS_INVALID_HANDLE(wh[1])) {
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"iopipethread");
-        CloseHandle(cp.hThread);
         TerminateProcess(childproc, ERROR_OUTOFMEMORY);
         goto finished;
     }
 
     ResumeThread(cp.hThread);
-    CloseHandle(cp.hThread);
+    ResumeThread(wh[1]);
+    SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "service running");
 #endif
-    xcreatethread(1, &rotatethread);
+    xcreatethread(1, 0, &rotatethread);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
 
 finished:
+    SAFE_CLOSE_HANDLE(cp.hThread);
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
     SetEvent(processended);
@@ -1741,21 +1741,21 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         ep += nn + 1;
     }
 
-    wh[0] = xcreatethread(0, &monitorthread);
+    wh[0] = xcreatethread(0, CREATE_SUSPENDED, &monitorthread);
     if (IS_INVALID_HANDLE(wh[0])) {
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"monitorthread");
         goto finished;
     }
-    wh[1] = xcreatethread(0, &workerthread);
+    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &workerthread);
     if (IS_INVALID_HANDLE(wh[1])) {
-        InterlockedExchange(&monitorsig, 0);
-        SignalObjectAndWait(monitorevent, wh[0], INFINITE, FALSE);
         CloseHandle(wh[0]);
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"workerthread");
         goto finished;
     }
+    ResumeThread(wh[0]);
+    ResumeThread(wh[1]);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "running");
 #endif
