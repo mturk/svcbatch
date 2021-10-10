@@ -1317,70 +1317,94 @@ static unsigned int __stdcall iopipethread(void *unused)
 
 static unsigned int __stdcall monitorthread(void *unused)
 {
+    HANDLE wh[2];
+    DWORD  wc, rc;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
 #endif
 
-    while (WaitForSingleObject(monitorevent, INFINITE) == WAIT_OBJECT_0) {
-        HANDLE h = NULL;
-        LONG  cc = InterlockedExchange(&monitorsig, 0);
+    wh[0] = monitorevent;
+    wh[1] = processended;
+    do {
+        LONG cc;
 
-        if (cc == 0) {
+        rc = 0;
+        wc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
+        switch (wc) {
+            case WAIT_OBJECT_0:
+                cc = InterlockedExchange(&monitorsig, 0);
+                if (cc == 0) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "quit signaled");
+                    dbgprintf(__FUNCTION__, "quit signaled");
 #endif
+                    rc = ERROR_NO_MORE_FILES;
+                    break;
+                }
+                else if (cc == SVCBATCH_CTRL_BREAK) {
+                    HANDLE h;
+#if defined(_DBGVIEW)
+                    dbgprintf(__FUNCTION__, "break signaled");
+#endif
+                    EnterCriticalSection(&logfilelock);
+                    h = InterlockedExchangePointer(&logfhandle, NULL);
+
+                    if (h != NULL) {
+                        logfflush(h);
+                        logwrline(h, "CTRL_BREAK_EVENT signaled\r\n");
+                    }
+                    InterlockedExchangePointer(&logfhandle, h);
+                    LeaveCriticalSection(&logfilelock);
+                    /**
+                     * Danger Zone!!!
+                     *
+                     * Send CTRL_BREAK_EVENT to the child process.
+                     * This is useful if batch file is running java
+                     * CTRL_BREAK signal tells JDK to dump thread stack
+                     *
+                     * In case subchild does not handle CTRL_BREAK cmd.exe
+                     * will probably block on "Terminate batch job (Y/N)?"
+                     */
+                    GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+                }
+                else if (cc == SVCBATCH_CTRL_ROTATE) {
+#if defined(_DBGVIEW)
+                    dbgprintf(__FUNCTION__, "log rotation signaled");
+#endif
+                    rc = rotatelogs();
+                    if (rc != 0) {
+#if defined(_DBGVIEW)
+                        dbgprintf(__FUNCTION__, "log rotation failed");
+#endif
+                        /**
+                         * Create stop thread and exit.
+                         */
+                        xcreatethread(1, 0, &stopthread);
+                    }
+                    if (rotateint != ONE_DAY) {
+                        if (hrotatetimer) {
+                            CancelWaitableTimer(hrotatetimer);
+                            rotatetmo.QuadPart += rotateint;
+                            SetWaitableTimer(hrotatetimer, &rotatetmo, 0, NULL, NULL, 0);
+                        }
+                    }
+                }
+#if defined(_DBGVIEW)
+                else {
+                    dbgprintf(__FUNCTION__, "Unknown control: %ld", cc);
+                }
+#endif
+                ResetEvent(monitorevent);
+            break;
+#if defined(_DBGVIEW)
+            case WAIT_OBJECT_1:
+                dbgprintf(__FUNCTION__, "processended signaled");
+            break;
+#endif
+            default:
             break;
         }
-        else if (cc == SVCBATCH_CTRL_BREAK) {
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "break signaled");
-#endif
-            EnterCriticalSection(&logfilelock);
-            h = InterlockedExchangePointer(&logfhandle, NULL);
-
-            if (h != NULL) {
-                logfflush(h);
-                logwrline(h, "CTRL_BREAK_EVENT signaled\r\n");
-            }
-            InterlockedExchangePointer(&logfhandle, h);
-            LeaveCriticalSection(&logfilelock);
-            /**
-             * Danger Zone!!!
-             *
-             * Send CTRL_BREAK_EVENT to the child process.
-             * This is useful if batch file is running java
-             * CTRL_BREAK signal tells JDK to dump thread stack
-             *
-             * In case subchild does not handle CTRL_BREAK cmd.exe
-             * will probably block on "Terminate batch job (Y/N)?"
-             */
-            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-        }
-        else if (cc == SVCBATCH_CTRL_ROTATE) {
-#if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "log rotation signaled");
-#endif
-            if (rotatelogs() != 0) {
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "log rotation failed");
-#endif
-                /**
-                 * Create stop thread and exit.
-                 */
-                xcreatethread(1, 0, &stopthread);
-                break;
-            }
-            if (rotateint != ONE_DAY) {
-                if (hrotatetimer) {
-                    CancelWaitableTimer(hrotatetimer);
-                    rotatetmo.QuadPart += rotateint;
-                    SetWaitableTimer(hrotatetimer, &rotatetmo, 0, NULL, NULL, 0);
-                }
-            }
-        }
-        ResetEvent(monitorevent);
-    }
+    } while ((rc == 0) && (wc == WAIT_OBJECT_0));
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 #endif
@@ -1696,10 +1720,6 @@ finished:
     if (ssvcstatus.dwServiceSpecificExitCode)
         dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%d",
                   ssvcstatus.dwServiceSpecificExitCode);
-#endif
-    InterlockedExchange(&monitorsig, 0);
-    SetEvent(monitorevent);
-#if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 #endif
 
