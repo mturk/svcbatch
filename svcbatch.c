@@ -1420,6 +1420,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     else
         ms = INFINITE;
     do {
+        rc = 0;
         wc = WaitForMultipleObjects(2, wh, FALSE, ms);
         switch (wc) {
             case WAIT_TIMEOUT:
@@ -1433,49 +1434,38 @@ static unsigned int __stdcall rotatethread(void *unused)
 #if defined(_DBGVIEW)
                             dbgprintf(__FUNCTION__, "rotate by size");
 #endif
-                            if (rotatelogs() != 0) {
-                                LeaveCriticalSection(&logfilelock);
-#if defined(_DBGVIEW)
-                                dbgprintf(__FUNCTION__, "log rotation failed");
-#endif
+                            rc = rotatelogs();
+                            if (rc != 0) {
                                 xcreatethread(1, 0, &stopthread);
-                                goto finished;
                             }
                         }
                     }
                     else {
                         rc = GetLastError();
                         CloseHandle(h);
-                        LeaveCriticalSection(&logfilelock);
                         setsvcstatusexit(rc);
                         svcsyserror(__LINE__, rc, L"GetFileSizeEx");
                         xcreatethread(1, 0, &stopthread);
-                        goto finished;
 
                     }
                 }
-#if defined(_DBGVIEW)
                 else {
-                    dbgprintf(__FUNCTION__, "logfile handle closed");
+                    rc = ERROR_FILE_NOT_FOUND;
                 }
-#endif
                 LeaveCriticalSection(&logfilelock);
             break;
             case WAIT_OBJECT_0:
 #if defined(_DBGVIEW)
                 dbgprintf(__FUNCTION__, "rotate by time");
 #endif
-                if (rotatelogs() != 0) {
-    #if defined(_DBGVIEW)
-                    dbgprintf(__FUNCTION__, "log rotation failed");
-    #endif
-                    goto finished;
-                }
-                rotatetmo.QuadPart += rotateint;
-                if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
-                    svcsyserror(__LINE__, GetLastError(), L"SetWaitableTimer");
-                    xcreatethread(1, 0, &stopthread);
-                    goto finished;
+                rc = rotatelogs();
+                if (rc == 0) {
+                    rotatetmo.QuadPart += rotateint;
+                    if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
+                        rc = GetLastError();
+                        svcsyserror(__LINE__, rc, L"SetWaitableTimer");
+                        xcreatethread(1, 0, &stopthread);
+                    }
                 }
             break;
             case WAIT_OBJECT_1:
@@ -1489,10 +1479,12 @@ static unsigned int __stdcall rotatethread(void *unused)
 #endif
             break;
         }
-    } while ((wc == WAIT_OBJECT_0) || (wc == WAIT_TIMEOUT));
+    } while ((rc == 0) && ((wc == WAIT_OBJECT_0) || (wc == WAIT_TIMEOUT)));
 
 finished:
 #if defined(_DBGVIEW)
+    if (rc)
+        dbgprintf(__FUNCTION__, "log rotation failed %d", rc);
     dbgprintf(__FUNCTION__, "done");
 #endif
     SAFE_CLOSE_HANDLE(hrotatetimer);
