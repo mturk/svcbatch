@@ -995,29 +995,31 @@ failed:
 
 static DWORD rotatelogs(void)
 {
-    DWORD rv = 0;
+    DWORD rc = 0;
     HANDLE h = NULL;
 
     EnterCriticalSection(&logfilelock);
     h =  InterlockedExchangePointer(&logfhandle, NULL);
-    if (h != NULL) {
-        logfflush(h);
-        logwrtime(h, "Log rotated");
-        FlushFileBuffers(h);
-        CloseHandle(h);
-        rv = openlogfile();
-        if (rv == 0) {
-            int c = (int)InterlockedIncrement(&rotatecount);
-            logprintf(logfhandle, "Log generation   : %d", c);
-            logconfig(logfhandle);
-        }
+    if (h == NULL) {
+        LeaveCriticalSection(&logfilelock);
+        return ERROR_FILE_NOT_FOUND;
+    }
+    logfflush(h);
+    logwrtime(h, "Log rotated");
+    FlushFileBuffers(h);
+    CloseHandle(h);
+    rc = openlogfile();
+    if (rc == 0) {
+        int c = (int)InterlockedIncrement(&rotatecount);
+        logprintf(logfhandle, "Log generation   : %d", c);
+        logconfig(logfhandle);
     }
     LeaveCriticalSection(&logfilelock);
-    if (rv) {
-        setsvcstatusexit(rv);
-        svcsyserror(__LINE__, rv, L"rotatelogs");
+    if (rc) {
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"rotatelogs");
     }
-    return rv;
+    return rc;
 }
 
 static void closelogfile(void)
