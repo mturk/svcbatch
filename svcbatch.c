@@ -900,6 +900,8 @@ static DWORD openlogfile(void)
     }
     memset(sfx, 0, 48);
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
+        DWORD m = MOVEFILE_REPLACE_EXISTING;
+
         if (autorotate) {
             SYSTEMTIME st;
 
@@ -907,13 +909,14 @@ static DWORD openlogfile(void)
             _snwprintf(sfx, 20, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
                        st.wYear, st.wMonth, st.wDay,
                        st.wHour, st.wMinute, st.wSecond);
+            m = 0;
         }
         else {
             sfx[0] = L'.';
             sfx[1] = L'0';
         }
         logpb = xwcsconcat(logfilename, sfx);
-        if (!MoveFileExW(logfilename, logpb, 0)) {
+        if (!MoveFileExW(logfilename, logpb, m)) {
             rc = GetLastError();
             xfree(logpb);
             return svcsyserror(__LINE__, rc, L"MoveFileExW");
