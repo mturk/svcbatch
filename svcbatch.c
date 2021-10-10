@@ -1397,6 +1397,14 @@ static unsigned int __stdcall rotatethread(void *unused)
     dbgprintf(__FUNCTION__, "started");
 #endif
 
+    rc = 0;
+    wc = WaitForSingleObject(processended, SVCBATCH_START_HINT);
+    if (wc != WAIT_TIMEOUT) {
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "ended %d", wc);
+#endif
+        goto finished;
+    }
     hrotatetimer = CreateWaitableTimerW(NULL, TRUE, NULL);
     if (IS_INVALID_HANDLE(hrotatetimer)) {
         rc = GetLastError();
