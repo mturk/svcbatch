@@ -24,6 +24,7 @@
 
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
+static volatile LONG         sscstate    = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -698,7 +699,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
     static DWORD cpcnt = 1;
 
     EnterCriticalSection(&servicelock);
-    if (ssvcstatus.dwCurrentState == SERVICE_STOPPED)
+    if (InterlockedExchange(&sscstate, SERVICE_STOPPED) == SERVICE_STOPPED)
         goto finished;
     ssvcstatus.dwControlsAccepted = 0;
     ssvcstatus.dwCheckPoint       = 0;
@@ -725,10 +726,10 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwCheckPoint = cpcnt++;
         ssvcstatus.dwWaitHint   = param;
     }
+    InterlockedExchange(&sscstate, status);
     ssvcstatus.dwCurrentState = status;
     if (!SetServiceStatus(hsvcstatus, &ssvcstatus))
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
-
 finished:
     LeaveCriticalSection(&servicelock);
 }
@@ -982,7 +983,7 @@ static DWORD rotatelogs(void)
 
     EnterCriticalSection(&logfilelock);
     h =  InterlockedExchangePointer(&logfhandle, NULL);
-    if (IS_VALID_HANDLE(h)) {
+    if (h != NULL) {
         logfflush(h);
         logwrtime(h, "Log rotated");
         FlushFileBuffers(h);
@@ -1006,7 +1007,7 @@ static void closelogfile(void)
 
     EnterCriticalSection(&logfilelock);
     h = InterlockedExchangePointer(&logfhandle, NULL);
-    if (IS_VALID_HANDLE(h)) {
+    if (h != NULL) {
         logfflush(h);
         logwrtime(h, "Log closed");
         FlushFileBuffers(h);
@@ -1138,7 +1139,7 @@ static unsigned int __stdcall stopthread(void *unused)
 {
     const char yn[2] = { 'Y', '\n'};
     DWORD wr, ws;
-    HANDLE lh = NULL;
+    HANDLE h = NULL;
     int   i;
 
     if (InterlockedIncrement(&sstarted) > 1) {
@@ -1155,12 +1156,12 @@ static unsigned int __stdcall stopthread(void *unused)
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     EnterCriticalSection(&logfilelock);
-    lh = InterlockedExchangePointer(&logfhandle, NULL);
-    if (IS_VALID_HANDLE(lh)) {
-        logfflush(lh);
-        logwrline(lh, "Service STOP signaled\r\n");
+    h = InterlockedExchangePointer(&logfhandle, NULL);
+    if (h != NULL) {
+        logfflush(h);
+        logwrline(h, "Service STOP signaled\r\n");
     }
-    InterlockedExchangePointer(&logfhandle, lh);
+    InterlockedExchangePointer(&logfhandle, h);
     LeaveCriticalSection(&logfilelock);
 
 #if defined(_DBGVIEW)
@@ -1270,7 +1271,7 @@ static unsigned int __stdcall iopipethread(void *unused)
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
 
-            if (IS_VALID_HANDLE(h))
+            if (h != NULL)
                 rc = logappend(h, rb, rd);
             else
                 rc = ERROR_NO_MORE_FILES;
@@ -1317,7 +1318,7 @@ static unsigned int __stdcall monitorthread(void *unused)
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
 
-            if (IS_VALID_HANDLE(h)) {
+            if (h != NULL) {
                 logfflush(h);
                 logwrline(h, "CTRL_BREAK_EVENT signaled\r\n");
             }
@@ -1368,6 +1369,7 @@ static unsigned int __stdcall monitorthread(void *unused)
 static unsigned int __stdcall rotatethread(void *unused)
 {
     HANDLE wh[2];
+    HANDLE h = NULL;
     DWORD  wc, rc, ms;
 
 #if defined(_DBGVIEW)
@@ -1401,9 +1403,11 @@ static unsigned int __stdcall rotatethread(void *unused)
         switch (wc) {
             case WAIT_TIMEOUT:
                 EnterCriticalSection(&logfilelock);
-                if (IS_VALID_HANDLE(logfhandle)) {
+                h = InterlockedExchangePointer(&logfhandle, NULL);
+                if (h != NULL) {
                     LARGE_INTEGER fs;
-                    if (GetFileSizeEx(logfhandle, &fs)) {
+                    if (GetFileSizeEx(h, &fs)) {
+                        InterlockedExchangePointer(&logfhandle, h);
                         if (fs.QuadPart >= rotatesiz.QuadPart) {
 #if defined(_DBGVIEW)
                             dbgprintf(__FUNCTION__, "rotate by size");
@@ -1420,6 +1424,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                     }
                     else {
                         rc = GetLastError();
+                        CloseHandle(h);
                         LeaveCriticalSection(&logfilelock);
                         setsvcstatusexit(rc);
                         svcsyserror(__LINE__, rc, L"GetFileSizeEx");
@@ -1482,7 +1487,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         case CTRL_SHUTDOWN_EVENT:
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
-            if (IS_VALID_HANDLE(h)) {
+            if (h != NULL) {
                 logfflush(h);
                 logwrline(h, "CTRL_SHUTDOWN_EVENT signaled");
             }
@@ -1522,7 +1527,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 #endif
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
-            if (IS_VALID_HANDLE(h)) {
+            if (h != NULL) {
                 logfflush(h);
                 logprintf(h, "Service SHUTDOWN (0x%08x) signaled", ctrl);
             }
