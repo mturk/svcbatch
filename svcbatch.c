@@ -798,15 +798,19 @@ finished:
 
 static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 {
-    DWORD w;
+    DWORD wr, rc = 0;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
     if (!SetFilePointerEx(h, ee, NULL, FILE_END))
         return GetLastError();
-    if (!WriteFile(h, buf, len, &w, NULL))
-        return GetLastError();
-    else
-        return 0;
+    if (!WriteFile(h, buf, len, &wr, NULL))
+        rc = GetLastError();
+#if defined(_DBGVIEW)
+    if ((rc != 0) || (wr == 0)) {
+        dbgprintf(__FUNCTION__, "wrote zero bytes (0x%08x)", rc);
+    }
+#endif
+    return rc;
 }
 
 static void logfflush(HANDLE h)
