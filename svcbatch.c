@@ -1376,9 +1376,7 @@ static unsigned int __stdcall monitorthread(void *unused)
 #if defined(_DBGVIEW)
                         dbgprintf(__FUNCTION__, "log rotation failed");
 #endif
-                        /**
-                         * Create stop thread and exit.
-                         */
+                        setsvcstatusexit(rc);
                         xcreatethread(1, 0, &stopthread);
                     }
                     if (rotateint != ONE_DAY) {
@@ -1394,7 +1392,8 @@ static unsigned int __stdcall monitorthread(void *unused)
                     dbgprintf(__FUNCTION__, "Unknown control: %ld", cc);
                 }
 #endif
-                ResetEvent(monitorevent);
+                if (rc == 0)
+                    ResetEvent(monitorevent);
             break;
 #if defined(_DBGVIEW)
             case WAIT_OBJECT_1:
