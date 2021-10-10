@@ -885,7 +885,7 @@ static DWORD openlogfile(void)
     DWORD rc;
     HANDLE h = NULL;
     WIN32_FILE_ATTRIBUTE_DATA ad;
-    int i, m = 0;
+    int i;
 
     logtickcount = GetTickCount64();
     InterlockedExchangePointer(&logfhandle, NULL);
@@ -966,8 +966,7 @@ static DWORD openlogfile(void)
                 lognn = xwcsconcat(logfilename, sfx);
                 if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
                     rc = GetLastError();
-                    if (m > 0)
-                        svcsyserror(__LINE__, rc, L"MoveFileExW already executed");
+                    svcsyserror(__LINE__, rc, L"MoveFileExW");
                     xfree(logpn);
                     xfree(lognn);
                     SetLastError(rc);
@@ -976,7 +975,6 @@ static DWORD openlogfile(void)
                 xfree(lognn);
                 if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
                     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-                m++;
             }
             xfree(logpn);
         }
