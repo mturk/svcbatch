@@ -906,7 +906,7 @@ static DWORD openlogfile(void)
     }
     memset(sfx, 0, 48);
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
-        DWORD m = MOVEFILE_REPLACE_EXISTING;
+        DWORD mm = MOVEFILE_REPLACE_EXISTING;
 
         if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
             reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -917,14 +917,14 @@ static DWORD openlogfile(void)
             _snwprintf(sfx, 20, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
                        st.wYear, st.wMonth, st.wDay,
                        st.wHour, st.wMinute, st.wSecond);
-            m = 0;
+            mm = 0;
         }
         else {
             sfx[0] = L'.';
             sfx[1] = L'0';
         }
         logpb = xwcsconcat(logfilename, sfx);
-        if (!MoveFileExW(logfilename, logpb, m)) {
+        if (!MoveFileExW(logfilename, logpb, mm)) {
             rc = GetLastError();
             xfree(logpb);
             return svcsyserror(__LINE__, rc, L"MoveFileExW");
