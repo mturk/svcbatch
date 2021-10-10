@@ -526,11 +526,12 @@ static wchar_t *expandenvstrings(const wchar_t *str)
     int       bsz;
     int       len;
 
-    if ((bsz = xwcslen(str)) == 0) {
+    bsz = xwcslen(str);
+    if (bsz == 0) {
         SetLastError(ERROR_INVALID_PARAMETER);
         return NULL;
     }
-    if (wcschr(str, L'%') == 0)
+    if (wcschr(str, L'%') == NULL)
         buf = xwcsdup(str);
 
     while (buf == NULL) {
@@ -561,7 +562,8 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 
     if (IS_EMPTY_WCS(path))
         return NULL;
-    if ((es = expandenvstrings(path)) == NULL)
+    es = expandenvstrings(path);
+    if (es == NULL)
         return NULL;
     rmtrailingps(es);
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, NULL,
@@ -889,7 +891,8 @@ static DWORD openlogfile(void)
             return GetLastError();
         if (isrelativepath(loglocation)) {
             wchar_t *n = loglocation;
-            if ((loglocation = getrealpathname(n, 1)) == 0)
+            loglocation = getrealpathname(n, 1);
+            if (loglocation == NULL)
                 return GetLastError();
             xfree(n);
         }
@@ -1901,7 +1904,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             }
         }
         if (bname == NULL) {
-            if ((bname = expandenvstrings(p)) == NULL)
+            bname = expandenvstrings(p);
+            if (bname == NULL)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
             xreplacepathsep(bname);
         }
@@ -2007,15 +2011,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                  servicehome,
                                  stdwinpaths, NULL);
         xfree(opath);
-
-        if ((opath = expandenvstrings(cp)) == NULL)
+        opath = expandenvstrings(cp);
+        if (opath == NULL)
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
         xfree(cp);
     }
     rmtrailingps(opath);
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
-    if ((i = resolverotate(rotateparam)) != 0)
+    i = resolverotate(rotateparam);
+    if (i != 0)
         return svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
 
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
