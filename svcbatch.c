@@ -882,7 +882,7 @@ static DWORD openlogfile(void)
 {
     wchar_t  sfx[24];
     wchar_t *logpb = NULL;
-    DWORD rc;
+    DWORD rc = 0;
     HANDLE h = NULL;
     WIN32_FILE_ATTRIBUTE_DATA ad;
     int i;
@@ -947,6 +947,7 @@ static DWORD openlogfile(void)
                     FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (IS_INVALID_HANDLE(h)) {
+        rc = GetLastError();
         goto failed;
     }
     if (autorotate == 0) {
@@ -969,7 +970,6 @@ static DWORD openlogfile(void)
                     svcsyserror(__LINE__, rc, L"MoveFileExW");
                     xfree(logpn);
                     xfree(lognn);
-                    SetLastError(rc);
                     goto failed;
                 }
                 xfree(lognn);
@@ -986,7 +986,6 @@ static DWORD openlogfile(void)
     return 0;
 
 failed:
-    rc = GetLastError();
     SAFE_CLOSE_HANDLE(h);
     if (logpb != NULL) {
         MoveFileExW(logpb, logfilename, MOVEFILE_REPLACE_EXISTING);
