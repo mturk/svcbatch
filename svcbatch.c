@@ -792,26 +792,26 @@ finished:
     return rc;
 }
 
-static DWORD logappend(LPCVOID buf, DWORD len)
+static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 {
     DWORD w;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
-    if (!SetFilePointerEx(logfhandle, ee, NULL, FILE_END))
+    if (!SetFilePointerEx(h, ee, NULL, FILE_END))
         return GetLastError();
-    if (!WriteFile(logfhandle, buf, len, &w, NULL))
+    if (!WriteFile(h, buf, len, &w, NULL))
         return GetLastError();
     else
         return 0;
 }
 
-static void logfflush(void)
+static void logfflush(HANDLE h)
 {
-    FlushFileBuffers(logfhandle);
-    logappend(CRLF, 2);
+    FlushFileBuffers(h);
+    logappend(h, CRLF, 2);
 }
 
-static void logwrline(const char *str)
+static void logwrline(HANDLE h, const char *str)
 {
     char    buf[BBUFSIZ];
     ULONGLONG ct;
@@ -830,13 +830,13 @@ static void logwrline(const char *str)
             dd, hh, mm, ss, ms,
             GetCurrentProcessId(),
             GetCurrentThreadId());
-    WriteFile(logfhandle, buf, (DWORD)strlen(buf), &w, NULL);
-    WriteFile(logfhandle, str, (DWORD)strlen(str), &w, NULL);
+    WriteFile(h, buf, (DWORD)strlen(buf), &w, NULL);
+    WriteFile(h, str, (DWORD)strlen(str), &w, NULL);
 
-    WriteFile(logfhandle, CRLF, 2, &w, NULL);
+    WriteFile(h, CRLF, 2, &w, NULL);
 }
 
-static void logprintf(const char *format, ...)
+static void logprintf(HANDLE h, const char *format, ...)
 {
     char    bp[MBUFSIZ];
     va_list ap;
@@ -845,29 +845,29 @@ static void logprintf(const char *format, ...)
     _vsnprintf(bp, MBUFSIZ - 2, format, ap);
     va_end(ap);
     bp[MBUFSIZ - 1] = '\0';
-    logwrline(bp);
+    logwrline(h, bp);
 }
 
-static void logwrtime(const char *hdr)
+static void logwrtime(HANDLE h, const char *hdr)
 {
     SYSTEMTIME tt;
 
     GetSystemTime(&tt);
-    logprintf("%-16s : %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+    logprintf(h, "%-16s : %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
               hdr,
               tt.wYear, tt.wMonth, tt.wDay,
               tt.wHour, tt.wMinute, tt.wSecond);
 }
 
-static void logconfig(void)
+static void logconfig(HANDLE h)
 {
-    logprintf("Service name     : %S", servicename);
-    logprintf("Service uuid     : %S", serviceuuid);
-    logprintf("Batch file       : %S", svcbatchfile);
-    logprintf("Base directory   : %S", servicebase);
-    logprintf("Working directory: %S", servicehome);
-    logprintf("Log directory    : %S", loglocation);
-    logfflush();
+    logprintf(h, "Service name     : %S", servicename);
+    logprintf(h, "Service uuid     : %S", serviceuuid);
+    logprintf(h, "Batch file       : %S", svcbatchfile);
+    logprintf(h, "Base directory   : %S", servicebase);
+    logprintf(h, "Working directory: %S", servicehome);
+    logprintf(h, "Log directory    : %S", loglocation);
+    logfflush(h);
 }
 
 static DWORD openlogfile(void)
@@ -875,10 +875,12 @@ static DWORD openlogfile(void)
     wchar_t  sfx[24];
     wchar_t *logpb = NULL;
     DWORD rc;
+    HANDLE h = NULL;
     WIN32_FILE_ATTRIBUTE_DATA ad;
     int i, m = 0;
 
     logtickcount = GetTickCount64();
+    InterlockedExchangePointer(&logfhandle, NULL);
 
     if (logfilename == NULL) {
         if (!CreateDirectoryW(loglocation, 0) &&
@@ -917,13 +919,11 @@ static DWORD openlogfile(void)
 
     if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    logfhandle = CreateFileW(logfilename,
-                             GENERIC_WRITE,
-                             FILE_SHARE_READ,
-                            &sazero, CREATE_NEW,
-                             FILE_ATTRIBUTE_NORMAL, NULL);
+    h = CreateFileW(logfilename, GENERIC_WRITE,
+                    FILE_SHARE_READ, &sazero, CREATE_NEW,
+                    FILE_ATTRIBUTE_NORMAL, NULL);
 
-    if (IS_INVALID_HANDLE(logfhandle)) {
+    if (IS_INVALID_HANDLE(h)) {
         goto failed;
     }
     if (autorotate == 0) {
@@ -959,13 +959,14 @@ static DWORD openlogfile(void)
         }
     }
     xfree(logpb);
-
-    logwrline(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
-    logwrtime("Log opened");
+    logwrline(h, SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
+    logwrtime(h, "Log opened");
+    InterlockedExchangePointer(&logfhandle, h);
     return 0;
 
 failed:
     rc = GetLastError();
+    SAFE_CLOSE_HANDLE(h);
     if (logpb != NULL) {
         MoveFileExW(logpb, logfilename, MOVEFILE_REPLACE_EXISTING);
         xfree(logpb);
@@ -977,16 +978,18 @@ static DWORD rotatelogs(void)
 {
     static int rotatecount = 1;
     DWORD rv = ERROR_FILE_NOT_FOUND;
+    HANDLE h = NULL;
 
     EnterCriticalSection(&logfilelock);
-    if (IS_VALID_HANDLE(logfhandle)) {
-        logfflush();
-        logwrtime("Log rotated");
-        FlushFileBuffers(logfhandle);
-        SAFE_CLOSE_HANDLE(logfhandle);
+    h =  InterlockedExchangePointer(&logfhandle, NULL);
+    if (IS_VALID_HANDLE(h)) {
+        logfflush(h);
+        logwrtime(h, "Log rotated");
+        FlushFileBuffers(h);
+        CloseHandle(h);
         if ((rv = openlogfile()) == 0) {
-            logprintf("Log generation   : %d", rotatecount++);
-            logconfig();
+            logprintf(logfhandle, "Log generation   : %d", rotatecount++);
+            logconfig(logfhandle);
         }
     }
     LeaveCriticalSection(&logfilelock);
@@ -999,12 +1002,15 @@ static DWORD rotatelogs(void)
 
 static void closelogfile(void)
 {
+    HANDLE h;
+
     EnterCriticalSection(&logfilelock);
-    if (IS_VALID_HANDLE(logfhandle)) {
-        logfflush();
-        logwrtime("Log closed");
-        FlushFileBuffers(logfhandle);
-        SAFE_CLOSE_HANDLE(logfhandle);
+    h = InterlockedExchangePointer(&logfhandle, NULL);
+    if (IS_VALID_HANDLE(h)) {
+        logfflush(h);
+        logwrtime(h, "Log closed");
+        FlushFileBuffers(h);
+        CloseHandle(h);
     }
     LeaveCriticalSection(&logfilelock);
 }
@@ -1132,6 +1138,7 @@ static unsigned int __stdcall stopthread(void *unused)
 {
     const char yn[2] = { 'Y', '\n'};
     DWORD wr, ws;
+    HANDLE lh = NULL;
     int   i;
 
     if (InterlockedIncrement(&sstarted) > 1) {
@@ -1148,10 +1155,12 @@ static unsigned int __stdcall stopthread(void *unused)
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     EnterCriticalSection(&logfilelock);
-    if (IS_VALID_HANDLE(logfhandle)) {
-        logfflush();
-        logwrline("Service STOP signaled\r\n");
+    lh = InterlockedExchangePointer(&logfhandle, NULL);
+    if (IS_VALID_HANDLE(lh)) {
+        logfflush(lh);
+        logwrline(lh, "Service STOP signaled\r\n");
     }
+    InterlockedExchangePointer(&logfhandle, lh);
     LeaveCriticalSection(&logfilelock);
 
 #if defined(_DBGVIEW)
@@ -1247,6 +1256,7 @@ static unsigned int __stdcall iopipethread(void *unused)
     while (rc == 0) {
         BYTE  rb[HBUFSIZ];
         DWORD rd = 0;
+        HANDLE h = NULL;
 
         if (!ReadFile(stdoutputpiper, rb, HBUFSIZ, &rd, NULL) || (rd == 0)) {
             /**
@@ -1258,10 +1268,13 @@ static unsigned int __stdcall iopipethread(void *unused)
         }
         else {
             EnterCriticalSection(&logfilelock);
-            if (IS_VALID_HANDLE(logfhandle))
-                rc = logappend(rb, rd);
+            h = InterlockedExchangePointer(&logfhandle, NULL);
+
+            if (IS_VALID_HANDLE(h))
+                rc = logappend(h, rb, rd);
             else
                 rc = ERROR_NO_MORE_FILES;
+            InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
         }
     }
@@ -1288,7 +1301,8 @@ static unsigned int __stdcall monitorthread(void *unused)
 #endif
 
     while (WaitForSingleObject(monitorevent, INFINITE) == WAIT_OBJECT_0) {
-        LONG cc = InterlockedExchange(&monitorsig, 0);
+        HANDLE h = NULL;
+        LONG  cc = InterlockedExchange(&monitorsig, 0);
 
         if (cc == 0) {
 #if defined(_DBGVIEW)
@@ -1301,10 +1315,13 @@ static unsigned int __stdcall monitorthread(void *unused)
             dbgprintf(__FUNCTION__, "break signaled");
 #endif
             EnterCriticalSection(&logfilelock);
-            if (IS_VALID_HANDLE(logfhandle)) {
-                logfflush();
-                logwrline("CTRL_BREAK_EVENT signaled\r\n");
+            h = InterlockedExchangePointer(&logfhandle, NULL);
+
+            if (IS_VALID_HANDLE(h)) {
+                logfflush(h);
+                logwrline(h, "CTRL_BREAK_EVENT signaled\r\n");
             }
+            InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
             /**
              * Danger Zone!!!
@@ -1458,14 +1475,18 @@ finished:
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
+    HANDLE h = NULL;
+
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
         case CTRL_SHUTDOWN_EVENT:
             EnterCriticalSection(&logfilelock);
-            if (IS_VALID_HANDLE(logfhandle)) {
-                logfflush();
-                logwrline("CTRL_SHUTDOWN_EVENT signaled");
+            h = InterlockedExchangePointer(&logfhandle, NULL);
+            if (IS_VALID_HANDLE(h)) {
+                logfflush(h);
+                logwrline(h, "CTRL_SHUTDOWN_EVENT signaled");
             }
+            InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
         break;
         case CTRL_C_EVENT:
@@ -1492,16 +1513,20 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
 static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
 {
+    HANDLE h = NULL;
+
     switch(ctrl) {
         case SERVICE_CONTROL_SHUTDOWN:
 #if defined(SERVICE_CONTROL_PRESHUTDOWN)
         case SERVICE_CONTROL_PRESHUTDOWN:
 #endif
             EnterCriticalSection(&logfilelock);
-            if (IS_VALID_HANDLE(logfhandle)) {
-                logfflush();
-                logprintf("Service SHUTDOWN (0x%08x) signaled", ctrl);
+            h = InterlockedExchangePointer(&logfhandle, NULL);
+            if (IS_VALID_HANDLE(h)) {
+                logfflush(h);
+                logprintf(h, "Service SHUTDOWN (0x%08x) signaled", ctrl);
             }
+            InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
@@ -1686,7 +1711,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
-    logconfig();
+    logconfig(logfhandle);
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     /**
