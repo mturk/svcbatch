@@ -1637,10 +1637,10 @@ static unsigned int __stdcall workerthread(void *unused)
     dbgprintf(__FUNCTION__, "comspec %S", comspec);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 #endif
-    if (createiopipes() != 0)
-        goto finished;
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
+    if (createiopipes() != 0)
+        goto finished;
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
         JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
