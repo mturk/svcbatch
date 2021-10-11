@@ -26,10 +26,10 @@ TARGET  = $(PROJECT).exe
 WORKDIR = $(SRCDIR)/x64
 OUTPUT  = $(WORKDIR)/$(TARGET)
 
-ifneq "x$(_DBGVIEW)" "x"
+ifdef _DBGVIEW
 DFLAGS = -D_DBGVIEW
 endif
-ifneq "x$(_DBGSAVE)" "x"
+ifdef _DBGSAVE
 DFLAGS = -D_DBGVIEW -D_DBGSAVE
 endif
 
@@ -43,11 +43,11 @@ RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER) $(EXTRA_RFLAGS
 CLOPTS  = $(LNOPTS) -c
 LDLIBS  = -lkernel32 -ladvapi32 -luser32
 
-ifneq "x$(_VENDOR_SFX)" "x"
+ifdef _VENDOR_SFX
 CFLAGS += -D_VENDOR_SFX=$(_VENDOR_SFX)
 RFLAGS += -D _VENDOR_SFX=$(_VENDOR_SFX)
 endif
-ifneq "x$(_VENDOR_NUM)" "x"
+ifdef _VENDOR_NUM
 RFLAGS += -D _VENDOR_NUM=$(_VENDOR_NUM)
 endif
 
@@ -63,7 +63,7 @@ $(WORKDIR):
 
 $(WORKDIR)/%.obj: $(SRCDIR)/%.c $(SRCDIR)/%.h
 	@echo CC $<
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) $<
+	@$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
 	@echo RC $<
