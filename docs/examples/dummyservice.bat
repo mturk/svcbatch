@@ -19,10 +19,16 @@ rem Dummy SvcBatch service
 rem
 rem
 setlocal
+set "SERVICE_NAME=adummysvc"
 rem
 if /i "x%~1" == "xcreate" goto doCreate
 if /i "x%~1" == "xdelete" goto doDelete
+if /i "x%~1" == "xremove" goto doRemove
+if /i "x%~1" == "xstart"  goto doStart
+if /i "x%~1" == "xstop"   goto doStop
+if /i "x%~1" == "xrotate" goto doRotate
 rem
+set "SERVICE_NAME="
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo.
 rem Dump environment variables to log file
@@ -34,6 +40,10 @@ rem
 echo [%TIME%] ... running
 rem Simulate work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
+rem Uncomment to write more data to SvcBatch.log
+rem echo.
+rem set
+rem echo.
 rem
 rem Send shutdown signal
 rem sc stop %SVCBATCH_SERVICE_NAME%
@@ -48,22 +58,48 @@ goto End
 :doCreate
 rem
 rem
-set "SERVICE_NAME=adummysvc"
 rem Presuming this is the build tree ...
+rem Create a service command line
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" -r @30~100K %~nx0"
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" -r \"@30~100K\" %~nx0"
+sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
+sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= demand
 sc description "%SERVICE_NAME%" "One dummy SvcBatch service example"
 sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
+goto End
+
+:doStart
+rem
+rem
+sc start "%SERVICE_NAME%"
+goto End
+
+:doStop
+rem
+rem
+sc stop "%SERVICE_NAME%"
+goto End
+
+:doRotate
+rem
+rem
+sc control "%SERVICE_NAME%" 234
 goto End
 
 :doDelete
 rem
 rem
-set "SERVICE_NAME=adummysvc"
 sc stop "%SERVICE_NAME%" >NUL
 sc delete "%SERVICE_NAME%"
+goto End
+
+:doRemove
 rem
-rem rd /S /Q Logs 2>NUL
+rem
+sc stop "%SERVICE_NAME%" >NUL
+sc delete "%SERVICE_NAME%" >NUL
+rd /S /Q Logs 2>NUL
+echo Removed %SERVICE_NAME%
 
 :End
