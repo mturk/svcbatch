@@ -944,14 +944,19 @@ static DWORD openlogfile(int firstopen)
         dbgfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".debug.log");
         dbgfhandle  = CreateFileW(dbgfilename, GENERIC_WRITE,
-                                  FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
+                                  FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
                                   FILE_ATTRIBUTE_NORMAL, NULL);
         if (IS_INVALID_HANDLE(dbgfhandle)) {
+            dbgfhandle = NULL;
             dbgprintf(__FUNCTION__, "failed to create %S", dbgfilename);
         }
         else {
             SYSTEMTIME tt;
-
+            if (GetLastError() == ERROR_ALREADY_EXISTS) {
+                DWORD wr;
+                WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
+                WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
+            }
             GetSystemTime(&tt);
             dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                       tt.wYear, tt.wMonth, tt.wDay,
