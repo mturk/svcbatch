@@ -912,7 +912,7 @@ static void logconfig(HANDLE h)
     logfflush(h);
 }
 
-static DWORD openlogfile(void)
+static DWORD openlogfile(int firstopen)
 {
     wchar_t  sfx[24];
     wchar_t *logpb = NULL;
@@ -920,7 +920,6 @@ static DWORD openlogfile(void)
     HANDLE h = NULL;
     WIN32_FILE_ATTRIBUTE_DATA ad;
     int i;
-    int svcpending = 0;
 
     logtickcount = GetTickCount64();
     InterlockedExchangePointer(&logfhandle, NULL);
@@ -938,7 +937,6 @@ static DWORD openlogfile(void)
         }
         logfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
-        svcpending = 1;
     }
 #if defined(_DBGSAVE)
     if (dbgfilename == NULL) {
@@ -966,7 +964,7 @@ static DWORD openlogfile(void)
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
         DWORD mm = MOVEFILE_REPLACE_EXISTING;
 
-        if (svcpending)
+        if (firstopen)
             reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         if (autorotate) {
             SYSTEMTIME st;
@@ -998,7 +996,7 @@ static DWORD openlogfile(void)
         }
     }
 
-    if (svcpending)
+    if (firstopen)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     h = CreateFileW(logfilename, GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, CREATE_NEW,
@@ -1031,7 +1029,7 @@ static DWORD openlogfile(void)
                     goto failed;
                 }
                 xfree(lognn);
-                if (svcpending)
+                if (firstopen)
                     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
             }
             xfree(logpn);
@@ -1067,7 +1065,7 @@ static DWORD rotatelogs(void)
     logwrtime(h, "Log rotated");
     FlushFileBuffers(h);
     CloseHandle(h);
-    rc = openlogfile();
+    rc = openlogfile(0);
     if (rc == 0) {
         int c = (int)InterlockedIncrement(&rotatecount);
         logprintf(logfhandle, "Log generation   : %d", c);
@@ -1811,7 +1809,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dbgprintf(__FUNCTION__, "started %S", servicename);
 #endif
 
-    if ((rv = openlogfile()) != 0) {
+    if ((rv = openlogfile(1)) != 0) {
         svcsyserror(__LINE__, rv, L"OpenLogfile");
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
