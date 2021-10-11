@@ -113,6 +113,20 @@ For more information about DebugView check the
 [DebugView](https://docs.microsoft.com/en-us/sysinternals/downloads/debugview)
 official site.
 
+### DebugTrace support
+
+For debug and development purposes you can compile
+SvcBatch with the `_DBGSAVE` option that will enable
+internal tracing to `SvcBatch.debug.log` file.
+
+This option can be enabled at compile time by using
+the following:
+
+```cmd
+> nmake _DBGSAVE=1
+```
+
+When tis option is used SvcBatch will also set the `_DBGVIEW` option.
 
 ### Build using mingw64
 
