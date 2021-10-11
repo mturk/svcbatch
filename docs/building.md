@@ -160,7 +160,7 @@ At compile time you can define vendor suffix and/or version
 by using the following:
 
 ```cmd
-> nmake EXTRA_CFLAGS="-D_VENDOR_SFX=_1.acme" EXTRA_RFLAGS="/d _VENDOR_SFX="_1.acme"
+> nmake _VENDOR_SFX="_1.acme"
 ```
 
 This will create build with version strings set to `x.y.z_1.acme` where
