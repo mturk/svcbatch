@@ -20,6 +20,7 @@ LN = link.exe
 RC = rc.exe
 SRCDIR  = .
 PROJECT = svcbatch
+PPREFIX = $(SRCDIR)\$(PROJECT)
 WORKDIR = $(SRCDIR)\x64
 OUTPUT  = $(WORKDIR)\$(PROJECT).exe
 
@@ -54,11 +55,11 @@ all : $(WORKDIR) $(OUTPUT)
 $(WORKDIR):
 	@-md $(WORKDIR)
 
-$(WORKDIR)\$(PROJECT).obj: $(SRCDIR)\$(PROJECT).h
-	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -Fo$(WORKDIR)\ $(SRCDIR)\$(PROJECT).c
+$(WORKDIR)\$(PROJECT).obj: $(PPREFIX).h
+	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -Fo$(WORKDIR)\ $(PPREFIX).c
 
-$(WORKDIR)\$(PROJECT).res: $(SRCDIR)\$(PROJECT).h
-	$(RC) $(RFLAGS) /i $(SRCDIR) /fo $@ $(SRCDIR)\$(PROJECT).rc
+$(WORKDIR)\$(PROJECT).res: $(PPREFIX).h
+	$(RC) $(RFLAGS) /i $(SRCDIR) /fo $@ $(PPREFIX).rc
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LFLAGS) $(OBJECTS) $(LDLIBS) /out:$(OUTPUT)
