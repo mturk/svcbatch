@@ -72,8 +72,8 @@ static HANDLE    stdinputpipewr   = NULL;
 static HANDLE    stdinputpiperd   = NULL;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
-static const char   CRLFA[4]      = { '\r', '\n', '\0', '\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
+static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
 
 static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32;"              \
@@ -957,8 +957,7 @@ static DWORD openlogfile(int firstopen)
                 LARGE_INTEGER ee = {{ 0, 0 }};
 
                 SetFilePointerEx(dbgfhandle, ee, NULL, FILE_END);
-                WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
-                WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
+                WriteFile(dbgfhandle, CRLFA, 4, &wr, NULL);
             }
             GetSystemTime(&tt);
             dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
@@ -2175,9 +2174,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
-#if defined(_DBGSAVE)
+# if defined(_DBGSAVE)
     SAFE_CLOSE_HANDLE(dbgfhandle);
-#endif
+# endif
 #endif
     return 0;
 }
