@@ -20,9 +20,6 @@
 #include <string.h>
 #include <wchar.h>
 #include <process.h>
-#if !defined(_DBGVIEW) && defined(_DBGSAVE)
-# define _DBGVIEW 1
-#endif
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
