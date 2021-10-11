@@ -937,6 +937,10 @@ static DWORD openlogfile(void)
         dbgfhandle = CreateFileW(dbgfilename, GENERIC_WRITE,
                                  FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
                                  FILE_ATTRIBUTE_NORMAL, NULL);
+        if (IS_INVALID_HANDLE(dbgfhandle))
+            dbgprintf(__FUNCTION__, "failed to create %S", dbgfilename);
+        else
+            dbgprintf(__FUNCTION__, "tracing %S to %S", servicename, dbgfilename);
     }
 #endif
     memset(sfx, 0, 48);
