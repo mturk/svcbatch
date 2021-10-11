@@ -920,6 +920,7 @@ static DWORD openlogfile(void)
     HANDLE h = NULL;
     WIN32_FILE_ATTRIBUTE_DATA ad;
     int i;
+    int svcpending = 0;
 
     logtickcount = GetTickCount64();
     InterlockedExchangePointer(&logfhandle, NULL);
@@ -929,7 +930,7 @@ static DWORD openlogfile(void)
             (GetLastError() != ERROR_ALREADY_EXISTS))
             return GetLastError();
         if (isrelativepath(loglocation)) {
-            wchar_t *n = loglocation;
+            wchar_t *n  = loglocation;
             loglocation = getrealpathname(n, 1);
             if (loglocation == NULL)
                 return GetLastError();
@@ -937,15 +938,16 @@ static DWORD openlogfile(void)
         }
         logfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
+        svcpending = 1;
     }
 #if defined(_DBGSAVE)
     if (dbgfilename == NULL) {
         dbgtickinit = logtickcount;
         dbgfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".debug.log");
-        dbgfhandle = CreateFileW(dbgfilename, GENERIC_WRITE,
-                                 FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
-                                 FILE_ATTRIBUTE_NORMAL, NULL);
+        dbgfhandle  = CreateFileW(dbgfilename, GENERIC_WRITE,
+                                  FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
+                                  FILE_ATTRIBUTE_NORMAL, NULL);
         if (IS_INVALID_HANDLE(dbgfhandle)) {
             dbgprintf(__FUNCTION__, "failed to create %S", dbgfilename);
         }
@@ -964,7 +966,7 @@ static DWORD openlogfile(void)
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
         DWORD mm = MOVEFILE_REPLACE_EXISTING;
 
-        if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
+        if (svcpending)
             reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         if (autorotate) {
             SYSTEMTIME st;
@@ -996,7 +998,7 @@ static DWORD openlogfile(void)
         }
     }
 
-    if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
+    if (svcpending)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     h = CreateFileW(logfilename, GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, CREATE_NEW,
@@ -1029,7 +1031,7 @@ static DWORD openlogfile(void)
                     goto failed;
                 }
                 xfree(lognn);
-                if (ssvcstatus.dwCurrentState == SERVICE_START_PENDING)
+                if (svcpending)
                     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
             }
             xfree(logpn);
