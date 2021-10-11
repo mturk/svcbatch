@@ -24,7 +24,7 @@
 
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
-static volatile LONG         sscstate    = 0;
+static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 
 static volatile HANDLE       logfhandle  = NULL;
@@ -758,10 +758,12 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwCheckPoint = cpcnt++;
         ssvcstatus.dwWaitHint   = param;
     }
-    InterlockedExchange(&sscstate, status);
     ssvcstatus.dwCurrentState = status;
-    if (!SetServiceStatus(hsvcstatus, &ssvcstatus))
+    if (SetServiceStatus(hsvcstatus, &ssvcstatus))
+        InterlockedExchange(&sscstate, status);
+    else
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
+
 finished:
     LeaveCriticalSection(&servicelock);
 }
