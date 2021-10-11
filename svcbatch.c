@@ -56,11 +56,11 @@ static wchar_t  *serviceuuid      = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
-static ULONGLONG logtickcount;
+static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 #if defined(_DBGSAVE)
 static HANDLE    dbgfhandle       = NULL;
 static wchar_t  *dbgfilename      = NULL;
-static ULONGLONG dbgtickinit;
+static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
 #endif
 static HANDLE    hrotatetimer     = NULL;
 static HANDLE    svcstopended     = NULL;
