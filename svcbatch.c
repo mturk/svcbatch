@@ -702,22 +702,16 @@ static int runningasservice(void)
 
         if (GetUserObjectInformationW(ws, UOI_NAME, name,
                                       BBUFSIZ, &len)) {
-            if (strstartswith(name, L"Service-"))
-                rv = 1;
-            if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
-                                          DSIZEOF(uf), &len)) {
-                if (uf.dwFlags == WSF_VISIBLE)
-                    rv = 0;
+            if (strstartswith(name, L"Service-")) {
+                if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
+                                              DSIZEOF(uf), &len)) {
+                    if (uf.dwFlags != WSF_VISIBLE)
+                        rv = 1;
 #if defined(_DBGVIEW)
-                else
-                    OutputDebugStringW(name);
+                    else
+                        OutputDebugStringW(name);
 #endif
-            }
-            else {
-                rv = 0;
-#if defined(_DBGVIEW)
-                OutputDebugStringA("GetUserObjectInformationW failed");
-#endif
+                }
             }
         }
     }
