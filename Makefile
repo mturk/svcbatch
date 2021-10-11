@@ -55,11 +55,11 @@ all : $(WORKDIR) $(OUTPUT)
 $(WORKDIR):
 	@-md $(WORKDIR)
 
-.c{$(WORKDIR)}.obj:
-	$(CC) $(CLOPTS) $(CFLAGS) -Fo$(WORKDIR)\ $<
+$(WORKDIR)\$(PROJECT).obj: $(PROJECT).h
+	$(CC) $(CLOPTS) $(CFLAGS) -Fo$(WORKDIR)\ $(PROJECT).c
 
-.rc{$(WORKDIR)}.res:
-	$(RC) $(RFLAGS) /fo $@ $<
+$(WORKDIR)\$(PROJECT).res: $(PROJECT).h
+	$(RC) $(RFLAGS) /fo $@ $(PROJECT).rc
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LFLAGS) $(OBJECTS) $(LDLIBS) /out:$(OUTPUT)

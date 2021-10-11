@@ -54,11 +54,11 @@ all : $(OUTPUT)
 $(WORKDIR):
 	@mkdir -p $@
 
-$(WORKDIR)/%.o: $(SRCDIR)/%.c
+$(WORKDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
 	@echo CC $<
 	@$(CC) $(CLOPTS) -c $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
-$(WORKDIR)/%.res: $(SRCDIR)/%.rc
+$(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
 	@echo RC $<
 	@$(RC) $(RCOPTS) $(RFLAGS) -I $(SRCDIR) -o $@ $<
 
