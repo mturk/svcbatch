@@ -25,7 +25,6 @@ PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
 WORKDIR = $(SRCDIR)/x64
 OUTPUT  = $(WORKDIR)/$(TARGET)
-DFLAGS  =
 
 ifeq "$(_DBGVIEW)" "1"
 DFLAGS = -D_DBGVIEW
