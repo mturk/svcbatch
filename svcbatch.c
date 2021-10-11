@@ -400,6 +400,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         ULONGLONG ct;
         DWORD   ss, ms;
         DWORD   wr;
+        LARGE_INTEGER ee = {{ 0, 0 }};
 
         ct = GetTickCount64() - dbgtickinit;
         ms = (DWORD)(ct % MS_IN_SECOND);
@@ -410,6 +411,8 @@ static void dbgprintf(const char *funcname, const char *format, ...)
                 ss, ms,
                 GetCurrentProcessId());
         EnterCriticalSection(&logfilelock);
+        SetFilePointerEx(dbgfhandle, ee, NULL, FILE_END);
+
         WriteFile(dbgfhandle, hdr, (DWORD)strlen(hdr), &wr, NULL);
         WriteFile(dbgfhandle, buf, (DWORD)strlen(buf), &wr, NULL);
 
@@ -954,6 +957,9 @@ static DWORD openlogfile(int firstopen)
             SYSTEMTIME tt;
             if (GetLastError() == ERROR_ALREADY_EXISTS) {
                 DWORD wr;
+                LARGE_INTEGER ee = {{ 0, 0 }};
+
+                SetFilePointerEx(dbgfhandle, ee, NULL, FILE_END);
                 WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
                 WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
             }
