@@ -37,6 +37,11 @@
 #define SVCBATCH_MAJOR_VERSION  1
 #define SVCBATCH_MINOR_VERSION  0
 #define SVCBATCH_PATCH_VERSION  4
+#if defined(_VENDOR_NUM)
+# define SVCBATCH_MICRO_VERSION _VENDOR_NUM
+#else
+# define SVCBATCH_MICRO_VERSION 0
+#endif
 
 /**
  * Set to zero for non dev versions
@@ -170,7 +175,8 @@
  */
 #define SVCBATCH_VERSION_CSV    SVCBATCH_MAJOR_VERSION,                 \
                                 SVCBATCH_MINOR_VERSION,                 \
-                                SVCBATCH_PATCH_VERSION
+                                SVCBATCH_PATCH_VERSION,                 \
+                                SVCBATCH_MICRO_VERSION
 
 #define SVCBATCH_VERSION_STR \
                                 CPP_TOSTR(SVCBATCH_MAJOR_VERSION) "."   \
