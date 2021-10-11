@@ -31,7 +31,7 @@
                     version="1.0.4.0"
                     processorArchitecture="amd64"
                     name="Acme.Tools.SvcBatch" />
-  <description>Run batch files as Windows Services</description>
+  <description>Run batch files as Windows service</description>
 
   <trustInfo xmlns="urn:schemas-microsoft-com:asm.v3">
     <security>
