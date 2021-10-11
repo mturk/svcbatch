@@ -708,6 +708,10 @@ static int runningasservice(void)
                                           DSIZEOF(uf), &len)) {
                 if (uf.dwFlags == WSF_VISIBLE)
                     rv = 0;
+#if defined(_DBGVIEW)
+                else
+                    OutputDebugStringW(name);
+#endif
             }
         }
     }
