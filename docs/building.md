@@ -143,7 +143,7 @@ official site.
 
 For debug and development purposes you can compile
 SvcBatch with the `_DBGSAVE` option that will enable
-internal tracing to `SvcBatch.debug.log` file.
+internal tracing to `SvcBatch.dbg` file.
 
 This option can be enabled at compile time by using
 the following:

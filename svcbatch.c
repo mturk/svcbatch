@@ -942,7 +942,7 @@ static DWORD openlogfile(int firstopen)
     if (dbgfilename == NULL) {
         dbgtickinit = logtickcount;
         dbgfilename = xwcsconcat(loglocation,
-                                 L"\\" CPP_WIDEN(SVCBATCH_NAME) L".debug.log");
+                                 L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
         dbgfhandle  = CreateFileW(dbgfilename, GENERIC_WRITE,
                                   FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
                                   FILE_ATTRIBUTE_NORMAL, NULL);
