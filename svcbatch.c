@@ -713,6 +713,12 @@ static int runningasservice(void)
                     OutputDebugStringW(name);
 #endif
             }
+            else {
+                rv = 0;
+#if defined(_DBGVIEW)
+                OutputDebugStringA("GetUserObjectInformationW failed");
+#endif
+            }
         }
     }
     return rv;
