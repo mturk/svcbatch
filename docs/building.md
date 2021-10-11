@@ -82,6 +82,32 @@ Add `_STATIC_MSVCRT=1` as nmake parameter:
 
 ```
 
+### Build using mingw64
+
+SvcBatch can be built using GCC compiler from msys2.
+You will need to install [msys2](https://www.msys2.org)
+
+After installing msys2 open msys2 shell and
+install required packages: base-devel and mingw-w64-x86_64-toolchain
+if they are not already installed.
+
+For example
+```sh
+$ pacman --noconfirm -Sy base-devel
+$ pacman --noconfirm -Sy mingw-w64-x86_64-toolchain
+```
+
+Restart the shell with `-mingw64` parameter or open `mingw64.exe`
+terminal and cd to SvcBach source directory and type
+
+```sh
+
+$ make -f Makefile.gmk
+```
+
+In case there are no compile errors the svcbatch.exe is located
+inside **x64** subdirectory.
+
 ### Makefile targets
 
 Makefile has additional target which can be useful
@@ -126,33 +152,19 @@ the following:
 > nmake _DBGSAVE=1
 ```
 
-When tis option is used SvcBatch will also set the `_DBGVIEW` option.
+When this option is used SvcBatch will also set the `_DBGVIEW` option.
 
-### Build using mingw64
+### Vendor version support
 
-SvcBatch can be built using GCC compiler from msys2.
-You will need to install [msys2](https://www.msys2.org)
+At compile time you can define vendor suffix and/or version
+by using the following:
 
-After installing msys2 open msys2 shell and
-install required packages: base-devel and mingw-w64-x86_64-toolchain
-if they are not already installed.
-
-For example
-```sh
-$ pacman --noconfirm -Sy base-devel
-$ pacman --noconfirm -Sy mingw-w64-x86_64-toolchain
+```cmd
+> nmake EXTRA_CFLAGS="-D_VENDOR_SFX=_1.acme" EXTRA_RFLAGS="/d _VENDOR_SFX="_1.acme"
 ```
 
-Restart the shell with `-mingw64` parameter or open `mingw64.exe`
-terminal and cd to SvcBach source directory and type
-
-```sh
-
-$ make -f Makefile.gmk
-```
-
-In case there are no compile errors the svcbatch.exe is located
-inside **x64** subdirectory.
+This will create build with version strings set to `x.y.z_1.acme` where
+`x.y.z` are SvcBatch version numbers.
 
 ## Creating Release
 
