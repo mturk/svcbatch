@@ -704,12 +704,11 @@ static int runningasservice(void)
                                       BBUFSIZ, &len)) {
             if (strstartswith(name, L"Service-"))
                 rv = 1;
-
-        }
-        if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
-                                      DSIZEOF(uf), &len)) {
-            if (uf.dwFlags == WSF_VISIBLE)
-                rv = 0;
+            if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
+                                          DSIZEOF(uf), &len)) {
+                if (uf.dwFlags == WSF_VISIBLE)
+                    rv = 0;
+            }
         }
     }
     return rv;
