@@ -63,6 +63,7 @@ static ULONGLONG logtickcount;
 #if defined(_DBGSAVE)
 static HANDLE    dbgfhandle       = NULL;
 static wchar_t  *dbgfilename      = NULL;
+static ULONGLONG dbgtickinit;
 #endif
 static HANDLE    hrotatetimer     = NULL;
 static HANDLE    svcstopended     = NULL;
@@ -397,24 +398,23 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     if (dbgfhandle != NULL) {
         char    hdr[BBUFSIZ];
         ULONGLONG ct;
-        int     dd, hh, mm, ss, ms;
+        DWORD   ss, ms;
         DWORD   wr;
 
-        ct = GetTickCount64() - logtickcount;
-        ms = (int)((ct % MS_IN_SECOND));
-        ss = (int)((ct / MS_IN_SECOND) % 60);
-        mm = (int)((ct / MS_IN_MINUTE) % 60);
-        hh = (int)((ct / MS_IN_HOUR)   % 24);
-        dd = (int)((ct / MS_IN_DAY));
+        ct = GetTickCount64() - dbgtickinit;
+        ms = (DWORD)(ct % MS_IN_SECOND);
+        ss = (DWORD)(ct / MS_IN_SECOND);
 
         sprintf(hdr,
-                "[%.2d:%.2d:%.2d:%.2d.%.3d] [%.4lu] ",
-                dd, hh, mm, ss, ms,
+                "[%.6lu.%.3lu] [%.4lu] ",
+                ss, ms,
                 GetCurrentProcessId());
+        EnterCriticalSection(&logfilelock);
         WriteFile(dbgfhandle, hdr, (DWORD)strlen(hdr), &wr, NULL);
         WriteFile(dbgfhandle, buf, (DWORD)strlen(buf), &wr, NULL);
 
         WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
+        LeaveCriticalSection(&logfilelock);
     }
 #endif
 }
@@ -940,6 +940,7 @@ static DWORD openlogfile(void)
     }
 #if defined(_DBGSAVE)
     if (dbgfilename == NULL) {
+        dbgtickinit = logtickcount;
         dbgfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".debug.log");
         dbgfhandle = CreateFileW(dbgfilename, GENERIC_WRITE,
