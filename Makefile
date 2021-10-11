@@ -18,9 +18,9 @@
 CC = cl.exe
 LN = link.exe
 RC = rc.exe
-
+SRCDIR  = .
 PROJECT = svcbatch
-WORKDIR = x64
+WORKDIR = $(SRCDIR)\x64
 OUTPUT  = $(WORKDIR)\$(PROJECT).exe
 
 !IF DEFINED(_DBGVIEW)
@@ -54,11 +54,11 @@ all : $(WORKDIR) $(OUTPUT)
 $(WORKDIR):
 	@-md $(WORKDIR)
 
-$(WORKDIR)\$(PROJECT).obj: $(PROJECT).h
-	$(CC) $(CLOPTS) $(CFLAGS) -Fo$(WORKDIR)\ $(PROJECT).c
+$(WORKDIR)\$(PROJECT).obj: $(SRCDIR)\$(PROJECT).h
+	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -Fo$(WORKDIR)\ $(SRCDIR)\$(PROJECT).c
 
-$(WORKDIR)\$(PROJECT).res: $(PROJECT).h
-	$(RC) $(RFLAGS) /fo $@ $(PROJECT).rc
+$(WORKDIR)\$(PROJECT).res: $(SRCDIR)\$(PROJECT).h
+	$(RC) $(RFLAGS) /i $(SRCDIR) /fo $@ $(SRCDIR)\$(PROJECT).rc
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LFLAGS) $(OBJECTS) $(LDLIBS) /out:$(OUTPUT)
