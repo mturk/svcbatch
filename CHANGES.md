@@ -8,9 +8,11 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.0.4
 
- * In development
  * Add support for log file auto rotation
-
+ * Add support for SvcBatch.log if _DBGSAVE=1 is defined at build time
+ * Add support for vendor version suffix
+ * Update examples and documentation
+ * Fix issues with corrupt log files due to thread synchronization
 
 ## v1.0.3
 
