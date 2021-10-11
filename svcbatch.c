@@ -2021,7 +2021,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fputs(" "  SVCBATCH_BUILD_STAMP, stderr);
         fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
         fputs("This program can only run as Windows Service\n", stderr);
-        return 1;
+        return svcsyserror(__LINE__, 0, L"Not a Windows Service");;
     }
 #endif
     if (bname == NULL)
