@@ -20,11 +20,11 @@ LN = $(CC)
 RC = windres
 RL = strip --strip-unneeded
 
+SRCDIR  = .
 PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
-OUTPUT  = $(WORKDIR)/$(TARGET)
 WORKDIR = $(SRCDIR)/x64
-SRCDIR  = .
+OUTPUT  = $(WORKDIR)/$(TARGET)
 
 ifeq "$(_DBGVIEW)" "1"
 EXTRA_CFLAGS += -D_DBGVIEW
@@ -36,36 +36,36 @@ endif
 WINVER  = 0x0601
 CFLAGS  = -DNDEBUG -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) \
 	-D_CRT_SECURE_NO_DEPRECATE -D_UNICODE $(EXTRA_CFLAGS)
-CLOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-fallthrough -municode -mconsole
+LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-fallthrough -municode -mconsole
 RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
-RFLAGS  = -D NDEBUG $(EXTRA_RFLAGS)
-LNOPTS  = $(CLOPTS)
-LDLIBS  = -lkernel32 -ladvapi32 -luser32 $(EXTRA_LIBS)
+RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER) -D WIN32 -D WIN64 $(EXTRA_RFLAGS)
+CLOPTS  = $(LNOPTS) -c
+LDLIBS  = -lkernel32 -ladvapi32 -luser32
 
 OBJECTS = \
-	$(WORKDIR)/$(PROJECT).o \
+	$(WORKDIR)/$(PROJECT).obj \
 	$(WORKDIR)/$(PROJECT).res
 
-all : $(OUTPUT)
+all : $(WORKDIR) $(OUTPUT)
 	@:
-
-.PHONY: all clean install
 
 $(WORKDIR):
 	@mkdir -p $@
 
-$(WORKDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
+$(WORKDIR)/%.obj: $(SRCDIR)/%.c $(SRCDIR)/%.h
 	@echo CC $<
-	@$(CC) $(CLOPTS) -c $(CFLAGS) -I$(SRCDIR) -o $@ $<
+	@$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
 	@echo RC $<
-	@$(RC) $(RCOPTS) $(RFLAGS) -I $(SRCDIR) -o $@ $<
+	@$(RC) $(RCOPTS) -o $@ $(RFLAGS) -I $(SRCDIR) $<
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	@echo LN $(TARGET)
-	@$(LN) $(LNOPTS) $(OBJECTS) $(LDLIBS) -o $@
+	@$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
 	@$(RL) $@
 
 clean:
 	@rm -rf $(WORKDIR)
+
+.PHONY: all clean
