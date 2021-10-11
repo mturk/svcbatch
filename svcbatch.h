@@ -45,7 +45,11 @@
 
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_SVCNAME        "SvcBatch Service"
-
+#if defined(_VENDOR_SFX)
+# define SVCBATCH_VENDOR_SFX    CPP_TOSTR(_VENDOR_SFX)
+#else
+# define SVCBATCH_VENDOR_SFX    ""
+#endif
 /**
  * Maximum number of SvcBatch.log.N files
  */
@@ -151,12 +155,12 @@
 #define SVCBATCH_BUILD_STAMP    "(" __DATE__ " " __TIME__ " " SVCBATCH_BUILD_CC ")"
 
 #if SVCBATCH_ISDEV_VERSION
-# define SVCBATCH_VERSION_SFX   "-dev"
+# define SVCBATCH_VERSION_SFX   SVCBATCH_VENDOR_SFX "-dev"
 # if !defined(_CHECK_IF_SERVICE)
 #   define _CHECK_IF_SERVICE    1
 # endif
 #else
-# define SVCBATCH_VERSION_SFX   ""
+# define SVCBATCH_VERSION_SFX   SVCBATCH_VENDOR_SFX
 #endif
 
 /**
