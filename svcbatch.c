@@ -57,7 +57,10 @@ static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount;
-
+#if defined(_DBGSAVE)
+static HANDLE    dbgfhandle       = NULL;
+static wchar_t  *dbgfilename      = NULL;
+#endif
 static HANDLE    hrotatetimer     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    processended     = NULL;
@@ -387,8 +390,31 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     _vsnprintf(bp, blen - n, format, ap);
     va_end(ap);
     OutputDebugStringA(buf);
-}
+#if defined(_DBGSAVE)
+    if (dbgfhandle != NULL) {
+        char    hdr[BBUFSIZ];
+        ULONGLONG ct;
+        int     dd, hh, mm, ss, ms;
+        DWORD   wr;
 
+        ct = GetTickCount64() - logtickcount;
+        ms = (int)((ct % MS_IN_SECOND));
+        ss = (int)((ct / MS_IN_SECOND) % 60);
+        mm = (int)((ct / MS_IN_MINUTE) % 60);
+        hh = (int)((ct / MS_IN_HOUR)   % 24);
+        dd = (int)((ct / MS_IN_DAY));
+
+        sprintf(hdr,
+                "[%.2d:%.2d:%.2d:%.2d.%.3d] [%.4lu] ",
+                dd, hh, mm, ss, ms,
+                GetCurrentProcessId());
+        WriteFile(dbgfhandle, hdr, (DWORD)strlen(hdr), &wr, NULL);
+        WriteFile(dbgfhandle, buf, (DWORD)strlen(buf), &wr, NULL);
+
+        WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
+    }
+#endif
+}
 #endif
 
 static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
@@ -904,6 +930,15 @@ static DWORD openlogfile(void)
         logfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
     }
+#if defined(_DBGSAVE)
+    if (dbgfilename == NULL) {
+        dbgfilename = xwcsconcat(loglocation,
+                                 L"\\" CPP_WIDEN(SVCBATCH_NAME) L".debug.log");
+        dbgfhandle = CreateFileW(dbgfilename, GENERIC_WRITE,
+                                 FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
+                                 FILE_ATTRIBUTE_NORMAL, NULL);
+    }
+#endif
     memset(sfx, 0, 48);
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
         DWORD mm = MOVEFILE_REPLACE_EXISTING;
@@ -1831,7 +1866,7 @@ static void __cdecl cconsolecleanup(void)
     SetConsoleCtrlHandler(consolehandler, FALSE);
     FreeConsole();
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "done");
+    OutputDebugStringA(__FUNCTION__);
 #endif
 }
 
@@ -1846,7 +1881,7 @@ static void __cdecl objectscleanup(void)
     DeleteCriticalSection(&servicelock);
 
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "done");
+    OutputDebugStringA(__FUNCTION__);
 #endif
 }
 
@@ -2111,6 +2146,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
+#if defined(_DBGSAVE)
+    SAFE_CLOSE_HANDLE(dbgfhandle);
+#endif
 #endif
     return 0;
 }

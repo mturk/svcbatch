@@ -28,6 +28,9 @@ SRCDIR  = .
 
 ifeq "$(_DBGVIEW)" "1"
 EXTRA_CFLAGS += -D_DBGVIEW
+ifeq "$(_DBGSAVE)" "1"
+EXTRA_CFLAGS += -D_DBGSAVE
+endif
 endif
 
 WINVER  = 0x0601
