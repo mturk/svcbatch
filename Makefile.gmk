@@ -26,10 +26,10 @@ TARGET  = $(PROJECT).exe
 WORKDIR = $(SRCDIR)/x64
 OUTPUT  = $(WORKDIR)/$(TARGET)
 
-ifeq "$(_DBGVIEW)" "1"
+ifneq "$(_DBGVIEW)" ""
 DFLAGS = -D_DBGVIEW
 endif
-ifeq "$(_DBGSAVE)" "1"
+ifneq "$(_DBGSAVE)" ""
 DFLAGS = -D_DBGVIEW -D_DBGSAVE
 endif
 
