@@ -2194,7 +2194,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
-# if defined(_DBGSAVE)
+#if defined(_DBGSAVE)
     {
         HANDLE h;
 
@@ -2206,8 +2206,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         LeaveCriticalSection(&dbgfilelock);
     }
-# endif
-    OutputDebugStringA(__FUNCTION__);
+#endif
 #endif
     return 0;
 }
