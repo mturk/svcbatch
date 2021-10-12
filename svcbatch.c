@@ -2187,7 +2187,17 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 # if defined(_DBGSAVE)
-    SAFE_CLOSE_HANDLE(dbgfhandle);
+    {
+        HANDLE h;
+
+        EnterCriticalSection(&logfilelock);
+        h = InterlockedExchangePointer(&dbgfhandle, NULL);
+        if (h != NULL) {
+            FlushFileBuffers(h);
+            CloseHandle(h);
+        }
+        LeaveCriticalSection(&logfilelock);
+    }
 # endif
 #endif
     return 0;
