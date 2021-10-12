@@ -1084,11 +1084,11 @@ static DWORD rotatelogs(void)
         logprintf(logfhandle, "Log generation   : %d", c);
         logconfig(logfhandle);
     }
-    LeaveCriticalSection(&logfilelock);
-    if (rc) {
+    else {
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"rotatelogs");
     }
+    LeaveCriticalSection(&logfilelock);
     return rc;
 }
 
