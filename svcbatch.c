@@ -486,7 +486,6 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 {
     wchar_t        buf[BBUFSIZ];
     wchar_t        erd[MBUFSIZ];
-    HANDLE         es = NULL;
     const wchar_t *errarg[10];
 
     _snwprintf(buf, BBUFSIZ - 2, L"svcbatch.c(%d)", line);
@@ -525,7 +524,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 #endif
     }
     if (setupeventlog()) {
-        es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
+        HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
         if (es != NULL) {
             /**
              * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
