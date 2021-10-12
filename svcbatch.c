@@ -923,7 +923,7 @@ static DWORD openlogfile(int firstopen)
     wchar_t  sfx[24];
     wchar_t *logpb = NULL;
     DWORD rc = 0;
-    HANDLE h = NULL;
+    HANDLE h;
     WIN32_FILE_ATTRIBUTE_DATA ad;
     int i;
 
@@ -946,14 +946,13 @@ static DWORD openlogfile(int firstopen)
     }
 #if defined(_DBGSAVE)
     if (dbgfilename == NULL) {
-        HANDLE dh;
         dbgtickinit = logtickcount;
         dbgfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
-        dh  = CreateFileW(dbgfilename, GENERIC_WRITE,
-                          FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
-                          FILE_ATTRIBUTE_NORMAL, NULL);
-        if (IS_INVALID_HANDLE(dh)) {
+        h  = CreateFileW(dbgfilename, GENERIC_WRITE,
+                         FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
+                         FILE_ATTRIBUTE_NORMAL, NULL);
+        if (IS_INVALID_HANDLE(h)) {
             dbgprintf(__FUNCTION__, "failed to create %S", dbgfilename);
         }
         else {
@@ -962,10 +961,10 @@ static DWORD openlogfile(int firstopen)
                 DWORD wr;
                 LARGE_INTEGER ee = {{ 0, 0 }};
 
-                SetFilePointerEx(dh, ee, NULL, FILE_END);
-                WriteFile(dh, CRLFA, 4, &wr, NULL);
+                SetFilePointerEx(h, ee, NULL, FILE_END);
+                WriteFile(h, CRLFA, 4, &wr, NULL);
             }
-            InterlockedExchangePointer(&dbgfhandle, dh);
+            InterlockedExchangePointer(&dbgfhandle, h);
             GetSystemTime(&tt);
             dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                       tt.wYear, tt.wMonth, tt.wDay,
