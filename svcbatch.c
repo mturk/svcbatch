@@ -56,6 +56,7 @@ static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 #if defined(_DBGSAVE)
+static CRITICAL_SECTION dbgfilelock;
 static volatile HANDLE dbgfhandle = NULL;
 static wchar_t  *dbgfilename      = NULL;
 static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
@@ -392,7 +393,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_end(ap);
     OutputDebugStringA(buf);
 #if defined(_DBGSAVE)
-    EnterCriticalSection(&logfilelock);
+    EnterCriticalSection(&dbgfilelock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h != NULL) {
         char    hdr[BBUFSIZ];
@@ -417,7 +418,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         WriteFile(h, CRLFA, 2, &wr, NULL);
     }
     InterlockedExchangePointer(&dbgfhandle, h);
-    LeaveCriticalSection(&logfilelock);
+    LeaveCriticalSection(&dbgfilelock);
 #endif
 }
 #endif
@@ -964,12 +965,14 @@ static DWORD openlogfile(int firstopen)
                 SetFilePointerEx(h, ee, NULL, FILE_END);
                 WriteFile(h, CRLFA, 4, &wr, NULL);
             }
+            EnterCriticalSection(&dbgfilelock);
             InterlockedExchangePointer(&dbgfhandle, h);
             GetSystemTime(&tt);
             dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                       tt.wYear, tt.wMonth, tt.wDay,
                       tt.wHour, tt.wMinute, tt.wSecond);
             dbgprintf(__FUNCTION__, "tracing %S to %S", servicename, dbgfilename);
+            LeaveCriticalSection(&dbgfilelock);
         }
     }
 #endif
@@ -1919,8 +1922,10 @@ static void __cdecl objectscleanup(void)
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
-
 #if defined(_DBGVIEW)
+#if defined(_DBGSAVE)
+    DeleteCriticalSection(&dbgfilelock);
+#endif
     OutputDebugStringA(__FUNCTION__);
 #endif
 }
@@ -1940,6 +1945,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     HANDLE      hstdin;
     SERVICE_TABLE_ENTRYW se[2];
 
+#if defined(_DBGVIEW)
+    OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
+#if defined(_DBGSAVE)
+    InitializeCriticalSection(&dbgfilelock);
+#endif
+#endif
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
             ++envc;
@@ -2031,9 +2042,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
         }
     }
-#if defined(_DBGVIEW)
-    OutputDebugStringA("Lets go");
-#endif
 #if defined(_CHECK_IF_SERVICE)
     if (runningasservice() == 0) {
         fputs("\n" SVCBATCH_NAME " " SVCBATCH_VERSION_STR, stderr);
@@ -2190,15 +2198,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     {
         HANDLE h;
 
-        EnterCriticalSection(&logfilelock);
+        EnterCriticalSection(&dbgfilelock);
         h = InterlockedExchangePointer(&dbgfhandle, NULL);
         if (h != NULL) {
             FlushFileBuffers(h);
             CloseHandle(h);
         }
-        LeaveCriticalSection(&logfilelock);
+        LeaveCriticalSection(&dbgfilelock);
     }
 # endif
+    OutputDebugStringA(__FUNCTION__);
 #endif
     return 0;
 }
