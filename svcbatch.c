@@ -1680,7 +1680,6 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 
 static unsigned int __stdcall workerthread(void *unused)
 {
-    STARTUPINFOW si;
     wchar_t *cmdline;
     wchar_t *arg0;
     wchar_t *arg1;
@@ -1688,6 +1687,7 @@ static unsigned int __stdcall workerthread(void *unused)
     DWORD    rc;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
     PROCESS_INFORMATION cp;
+    STARTUPINFOW si;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
@@ -1709,8 +1709,10 @@ static unsigned int __stdcall workerthread(void *unused)
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     memset(&si, 0, sizeof(STARTUPINFOW));
+
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
+
     if (createiopipes(&si) != 0)
         goto finished;
     ji.BasicLimitInformation.LimitFlags =
@@ -1722,7 +1724,7 @@ static unsigned int __stdcall workerthread(void *unused)
     if (!SetInformationJobObject(childprocjob,
                                  JobObjectExtendedLimitInformation,
                                 &ji,
-                                 sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
+                                 DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"SetInformationJobObject");
