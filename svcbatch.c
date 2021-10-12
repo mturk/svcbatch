@@ -56,7 +56,7 @@ static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 #if defined(_DBGSAVE)
-static HANDLE    dbgfhandle       = NULL;
+static volatile HANDLE dbgfhandle = NULL;
 static wchar_t  *dbgfilename      = NULL;
 static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
 #endif
@@ -378,7 +378,9 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     size_t  blen = MBUFSIZ - 2;
     int     n;
     va_list ap;
-
+#if defined(_DBGSAVE)
+    HANDLE  h;
+#endif
     memset(buf, 0, MBUFSIZ);
     n = _snprintf(buf, blen,
                   "[%.4lu] %-16s ",
@@ -390,7 +392,9 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_end(ap);
     OutputDebugStringA(buf);
 #if defined(_DBGSAVE)
-    if (dbgfhandle != NULL) {
+    EnterCriticalSection(&logfilelock);
+    h = InterlockedExchangePointer(&dbgfhandle, NULL);
+    if (h != NULL) {
         char    hdr[BBUFSIZ];
         ULONGLONG ct;
         DWORD   ss, ms;
@@ -405,15 +409,15 @@ static void dbgprintf(const char *funcname, const char *format, ...)
                 "[%.6lu.%.3lu] [%.4lu] ",
                 ss, ms,
                 GetCurrentProcessId());
-        EnterCriticalSection(&logfilelock);
-        SetFilePointerEx(dbgfhandle, ee, NULL, FILE_END);
+        SetFilePointerEx(h, ee, NULL, FILE_END);
 
-        WriteFile(dbgfhandle, hdr, (DWORD)strlen(hdr), &wr, NULL);
-        WriteFile(dbgfhandle, buf, (DWORD)strlen(buf), &wr, NULL);
+        WriteFile(h, hdr, (DWORD)strlen(hdr), &wr, NULL);
+        WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL);
 
-        WriteFile(dbgfhandle, CRLFA, 2, &wr, NULL);
-        LeaveCriticalSection(&logfilelock);
+        WriteFile(h, CRLFA, 2, &wr, NULL);
     }
+    InterlockedExchangePointer(&dbgfhandle, h);
+    LeaveCriticalSection(&logfilelock);
 #endif
 }
 #endif
@@ -939,14 +943,14 @@ static DWORD openlogfile(int firstopen)
     }
 #if defined(_DBGSAVE)
     if (dbgfilename == NULL) {
+        HANDLE dh;
         dbgtickinit = logtickcount;
         dbgfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
-        dbgfhandle  = CreateFileW(dbgfilename, GENERIC_WRITE,
-                                  FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
-                                  FILE_ATTRIBUTE_NORMAL, NULL);
-        if (IS_INVALID_HANDLE(dbgfhandle)) {
-            dbgfhandle = NULL;
+        dh  = CreateFileW(dbgfilename, GENERIC_WRITE,
+                          FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
+                          FILE_ATTRIBUTE_NORMAL, NULL);
+        if (IS_INVALID_HANDLE(dh)) {
             dbgprintf(__FUNCTION__, "failed to create %S", dbgfilename);
         }
         else {
@@ -955,9 +959,10 @@ static DWORD openlogfile(int firstopen)
                 DWORD wr;
                 LARGE_INTEGER ee = {{ 0, 0 }};
 
-                SetFilePointerEx(dbgfhandle, ee, NULL, FILE_END);
-                WriteFile(dbgfhandle, CRLFA, 4, &wr, NULL);
+                SetFilePointerEx(dh, ee, NULL, FILE_END);
+                WriteFile(dh, CRLFA, 4, &wr, NULL);
             }
+            InterlockedExchangePointer(&dbgfhandle, dh);
             GetSystemTime(&tt);
             dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                       tt.wYear, tt.wMonth, tt.wDay,
