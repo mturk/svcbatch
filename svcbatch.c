@@ -1495,7 +1495,10 @@ static unsigned int __stdcall rotatethread(void *unused)
     wc = WaitForSingleObject(processended, SVCBATCH_START_HINT);
     if (wc != WAIT_TIMEOUT) {
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "ended %lu", wc);
+        if (wc == WAIT_OBJECT_0)
+            dbgprintf(__FUNCTION__, "processended signaled");
+        else
+            dbgprintf(__FUNCTION__, "processended %lu", wc);
 #endif
         goto finished;
     }
