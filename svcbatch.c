@@ -33,8 +33,6 @@ static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
 static SECURITY_ATTRIBUTES   sazero;
-static HANDLE                cchildjob   = NULL;
-static HANDLE                childproc   = NULL;
 static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
@@ -62,6 +60,8 @@ static HANDLE    dbgfhandle       = NULL;
 static wchar_t  *dbgfilename      = NULL;
 static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
 #endif
+static HANDLE    childprocjob     = NULL;
+static HANDLE    childprocess     = NULL;
 static HANDLE    hrotatetimer     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    processended     = NULL;
@@ -1312,8 +1312,8 @@ static unsigned int __stdcall stopthread(void *unused)
          * child tree by brute force
          */
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        SAFE_CLOSE_HANDLE(childproc);
-        SAFE_CLOSE_HANDLE(cchildjob);
+        SAFE_CLOSE_HANDLE(childprocess);
+        SAFE_CLOSE_HANDLE(childprocjob);
     }
 
 finished:
@@ -1707,7 +1707,7 @@ static unsigned int __stdcall workerthread(void *unused)
         JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 
-    if (!SetInformationJobObject(cchildjob,
+    if (!SetInformationJobObject(childprocjob,
                                  JobObjectExtendedLimitInformation,
                                 &ji,
                                  sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
@@ -1735,7 +1735,7 @@ static unsigned int __stdcall workerthread(void *unused)
         svcsyserror(__LINE__, rc, L"CreateProcess");
         goto finished;
     }
-    childproc = cp.hProcess;
+    childprocess = cp.hProcess;
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "child id %lu", cp.dwProcessId);
 #endif
@@ -1744,20 +1744,20 @@ static unsigned int __stdcall workerthread(void *unused)
      */
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdinputpiperd);
-    if (!AssignProcessToJobObject(cchildjob, childproc)) {
+    if (!AssignProcessToJobObject(childprocjob, childprocess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"AssignProcessToJobObject");
-        TerminateProcess(childproc, rc);
+        TerminateProcess(childprocess, rc);
         goto finished;
     }
-    wh[0] = childproc;
+    wh[0] = childprocess;
     wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread);
     if (IS_INVALID_HANDLE(wh[1])) {
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"iopipethread");
-        TerminateProcess(childproc, ERROR_OUTOFMEMORY);
+        TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
         goto finished;
     }
 
@@ -1879,8 +1879,8 @@ finished:
 
     SAFE_CLOSE_HANDLE(stdoutputpipew);
     SAFE_CLOSE_HANDLE(stdoutputpiper);
-    SAFE_CLOSE_HANDLE(childproc);
-    SAFE_CLOSE_HANDLE(cchildjob);
+    SAFE_CLOSE_HANDLE(childprocess);
+    SAFE_CLOSE_HANDLE(childprocjob);
 
     closelogfile();
 #if defined(_DBGVIEW)
@@ -1903,7 +1903,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(monitorevent);
-    SAFE_CLOSE_HANDLE(cchildjob);
+    SAFE_CLOSE_HANDLE(childprocjob);
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
@@ -2140,8 +2140,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
-    cchildjob    = CreateJobObjectW(&sazero, NULL);
-    if (IS_INVALID_HANDLE(cchildjob))
+    childprocjob = CreateJobObjectW(&sazero, NULL);
+    if (IS_INVALID_HANDLE(childprocjob))
         return svcsyserror(__LINE__, GetLastError(), L"CreateJobObject");
 
     InitializeCriticalSection(&servicelock);
