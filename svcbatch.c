@@ -946,7 +946,9 @@ static DWORD openlogfile(int firstopen)
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
     }
 #if defined(_DBGSAVE)
-    if (dbgfilename == NULL) {
+    EnterCriticalSection(&dbgfilelock);
+    h = InterlockedExchangePointer(&dbgfhandle, NULL);
+    if ((h == NULL) && (dbgfilename == NULL)) {
         dbgtickinit = logtickcount;
         dbgfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
@@ -954,6 +956,7 @@ static DWORD openlogfile(int firstopen)
                          FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, NULL);
         if (IS_INVALID_HANDLE(h)) {
+            h = NULL;
             dbgprintf(__FUNCTION__, "failed to create %S", dbgfilename);
         }
         else {
@@ -965,16 +968,16 @@ static DWORD openlogfile(int firstopen)
                 SetFilePointerEx(h, ee, NULL, FILE_END);
                 WriteFile(h, CRLFA, 4, &wr, NULL);
             }
-            EnterCriticalSection(&dbgfilelock);
-            InterlockedExchangePointer(&dbgfhandle, h);
+
             GetSystemTime(&tt);
             dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                       tt.wYear, tt.wMonth, tt.wDay,
                       tt.wHour, tt.wMinute, tt.wSecond);
             dbgprintf(__FUNCTION__, "tracing %S to %S", servicename, dbgfilename);
-            LeaveCriticalSection(&dbgfilelock);
         }
     }
+    InterlockedExchangePointer(&dbgfhandle, h);
+    LeaveCriticalSection(&dbgfilelock);
 #endif
     memset(sfx, 0, 48);
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
