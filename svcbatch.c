@@ -35,7 +35,7 @@ static CRITICAL_SECTION      logfilelock;
 static SECURITY_ATTRIBUTES   sazero;
 static HANDLE                cchildjob   = NULL;
 static HANDLE                childproc   = NULL;
-static LONGLONG              rotateint   = ONE_DAY * 30;
+static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 
