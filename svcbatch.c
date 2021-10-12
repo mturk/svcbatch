@@ -450,14 +450,14 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
 
 static int setupeventlog(void)
 {
-    static int eset = 0;
+    static int ssrv = 0;
+    static volatile LONG eset   = 0;
     static const wchar_t emsg[] = L"%SystemRoot%\\System32\\netmsg.dll\0";
-
     DWORD c;
     HKEY  k;
 
-    if (eset)
-        return 1;
+    if (InterlockedIncrement(&eset) > 1)
+        return ssrv;
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
                         L"SYSTEM\\CurrentControlSet\\Services\\" \
                         L"EventLog\\Application\\" CPP_WIDEN(SVCBATCH_SVCNAME),
@@ -469,14 +469,17 @@ static int setupeventlog(void)
     if (c == REG_CREATED_NEW_KEY) {
         DWORD dw = EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE |
                    EVENTLOG_INFORMATION_TYPE;
-        RegSetValueExW(k, L"EventMessageFile", 0, REG_EXPAND_SZ,
-                       (const BYTE *)emsg, DSIZEOF(emsg));
-        RegSetValueExW(k, L"TypesSupported", 0, REG_DWORD,
-                       (const BYTE *)&dw, 4);
+        if (RegSetValueExW(k, L"EventMessageFile", 0, REG_EXPAND_SZ,
+                          (const BYTE *)emsg, DSIZEOF(emsg)) != ERROR_SUCCESS)
+            goto finished;
+        if (RegSetValueExW(k, L"TypesSupported", 0, REG_DWORD,
+                          (const BYTE *)&dw, 4) != ERROR_SUCCESS)
+            goto finished;
     }
+    ssrv = 1;
+finished:
     RegCloseKey(k);
-    eset = 1;
-    return 1;
+    return ssrv;
 }
 
 static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
