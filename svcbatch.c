@@ -524,16 +524,17 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         dbgprintf(__FUNCTION__, "%S %S", buf, err);
 #endif
     }
-    if (setupeventlog())
+    if (setupeventlog()) {
         es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
-    if (es != NULL) {
-        /**
-         * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
-         * The event code in netmsg.dll is 3299
-         */
-        ReportEventW(es, EVENTLOG_ERROR_TYPE,
-                     0, 3299, NULL, 9, 0, errarg, NULL);
-        DeregisterEventSource(es);
+        if (es != NULL) {
+            /**
+             * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
+             * The event code in netmsg.dll is 3299
+             */
+            ReportEventW(es, EVENTLOG_ERROR_TYPE,
+                         0, 3299, NULL, 9, 0, errarg, NULL);
+            DeregisterEventSource(es);
+        }
     }
     return ern;
 }
