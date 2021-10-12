@@ -66,10 +66,8 @@ static HANDLE    hrotatetimer     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
-static HANDLE    stdoutputpipew   = NULL;
-static HANDLE    stdoutputpiper   = NULL;
-static HANDLE    stdinputpipewr   = NULL;
-static HANDLE    stdinputpiperd   = NULL;
+static HANDLE    outputpiperd     = NULL;
+static HANDLE    inputpipewrs     = NULL;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
@@ -791,7 +789,7 @@ static PSECURITY_ATTRIBUTES getnullacl(void)
     return &sa;
 }
 
-static DWORD createiopipes(void)
+static DWORD createiopipes(LPSTARTUPINFOW si)
 {
     LPSECURITY_ATTRIBUTES sa;
     DWORD  rc = 0;
@@ -804,10 +802,10 @@ static DWORD createiopipes(void)
      * Create stdin pipe, with write side
      * of the pipe as non inheritable.
      */
-    if (!CreatePipe(&stdinputpiperd, &sh, sa, 0))
+    if (!CreatePipe(&(si->hStdInput), &sh, sa, 0))
         return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
     if (!DuplicateHandle(cp, sh, cp,
-                         &stdinputpipewr, FALSE, 0,
+                         &inputpipewrs, FALSE, 0,
                          DUPLICATE_SAME_ACCESS)) {
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
         goto finished;
@@ -818,12 +816,13 @@ static DWORD createiopipes(void)
      * Create stdout/stderr pipe, with read side
      * of the pipe as non inheritable
      */
-    if (!CreatePipe(&sh, &stdoutputpipew, sa, 0))
+    if (!CreatePipe(&sh, &(si->hStdError), sa, 0))
         return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
     if (!DuplicateHandle(cp, sh, cp,
-                         &stdoutputpiper, FALSE, 0,
+                         &outputpiperd, FALSE, 0,
                          DUPLICATE_SAME_ACCESS))
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
+    si->hStdOutput = si->hStdError;
 
 finished:
     SAFE_CLOSE_HANDLE(sh);
@@ -1280,8 +1279,8 @@ static unsigned int __stdcall stopthread(void *unused)
              * Write Y to stdin pipe in case cmd.exe waits for
              * user reply to "Terminate batch job (Y/N)?"
              */
-            WriteFile(stdinputpipewr, yn, 2, &wr, NULL);
-            FlushFileBuffers(stdinputpipewr);
+            WriteFile(inputpipewrs, yn, 2, &wr, NULL);
+            FlushFileBuffers(inputpipewrs);
         }
         else {
 #if defined(_DBGVIEW)
@@ -1339,7 +1338,7 @@ static unsigned int __stdcall iopipethread(void *unused)
         DWORD rd = 0;
         HANDLE h = NULL;
 
-        if (!ReadFile(stdoutputpiper, rb, HBUFSIZ, &rd, NULL)) {
+        if (!ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
             /**
              * Read from child failed.
              * ERROR_BROKEN_PIPE or ERROR_NO_DATA means that
@@ -1699,7 +1698,10 @@ static unsigned int __stdcall workerthread(void *unused)
 #endif
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
-    if (createiopipes() != 0)
+    memset(&si, 0, sizeof(STARTUPINFOW));
+    si.cb      = DSIZEOF(STARTUPINFOW);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    if (createiopipes(&si) != 0)
         goto finished;
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
@@ -1718,13 +1720,6 @@ static unsigned int __stdcall workerthread(void *unused)
     }
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    memset(&si, 0, sizeof(STARTUPINFOW));
-    si.cb         = DSIZEOF(STARTUPINFOW);
-    si.dwFlags    = STARTF_USESTDHANDLES;
-    si.hStdInput  = stdinputpiperd;
-    si.hStdOutput = stdoutputpipew;
-    si.hStdError  = stdoutputpipew;
-
     if (!CreateProcessW(comspec, cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
                         wenvblock,
@@ -1742,8 +1737,8 @@ static unsigned int __stdcall workerthread(void *unused)
     /**
      * Close our side of the pipes
      */
-    SAFE_CLOSE_HANDLE(stdoutputpipew);
-    SAFE_CLOSE_HANDLE(stdinputpiperd);
+    SAFE_CLOSE_HANDLE(si.hStdInput);
+    SAFE_CLOSE_HANDLE(si.hStdError);
     if (!AssignProcessToJobObject(childprocjob, childprocess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
@@ -1774,8 +1769,8 @@ static unsigned int __stdcall workerthread(void *unused)
 
 finished:
     SAFE_CLOSE_HANDLE(cp.hThread);
-    SAFE_CLOSE_HANDLE(stdoutputpipew);
-    SAFE_CLOSE_HANDLE(stdinputpiperd);
+    SAFE_CLOSE_HANDLE(si.hStdInput);
+    SAFE_CLOSE_HANDLE(si.hStdError);
     SetEvent(processended);
 #if defined(_DBGVIEW)
     if (ssvcstatus.dwServiceSpecificExitCode)
@@ -1877,8 +1872,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
 finished:
 
-    SAFE_CLOSE_HANDLE(stdoutputpipew);
-    SAFE_CLOSE_HANDLE(stdoutputpiper);
+    SAFE_CLOSE_HANDLE(inputpipewrs);
+    SAFE_CLOSE_HANDLE(outputpiperd);
     SAFE_CLOSE_HANDLE(childprocess);
     SAFE_CLOSE_HANDLE(childprocjob);
 
