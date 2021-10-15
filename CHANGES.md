@@ -6,6 +6,10 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v1.0.5
+
+ * In development
+
 ## v1.0.4
 
  * Add support for log file auto rotation
