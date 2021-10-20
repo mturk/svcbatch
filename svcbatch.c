@@ -1009,7 +1009,7 @@ static DWORD openlogfile(int firstopen)
         rc = GetLastError();
         if (rc != ERROR_FILE_NOT_FOUND) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "%lu %S", GetLastError(), logfilename);
+            dbgprintf(__FUNCTION__, "%lu %S", rc, logfilename);
 #endif
             return svcsyserror(__LINE__, rc, L"GetFileAttributesExW");
         }
@@ -1828,9 +1828,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started %S", servicename);
 #endif
-
-    if ((rv = openlogfile(1)) != 0) {
-        svcsyserror(__LINE__, rv, L"OpenLogfile");
+    rv = openlogfile(1);
+    if (rv != 0) {
+        svcsyserror(__LINE__, rv, L"openlogfile");
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
@@ -1948,6 +1948,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     HANDLE      hstdin;
     SERVICE_TABLE_ENTRYW se[2];
 
+    /**
+     * Make sure children (cmd.exe) are kept quiet.
+     */
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
+
 #if defined(_DBGVIEW)
     OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
 #if defined(_DBGSAVE)
@@ -1998,30 +2003,25 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, 0, L"Invalid command line option");
             }
             if (hasopts) {
-                switch (p[1]) {
+                int pchar = towlower(p[1]);
+                switch (pchar) {
                     case L'b':
-                    case L'B':
                         hasctrlbreak = 1;
                     break;
                     case L'c':
-                    case L'C':
                         cleanpath    = 1;
                     break;
                     case L'o':
-                    case L'O':
                         loglocation  = zerostring;
                     break;
                     case L'r':
-                    case L'R':
                         autorotate   = 1;
                         rotateparam  = zerostring;
                     break;
                     case L's':
-                    case L'S':
                         usesafeenv   = 1;
                     break;
                     case L'w':
-                    case L'W':
                         servicehome  = zerostring;
                     break;
                     default:
@@ -2060,12 +2060,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvesvcbatchexe() == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
 
+    if ((serviceuuid = xuuidstring()) == NULL)
+        return svcsyserror(__LINE__, GetLastError(), L"xuuidstring");
+
     if ((opath = xgetenv(L"PATH")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"PATH");
-
-    if ((serviceuuid = xuuidstring()) == NULL)
-        return svcsyserror(__LINE__, GetLastError(), L"CryptGenRandom");
-
     if ((cpath = xgetenv(L"COMSPEC")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC");
     if ((comspec = getrealpathname(cpath, 0)) == NULL)

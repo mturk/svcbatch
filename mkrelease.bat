@@ -17,34 +17,46 @@ rem
 rem --------------------------------------------------
 rem SvcBatch release helper script
 rem
-rem Usage: mkrelease.bat [version]
+rem Usage: mkrelease.bat version architecture
+rem    eg: mkrelease 1.0.5 x64 "_VENDOR_SFX=_1" "_STATIC_MSVCRT=1"
 rem
 setlocal
-if not "x%~1" == "x" goto haveVersion
+if "x%~1" == "x" goto Einval
+if "x%~2" == "x" goto Einval
 rem
-echo Error: Missing release version
-echo Usage: %~nx0 [version]
-exit /b 1
-
-:haveVersion
-set "SvcBatchVer=%~1"
+set "ProjectName=svcbatch"
+set "ReleaseVersion=%~1"
+set "ReleaseArch=%~2"
 rem
-set "ReleaseName=svcbatch-%SvcBatchVer%-win-x64"
+set "ReleaseName=%ProjectName%-%ReleaseVersion%-win-%ReleaseArch%"
+pushd %~dp0
+set "BuildDir=%cd%"
+popd
 rem
+rem Create builds
+rd /S /Q "%ReleaseArch%" 2>NUL
+nmake _CPU=%ReleaseArch% %~3 %~4 %~5
 rem Set path for ClamAV and 7za
 rem
 set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"
 rem
 freshclam.exe --quiet
-pushd x64
-echo ## Binary release v%SvcBatchVer% > %ReleaseName%.txt
+pushd "%ReleaseArch%"
+echo ## Binary release v%ReleaseVersion% > %ReleaseName%.txt
 echo. >> %ReleaseName%.txt
 echo. >> %ReleaseName%.txt
 echo ```no-highlight >> %ReleaseName%.txt
 clamscan.exe --version >> %ReleaseName%.txt
-clamscan.exe --bytecode=no svcbatch.exe >> %ReleaseName%.txt
+clamscan.exe --bytecode=no %ProjectName%.exe >> %ReleaseName%.txt
 echo ``` >> %ReleaseName%.txt
-7za.exe a -bd %ReleaseName%.zip svcbatch.exe
+7za.exe a -bd %ReleaseName%.zip %ProjectName%.exe
 sigtool.exe --sha256 %ReleaseName%.zip >> %ReleaseName%-sha256.txt
 popd
+goto End
 rem
+:Einval
+echo Error: Invalid parameter
+echo Usage: %~nx0 version target
+exit /b 1
+
+:End
