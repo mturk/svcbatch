@@ -18,7 +18,7 @@ rem --------------------------------------------------
 rem SvcBatch release helper script
 rem
 rem Usage: mkrelease.bat version architecture
-rem    eg: mkrelease 1.0.5 x64 "_VENDOR_SFX=_1" "_STATIC_MSVCRT=1"
+rem    eg: mkrelease 1.0.5 x64 "_VENDOR_SFX=_1"
 rem
 setlocal
 if "x%~1" == "x" goto Einval
@@ -35,7 +35,7 @@ popd
 rem
 rem Create builds
 rd /S /Q "%ReleaseArch%" 2>NUL
-nmake _CPU=%ReleaseArch% %~3 %~4 %~5
+nmake _CPU=%ReleaseArch% _STATIC_MSVCRT=1 %~3 %~4 %~5
 rem Set path for ClamAV and 7za
 rem
 set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"

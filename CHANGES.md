@@ -8,7 +8,6 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.0.5
 
- * In development
  * Improve release creation procedure
  * Drop NULL DACL and use default security descriptor associated with the access token of the calling process
 
