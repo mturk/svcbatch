@@ -777,40 +777,21 @@ finished:
     LeaveCriticalSection(&servicelock);
 }
 
-static PSECURITY_ATTRIBUTES getnullacl(void)
-{
-    static BYTE sb[BBUFSIZ];
-    static SECURITY_ATTRIBUTES  sa;
-    static PSECURITY_DESCRIPTOR sd = NULL;
-
-    if (sd == NULL) {
-        sd = (PSECURITY_DESCRIPTOR)sb;
-        if (!InitializeSecurityDescriptor(sd, SECURITY_DESCRIPTOR_REVISION) ||
-            !SetSecurityDescriptorDacl(sd, TRUE, (PACL)NULL, FALSE)) {
-            sd = NULL;
-            return NULL;
-        }
-    }
-    sa.nLength              = DSIZEOF(SECURITY_ATTRIBUTES);
-    sa.lpSecurityDescriptor = sd;
-    sa.bInheritHandle       = TRUE;
-    return &sa;
-}
-
 static DWORD createiopipes(LPSTARTUPINFOW si)
 {
-    LPSECURITY_ATTRIBUTES sa;
+    SECURITY_ATTRIBUTES sa;
     DWORD  rc = 0;
     HANDLE sh = NULL;
     HANDLE cp = GetCurrentProcess();
 
-    if ((sa = getnullacl()) == NULL)
-        return svcsyserror(__LINE__, ERROR_ACCESS_DENIED, L"SetSecurityDescriptorDacl");
+    sa.nLength              = DSIZEOF(SECURITY_ATTRIBUTES);
+    sa.lpSecurityDescriptor = NULL;
+    sa.bInheritHandle       = TRUE;
     /**
      * Create stdin pipe, with write side
      * of the pipe as non inheritable.
      */
-    if (!CreatePipe(&(si->hStdInput), &sh, sa, 0))
+    if (!CreatePipe(&(si->hStdInput), &sh, &sa, 0))
         return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
     if (!DuplicateHandle(cp, sh, cp,
                          &inputpipewrs, FALSE, 0,
@@ -824,7 +805,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si)
      * Create stdout/stderr pipe, with read side
      * of the pipe as non inheritable
      */
-    if (!CreatePipe(&sh, &(si->hStdError), sa, 0))
+    if (!CreatePipe(&sh, &(si->hStdError), &sa, 0))
         return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
     if (!DuplicateHandle(cp, sh, cp,
                          &outputpiperd, FALSE, 0,
