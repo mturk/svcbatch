@@ -16,6 +16,8 @@
 #include <windows.h>
 #include "svcbatch.h"
 
+#define IDI_MAINICON         101
+IDI_MAINICON         ICON   "svcbatch.ico"
 CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST  "svcbatch.manifest"
 
 1 VERSIONINFO
