@@ -1202,12 +1202,13 @@ static int resolverotate(wchar_t *str)
         LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(1);
         wchar_t *ep  = NULL;
+        wchar_t  mm  = L'b';
 
         siz = _wcstoi64(rp, &ep, 10);
         if (siz < mux)
             return __LINE__;
         if (ep != NULL) {
-            wchar_t mm = towupper(*ep);
+            mm = towupper(*ep);
             switch (mm) {
                 case L'K':
                     mux = KILOBYTES(1);
@@ -1223,6 +1224,9 @@ static int resolverotate(wchar_t *str)
                 break;
             }
         }
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "rotate siz %d %C", (int)siz, mm);
+#endif
         rotatesiz.QuadPart = siz * mux;
         if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
             return __LINE__;
