@@ -381,6 +381,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_list ap;
 #if defined(_DBGVIEW_SAVE)
     HANDLE  h;
+    static  DWORD nw = 0;
 #endif
     memset(buf, 0, MBUFSIZ);
     n = _snprintf(buf, blen,
@@ -396,26 +397,33 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     EnterCriticalSection(&dbgfilelock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h != NULL) {
-        char    hdr[BBUFSIZ];
-        ULONGLONG ct;
-        DWORD   ss, ms;
-        DWORD   wr;
         LARGE_INTEGER ee = {{ 0, 0 }};
 
-        ct = GetTickCount64() - dbgtickinit;
-        ms = (DWORD)(ct % MS_IN_SECOND);
-        ss = (DWORD)(ct / MS_IN_SECOND);
+        if (SetFilePointerEx(h, ee, NULL, FILE_END)) {
+            char      hdr[BBUFSIZ];
+            ULONGLONG ct;
+            DWORD     wr, ss, ms;
 
-        sprintf(hdr,
-                "[%.6lu.%.3lu] [%.4lu] ",
-                ss, ms,
-                GetCurrentProcessId());
-        SetFilePointerEx(h, ee, NULL, FILE_END);
+            ct = GetTickCount64() - dbgtickinit;
+            ms = (DWORD)(ct % MS_IN_SECOND);
+            ss = (DWORD)(ct / MS_IN_SECOND);
 
-        WriteFile(h, hdr, (DWORD)strlen(hdr), &wr, NULL);
-        WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL);
-
-        WriteFile(h, CRLFA, 2, &wr, NULL);
+            sprintf(hdr,
+                    "[%.6lu.%.3lu] [%.4lu] ",
+                    ss, ms,
+                    GetCurrentProcessId());
+            if (WriteFile(h, hdr, (DWORD)strlen(hdr), &wr, NULL)) {
+                nw += wr;
+                WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL);
+                nw += wr;
+                WriteFile(h, CRLFA, 2, &wr, NULL);
+                nw += wr;
+                if (nw >= 4096) {
+                    FlushFileBuffers(h);
+                    nw = 0;
+                }
+            }
+        }
     }
     InterlockedExchangePointer(&dbgfhandle, h);
     LeaveCriticalSection(&dbgfilelock);
@@ -905,7 +913,7 @@ static DWORD openlogfile(int firstopen)
     wchar_t  sfx[24];
     wchar_t *logpb = NULL;
     DWORD rc = 0;
-    HANDLE h;
+    HANDLE h = NULL;
     WIN32_FILE_ATTRIBUTE_DATA ad;
     int i;
 
@@ -919,7 +927,7 @@ static DWORD openlogfile(int firstopen)
             wchar_t *n  = loglocation;
             loglocation = getrealpathname(n, 1);
             if (loglocation == NULL)
-                return GetLastError();
+                return ERROR_PATH_NOT_FOUND;
             xfree(n);
         }
         logfilename = xwcsconcat(loglocation,
