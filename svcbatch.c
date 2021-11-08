@@ -1335,20 +1335,29 @@ static unsigned int __stdcall iopipethread(void *unused)
         if (!ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
             /**
              * Read from child failed.
-             * ERROR_BROKEN_PIPE or ERROR_NO_DATA means that
+             * ERROR_BROKEN_PIPE means that
              * child process closed its side of the pipe.
              */
             rc = GetLastError();
+        }
+        else if (rd == 0) {
+            /**
+             * Read zero bytes from child should
+             * not happen.
+             */
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "Read 0 bytes err=%lu", GetLastError());
+#endif
+            rc = ERROR_NO_DATA;
         }
         else {
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
 
             if (h != NULL) {
-                if (rd > 0)
-                    rc = logappend(h, rb, rd);
+                rc = logappend(h, rb, rd);
                 rn += rd;
-                if ((rn >= 65536) || (rd == 0)) {
+                if (rn >= 65536) {
                     FlushFileBuffers(h);
                     rn = 0;
                 }
