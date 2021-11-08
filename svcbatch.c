@@ -1037,7 +1037,8 @@ static DWORD openlogfile(int firstopen)
     }
     xfree(logpb);
     logwrline(h, SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
-    logwrtime(h, "Log opened");
+    if (firstopen)
+        logwrtime(h, "Log opened");
     InterlockedExchangePointer(&logfhandle, h);
     return 0;
 
@@ -1052,7 +1053,7 @@ failed:
 
 static DWORD rotatelogs(void)
 {
-    DWORD rc = 0;
+    DWORD  rc;
     HANDLE h = NULL;
 
     EnterCriticalSection(&logfilelock);
@@ -1062,13 +1063,14 @@ static DWORD rotatelogs(void)
         return ERROR_FILE_NOT_FOUND;
     }
     logfflush(h);
-    logwrtime(h, "Log rotated");
+    logwrtime(h, "Log rotatation initialized");
     FlushFileBuffers(h);
     CloseHandle(h);
     rc = openlogfile(0);
     if (rc == 0) {
-        int c = (int)InterlockedIncrement(&rotatecount);
-        logprintf(logfhandle, "Log generation   : %d", c);
+        logwrtime(logfhandle, "Log rotated");
+        logprintf(logfhandle, "Log generation   : %lu",
+                  InterlockedIncrement(&rotatecount));
         logconfig(logfhandle);
     }
     else {
