@@ -142,17 +142,17 @@ official site.
 ### DebugTrace support
 
 For debug and development purposes you can compile
-SvcBatch with the `_DBGSAVE` option that will enable
+SvcBatch with the `_DBGVIEW_SAVE` option that will enable
 internal tracing to `SvcBatch.dbg` file.
 
 This option can be enabled at compile time by using
 the following:
 
 ```cmd
-> nmake _DBGSAVE=1
+> nmake _DBGVIEW_SAVE=1
 ```
 
-When this option is used SvcBatch will also set the `_DBGVIEW` option.
+When this option is used `_DBGVIEW` option will will be set as well.
 
 ### Vendor version support
 

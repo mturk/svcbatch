@@ -55,7 +55,7 @@ static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
-#if defined(_DBGSAVE)
+#if defined(_DBGVIEW_SAVE)
 static CRITICAL_SECTION dbgfilelock;
 static volatile HANDLE dbgfhandle = NULL;
 static wchar_t  *dbgfilename      = NULL;
@@ -379,7 +379,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     size_t  blen = MBUFSIZ - 2;
     int     n;
     va_list ap;
-#if defined(_DBGSAVE)
+#if defined(_DBGVIEW_SAVE)
     HANDLE  h;
 #endif
     memset(buf, 0, MBUFSIZ);
@@ -392,7 +392,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     _vsnprintf(bp, blen - n, format, ap);
     va_end(ap);
     OutputDebugStringA(buf);
-#if defined(_DBGSAVE)
+#if defined(_DBGVIEW_SAVE)
     EnterCriticalSection(&dbgfilelock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h != NULL) {
@@ -910,7 +910,6 @@ static DWORD openlogfile(int firstopen)
     int i;
 
     logtickcount = GetTickCount64();
-    InterlockedExchangePointer(&logfhandle, NULL);
 
     if (logfilename == NULL) {
         if (!CreateDirectoryW(loglocation, 0) &&
@@ -926,7 +925,7 @@ static DWORD openlogfile(int firstopen)
         logfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
     }
-#if defined(_DBGSAVE)
+#if defined(_DBGVIEW_SAVE)
     EnterCriticalSection(&dbgfilelock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if ((h == NULL) && (dbgfilename == NULL)) {
@@ -1921,7 +1920,7 @@ static void __cdecl objectscleanup(void)
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
 #if defined(_DBGVIEW)
-#if defined(_DBGSAVE)
+#if defined(_DBGVIEW_SAVE)
     DeleteCriticalSection(&dbgfilelock);
 #endif
     OutputDebugStringA(__FUNCTION__);
@@ -1950,7 +1949,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
 #if defined(_DBGVIEW)
     OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
-#if defined(_DBGSAVE)
+#if defined(_DBGVIEW_SAVE)
     InitializeCriticalSection(&dbgfilelock);
 #endif
 #endif
@@ -2191,7 +2190,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
-#if defined(_DBGSAVE)
+#if defined(_DBGVIEW_SAVE)
     {
         HANDLE h;
 
