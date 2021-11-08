@@ -1709,8 +1709,10 @@ static unsigned int __stdcall workerthread(void *unused)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    if (createiopipes(&si) != 0)
+    if ((rc = createiopipes(&si)) != 0) {
+        setsvcstatusexit(rc);
         goto finished;
+    }
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
         JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
@@ -1849,21 +1851,21 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         ep += nn + 1;
     }
 
-    wh[0] = xcreatethread(0, CREATE_SUSPENDED, &monitorthread);
+    wh[0] = xcreatethread(0, 0, &monitorthread);
     if (IS_INVALID_HANDLE(wh[0])) {
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"monitorthread");
         goto finished;
     }
-    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &workerthread);
+    wh[1] = xcreatethread(0, 0, &workerthread);
     if (IS_INVALID_HANDLE(wh[1])) {
+        InterlockedExchange(&monitorsig, 0);
+        SetEvent(monitorevent);
         CloseHandle(wh[0]);
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"workerthread");
         goto finished;
     }
-    ResumeThread(wh[0]);
-    ResumeThread(wh[1]);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "running");
 #endif
