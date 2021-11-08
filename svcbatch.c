@@ -1709,7 +1709,8 @@ static unsigned int __stdcall workerthread(void *unused)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    if ((rc = createiopipes(&si)) != 0) {
+    rc = createiopipes(&si);
+    if (rc != 0) {
         setsvcstatusexit(rc);
         goto finished;
     }
