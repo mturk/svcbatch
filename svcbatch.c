@@ -55,11 +55,13 @@ static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
+#if defined(_DBGVIEW)
+static CRITICAL_SECTION dbgviewlock;
 #if defined(_DBGVIEW_SAVE)
-static CRITICAL_SECTION dbgfilelock;
 static volatile HANDLE dbgfhandle = NULL;
 static wchar_t  *dbgfilename      = NULL;
 static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
+#endif
 #endif
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
@@ -383,7 +385,8 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     HANDLE  h;
     static  DWORD nw = 0;
 #endif
-    memset(buf, 0, MBUFSIZ);
+
+    EnterCriticalSection(&dbgviewlock);
     n = _snprintf(buf, blen,
                   "[%.4lu] %-16s ",
                   GetCurrentThreadId(),
@@ -392,9 +395,10 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_start(ap, format);
     _vsnprintf(bp, blen - n, format, ap);
     va_end(ap);
+
+    buf[MBUFSIZ - 1] = '\0';
     OutputDebugStringA(buf);
 #if defined(_DBGVIEW_SAVE)
-    EnterCriticalSection(&dbgfilelock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h != NULL) {
         LARGE_INTEGER ee = {{ 0, 0 }};
@@ -408,10 +412,8 @@ static void dbgprintf(const char *funcname, const char *format, ...)
             ms = (DWORD)(ct % MS_IN_SECOND);
             ss = (DWORD)(ct / MS_IN_SECOND);
 
-            sprintf(hdr,
-                    "[%.6lu.%.3lu] [%.4lu] ",
-                    ss, ms,
-                    GetCurrentProcessId());
+            sprintf(hdr, "[%.6lu.%.3lu] [%.4lu] ",
+                    ss, ms, GetCurrentProcessId());
             if (WriteFile(h, hdr, (DWORD)strlen(hdr), &wr, NULL)) {
                 nw += wr;
                 WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL);
@@ -426,8 +428,8 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         }
     }
     InterlockedExchangePointer(&dbgfhandle, h);
-    LeaveCriticalSection(&dbgfilelock);
 #endif
+    LeaveCriticalSection(&dbgviewlock);
 }
 #endif
 
@@ -934,7 +936,7 @@ static DWORD openlogfile(int firstopen)
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
     }
 #if defined(_DBGVIEW_SAVE)
-    EnterCriticalSection(&dbgfilelock);
+    EnterCriticalSection(&dbgviewlock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if ((h == NULL) && (dbgfilename == NULL)) {
         dbgtickinit = logtickcount;
@@ -965,7 +967,7 @@ static DWORD openlogfile(int firstopen)
         }
     }
     InterlockedExchangePointer(&dbgfhandle, h);
-    LeaveCriticalSection(&dbgfilelock);
+    LeaveCriticalSection(&dbgviewlock);
 #endif
     memset(sfx, 0, 48);
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
@@ -1928,9 +1930,7 @@ static void __cdecl objectscleanup(void)
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
 #if defined(_DBGVIEW)
-#if defined(_DBGVIEW_SAVE)
-    DeleteCriticalSection(&dbgfilelock);
-#endif
+    DeleteCriticalSection(&dbgviewlock);
     OutputDebugStringA(__FUNCTION__);
 #endif
 }
@@ -1957,9 +1957,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
 #if defined(_DBGVIEW)
     OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
-#if defined(_DBGVIEW_SAVE)
-    InitializeCriticalSection(&dbgfilelock);
-#endif
+    InitializeCriticalSection(&dbgviewlock);
 #endif
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
@@ -2202,13 +2200,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     {
         HANDLE h;
 
-        EnterCriticalSection(&dbgfilelock);
+        EnterCriticalSection(&dbgviewlock);
         h = InterlockedExchangePointer(&dbgfhandle, NULL);
         if (h != NULL) {
             FlushFileBuffers(h);
             CloseHandle(h);
         }
-        LeaveCriticalSection(&dbgfilelock);
+        LeaveCriticalSection(&dbgviewlock);
     }
 #endif
 #endif
