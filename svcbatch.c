@@ -59,7 +59,6 @@ static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 static CRITICAL_SECTION dbgviewlock;
 #if defined(_DBGVIEW_SAVE)
 static volatile HANDLE dbgfhandle = NULL;
-static wchar_t  *dbgfilename      = NULL;
 static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
 #endif
 #endif
@@ -426,8 +425,8 @@ static void dbgprintf(const char *funcname, const char *format, ...)
                 }
             }
         }
+        InterlockedExchangePointer(&dbgfhandle, h);
     }
-    InterlockedExchangePointer(&dbgfhandle, h);
 #endif
     LeaveCriticalSection(&dbgviewlock);
 }
@@ -938,16 +937,16 @@ static DWORD openlogfile(int firstopen)
 #if defined(_DBGVIEW_SAVE)
     EnterCriticalSection(&dbgviewlock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
-    if ((h == NULL) && (dbgfilename == NULL)) {
-        dbgtickinit = logtickcount;
-        dbgfilename = xwcsconcat(loglocation,
+    if (h == NULL) {
+        wchar_t *dn = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
-        h  = CreateFileW(dbgfilename, GENERIC_WRITE,
+        dbgtickinit = logtickcount;
+        h  = CreateFileW(dn, GENERIC_WRITE,
                          FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, NULL);
         if (IS_INVALID_HANDLE(h)) {
             h = NULL;
-            dbgprintf(__FUNCTION__, "failed to create %S", dbgfilename);
+            dbgprintf(__FUNCTION__, "failed to create %S", dn);
         }
         else {
             SYSTEMTIME tt;
@@ -960,13 +959,20 @@ static DWORD openlogfile(int firstopen)
             }
 
             GetSystemTime(&tt);
+            InterlockedExchangePointer(&dbgfhandle, h);
             dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                       tt.wYear, tt.wMonth, tt.wDay,
                       tt.wHour, tt.wMinute, tt.wSecond);
-            dbgprintf(__FUNCTION__, "tracing %S to %S", servicename, dbgfilename);
+            dbgprintf(__FUNCTION__, "tracing %S to %S", servicename, dn);
         }
+        xfree(dn);
     }
-    InterlockedExchangePointer(&dbgfhandle, h);
+    else {
+        /**
+         * Already opened
+         */
+        InterlockedExchangePointer(&dbgfhandle, h);
+    }
     LeaveCriticalSection(&dbgviewlock);
 #endif
     memset(sfx, 0, 48);
