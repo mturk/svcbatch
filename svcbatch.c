@@ -574,27 +574,26 @@ static HANDLE xcreatethread(int detach, unsigned initflag,
 static wchar_t *expandenvstrings(const wchar_t *str)
 {
     wchar_t  *buf = NULL;
-    DWORD     bsz;
-    DWORD     len;
+    DWORD     siz;
+    DWORD     len = 0;
 
-    bsz = xwcslen(str);
-    if (bsz++ == 0) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return NULL;
+    for (siz = 0; str[siz] != L'\0'; siz++) {
+        if (str[siz] == L'%')
+            len++;
     }
-    if (wcschr(str, L'%') == NULL)
+    if (len == 0)
         buf = xwcsdup(str);
     while (buf == NULL) {
-        buf = xwalloc(bsz);
-        len = ExpandEnvironmentStringsW(str, buf, bsz);
+        buf = xwalloc(++siz);
+        len = ExpandEnvironmentStringsW(str, buf, siz);
         if (len == 0) {
             xfree(buf);
             return NULL;
         }
-        if (len > bsz) {
+        if (len > siz) {
             xfree(buf);
             buf = NULL;
-            bsz = len + 1;
+            siz = len;
         }
     }
     return buf;
