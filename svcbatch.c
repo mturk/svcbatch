@@ -852,8 +852,8 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 
 static void logfflush(HANDLE h)
 {
-    FlushFileBuffers(h);
     logappend(h, CRLFA, 2);
+    FlushFileBuffers(h);
 }
 
 static void logwrline(HANDLE h, const char *str)
