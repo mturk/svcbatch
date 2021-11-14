@@ -24,7 +24,7 @@
 #include "svcbatch.h"
 
 #if defined(_RUN_API_TESTS)
-static int runapitests(void);
+static DWORD runapitests(DWORD, const wchar_t **);
 #endif
 
 static volatile LONG         monitorsig  = 0;
@@ -2022,8 +2022,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Simple case insensitive argument parsing
      * that allows both '-' and '/' as cmdswitches
      */
-    for (i = 1; i < argc; i++) {
-        const wchar_t *p = wargv[i];
+    wargv++;
+    for (i = 1; i < argc; i++, wargv++) {
+        const wchar_t *p = *wargv;
         if (p[0] == L'\0')
             return svcsyserror(__LINE__, 0, L"Empty command line argument");
         if (hasopts) {
@@ -2091,11 +2092,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             xreplacepathsep(bname);
         }
         else {
+#if defined(_RUN_API_TESTS)
+            argc = argc - i;
+            break;
+#else
             /**
              * We have extra parameters after batch file.
              * This is user install error.
              */
             return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
+#endif
         }
     }
 #if defined(_CHECK_IF_SERVICE)
@@ -2245,7 +2251,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[1].lpServiceName = NULL;
     se[1].lpServiceProc = NULL;
 #if defined(_RUN_API_TESTS)
-    i = runapitests();
+    i = runapitests(argc, wargv);
 #else
     i = 0;
 #if defined(_DBGVIEW)
@@ -2274,10 +2280,48 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 }
 
 #if defined(_RUN_API_TESTS)
-static int runapitests(void)
+static DWORD runapitests(DWORD argc, const wchar_t **argv)
 {
+    int          i;
+    DWORD        rv = 0;
+    int          eblen = 0;
+    wchar_t     *ep;
+
+    /**
+     * The following is in sync with servicemain
+     * minus service manager bits.
+     */
+    servicename = xwcsdup(L"runapitests");
+    dbgprintf(__FUNCTION__, "started %S", servicename);
+    rv = openlogfile(TRUE);
+    if (rv != 0) {
+        svcsyserror(__LINE__, rv, L"openlogfile");
+        return rv;
+    }
+    logconfig(logfhandle);
+    /**
+     * Add additional environment variables
+     * They are unique to this service instance
+     */
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=",   servicebase);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=",   servicehome);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_SELF=",   svcbatchexe);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
+
+    qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
+    for (i = 0; i < dupwenvc; i++) {
+        eblen += xwcslen(dupwenvp[i]) + 1;
+    }
+    wenvblock = xwalloc(eblen + 2);
+    for (i = 0, ep = wenvblock; i < dupwenvc; i++) {
+        int nn = xwcslen(dupwenvp[i]);
+        wmemcpy(ep, dupwenvp[i], nn);
+        ep += nn + 1;
+    }
 
 
-    return 0;
+    return rv;
 }
 #endif
