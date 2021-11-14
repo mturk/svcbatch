@@ -1669,13 +1669,10 @@ static unsigned int __stdcall rotatethread(void *unused)
 #endif
                 rc = rotatelogs();
                 if (rc == 0) {
+                    CancelWaitableTimer(wh[0]);
                     rotatenow.QuadPart  = rotatetmo.QuadPart;
                     rotatetmo.QuadPart += rotateint;
-                    CancelWaitableTimer(wh[0]);
-                    if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
-                        rc = GetLastError();
-                        svcsyserror(__LINE__, rc, L"SetWaitableTimer");
-                    }
+                    SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
                 }
                 if (rc != 0) {
                     setsvcstatusexit(rc);
