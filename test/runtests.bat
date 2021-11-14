@@ -27,18 +27,17 @@ popd
 rem
 pushd ..
 echo.
-echo Compiling SvcBatch
 rd /S /Q x64 2>NUL
 gcc -v 2>NUL
-if not %ERRORLEVEL% == 0 goto Msvc
-make -f Makefile.gmk _RUN_API_TESTS=1 1>NUL
-if not %ERRORLEVEL% == 0 goto Failed
-goto Compiled
-:Msvc
-nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
-if not %ERRORLEVEL% == 0 goto Failed
+if %ERRORLEVEL% neq 0 (
+  echo Compiling SvcBatch using msvc
+  nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
+) else (
+  echo Compiling SvcBatch using gcc
+  make -f Makefile.gmk _RUN_API_TESTS=1 1>NUL
+)
+if %ERRORLEVEL% neq 0 goto Failed
 rem
-:Compiled
 echo.
 popd
 pushd ..\x64
@@ -50,7 +49,7 @@ echo Runnig tests in: %BaseDir%
 echo Using SvcBatch : %BuildDir%\svcbatch.exe
 echo.
 %BuildDir%\svcbatch.exe -c -w %BaseDir% /S -b -r @30~100k noservice.bat noservice %*
-if not %ERRORLEVEL% == 0 goto Failed
+if %ERRORLEVEL% neq 0 goto Failed
 
 echo.
 echo Done!
