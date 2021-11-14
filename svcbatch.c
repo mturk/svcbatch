@@ -1192,11 +1192,11 @@ static void closelogfile(void)
     LeaveCriticalSection(&logfilelock);
 }
 
-static int resolverotate(wchar_t *str)
+static int resolverotate(const wchar_t *str)
 {
     SYSTEMTIME st;
     FILETIME   ft;
-    wchar_t   *rp = str;
+    wchar_t   *rp, *sp;
 
     GetSystemTime(&st);
     SystemTimeToFileTime(&st, &ft);
@@ -1205,7 +1205,7 @@ static int resolverotate(wchar_t *str)
     rotatetmo.LowPart   = ft.dwLowDateTime;
     rotatetmo.QuadPart += rotateint;
 
-    if (IS_EMPTY_WCS(rp)) {
+    if (IS_EMPTY_WCS(str)) {
 #if defined(_DBGVIEW)
         SYSTEMTIME ct;
 
@@ -1223,6 +1223,7 @@ static int resolverotate(wchar_t *str)
         else
             return 0;
     }
+    rp = sp = xwcsdup(str);
     if (*rp == L'@') {
         int      hh, mm, ss;
         wchar_t *p;
@@ -1316,6 +1317,7 @@ static int resolverotate(wchar_t *str)
         if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
             return __LINE__;
     }
+    xfree(sp);
     return 0;
 }
 
@@ -2257,13 +2259,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     xcleanwinpath(opath);
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
-    if (rotateparam) {
-        wchar_t *rp = xwcsdup(rotateparam);
-        i = resolverotate(rp);
-        if (i != 0)
-            return svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
-        xfree(rp);
-    }
+    i = resolverotate(rotateparam);
+    if (i != 0)
+        return svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
