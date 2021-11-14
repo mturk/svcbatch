@@ -41,6 +41,7 @@ static SECURITY_ATTRIBUTES   sazero;
 static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
+static HANDLE                rotatetmr   = NULL;
 
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
@@ -70,7 +71,6 @@ static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
 #endif
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
-static HANDLE    hrotatetimer     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
@@ -1553,10 +1553,10 @@ static unsigned int __stdcall monitorthread(void *unused)
                         break;
                     }
                     if (rotateint != ONE_DAY) {
-                        if (hrotatetimer) {
-                            CancelWaitableTimer(hrotatetimer);
+                        if (rotatetmr) {
+                            CancelWaitableTimer(rotatetmr);
                             rotatetmo.QuadPart += rotateint;
-                            SetWaitableTimer(hrotatetimer, &rotatetmo, 0, NULL, NULL, 0);
+                            SetWaitableTimer(rotatetmr, &rotatetmo, 0, NULL, NULL, 0);
                         }
                     }
                 }
@@ -1611,7 +1611,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     else
         ms = INFINITE;
 
-    wh[0] = hrotatetimer;
+    wh[0] = rotatetmr;
     wh[1] = processended;
     do {
         wc = WaitForMultipleObjects(2, wh, FALSE, ms);
@@ -1680,7 +1680,7 @@ finished:
         dbgprintf(__FUNCTION__, "log rotation failed %lu", rc);
     dbgprintf(__FUNCTION__, "done");
 #endif
-    SAFE_CLOSE_HANDLE(hrotatetimer);
+    SAFE_CLOSE_HANDLE(rotatetmr);
     XENDTHREAD(0);
 }
 
@@ -1801,14 +1801,14 @@ static unsigned int __stdcall workerthread(void *unused)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    hrotatetimer = CreateWaitableTimerW(NULL, TRUE, NULL);
-    if (IS_INVALID_HANDLE(hrotatetimer)) {
+    rotatetmr  = CreateWaitableTimerW(NULL, TRUE, NULL);
+    if (IS_INVALID_HANDLE(rotatetmr)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
         goto finished;
     }
-    if (!SetWaitableTimer(hrotatetimer, &rotatetmo, 0, NULL, NULL, 0)) {
+    if (!SetWaitableTimer(rotatetmr, &rotatetmo, 0, NULL, NULL, 0)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"SetWaitableTimer");
