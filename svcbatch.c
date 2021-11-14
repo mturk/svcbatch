@@ -1589,13 +1589,12 @@ static unsigned int __stdcall rotatethread(void *unused)
 {
     HANDLE wh[2];
     HANDLE h = NULL;
-    DWORD  wc, rc, ms;
+    DWORD  wc, ms, rc = 0;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
 #endif
 
-    rc = 0;
     wc = WaitForSingleObject(processended, SVCBATCH_START_HINT);
     if (wc != WAIT_TIMEOUT) {
 #if defined(_DBGVIEW)
@@ -1606,30 +1605,15 @@ static unsigned int __stdcall rotatethread(void *unused)
 #endif
         goto finished;
     }
-    hrotatetimer = CreateWaitableTimerW(NULL, TRUE, NULL);
-    if (IS_INVALID_HANDLE(hrotatetimer)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
-        xcreatethread(1, 0, &stopthread);
-        goto finished;
-    }
-    wh[0] = hrotatetimer;
-    wh[1] = processended;
 
-    if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"SetWaitableTimer");
-        xcreatethread(1, 0, &stopthread);
-        goto finished;
-    }
     if (rotatesiz.QuadPart)
         ms = SVCBATCH_LOGROTATE_HINT;
     else
         ms = INFINITE;
+
+    wh[0] = hrotatetimer;
+    wh[1] = processended;
     do {
-        rc = 0;
         wc = WaitForMultipleObjects(2, wh, FALSE, ms);
         switch (wc) {
             case WAIT_TIMEOUT:
@@ -1816,6 +1800,20 @@ static unsigned int __stdcall workerthread(void *unused)
 
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
+
+    hrotatetimer = CreateWaitableTimerW(NULL, TRUE, NULL);
+    if (IS_INVALID_HANDLE(hrotatetimer)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
+        goto finished;
+    }
+    if (!SetWaitableTimer(hrotatetimer, &rotatetmo, 0, NULL, NULL, 0)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"SetWaitableTimer");
+        goto finished;
+    }
 
     rc = createiopipes(&si);
     if (rc != 0) {
