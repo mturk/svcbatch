@@ -22,9 +22,18 @@ rem executing this script
 rem
 setlocal
 pushd %~dp0
-set "RunTestsDir=%cd%"
+set "BaseDir=%cd%"
 popd
 rem
 pushd ..
-nmake /A _RUN_API_TEST=1 _STATIC_MSVCRT=1
+echo.
+echo Compiling SvcBatch
+nmake /nologo /A _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
+echo.
 popd
+pushd ..\x64
+set "BuildDir=%cd%"
+popd
+rem
+echo Runnig tests in: %BaseDir%
+echo Using SvcBatch : %BuildDir%\svcbatch.exe
