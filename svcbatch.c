@@ -1286,7 +1286,7 @@ static unsigned int __stdcall stopthread(void *unused)
 #endif
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        Sleep(SVCBATCH_PENDING_INIT);
+        WaitForSingleObject(processended, SVCBATCH_PENDING_INIT);
         SetConsoleCtrlHandler(NULL, FALSE);
     }
 #if defined(_DBGVIEW)
