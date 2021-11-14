@@ -29,8 +29,8 @@ OUTPUT  = $(WORKDIR)/$(TARGET)
 ifdef _DBGVIEW
 DFLAGS = -D_DBGVIEW
 endif
-ifdef _DBGSAVE
-DFLAGS = -D_DBGVIEW -D_DBGSAVE
+ifdef _DBGVIEW_SAVE
+DFLAGS = -D_DBGVIEW -D_DBGVIEW_SAVE
 endif
 
 WINVER  = 0x0601
@@ -41,7 +41,7 @@ LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-fallthrough
 RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
 RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER) $(EXTRA_RFLAGS)
 CLOPTS  = $(LNOPTS) -c
-LDLIBS  = -lkernel32 -ladvapi32 -luser32
+LDLIBS  = -lkernel32 -ladvapi32 -luser32 -lshell32
 
 ifdef _VENDOR_SFX
 CFLAGS += -D_VENDOR_SFX=$(_VENDOR_SFX)
@@ -62,17 +62,14 @@ $(WORKDIR):
 	@mkdir -p $@
 
 $(WORKDIR)/%.obj: $(SRCDIR)/%.c $(SRCDIR)/%.h
-	@echo CC $<
-	@$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) $<
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
-	@echo RC $<
-	@$(RC) $(RCOPTS) -o $@ $(RFLAGS) -I $(SRCDIR) $<
+	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -I $(SRCDIR) $<
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
-	@echo LN $(TARGET)
-	@$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
-	@$(RL) $@
+	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
+	$(RL) $@
 
 clean:
 	@rm -rf $(WORKDIR)
