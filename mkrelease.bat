@@ -34,7 +34,7 @@ popd
 rem
 rem Create builds
 rd /S /Q "%ReleaseArch%" 2>NUL
-nmake _STATIC_MSVCRT=1 %~2 %~3 %~4
+nmake /nologo _STATIC_MSVCRT=1 %~2 %~3 %~4 >NUL
 rem Set path for ClamAV and 7za
 rem
 set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"
