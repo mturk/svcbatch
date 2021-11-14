@@ -838,9 +838,9 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
     LARGE_INTEGER ee = {{ 0, 0 }};
 
     if (!SetFilePointerEx(h, ee, NULL, FILE_END)) {
-        rc = GetLastError();
+        return GetLastError();
     }
-    else if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0)) {
+    if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0)) {
         if (InterlockedAdd(&logwritten, wr) >= SVCBATCH_LOGFLUSH_SIZE) {
             FlushFileBuffers(h);
             InterlockedExchange(&logwritten, 0);
@@ -873,6 +873,13 @@ static void logwrline(HANDLE h, const char *str)
     DWORD   w;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
+    if (!SetFilePointerEx(h, ee, NULL, FILE_END)) {
+#if defined(_DBGVIEW)
+        DWORD rc = GetLastError();
+        dbgprintf(__FUNCTION__, "SetFilePointerEx failed (0x%08x)", rc);
+#endif
+        return;
+    }
     ct = GetTickCount64() - logtickcount;
     ms = (int)((ct % MS_IN_SECOND));
     ss = (int)((ct / MS_IN_SECOND) % 60);
@@ -885,20 +892,13 @@ static void logwrline(HANDLE h, const char *str)
             dd, hh, mm, ss, ms,
             GetCurrentProcessId(),
             GetCurrentThreadId());
-    if (SetFilePointerEx(h, ee, NULL, FILE_END)) {
-        WriteFile(h, buf, (DWORD)strlen(buf), &w, NULL);
-        InterlockedAdd(&logwritten, w);
-        WriteFile(h, str, (DWORD)strlen(str), &w, NULL);
-        InterlockedAdd(&logwritten, w);
-        WriteFile(h, CRLFA, 2, &w, NULL);
-        InterlockedAdd(&logwritten, w);
-    }
-#if defined(_DBGVIEW)
-    else {
-        DWORD rc = GetLastError();
-        dbgprintf(__FUNCTION__, "SetFilePointerEx failed (0x%08x)", rc);
-    }
-#endif
+    buf[BBUFSIZ - 1] = '\0';
+    WriteFile(h, buf, (DWORD)strlen(buf), &w, NULL);
+    InterlockedAdd(&logwritten, w);
+    WriteFile(h, str, (DWORD)strlen(str), &w, NULL);
+    InterlockedAdd(&logwritten, w);
+    WriteFile(h, CRLFA, 2, &w, NULL);
+    InterlockedAdd(&logwritten, w);
 }
 
 static void logprintf(HANDLE h, const char *format, ...)
