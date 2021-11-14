@@ -1986,7 +1986,11 @@ static void __cdecl objectscleanup(void)
 #if defined(_DBGVIEW_SAVE)
     DeleteCriticalSection(&dbgviewlock);
 #endif
+#if defined(_RUN_API_TESTS)
+    fputs(__FUNCTION__ "\n", stdout);
+#else
     OutputDebugStringA(__FUNCTION__);
+#endif
 #endif
 }
 
