@@ -2307,7 +2307,10 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
      * The following is in sync with servicemain
      * minus service manager bits.
      */
-    servicename = xwcsdup(L"noservice");
+    if (argc)
+        servicename = xwcsdup(argv[0]);
+    else
+        servicename = xwcsdup(L"noservice");
     dbgprintf(__FUNCTION__, "started %S", servicename);
     rv = openlogfile(TRUE);
     if (rv != 0) {
@@ -2315,7 +2318,7 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
         return rv;
     }
     logconfig(logfhandle);
-    for (i = 0; i < argc; i++) {
+    for (i = 1; i < argc; i++) {
         dbgprintf(__FUNCTION__, "arg[%d]: %S", i, argv[i]);
     }
     /**
