@@ -1613,7 +1613,7 @@ static unsigned int __stdcall rotatethread(void *unused)
 
     wh[0] = rotatetmr;
     wh[1] = processended;
-    do {
+    while (rc == 0) {
         wc = WaitForMultipleObjects(2, wh, FALSE, ms);
         switch (wc) {
             case WAIT_TIMEOUT:
@@ -1668,20 +1668,23 @@ static unsigned int __stdcall rotatethread(void *unused)
                     xcreatethread(1, 0, &stopthread);
                 }
             break;
-#if defined(_DBGVIEW)
             case WAIT_OBJECT_1:
+                rc = ERROR_PROCESS_ABORTED;
+#if defined(_DBGVIEW)
                 dbgprintf(__FUNCTION__, "processended signaled");
-            break;
 #endif
+            break;
             default:
+                rc = wc;
+#if defined(_DBGVIEW)
+                dbgprintf(__FUNCTION__, "wait failed %lu", rc);
+#endif
             break;
         }
-    } while ((rc == 0) && ((wc == WAIT_OBJECT_0) || (wc == WAIT_TIMEOUT)));
+    }
 
 finished:
 #if defined(_DBGVIEW)
-    if (rc != 0)
-        dbgprintf(__FUNCTION__, "log rotation failed %lu", rc);
     dbgprintf(__FUNCTION__, "done");
 #endif
     SAFE_CLOSE_HANDLE(rotatetmr);
