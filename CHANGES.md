@@ -9,6 +9,8 @@ For a full list of changes, see the [git commit log][log]
 ## v1.0.6
 
  * In development
+ * Improve _DGVIEW_SAVE thread safety
+ * Report error to Service Manager if createiopipes fails
 
 
 ## v1.0.5
