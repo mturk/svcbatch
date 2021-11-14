@@ -26,7 +26,7 @@ static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
-
+static volatile LONG         logwritten  = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -842,6 +842,12 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
         return GetLastError();
     if (!WriteFile(h, buf, len, &wr, NULL))
         rc = GetLastError();
+    else {
+        if (InterlockedAdd(&logwritten, wr) >= SVCBATCH_LOGFLUSH_SIZE) {
+            FlushFileBuffers(h);
+            InterlockedExchange(&logwritten, 0);
+        }
+    }
 #if defined(_DBGVIEW)
     if ((rc != 0) || (wr == 0)) {
         dbgprintf(__FUNCTION__, "wrote zero bytes (0x%08x)", rc);
@@ -852,8 +858,10 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 
 static void logfflush(HANDLE h)
 {
+    InterlockedExchange(&logwritten, 0);
     logappend(h, CRLFA, 2);
     FlushFileBuffers(h);
+    InterlockedExchange(&logwritten, 0);
 }
 
 static void logwrline(HANDLE h, const char *str)
@@ -876,9 +884,12 @@ static void logwrline(HANDLE h, const char *str)
             GetCurrentProcessId(),
             GetCurrentThreadId());
     WriteFile(h, buf, (DWORD)strlen(buf), &w, NULL);
+    InterlockedAdd(&logwritten, w);
     WriteFile(h, str, (DWORD)strlen(str), &w, NULL);
-
+    InterlockedAdd(&logwritten, w);
     WriteFile(h, CRLFA, 2, &w, NULL);
+    InterlockedAdd(&logwritten, w);
+
 }
 
 static void logprintf(HANDLE h, const char *format, ...)
@@ -1069,6 +1080,7 @@ retry:
         }
     }
     xfree(logpb);
+    InterlockedExchange(&logwritten, 0);
     logwrline(h, SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
     if (firstopen)
         logwrtime(h, "Log opened");
@@ -1368,7 +1380,6 @@ finished:
 static unsigned int __stdcall iopipethread(void *unused)
 {
     DWORD  rc = 0;
-    DWORD  rn = 0;
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
 #endif
@@ -1399,17 +1410,11 @@ static unsigned int __stdcall iopipethread(void *unused)
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
 
-            if (h != NULL) {
+            if (h != NULL)
                 rc = logappend(h, rb, rd);
-                rn += rd;
-                if (rn >= 65536) {
-                    FlushFileBuffers(h);
-                    rn = 0;
-                }
-            }
-            else {
+            else
                 rc = ERROR_NO_MORE_FILES;
-            }
+
             InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
         }
