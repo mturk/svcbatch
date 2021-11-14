@@ -39,6 +39,9 @@ rem
 echo Runnig tests in: %BaseDir%
 echo Using SvcBatch : %BuildDir%\svcbatch.exe
 
+%BuildDir%\svcbatch.exe -w %BaseDir% noservice.bat
+if not %ERRORLEVEL% == 0 goto Failed
+
 exit /B 0
 
 :Failed
