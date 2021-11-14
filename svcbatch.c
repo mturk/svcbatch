@@ -859,10 +859,14 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 
 static void logfflush(HANDLE h)
 {
+    LARGE_INTEGER ee = {{ 0, 0 }};
+
     InterlockedExchange(&logwritten, 0);
-    logappend(h, CRLFA, 2);
-    FlushFileBuffers(h);
-    InterlockedExchange(&logwritten, 0);
+    if (SetFilePointerEx(h, ee, NULL, FILE_END)) {
+        logappend(h, CRLFA, 2);
+        FlushFileBuffers(h);
+        InterlockedExchange(&logwritten, 0);
+    }
 }
 
 static void logwrline(HANDLE h, const char *str)
