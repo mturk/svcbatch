@@ -915,7 +915,7 @@ static void logconfig(HANDLE h)
     logfflush(h);
 }
 
-static DWORD openlogfile(int firstopen)
+static DWORD openlogfile(BOOL firstopen)
 {
     wchar_t  sfx[24];
     wchar_t *logpb = NULL;
@@ -1087,7 +1087,7 @@ static DWORD rotatelogs(void)
     logwrtime(h, "Log rotatation initialized");
     FlushFileBuffers(h);
     CloseHandle(h);
-    rc = openlogfile(0);
+    rc = openlogfile(FALSE);
     if (rc == 0) {
         logwrtime(logfhandle, "Log rotated");
         logprintf(logfhandle, "Log generation   : %lu",
@@ -1848,7 +1848,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started %S", servicename);
 #endif
-    rv = openlogfile(1);
+    rv = openlogfile(TRUE);
     if (rv != 0) {
         svcsyserror(__LINE__, rv, L"openlogfile");
         reportsvcstatus(SERVICE_STOPPED, rv);
