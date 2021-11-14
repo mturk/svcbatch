@@ -2336,6 +2336,11 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
     }
 
 
+    closelogfile();
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "done");
+#endif
+    reportsvcstatus(SERVICE_STOPPED, rv);
     return rv;
 }
 #endif
