@@ -1213,7 +1213,7 @@ static int resolverotate(wchar_t *str)
         ft.dwLowDateTime  = rotatetmo.LowPart;
         FileTimeToSystemTime(&ft, &ct);
 
-        dbgprintf(__FUNCTION__, "rotate def %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+        dbgprintf(__FUNCTION__, "rotate default %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                   ct.wYear, ct.wMonth, ct.wDay,
                   ct.wHour, ct.wMinute, ct.wSecond);
 #endif
@@ -1271,7 +1271,7 @@ static int resolverotate(wchar_t *str)
             ct.wSecond = ss;
         }
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotate at  %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+        dbgprintf(__FUNCTION__, "rotate at time %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                   ct.wYear, ct.wMonth, ct.wDay,
                   ct.wHour, ct.wMinute, ct.wSecond);
 #endif
@@ -1283,13 +1283,17 @@ static int resolverotate(wchar_t *str)
         LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(1);
         wchar_t *ep  = NULL;
-        wchar_t  mm  = L'b';
 
         siz = _wcstoi64(rp, &ep, 10);
         if (siz < mux)
             return __LINE__;
-        if (ep != NULL) {
-            mm = towupper(*ep);
+        if (IS_EMPTY_WCS(ep)) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "rotate on size %ld bytes", (long)siz);
+#endif
+        }
+        else {
+            wchar_t mm = towupper(*ep);
             switch (mm) {
                 case L'K':
                     mux = KILOBYTES(1);
@@ -1304,10 +1308,10 @@ static int resolverotate(wchar_t *str)
                     return __LINE__;
                 break;
             }
-        }
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotate siz %d %C", (int)siz, mm);
+            dbgprintf(__FUNCTION__, "rotate on size %ld %Cbytes", (long)siz, mm);
 #endif
+        }
         rotatesiz.QuadPart = siz * mux;
         if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
             return __LINE__;
@@ -2253,10 +2257,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     xcleanwinpath(opath);
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
-    i = resolverotate(rotateparam);
-    if (i != 0)
-        return svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
-
+    if (rotateparam) {
+        wchar_t *rp = xwcsdup(rotateparam);
+        i = resolverotate(rp);
+        if (i != 0)
+            return svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
+        xfree(rp);
+    }
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
