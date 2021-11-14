@@ -31,7 +31,7 @@ rd /S /Q x64 >NUL 2>&1
 make -v >NUL 2>&1
 if %ERRORLEVEL% neq 0 (
   echo Compiling SvcBatch using msvc
-  nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1
+  nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
 ) else (
   echo Compiling SvcBatch using gcc
   make -f Makefile.gmk _RUN_API_TESTS=1 1>NUL

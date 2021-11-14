@@ -69,7 +69,7 @@ static CRITICAL_SECTION dbgviewlock;
 #if defined(_DBGVIEW_SAVE)
 static volatile LONG   dbgwritten = 0;
 static volatile HANDLE dbgfhandle = NULL;
-static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
+static ULONGLONG       dbginitick;
 #endif
 #endif
 static HANDLE    childprocjob     = NULL;
@@ -414,32 +414,41 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 {
     char    buf[MBUFSIZ];
     char   *bp;
-    size_t  blen = MBUFSIZ - 2;
-    int     n;
+    size_t  blen = MBUFSIZ - 1;
+    int     n = 0;
+    int     z = 0;
     va_list ap;
 #if defined(_DBGVIEW_SAVE)
     HANDLE  h;
+    DWORD   ct, wr, ss, ms;
 #endif
-#if defined(_RUN_API_TESTS)
-    static DWORD id = 0;
-#else
-    DWORD  id = GetCurrentThreadId();
+
+    memset(buf, 0, sizeof(buf));
+    bp = buf;
+
+#if defined(_DBGVIEW_SAVE)
+    ct = (DWORD)(GetTickCount64() - dbginitick);
+    ms = (DWORD)(ct % MS_IN_SECOND);
+    ss = (DWORD)(ct / MS_IN_SECOND);
+    z  = _snprintf(bp, blen,
+                   "[%.6lu.%.3lu] [%.4lu] ",
+                   ss, ms, GetCurrentProcessId());
+    bp = bp + z;
 #endif
-    n = _snprintf(buf, blen,
+    n = _snprintf(bp, blen - z,
                   "[%.4lu] %-16s ",
-                  id++, funcname);
-    bp = buf + n;
+                  GetCurrentThreadId(), funcname);
+    bp = bp + n;
     va_start(ap, format);
-    _vsnprintf(bp, blen - n, format, ap);
+    _vsnprintf(bp, blen - n - z, format, ap);
     va_end(ap);
 
-    buf[MBUFSIZ - 1] = '\0';
     EnterCriticalSection(&dbgviewlock);
 #if defined(_RUN_API_TESTS)
     fputs(buf,  stdout);
     fputc('\n', stdout);
 #else
-    OutputDebugStringA(buf);
+    OutputDebugStringA(buf + z);
 #endif
 #if defined(_DBGVIEW_SAVE)
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
@@ -447,19 +456,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         LARGE_INTEGER ee = {{ 0, 0 }};
 
         if (SetFilePointerEx(h, ee, NULL, FILE_END)) {
-            char      hdr[BBUFSIZ];
-            ULONGLONG ct;
-            DWORD     wr, ss, ms;
-
-            ct = GetTickCount64() - dbgtickinit;
-            ms = (DWORD)(ct % MS_IN_SECOND);
-            ss = (DWORD)(ct / MS_IN_SECOND);
-
-            sprintf(hdr, "[%.6lu.%.3lu] [%.4lu] ",
-                    ss, ms, GetCurrentProcessId());
-            if (WriteFile(h, hdr, (DWORD)strlen(hdr), &wr, NULL)) {
-                InterlockedAdd(&dbgwritten, wr);
-                WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL);
+            if (WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL)) {
                 InterlockedAdd(&dbgwritten, wr);
                 WriteFile(h, CRLFA, 2, &wr, NULL);
                 if (InterlockedAdd(&dbgwritten, wr) >= SVCBATCH_LOGFLUSH_SIZE) {
@@ -541,8 +538,8 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     wchar_t        erd[MBUFSIZ];
     const wchar_t *errarg[10];
 
-    _snwprintf(buf, BBUFSIZ - 2, L"svcbatch.c(%d)", line);
-    buf[BBUFSIZ - 1] = L'\0';
+    memset(buf, 0, sizeof(buf));
+    _snwprintf(buf, BBUFSIZ - 1, L"svcbatch.c(%d)", line);
     errarg[0] = L"The " CPP_WIDEN(SVCBATCH_SVCNAME) L" named";
     if (IS_EMPTY_WCS(servicename))
         errarg[1] = L"(undefined)";
@@ -809,9 +806,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
     }
     ssvcstatus.dwCurrentState = status;
 #if defined(_RUN_API_TESTS)
-    /**
-     * TODO: Do we need something here?
-     */
+    InterlockedExchange(&sscstate, status);
 #else
     if (SetServiceStatus(hsvcstatus, &ssvcstatus))
         InterlockedExchange(&sscstate, status);
@@ -915,6 +910,7 @@ static void logwrline(HANDLE h, const char *str)
     hh = (int)((ct / MS_IN_HOUR)   % 24);
     dd = (int)((ct / MS_IN_DAY));
 
+    memset(buf, 0, sizeof(buf));
     sprintf(buf,
             "[%.2d:%.2d:%.2d:%.2d.%.3d] [%.4lu:%.4lu] ",
             dd, hh, mm, ss, ms,
@@ -931,14 +927,14 @@ static void logwrline(HANDLE h, const char *str)
 
 static void logprintf(HANDLE h, const char *format, ...)
 {
-    char    bp[MBUFSIZ];
+    char    buf[MBUFSIZ];
     va_list ap;
 
+    memset(buf, 0, sizeof(buf));
     va_start(ap, format);
-    _vsnprintf(bp, MBUFSIZ - 2, format, ap);
+    _vsnprintf(buf, MBUFSIZ - 1, format, ap);
     va_end(ap);
-    bp[MBUFSIZ - 1] = '\0';
-    logwrline(h, bp);
+    logwrline(h, buf);
 }
 
 static void logwrtime(HANDLE h, const char *hdr)
@@ -1011,7 +1007,6 @@ static DWORD openlogfile(BOOL firstopen)
     if (h == NULL) {
         wchar_t *dn = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
-        dbgtickinit = logtickcount;
         h  = CreateFileW(dn, GENERIC_WRITE,
                          FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, NULL);
@@ -2085,12 +2080,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
 
 #if defined(_DBGVIEW)
+    InitializeCriticalSection(&dbgviewlock);
+#if defined(_DBGVIEW_SAVE)
+    dbginitick = GetTickCount64();
+#endif
 #if defined(_RUN_API_TESTS)
     fputs(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
 #else
     OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
 #endif
-    InitializeCriticalSection(&dbgviewlock);
 #endif
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
@@ -2441,7 +2439,7 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
         dbgprintf(__FUNCTION__, "sleeping for 5 minutes ...");
         Sleep(5 * 60000);
     }
-    dbgprintf(__FUNCTION__, "sending processendeds");
+    dbgprintf(__FUNCTION__, "signaling processended");
     SetEvent(processended);
     dbgprintf(__FUNCTION__, "waiting two seconds for thread cleanup");
     Sleep(2000);
