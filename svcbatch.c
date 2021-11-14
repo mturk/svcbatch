@@ -57,6 +57,7 @@ static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 #if defined(_DBGVIEW_SAVE)
 static CRITICAL_SECTION dbgviewlock;
+static volatile LONG   dbgwritten = 0;
 static volatile HANDLE dbgfhandle = NULL;
 static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
 #endif
@@ -388,7 +389,6 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_list ap;
 #if defined(_DBGVIEW_SAVE)
     HANDLE  h;
-    static  DWORD nw = 0;
 #endif
 
     n = _snprintf(buf, blen,
@@ -420,14 +420,13 @@ static void dbgprintf(const char *funcname, const char *format, ...)
             sprintf(hdr, "[%.6lu.%.3lu] [%.4lu] ",
                     ss, ms, GetCurrentProcessId());
             if (WriteFile(h, hdr, (DWORD)strlen(hdr), &wr, NULL)) {
-                nw += wr;
+                InterlockedAdd(&dbgwritten, wr);
                 WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL);
-                nw += wr;
+                InterlockedAdd(&dbgwritten, wr);
                 WriteFile(h, CRLFA, 2, &wr, NULL);
-                nw += wr;
-                if (nw >= 4096) {
+                if (InterlockedAdd(&dbgwritten, wr) >= 4096) {
                     FlushFileBuffers(h);
-                    nw = 0;
+                    InterlockedExchange(&dbgwritten, 0);
                 }
             }
         }
