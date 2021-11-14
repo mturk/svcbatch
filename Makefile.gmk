@@ -32,12 +32,15 @@ endif
 ifdef _DBGVIEW_SAVE
 DFLAGS = -D_DBGVIEW -D_DBGVIEW_SAVE
 endif
+ifdef _RUN_API_TESTS
+DFLAGS = -D_DBGVIEW -D_DBGVIEW_SAVE -D_RUN_API_TESTS
+endif
 
 WINVER  = 0x0601
 CFLAGS  = -DNDEBUG -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
 	-D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE \
 	-DUNICODE -D_UNICODE $(DFLAGS) $(EXTRA_CFLAGS)
-LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-implicit-fallthrough -municode -mconsole
+LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-implicit-fallthrough -municode -mconsole
 RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
 RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER) $(EXTRA_RFLAGS)
 CLOPTS  = $(LNOPTS) -c

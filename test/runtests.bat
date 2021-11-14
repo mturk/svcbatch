@@ -28,8 +28,17 @@ rem
 pushd ..
 echo.
 echo Compiling SvcBatch
-nmake /nologo /A _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
+rd /S /Q x64 2>NUL
+gcc -v 2>NUL
+if not %ERRORLEVEL% == 0 goto Msvc
+make -f Makefile.gmk _RUN_API_TESTS=1 1>NUL
 if not %ERRORLEVEL% == 0 goto Failed
+goto Compiled
+:Msvc
+nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
+if not %ERRORLEVEL% == 0 goto Failed
+rem
+:Compiled
 echo.
 popd
 pushd ..\x64

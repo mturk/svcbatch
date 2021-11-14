@@ -2036,7 +2036,8 @@ static void __cdecl objectscleanup(void)
     DeleteCriticalSection(&dbgviewlock);
 #endif
 #if defined(_RUN_API_TESTS)
-    fputs(__FUNCTION__ "\n", stdout);
+    fputs(__FUNCTION__, stdout);
+    fputc('\n', stdout);
 #else
     OutputDebugStringA(__FUNCTION__);
 #endif
@@ -2054,7 +2055,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         envc       = 0;
     int         hasopts    = 1;
     HANDLE      hstdin;
-    SERVICE_TABLE_ENTRYW se[2];
 
     /**
      * Make sure children (cmd.exe) are kept quiet.
@@ -2306,19 +2306,22 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #endif
     if (IS_INVALID_HANDLE(hstdin))
         return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
-    se[0].lpServiceName = zerostring;
-    se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
-    se[1].lpServiceName = NULL;
-    se[1].lpServiceProc = NULL;
 #if defined(_RUN_API_TESTS)
     i = runapitests(argc, wargv);
 #else
     i = 0;
+    {
+        SERVICE_TABLE_ENTRYW se;
+        se[0].lpServiceName = zerostring;
+        se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
+        se[1].lpServiceName = NULL;
+        se[1].lpServiceProc = NULL;
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "starting service");
+        dbgprintf(__FUNCTION__, "starting service");
 #endif
-    if (!StartServiceCtrlDispatcherW(se))
-        return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
+        if (!StartServiceCtrlDispatcherW(se))
+            return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
+    }
 #endif
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
@@ -2364,7 +2367,7 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
         return rv;
     }
     logconfig(logfhandle);
-    for (i = 1; i < argc; i++) {
+    for (i = 1; i < (int)argc; i++) {
         dbgprintf(__FUNCTION__, "arg[%d]: %S", i, argv[i]);
     }
     /**
