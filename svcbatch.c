@@ -581,8 +581,10 @@ static wchar_t *expandenvstrings(const wchar_t *str)
         if (str[siz] == L'%')
             len++;
     }
-    if (len == 0)
-        buf = xwcsdup(str);
+    if (len == 0) {
+        buf = xwalloc(siz + 2);
+        wmemcpy(buf, str, siz);
+    }
     while (buf == NULL) {
         buf = xwalloc(++siz);
         len = ExpandEnvironmentStringsW(str, buf, siz);
