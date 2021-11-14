@@ -34,6 +34,7 @@ popd
 rem
 rem Create builds
 nmake /nologo /A _STATIC_MSVCRT=1 %~2 %~3 %~4 >NUL
+if not %ERRORLEVEL% == 0 goto Failed
 rem Set path for ClamAV and 7za
 rem
 set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"
@@ -56,6 +57,11 @@ rem
 :Einval
 echo Error: Invalid parameter
 echo Usage: %~nx0 version
+exit /b 1
+
+:Failed
+echo.
+echo Error: Cannot build %ProjectName%.exe
 exit /b 1
 
 :End

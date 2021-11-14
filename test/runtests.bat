@@ -29,6 +29,7 @@ pushd ..
 echo.
 echo Compiling SvcBatch
 nmake /nologo /A _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
+if not %ERRORLEVEL% == 0 goto Failed
 echo.
 popd
 pushd ..\x64
@@ -37,3 +38,10 @@ popd
 rem
 echo Runnig tests in: %BaseDir%
 echo Using SvcBatch : %BuildDir%\svcbatch.exe
+
+exit /B 0
+
+:Failed
+echo.
+echo Test failed!
+exit /B 1
