@@ -18,7 +18,7 @@ rem --------------------------------------------------
 rem SvcBatch release helper script
 rem
 rem Usage: mkrelease.bat version [options]
-rem    eg: mkrelease 1.0.6 "_VENDOR_SFX=_1"
+rem    eg: mkrelease 1.0.6_1 "_VENDOR_SFX=_1"
 rem
 setlocal
 if "x%~1" == "x" goto Einval
@@ -47,8 +47,9 @@ echo ```no-highlight >> %ReleaseName%.txt
 clamscan.exe --version >> %ReleaseName%.txt
 clamscan.exe --bytecode=no %ProjectName%.exe >> %ReleaseName%.txt
 echo ``` >> %ReleaseName%.txt
+del /F /Q %ReleaseName%.zip 2>NUL
 7za.exe a -bd %ReleaseName%.zip %ProjectName%.exe
-sigtool.exe --sha256 %ReleaseName%.zip >> %ReleaseName%-sha256.txt
+sigtool.exe --sha256 %ReleaseName%.zip > %ReleaseName%-sha256.txt
 popd
 goto End
 rem
