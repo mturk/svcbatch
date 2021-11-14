@@ -1636,6 +1636,10 @@ static unsigned int __stdcall rotatethread(void *unused)
                                 xcreatethread(1, 0, &stopthread);
                             }
                         }
+                        else {
+                            FlushFileBuffers(logfhandle);
+                            InterlockedExchange(&logwritten, 0);
+                        }
                     }
                     else {
                         rc = GetLastError();
