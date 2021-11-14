@@ -2342,12 +2342,16 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
         wmemcpy(ep, dupwenvp[i], nn);
         ep += nn + 1;
     }
+    dbgprintf(__FUNCTION__, "Sleeping for 5 seconds ...");
+    Sleep(5000);
+    rv = rotatelogs();
+    if (rv != 0)
+        goto finished;
+    dbgprintf(__FUNCTION__, "rotatelogs passed");
 
-
+finished:
     closelogfile();
-#if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
-#endif
     reportsvcstatus(SERVICE_STOPPED, rv);
     return rv;
 }
