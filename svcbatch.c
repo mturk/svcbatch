@@ -751,7 +751,9 @@ static void setsvcstatusexit(DWORD e)
 static void reportsvcstatus(DWORD status, DWORD param)
 {
     static DWORD cpcnt = 1;
-
+#if defined(_RUN_API_TESTS)
+    return;
+#endif
     EnterCriticalSection(&servicelock);
     if (InterlockedExchange(&sscstate, SERVICE_STOPPED) == SERVICE_STOPPED)
         goto finished;
@@ -1047,14 +1049,6 @@ retry:
 
     if (firstopen)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    h = CreateFileW(logfilename, GENERIC_WRITE,
-                    FILE_SHARE_READ, &sazero, CREATE_NEW,
-                    FILE_ATTRIBUTE_NORMAL, NULL);
-
-    if (IS_INVALID_HANDLE(h)) {
-        rc = GetLastError();
-        goto failed;
-    }
     if (autorotate == 0) {
         /**
          * Rotate previous log files
@@ -1083,6 +1077,14 @@ retry:
             }
             xfree(logpn);
         }
+    }
+    h = CreateFileW(logfilename, GENERIC_WRITE,
+                    FILE_SHARE_READ, &sazero, CREATE_NEW,
+                    FILE_ATTRIBUTE_NORMAL, NULL);
+
+    if (IS_INVALID_HANDLE(h)) {
+        rc = GetLastError();
+        goto failed;
     }
     xfree(logpb);
     InterlockedExchange(&logwritten, 0);
