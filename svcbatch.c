@@ -20,6 +20,7 @@
 #include <string.h>
 #include <wchar.h>
 #include <process.h>
+#include <shellapi.h>
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
@@ -655,31 +656,16 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 
 static int resolvesvcbatchexe(void)
 {
-    wchar_t    *buf = NULL;
-    DWORD       siz = BBUFSIZ;
+    LPWSTR     *caa = NULL;
+    int         i;
 
-    while (buf == NULL) {
-        DWORD len;
-        buf = xwalloc(siz);
-        len = GetModuleFileNameW(NULL, buf, siz);
-
-        if (len == 0) {
-            xfree(buf);
-            return 0;
-        }
-        else if (len == siz) {
-            if (GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-                siz = siz * 2;
-            else
-                return 0;
-            xfree(buf);
-            buf = NULL;
-        }
-    }
-    svcbatchexe = getrealpathname(buf, 0);
-    xfree(buf);
+    caa = CommandLineToArgvW(zerostring, &i);
+    if (caa == NULL)
+        return 0;
+    svcbatchexe = getrealpathname(caa[0], 0);
+    LocalFree(caa);
     if (svcbatchexe != NULL) {
-        int i = xwcslen(svcbatchexe);
+        i = xwcslen(svcbatchexe);
         while (--i > 0) {
             if (svcbatchexe[i] == L'\\') {
                 svcbatchexe[i] = L'\0';
@@ -1464,6 +1450,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                     dbgprintf(__FUNCTION__, "quit signaled");
 #endif
                     rc = ERROR_WAIT_NO_CHILDREN;
+                    break;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
                     HANDLE h;
@@ -1499,6 +1486,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                     if (rc != 0) {
                         setsvcstatusexit(rc);
                         xcreatethread(1, 0, &stopthread);
+                        break;
                     }
                     if (rotateint != ONE_DAY) {
                         if (hrotatetimer) {
