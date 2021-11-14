@@ -1294,7 +1294,9 @@ static int resolverotate(const wchar_t *str)
 #endif
         }
         else {
-            wchar_t mm = towupper(*ep);
+            wchar_t mm = towupper(ep[0]);
+            if (ep[1] != '\0')
+                return __LINE__;
             switch (mm) {
                 case L'K':
                     mux = KILOBYTES(1);
