@@ -837,18 +837,20 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
     DWORD wr, rc = 0;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
-    if (!SetFilePointerEx(h, ee, NULL, FILE_END))
-        return GetLastError();
-    if (!WriteFile(h, buf, len, &wr, NULL))
+    if (!SetFilePointerEx(h, ee, NULL, FILE_END)) {
         rc = GetLastError();
-    else {
+    }
+    else if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0)) {
         if (InterlockedAdd(&logwritten, wr) >= SVCBATCH_LOGFLUSH_SIZE) {
             FlushFileBuffers(h);
             InterlockedExchange(&logwritten, 0);
         }
     }
+    else {
+        rc = GetLastError();
+    }
 #if defined(_DBGVIEW)
-    if ((rc != 0) || (wr == 0)) {
+    if (rc != 0) {
         dbgprintf(__FUNCTION__, "wrote zero bytes (0x%08x)", rc);
     }
 #endif
@@ -869,6 +871,7 @@ static void logwrline(HANDLE h, const char *str)
     ULONGLONG ct;
     int     dd, hh, mm, ss, ms;
     DWORD   w;
+    LARGE_INTEGER ee = {{ 0, 0 }};
 
     ct = GetTickCount64() - logtickcount;
     ms = (int)((ct % MS_IN_SECOND));
@@ -882,13 +885,20 @@ static void logwrline(HANDLE h, const char *str)
             dd, hh, mm, ss, ms,
             GetCurrentProcessId(),
             GetCurrentThreadId());
-    WriteFile(h, buf, (DWORD)strlen(buf), &w, NULL);
-    InterlockedAdd(&logwritten, w);
-    WriteFile(h, str, (DWORD)strlen(str), &w, NULL);
-    InterlockedAdd(&logwritten, w);
-    WriteFile(h, CRLFA, 2, &w, NULL);
-    InterlockedAdd(&logwritten, w);
-
+    if (SetFilePointerEx(h, ee, NULL, FILE_END)) {
+        WriteFile(h, buf, (DWORD)strlen(buf), &w, NULL);
+        InterlockedAdd(&logwritten, w);
+        WriteFile(h, str, (DWORD)strlen(str), &w, NULL);
+        InterlockedAdd(&logwritten, w);
+        WriteFile(h, CRLFA, 2, &w, NULL);
+        InterlockedAdd(&logwritten, w);
+    }
+#if defined(_DBGVIEW)
+    else {
+        DWORD rc = GetLastError();
+        dbgprintf(__FUNCTION__, "SetFilePointerEx failed (0x%08x)", rc);
+    }
+#endif
 }
 
 static void logprintf(HANDLE h, const char *format, ...)

@@ -12,6 +12,7 @@ For a full list of changes, see the [git commit log][log]
  * If log autorotate is enabled and SvcBatch.log.YYYY-MM... exists and has the same last write time as SvcBatch.log, retry with system time instead last write time.
  * Improve _DGVIEW_SAVE thread safety
  * Report error to Service Manager if createiopipes fails
+ * Fix logwrline log corruption by ensuring to write to the end of file.
 
 
 ## v1.0.5
