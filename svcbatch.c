@@ -1217,11 +1217,8 @@ static int resolverotate(const wchar_t *str)
                   ct.wYear, ct.wMonth, ct.wDay,
                   ct.wHour, ct.wMinute, ct.wSecond);
 #endif
-
-        if (autorotate)
-            return __LINE__;
-        else
-            return 0;
+        autorotate = 0;
+        return 0;
     }
     rp = sp = xwcsdup(str);
     if (*rp == L'@') {
@@ -1290,7 +1287,7 @@ static int resolverotate(const wchar_t *str)
             return __LINE__;
         if (IS_EMPTY_WCS(ep)) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "rotate on size %ld bytes", (long)siz);
+            dbgprintf(__FUNCTION__, "rotate if size > %lu bytes", (DWORD)siz);
 #endif
         }
         else {
@@ -1312,7 +1309,7 @@ static int resolverotate(const wchar_t *str)
                 break;
             }
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "rotate on size %ld %Cbytes", (long)siz, mm);
+            dbgprintf(__FUNCTION__, "rotate if size > %lu %Cb", (DWORD)siz, mm);
 #endif
         }
         rotatesiz.QuadPart = siz * mux;
