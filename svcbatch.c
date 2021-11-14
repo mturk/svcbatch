@@ -876,15 +876,7 @@ static void logwrline(HANDLE h, const char *str)
     ULONGLONG ct;
     int     dd, hh, mm, ss, ms;
     DWORD   w;
-    LARGE_INTEGER ee = {{ 0, 0 }};
 
-    if (!SetFilePointerEx(h, ee, NULL, FILE_END)) {
-#if defined(_DBGVIEW)
-        DWORD rc = GetLastError();
-        dbgprintf(__FUNCTION__, "SetFilePointerEx failed (0x%08x)", rc);
-#endif
-        return;
-    }
     ct = GetTickCount64() - logtickcount;
     ms = (int)((ct % MS_IN_SECOND));
     ss = (int)((ct / MS_IN_SECOND) % 60);
