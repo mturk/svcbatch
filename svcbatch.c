@@ -23,6 +23,10 @@
 #include <shellapi.h>
 #include "svcbatch.h"
 
+#if defined(_RUN_API_TESTS)
+static int runapitests(void);
+#endif
+
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
@@ -402,7 +406,12 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_end(ap);
 
     buf[MBUFSIZ - 1] = '\0';
+#if defined(_RUN_API_TESTS)
+    fputs(buf,  stdout);
+    fputc('\n', stdout);
+#else
     OutputDebugStringA(buf);
+#endif
 #if defined(_DBGVIEW_SAVE)
     EnterCriticalSection(&dbgviewlock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
@@ -539,6 +548,9 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         dbgprintf(__FUNCTION__, "%S %S", buf, err);
 #endif
     }
+#if defined(_RUN_API_TESTS)
+    return ern;
+#else
     if (setupeventlog()) {
         HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
         if (es != NULL) {
@@ -552,6 +564,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         }
     }
     return ern;
+#endif
 }
 
 static HANDLE xcreatethread(int detach, unsigned initflag,
@@ -1990,7 +2003,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
 
 #if defined(_DBGVIEW)
+#if defined(_RUN_API_TESTS)
+    fputs(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
+#else
     OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
+#endif
 #if defined(_DBGVIEW_SAVE)
     InitializeCriticalSection(&dbgviewlock);
 #endif
@@ -2207,6 +2224,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     atexit(objectscleanup);
 
     hstdin = GetStdHandle(STD_INPUT_HANDLE);
+#if defined(_RUN_API_TESTS)
+    dbgprintf(__FUNCTION__, "starting api tests");
+#else
     if (hstdin != NULL)
         return svcsyserror(__LINE__, GetLastError(), L"Console already exists");
     if (AllocConsole()) {
@@ -2217,19 +2237,23 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         atexit(cconsolecleanup);
         hstdin = GetStdHandle(STD_INPUT_HANDLE);
     }
+#endif
     if (IS_INVALID_HANDLE(hstdin))
         return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
-
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
     se[1].lpServiceName = NULL;
     se[1].lpServiceProc = NULL;
-
+#if defined(_RUN_API_TESTS)
+    i = runapitests();
+#else
+    i = 0;
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "starting service");
 #endif
     if (!StartServiceCtrlDispatcherW(se))
         return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
+#endif
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 #if defined(_DBGVIEW_SAVE)
@@ -2246,5 +2270,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
 #endif
 #endif
+    return i;
+}
+
+#if defined(_RUN_API_TESTS)
+static int runapitests(void)
+{
+
+
     return 0;
 }
+#endif
