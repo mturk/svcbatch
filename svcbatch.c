@@ -1290,7 +1290,7 @@ static unsigned int __stdcall stopthread(void *unused)
         SetConsoleCtrlHandler(NULL, FALSE);
         if (ws == WAIT_OBJECT_0) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "processended signaled");
+            dbgprintf(__FUNCTION__, "processended by CTRL_C_EVENT");
 #endif
             goto finished;
         }
