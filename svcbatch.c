@@ -314,7 +314,7 @@ static wchar_t *xrmspaces(wchar_t *dest, const wchar_t *src)
     return dp;
 }
 
-static void rmtrailingps(wchar_t *s)
+static void xcleanwinpath(wchar_t *s)
 {
     int i;
 
@@ -452,7 +452,7 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
     if (len) {
         do {
             buf[len--] = L'\0';
-        } while ((len > 0) && ((buf[len] == L'.') || (buf[len] < 33)));
+        } while ((len > 0) && ((buf[len] == L'.') || (buf[len] <= L' ')));
         while (len-- > 0) {
             if (iswspace(buf[len]))
                 buf[len] = L' ';
@@ -616,7 +616,7 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     es = expandenvstrings(path);
     if (es == NULL)
         return NULL;
-    rmtrailingps(es);
+    xcleanwinpath(es);
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, fa, NULL);
     xfree(es);
@@ -625,16 +625,16 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 
     while (buf == NULL) {
         buf = xwalloc(siz);
-        len = GetFinalPathNameByHandleW(fh, buf, siz - 1, VOLUME_NAME_DOS);
+        len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
         if (len == 0) {
             CloseHandle(fh);
             xfree(buf);
             return NULL;
         }
-        if (len >= siz) {
+        if (len > siz) {
             xfree(buf);
             buf = NULL;
-            siz = len + 1;
+            siz = len;
         }
     }
     CloseHandle(fh);
@@ -2004,7 +2004,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 loglocation = expandenvstrings(p);
                 if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
-                rmtrailingps(loglocation);
+                xcleanwinpath(loglocation);
                 continue;
             }
             if (rotateparam == zerostring) {
@@ -2160,7 +2160,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
         xfree(cp);
     }
-    rmtrailingps(opath);
+    xcleanwinpath(opath);
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
     i = resolverotate(rotateparam);
