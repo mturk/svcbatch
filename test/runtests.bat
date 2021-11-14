@@ -27,8 +27,8 @@ popd
 rem
 pushd ..
 echo.
-rd /S /Q x64 2>NUL
-gcc -v 2>NUL
+rd /S /Q x64 >NUL 2>&1
+make -v >NUL 2>&1
 if %ERRORLEVEL% neq 0 (
   echo Compiling SvcBatch using msvc
   nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
