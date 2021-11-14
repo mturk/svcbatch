@@ -573,11 +573,11 @@ static HANDLE xcreatethread(int detach, unsigned initflag,
 static wchar_t *expandenvstrings(const wchar_t *str)
 {
     wchar_t  *buf = NULL;
-    int       bsz;
-    int       len;
+    DWORD     bsz;
+    DWORD     len;
 
-    bsz = xwcslen(str);
-    if (bsz == 0) {
+    bsz = xwcslen(str) + 1;
+    if (bsz < 2) {
         SetLastError(ERROR_INVALID_PARAMETER);
         return NULL;
     }
@@ -587,12 +587,12 @@ static wchar_t *expandenvstrings(const wchar_t *str)
     while (buf == NULL) {
         bsz = ALIGN_DEFAULT(bsz);
         buf = xwalloc(bsz);
-        len = ExpandEnvironmentStringsW(str, buf, bsz - 1);
+        len = ExpandEnvironmentStringsW(str, buf, bsz);
         if (len == 0) {
             xfree(buf);
             return NULL;
         }
-        if (len >= bsz) {
+        if (len > bsz) {
             xfree(buf);
             buf = NULL;
             bsz = len + 1;
@@ -678,7 +678,7 @@ static int resolvesvcbatchexe(void)
     }
     svcbatchexe = getrealpathname(buf, 0);
     xfree(buf);
-    if (svcbatchexe != 0) {
+    if (svcbatchexe != NULL) {
         int i = xwcslen(svcbatchexe);
         while (--i > 0) {
             if (svcbatchexe[i] == L'\\') {
