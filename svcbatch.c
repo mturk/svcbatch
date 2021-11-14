@@ -2310,7 +2310,7 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
     if (argc)
         servicename = xwcsdup(argv[0]);
     else
-        servicename = xwcsdup(L"noservice");
+        return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"servicename");
     dbgprintf(__FUNCTION__, "started %S", servicename);
     rv = openlogfile(TRUE);
     if (rv != 0) {
