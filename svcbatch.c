@@ -25,7 +25,6 @@
 
 #if defined(_RUN_API_TESTS)
 static DWORD runapitests(DWORD, const wchar_t **);
-#undef _CHECK_IF_SERVICE
 #endif
 
 static volatile LONG         monitorsig  = 0;

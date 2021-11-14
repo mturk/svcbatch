@@ -159,9 +159,6 @@
 
 #if SVCBATCH_ISDEV_VERSION
 # define SVCBATCH_VERSION_SFX   SVCBATCH_VENDOR_SFX "-dev"
-# if !defined(_CHECK_IF_SERVICE)
-#   define _CHECK_IF_SERVICE    1
-# endif
 #else
 # define SVCBATCH_VERSION_SFX   SVCBATCH_VENDOR_SFX
 #endif
