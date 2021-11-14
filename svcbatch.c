@@ -396,11 +396,14 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 #if defined(_DBGVIEW_SAVE)
     HANDLE  h;
 #endif
-
+#if defined(_RUN_API_TESTS)
+    static DWORD id = 0;
+#else
+    DWORD  id = GetCurrentThreadId();
+#endif
     n = _snprintf(buf, blen,
                   "[%.4lu] %-16s ",
-                  GetCurrentThreadId(),
-                  funcname);
+                  id++, funcname);
     bp = buf + n;
     va_start(ap, format);
     _vsnprintf(bp, blen - n, format, ap);
@@ -751,9 +754,7 @@ static void setsvcstatusexit(DWORD e)
 static void reportsvcstatus(DWORD status, DWORD param)
 {
     static DWORD cpcnt = 1;
-#if defined(_RUN_API_TESTS)
-    return;
-#endif
+
     EnterCriticalSection(&servicelock);
     if (InterlockedExchange(&sscstate, SERVICE_STOPPED) == SERVICE_STOPPED)
         goto finished;
@@ -783,11 +784,16 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwWaitHint   = param;
     }
     ssvcstatus.dwCurrentState = status;
+#if defined(_RUN_API_TESTS)
+    /**
+     * TODO: Do we need something here?
+     */
+#else
     if (SetServiceStatus(hsvcstatus, &ssvcstatus))
         InterlockedExchange(&sscstate, status);
     else
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
-
+#endif
 finished:
     LeaveCriticalSection(&servicelock);
 }
@@ -2290,6 +2296,8 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
     int          eblen = 0;
     wchar_t     *ep;
 
+    ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
+    ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
     /**
      * The following is in sync with servicemain
      * minus service manager bits.

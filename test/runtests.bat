@@ -36,12 +36,15 @@ pushd ..\x64
 set "BuildDir=%cd%"
 popd
 rem
+rd /S /Q Logs 2>NUL
 echo Runnig tests in: %BaseDir%
 echo Using SvcBatch : %BuildDir%\svcbatch.exe
-
+echo.
 %BuildDir%\svcbatch.exe -w %BaseDir% noservice.bat
 if not %ERRORLEVEL% == 0 goto Failed
 
+echo.
+echo Done!
 exit /B 0
 
 :Failed
