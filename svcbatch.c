@@ -577,16 +577,14 @@ static wchar_t *expandenvstrings(const wchar_t *str)
     DWORD     bsz;
     DWORD     len;
 
-    bsz = xwcslen(str) + 1;
-    if (bsz < 2) {
+    bsz = xwcslen(str);
+    if (bsz++ == 0) {
         SetLastError(ERROR_INVALID_PARAMETER);
         return NULL;
     }
     if (wcschr(str, L'%') == NULL)
         buf = xwcsdup(str);
-
     while (buf == NULL) {
-        bsz = ALIGN_DEFAULT(bsz);
         buf = xwalloc(bsz);
         len = ExpandEnvironmentStringsW(str, buf, bsz);
         if (len == 0) {

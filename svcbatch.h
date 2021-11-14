@@ -120,12 +120,6 @@
         CloseHandle((_h));                                          \
     (_h) = NULL
 
-/** Align to power of 2 boundary */
-#define ALIGN_TO_BOUNDARY(_s, _b)               \
-    (((_s) + ((_b) - 1)) & ~((_b) - 1))
-/** Default alignment */
-#define ALIGN_DEFAULT(_s)       ALIGN_TO_BOUNDARY(_s, 8)
-
 #define XENDTHREAD(_r)          _endthreadex(_r); return (_r)
 #define WAIT_OBJECT_1          (WAIT_OBJECT_0 + 1)
 #define WAIT_OBJECT_2          (WAIT_OBJECT_0 + 2)
