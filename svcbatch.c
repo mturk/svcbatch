@@ -459,7 +459,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
                 WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL);
                 InterlockedAdd(&dbgwritten, wr);
                 WriteFile(h, CRLFA, 2, &wr, NULL);
-                if (InterlockedAdd(&dbgwritten, wr) >= 4096) {
+                if (InterlockedAdd(&dbgwritten, wr) >= SVCBATCH_LOGFLUSH_SIZE) {
                     FlushFileBuffers(h);
                     InterlockedExchange(&dbgwritten, 0);
                 }
@@ -2381,6 +2381,7 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
         wmemcpy(ep, dupwenvp[i], nn);
         ep += nn + 1;
     }
+    logfflush(logfhandle);
     dbgprintf(__FUNCTION__, "Sleeping for 5 seconds ...");
     Sleep(5000);
     rv = rotatelogs();
