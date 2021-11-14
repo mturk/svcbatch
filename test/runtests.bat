@@ -21,6 +21,7 @@ rem Make sure to set build environment before
 rem executing this script
 rem
 setlocal
+set "ServiceName=noservice"
 pushd %~dp0
 set "BaseDir=%cd%"
 popd
@@ -28,15 +29,13 @@ rem
 pushd ..
 echo.
 rd /S /Q x64 >NUL 2>&1
-make -v >NUL 2>&1
+echo Compiling SvcBatch
+set "NmakeFlags=/nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1"
+nmake %NmakeFlags% >NUL 2>&1
 if %ERRORLEVEL% neq 0 (
-  echo Compiling SvcBatch using msvc
-  nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
-) else (
-  echo Compiling SvcBatch using gcc
-  make -f Makefile.gmk _RUN_API_TESTS=1 1>NUL
+  nmake /A %NmakeFlags%
+  goto Failed
 )
-if %ERRORLEVEL% neq 0 goto Failed
 rem
 echo.
 popd
@@ -48,7 +47,7 @@ rd /S /Q Logs 2>NUL
 echo Runnig tests in: %BaseDir%
 echo Using SvcBatch : %BuildDir%\svcbatch.exe
 echo.
-%BuildDir%\svcbatch.exe -C -w %BaseDir% /S -b -r @2~100k noservice.bat noservice
+%BuildDir%\svcbatch.exe -C -w %BaseDir% /S -b -r @2~100k noservice.bat %ServiceName%
 if %ERRORLEVEL% neq 0 goto Failed
 
 echo.
