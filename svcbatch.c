@@ -605,8 +605,8 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 {
     wchar_t    *es;
     wchar_t    *buf  = NULL;
-    int         siz  = _MAX_FNAME;
-    int         len  = 0;
+    DWORD       siz  = _MAX_FNAME;
+    DWORD       len  = 0;
     HANDLE      fh;
     DWORD       fa   = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
