@@ -861,9 +861,10 @@ static void logfflush(HANDLE h)
 {
     LARGE_INTEGER ee = {{ 0, 0 }};
 
-    InterlockedExchange(&logwritten, 0);
     if (SetFilePointerEx(h, ee, NULL, FILE_END)) {
-        logappend(h, CRLFA, 2);
+        DWORD wr;
+
+        WriteFile(h, CRLFA, 2, &wr, NULL);
         FlushFileBuffers(h);
         InterlockedExchange(&logwritten, 0);
     }
