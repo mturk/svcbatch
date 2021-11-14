@@ -2105,7 +2105,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         else {
 #if defined(_RUN_API_TESTS)
-            argc = argc - i;
             break;
 #else
             /**
@@ -2116,6 +2115,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #endif
         }
     }
+#if defined(_RUN_API_TESTS)
+    argc = argc - i;
+#endif
 #if defined(_CHECK_IF_SERVICE)
     if (runningasservice() == 0) {
         fputs("\n" SVCBATCH_NAME " " SVCBATCH_VERSION_STR, stderr);
@@ -2305,7 +2307,7 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
      * The following is in sync with servicemain
      * minus service manager bits.
      */
-    servicename = xwcsdup(L"runapitests");
+    servicename = xwcsdup(L"noservice");
     dbgprintf(__FUNCTION__, "started %S", servicename);
     rv = openlogfile(TRUE);
     if (rv != 0) {
@@ -2313,6 +2315,9 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
         return rv;
     }
     logconfig(logfhandle);
+    for (i = 0; i < argc; i++) {
+        dbgprintf(__FUNCTION__, "arg[%d]: %S", i, argv[i]);
+    }
     /**
      * Add additional environment variables
      * They are unique to this service instance
