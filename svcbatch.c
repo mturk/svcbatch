@@ -326,12 +326,20 @@ static void rmtrailingps(wchar_t *s)
         if (s[i] == L'/')
             s[i] =  L'\\';
     }
-    while (--i > 0) {
-        if ((s[i] == L'\\') || (s[i] == L';'))
-            s[i] = L'\0';
+    --i;
+    while (i > 2) {
+        if (s[i] == L';')
+            s[i--] = L'\0';
         else
             break;
     }
+    while (i > 1) {
+        if (s[i] ==  L'\\')
+            s[i--] = L'\0';
+        else
+            break;
+    }
+
 }
 
 /**
