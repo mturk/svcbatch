@@ -31,7 +31,7 @@ rd /S /Q x64 >NUL 2>&1
 make -v >NUL 2>&1
 if %ERRORLEVEL% neq 0 (
   echo Compiling SvcBatch using msvc
-  nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1 1>NUL
+  nmake /nologo _RUN_API_TESTS=1 _STATIC_MSVCRT=1
 ) else (
   echo Compiling SvcBatch using gcc
   make -f Makefile.gmk _RUN_API_TESTS=1 1>NUL
@@ -48,7 +48,7 @@ rd /S /Q Logs 2>NUL
 echo Runnig tests in: %BaseDir%
 echo Using SvcBatch : %BuildDir%\svcbatch.exe
 echo.
-%BuildDir%\svcbatch.exe -c -w %BaseDir% /S -b -r @30~100k noservice.bat noservice %*
+%BuildDir%\svcbatch.exe -C -w %BaseDir% /S -b -r @2~100k noservice.bat noservice
 if %ERRORLEVEL% neq 0 goto Failed
 
 echo.

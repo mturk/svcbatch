@@ -41,7 +41,8 @@ static SECURITY_ATTRIBUTES   sazero;
 static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
-static HANDLE                rotatetmr   = NULL;
+static LARGE_INTEGER         rotatenow   = {{ 0, 0 }};
+static HANDLE                rotatedev   = NULL;
 
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
@@ -63,11 +64,13 @@ static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
-#if defined(_DBGVIEW_SAVE)
+#if defined(_DBGVIEW)
 static CRITICAL_SECTION dbgviewlock;
+#if defined(_DBGVIEW_SAVE)
 static volatile LONG   dbgwritten = 0;
 static volatile HANDLE dbgfhandle = NULL;
 static ULONGLONG dbgtickinit      = CPP_UINT64_C(0);
+#endif
 #endif
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
@@ -431,6 +434,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_end(ap);
 
     buf[MBUFSIZ - 1] = '\0';
+    EnterCriticalSection(&dbgviewlock);
 #if defined(_RUN_API_TESTS)
     fputs(buf,  stdout);
     fputc('\n', stdout);
@@ -438,7 +442,6 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     OutputDebugStringA(buf);
 #endif
 #if defined(_DBGVIEW_SAVE)
-    EnterCriticalSection(&dbgviewlock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h != NULL) {
         LARGE_INTEGER ee = {{ 0, 0 }};
@@ -467,8 +470,8 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         }
         InterlockedExchangePointer(&dbgfhandle, h);
     }
-    LeaveCriticalSection(&dbgviewlock);
 #endif
+    LeaveCriticalSection(&dbgviewlock);
 }
 #endif
 
@@ -1192,6 +1195,23 @@ static void closelogfile(void)
     LeaveCriticalSection(&logfilelock);
 }
 
+static void rotatesynctime(void)
+{
+    SYSTEMTIME st;
+    FILETIME   ft;
+
+    if ((rotatedev != NULL) && (rotateint != ONE_DAY)) {
+        GetSystemTime(&st);
+        SystemTimeToFileTime(&st, &ft);
+
+        CancelWaitableTimer(rotatedev);
+        rotatenow.HighPart = ft.dwHighDateTime;
+        rotatenow.LowPart  = ft.dwLowDateTime;
+        rotatetmo.QuadPart = rotatenow.QuadPart + rotateint;
+        SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0);
+    }
+}
+
 static int resolverotate(const wchar_t *str)
 {
     SYSTEMTIME st;
@@ -1201,9 +1221,9 @@ static int resolverotate(const wchar_t *str)
     GetSystemTime(&st);
     SystemTimeToFileTime(&st, &ft);
 
-    rotatetmo.HighPart  = ft.dwHighDateTime;
-    rotatetmo.LowPart   = ft.dwLowDateTime;
-    rotatetmo.QuadPart += rotateint;
+    rotatenow.HighPart = ft.dwHighDateTime;
+    rotatenow.LowPart  = ft.dwLowDateTime;
+    rotatetmo.QuadPart = rotatenow.QuadPart + rotateint;
 
     if (IS_EMPTY_WCS(str)) {
 #if defined(_DBGVIEW)
@@ -1552,13 +1572,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                         xcreatethread(1, 0, &stopthread);
                         break;
                     }
-                    if (rotateint != ONE_DAY) {
-                        if (rotatetmr) {
-                            CancelWaitableTimer(rotatetmr);
-                            rotatetmo.QuadPart += rotateint;
-                            SetWaitableTimer(rotatetmr, &rotatetmo, 0, NULL, NULL, 0);
-                        }
-                    }
+                    rotatesynctime();
                 }
 #if defined(_DBGVIEW)
                 else {
@@ -1605,13 +1619,16 @@ static unsigned int __stdcall rotatethread(void *unused)
 #endif
         goto finished;
     }
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "running");
+#endif
 
     if (rotatesiz.QuadPart)
         ms = SVCBATCH_LOGROTATE_HINT;
     else
         ms = INFINITE;
 
-    wh[0] = rotatetmr;
+    wh[0] = rotatedev;
     wh[1] = processended;
     while (rc == 0) {
         wc = WaitForMultipleObjects(2, wh, FALSE, ms);
@@ -1657,7 +1674,9 @@ static unsigned int __stdcall rotatethread(void *unused)
 #endif
                 rc = rotatelogs();
                 if (rc == 0) {
+                    rotatenow.QuadPart  = rotatetmo.QuadPart;
                     rotatetmo.QuadPart += rotateint;
+                    CancelWaitableTimer(wh[0]);
                     if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
                         rc = GetLastError();
                         svcsyserror(__LINE__, rc, L"SetWaitableTimer");
@@ -1674,10 +1693,16 @@ static unsigned int __stdcall rotatethread(void *unused)
                 dbgprintf(__FUNCTION__, "processended signaled");
 #endif
             break;
+            case WAIT_FAILED:
+                rc = GetLastError();
+#if defined(_DBGVIEW)
+                dbgprintf(__FUNCTION__, "wait failed %lu", rc);
+#endif
+            break;
             default:
                 rc = wc;
 #if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "wait failed %lu", rc);
+                dbgprintf(__FUNCTION__, "wait error %lu", rc);
 #endif
             break;
         }
@@ -1687,7 +1712,7 @@ finished:
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "done");
 #endif
-    SAFE_CLOSE_HANDLE(rotatetmr);
+    SAFE_CLOSE_HANDLE(rotatedev);
     XENDTHREAD(0);
 }
 
@@ -1808,14 +1833,14 @@ static unsigned int __stdcall workerthread(void *unused)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    rotatetmr  = CreateWaitableTimerW(NULL, TRUE, NULL);
-    if (IS_INVALID_HANDLE(rotatetmr)) {
+    rotatedev  = CreateWaitableTimerW(NULL, TRUE, NULL);
+    if (IS_INVALID_HANDLE(rotatedev)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
         goto finished;
     }
-    if (!SetWaitableTimer(rotatetmr, &rotatetmo, 0, NULL, NULL, 0)) {
+    if (!SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"SetWaitableTimer");
@@ -2032,9 +2057,7 @@ static void __cdecl objectscleanup(void)
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
 #if defined(_DBGVIEW)
-#if defined(_DBGVIEW_SAVE)
     DeleteCriticalSection(&dbgviewlock);
-#endif
 #if defined(_RUN_API_TESTS)
     fputs(__FUNCTION__, stdout);
     fputc('\n', stdout);
@@ -2067,9 +2090,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #else
     OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
 #endif
-#if defined(_DBGVIEW_SAVE)
     InitializeCriticalSection(&dbgviewlock);
-#endif
 #endif
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
@@ -2391,13 +2412,39 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
         wmemcpy(ep, dupwenvp[i], nn);
         ep += nn + 1;
     }
-    logfflush(logfhandle);
-    dbgprintf(__FUNCTION__, "Sleeping for 5 seconds ...");
-    Sleep(5000);
-    rv = rotatelogs();
-    if (rv != 0)
+    rotatedev  = CreateWaitableTimerW(NULL, TRUE, NULL);
+    if (IS_INVALID_HANDLE(rotatedev)) {
+        rv = GetLastError();
+        setsvcstatusexit(rv);
+        svcsyserror(__LINE__, rv, L"CreateWaitableTimer");
         goto finished;
-    dbgprintf(__FUNCTION__, "rotatelogs passed");
+    }
+    if (!SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0)) {
+        rv = GetLastError();
+        setsvcstatusexit(rv);
+        svcsyserror(__LINE__, rv, L"SetWaitableTimer");
+        goto finished;
+    }
+
+    logfflush(logfhandle);
+    if (autorotate) {
+        dbgprintf(__FUNCTION__, "creating rotatethread");
+        xcreatethread(1, 0, &rotatethread);
+        dbgprintf(__FUNCTION__, "sleeping for 3 minutes ...");
+        Sleep(3 * 60000);
+        dbgprintf(__FUNCTION__, "calling rotatelogs");
+        rv = rotatelogs();
+        if (rv != 0)
+            goto finished;
+        rotatesynctime();
+        dbgprintf(__FUNCTION__, "logs rotated");
+        dbgprintf(__FUNCTION__, "sleeping for 5 minutes ...");
+        Sleep(5 * 60000);
+    }
+    dbgprintf(__FUNCTION__, "sending processendeds");
+    SetEvent(processended);
+    dbgprintf(__FUNCTION__, "waiting two seconds for thread cleanup");
+    Sleep(2000);
 
 finished:
     closelogfile();
