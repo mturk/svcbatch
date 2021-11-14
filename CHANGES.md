@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.0.6
 
  * In development
+ * If log autorotate is enabled and SvcBatch.log.YYYY-MM... exists and has the same last write time as SvcBatch.log, retry with system time instead last write time.
  * Improve _DGVIEW_SAVE thread safety
  * Report error to Service Manager if createiopipes fails
 
