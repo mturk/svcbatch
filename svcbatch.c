@@ -47,6 +47,8 @@ static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
 static int       hasctrlbreak     = 0;
+static int       usecleanpath     = 0;
+static int       usesafeenv       = 0;
 static int       autorotate       = 0;
 
 static wchar_t  *svcbatchfile     = NULL;
@@ -218,6 +220,26 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     cp += l1;
     if(l2 > 0)
         wmemcpy(cp, s2, l2);
+    return rv;
+}
+
+static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
+{
+    wchar_t *cp, *rv;
+    size_t l1 = xwcslen(s1);
+    size_t l2 = xwcslen(s2);
+
+    if ((l1 + l2) == 0)
+        return NULL;
+
+    cp = rv = xwalloc(l1 + l2 + 2);
+
+    if(l1 > 0)
+        wmemcpy(cp, s1, l1);
+    cp += l1;
+    if(l2 > 0)
+        wmemcpy(cp, s2, l2);
+    xfree(s1);
     return rv;
 }
 
@@ -929,12 +951,29 @@ static void logwrtime(HANDLE h, const char *hdr)
 
 static void logconfig(HANDLE h)
 {
+    wchar_t *fs = NULL;
+
     logprintf(h, "Service name     : %S", servicename);
     logprintf(h, "Service uuid     : %S", serviceuuid);
     logprintf(h, "Batch file       : %S", svcbatchfile);
     logprintf(h, "Base directory   : %S", servicebase);
     logprintf(h, "Working directory: %S", servicehome);
     logprintf(h, "Log directory    : %S", loglocation);
+    if (autorotate)
+        fs = xwcsappend(fs, L"autorotate, ");
+    if (hasctrlbreak)
+        fs = xwcsappend(fs, L"ctrl+break, ");
+    if (usecleanpath)
+        fs = xwcsappend(fs, L"clean path, ");
+    if (usesafeenv)
+        fs = xwcsappend(fs, L"safe environment, ");
+
+    if (fs != NULL) {
+        int i = xwcslen(fs);
+        fs[i - 2] = L'\0';
+        logprintf(h, "Features         : %S", fs);
+        xfree(fs);
+    }
     logfflush(h);
 }
 
@@ -2003,8 +2042,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *rotateparam = NULL;
 
     int         envc       = 0;
-    int         cleanpath  = 0;
-    int         usesafeenv = 0;
     int         hasopts    = 1;
     HANDLE      hstdin;
     SERVICE_TABLE_ENTRYW se[2];
@@ -2075,7 +2112,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         hasctrlbreak = 1;
                     break;
                     case L'c':
-                        cleanpath    = 1;
+                        usecleanpath = 1;
                     break;
                     case L'o':
                         loglocation  = zerostring;
@@ -2203,7 +2240,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             dupwenvp[dupwenvc++] = xwcsdup(p);
     }
 
-    if (cleanpath) {
+    if (usecleanpath) {
         wchar_t *cp = xwcsvarcat(servicebase, L";",
                                  servicehome,
                                  stdwinpaths, NULL);
