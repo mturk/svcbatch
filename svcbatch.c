@@ -1987,13 +1987,10 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     CloseHandle(wh[1]);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "wait for stop thread to finish");
-    {
-        DWORD w = WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
-        if (w == WAIT_OBJECT_0)
-            dbgprintf(__FUNCTION__, "svcstopended");
-        else
-            dbgprintf(__FUNCTION__, "svcstopended TIMEOUT");
-    }
+    if (WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT) == WAIT_OBJECT_0)
+        dbgprintf(__FUNCTION__, "svcstopended");
+    else
+        dbgprintf(__FUNCTION__, "svcstopended TIMEOUT");
 #else
     WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
 #endif
