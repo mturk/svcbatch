@@ -1512,7 +1512,7 @@ static unsigned int __stdcall iopipethread(void *unused)
 static unsigned int __stdcall monitorthread(void *unused)
 {
     HANDLE wh[2];
-    DWORD  wc, rc;
+    DWORD  wc, rc = 0;
 
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started");
@@ -1521,13 +1521,12 @@ static unsigned int __stdcall monitorthread(void *unused)
     wh[0] = monitorevent;
     wh[1] = processended;
     do {
-        int cc;
+        LONG cc;
 
-        rc = 0;
         wc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
         switch (wc) {
             case WAIT_OBJECT_0:
-                cc = (int)InterlockedExchange(&monitorsig, 0);
+                cc = InterlockedExchange(&monitorsig, 0);
                 if (cc == 0) {
 #if defined(_DBGVIEW)
                     dbgprintf(__FUNCTION__, "quit signaled");
@@ -1575,21 +1574,22 @@ static unsigned int __stdcall monitorthread(void *unused)
                 }
 #if defined(_DBGVIEW)
                 else {
-                    dbgprintf(__FUNCTION__, "Unknown control: %d", cc);
+                    dbgprintf(__FUNCTION__, "Unknown control: %lu", (DWORD)cc);
                 }
 #endif
                 if (rc == 0)
                     ResetEvent(monitorevent);
             break;
-#if defined(_DBGVIEW)
             case WAIT_OBJECT_1:
+#if defined(_DBGVIEW)
                 dbgprintf(__FUNCTION__, "processended signaled");
-            break;
 #endif
+                rc = ERROR_WAIT_NO_CHILDREN;
+            break;
             default:
             break;
         }
-    } while ((rc == 0) && (wc == WAIT_OBJECT_0));
+    } while (rc == 0);
 #if defined(_DBGVIEW)
     if ((rc != 0) && (rc != ERROR_WAIT_NO_CHILDREN))
         dbgprintf(__FUNCTION__, "log rotation failed: %lu", rc);
