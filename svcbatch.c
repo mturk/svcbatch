@@ -1056,19 +1056,16 @@ static DWORD openlogfile(BOOL firstopen)
     }
     LeaveCriticalSection(&dbgviewlock);
 #endif
-    memset(sfx, 0, 48);
+    memset(sfx, 0, sizeof(sfx));
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
-        DWORD mm, ac = 0;
+        DWORD mm;
 
-retry:
         if (firstopen)
             reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         if (autorotate) {
             SYSTEMTIME st;
-            if (ac)
-                GetSystemTime(&st);
-            else
-                FileTimeToSystemTime(&ad.ftLastWriteTime, &st);
+
+            FileTimeToSystemTime(&ad.ftLastWriteTime, &st);
             _snwprintf(sfx, 20, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
                        st.wYear, st.wMonth, st.wDay,
                        st.wHour, st.wMinute, st.wSecond);
@@ -1083,15 +1080,7 @@ retry:
         if (!MoveFileExW(logfilename, logpb, mm)) {
             rc = GetLastError();
             xfree(logpb);
-            if (autorotate && ac++ == 0) {
-#if defined(_DBGVIEW)
-                dbgprintf(__FUNCTION__, "Retrying %S%S rc=%lu", logfilename, sfx, rc);
-#endif
-                goto retry;
-            }
-            else {
-                return svcsyserror(__LINE__, rc, L"MoveFileExW");
-            }
+            return svcsyserror(__LINE__, rc, L"MoveFileExW");
         }
     }
     else {
