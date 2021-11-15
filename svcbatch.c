@@ -1583,7 +1583,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     dbgprintf(__FUNCTION__, "started");
 #endif
 
-    wc = WaitForSingleObject(processended, SVCBATCH_START_HINT);
+    wc = WaitForSingleObject(processended, SVCBATCH_LOGROTATE_INI);
     if (wc != WAIT_TIMEOUT) {
 #if defined(_DBGVIEW)
         if (wc == WAIT_OBJECT_0)
@@ -2016,9 +2016,6 @@ static void __cdecl cconsolecleanup(void)
 {
     SetConsoleCtrlHandler(consolehandler, FALSE);
     FreeConsole();
-#if defined(_DBGVIEW)
-    OutputDebugStringA(__FUNCTION__);
-#endif
 }
 
 static void __cdecl objectscleanup(void)
@@ -2032,12 +2029,6 @@ static void __cdecl objectscleanup(void)
     DeleteCriticalSection(&servicelock);
 #if defined(_DBGVIEW)
     DeleteCriticalSection(&dbgviewlock);
-#if defined(_RUN_API_TESTS)
-    fputs(__FUNCTION__, stdout);
-    fputc('\n', stdout);
-#else
-    OutputDebugStringA(__FUNCTION__);
-#endif
 #endif
 }
 
@@ -2404,9 +2395,13 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
     }
 
     logfflush(logfhandle);
+    dbgprintf(__FUNCTION__, "creating rotatethread");
+    xcreatethread(1, 0, &rotatethread);
+    dbgprintf(__FUNCTION__, "waiting 5 seconds for initialization");
+    Sleep(5000);
+
+    dbgprintf(__FUNCTION__, "working ...");
     if (autorotate) {
-        dbgprintf(__FUNCTION__, "creating rotatethread");
-        xcreatethread(1, 0, &rotatethread);
         dbgprintf(__FUNCTION__, "sleeping for 3 minutes ...");
         Sleep(3 * 60000);
         dbgprintf(__FUNCTION__, "calling rotatelogs");
@@ -2420,7 +2415,7 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
     }
     dbgprintf(__FUNCTION__, "signaling processended");
     SetEvent(processended);
-    dbgprintf(__FUNCTION__, "waiting two seconds for thread cleanup");
+    dbgprintf(__FUNCTION__, "waiting 2 seconds for thread cleanup");
     Sleep(2000);
 
 finished:
