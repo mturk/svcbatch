@@ -1207,7 +1207,9 @@ static int resolverotate(const wchar_t *str)
 
     rotatetmo.QuadPart = rotateint;
     if (IS_EMPTY_WCS(str)) {
-        autorotate = 0;
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "rotate in 30 days");
+#endif
         return 0;
     }
     rp = sp = xwcsdup(str);
@@ -1226,7 +1228,7 @@ static int resolverotate(const wchar_t *str)
                 return __LINE__;
             rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "rotate in %d seconds", mm);
+            dbgprintf(__FUNCTION__, "rotate in %d minutes", mm);
 #endif
             rotatetmo.QuadPart = rotateint;
         }
@@ -2392,6 +2394,8 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
     }
 
     logfflush(logfhandle);
+    dbgprintf(__FUNCTION__, "creating monitorthread");
+    xcreatethread(1, 0, &monitorthread);
     dbgprintf(__FUNCTION__, "creating rotatethread");
     xcreatethread(1, 0, &rotatethread);
     dbgprintf(__FUNCTION__, "waiting 5 seconds for initialization");
@@ -2401,12 +2405,9 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
     if (autorotate) {
         dbgprintf(__FUNCTION__, "sleeping for 3 minutes ...");
         Sleep(3 * 60000);
-        dbgprintf(__FUNCTION__, "calling rotatelogs");
-        rv = rotatelogs();
-        if (rv != 0)
-            goto finished;
-        rotatesynctime();
-        dbgprintf(__FUNCTION__, "logs rotated");
+        dbgprintf(__FUNCTION__, "signaling rotatelogs");
+        InterlockedExchange(&monitorsig, SVCBATCH_CTRL_ROTATE);
+        SetEvent(monitorevent);
         dbgprintf(__FUNCTION__, "sleeping for 5 minutes ...");
         Sleep(5 * 60000);
     }
