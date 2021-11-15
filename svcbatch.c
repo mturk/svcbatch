@@ -988,15 +988,30 @@ static DWORD openlogfile(BOOL firstopen)
     logtickcount = GetTickCount64();
 
     if (logfilename == NULL) {
-        if (!CreateDirectoryW(loglocation, 0) &&
-            (GetLastError() != ERROR_ALREADY_EXISTS))
-            return GetLastError();
+        if (!CreateDirectoryW(loglocation, 0)) {
+            rc = GetLastError();
+            if (rc != ERROR_ALREADY_EXISTS) {
+#if defined(_DBGVIEW)
+                dbgprintf(__FUNCTION__,
+                          "cannot create logdir: %S",
+                          loglocation);
+#endif
+                return rc;
+            }
+        }
         if (isrelativepath(loglocation)) {
             wchar_t *n  = loglocation;
             loglocation = getrealpathname(n, 1);
             if (loglocation == NULL)
                 return ERROR_PATH_NOT_FOUND;
             xfree(n);
+        }
+        if (_wcsicmp(loglocation, servicehome) == 0) {
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__,
+                      "loglocation cannot be the same as servicehome");
+#endif
+            return ERROR_BAD_PATHNAME;
         }
         logfilename = xwcsconcat(loglocation,
                                  L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
@@ -2233,7 +2248,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
     if (loglocation == NULL)
-        loglocation = xwcsdup(SVCBATCH_LOG_BASE);
+        loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e;
