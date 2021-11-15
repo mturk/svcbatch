@@ -22,7 +22,7 @@ rem executing this script
 rem
 setlocal
 set "ServiceName=noservice"
-rem set "AutoRotate=-r @2~100k"
+set "AutoRotate=-r @2~100k"
 pushd %~dp0
 set "BaseDir=%cd%"
 popd

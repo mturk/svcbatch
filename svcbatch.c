@@ -41,7 +41,6 @@ static SECURITY_ATTRIBUTES   sazero;
 static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
-static LARGE_INTEGER         rotatenow   = {{ 0, 0 }};
 static HANDLE                rotatedev   = NULL;
 
 static wchar_t  *comspec          = NULL;
@@ -1196,46 +1195,18 @@ static void closelogfile(void)
 
 static void rotatesynctime(void)
 {
-    SYSTEMTIME st;
-    FILETIME   ft;
-
     if ((rotatedev != NULL) && (rotateint != ONE_DAY)) {
-        GetSystemTime(&st);
-        SystemTimeToFileTime(&st, &ft);
-
         CancelWaitableTimer(rotatedev);
-        rotatenow.HighPart = ft.dwHighDateTime;
-        rotatenow.LowPart  = ft.dwLowDateTime;
-        rotatetmo.QuadPart = rotatenow.QuadPart + rotateint;
         SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0);
     }
 }
 
 static int resolverotate(const wchar_t *str)
 {
-    SYSTEMTIME st;
-    FILETIME   ft;
     wchar_t   *rp, *sp;
 
-    GetSystemTime(&st);
-    SystemTimeToFileTime(&st, &ft);
-
-    rotatenow.HighPart = ft.dwHighDateTime;
-    rotatenow.LowPart  = ft.dwLowDateTime;
-    rotatetmo.QuadPart = rotatenow.QuadPart + rotateint;
-
+    rotatetmo.QuadPart = rotateint;
     if (IS_EMPTY_WCS(str)) {
-#if defined(_DBGVIEW)
-        SYSTEMTIME ct;
-
-        ft.dwHighDateTime = rotatetmo.HighPart;
-        ft.dwLowDateTime  = rotatetmo.LowPart;
-        FileTimeToSystemTime(&ft, &ct);
-
-        dbgprintf(__FUNCTION__, "rotate default %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
-                  ct.wYear, ct.wMonth, ct.wDay,
-                  ct.wHour, ct.wMinute, ct.wSecond);
-#endif
         autorotate = 0;
         return 0;
     }
@@ -1243,12 +1214,8 @@ static int resolverotate(const wchar_t *str)
     if (*rp == L'@') {
         int      hh, mm, ss;
         wchar_t *p;
-        ULARGE_INTEGER ui;
-        SYSTEMTIME     ct;
 
         rp++;
-        ui.HighPart  = ft.dwHighDateTime;
-        ui.LowPart   = ft.dwLowDateTime;
         p = wcschr(rp, L':');
         if (p == NULL) {
             if ((p = wcschr(rp, L'~')) != NULL)
@@ -1257,13 +1224,17 @@ static int resolverotate(const wchar_t *str)
             rp = p;
             if (mm < SVCBATCH_MIN_LOGRTIME)
                 return __LINE__;
-            rotateint    = mm * ONE_MINUTE;
-            ui.QuadPart += rotateint;
-            ft.dwHighDateTime = ui.HighPart;
-            ft.dwLowDateTime  = ui.LowPart;
-            FileTimeToSystemTime(&ft, &ct);
+            rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "rotate in %d seconds", mm);
+#endif
+            rotatetmo.QuadPart = rotateint;
         }
         else {
+            SYSTEMTIME     st;
+            FILETIME       ft;
+            ULARGE_INTEGER ui;
+
             *(p++) = L'\0';
             hh = _wtoi(rp);
             rp = p;
@@ -1279,22 +1250,26 @@ static int resolverotate(const wchar_t *str)
             if ((hh > 23) || (mm > 59) || (ss > 59))
                 return __LINE__;
             rotateint    = ONE_DAY;
+            GetSystemTime(&st);
+            SystemTimeToFileTime(&st, &ft);
+            ui.HighPart = ft.dwHighDateTime;
+            ui.LowPart  = ft.dwLowDateTime;
             ui.QuadPart += rotateint;
             ft.dwHighDateTime = ui.HighPart;
             ft.dwLowDateTime  = ui.LowPart;
-            FileTimeToSystemTime(&ft, &ct);
-            ct.wHour   = hh;
-            ct.wMinute = mm;
-            ct.wSecond = ss;
-        }
+            FileTimeToSystemTime(&ft, &st);
+            st.wHour   = hh;
+            st.wMinute = mm;
+            st.wSecond = ss;
+            SystemTimeToFileTime(&st, &ft);
+            rotatetmo.HighPart = ft.dwHighDateTime;
+            rotatetmo.LowPart  = ft.dwLowDateTime;
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotate at time %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
-                  ct.wYear, ct.wMonth, ct.wDay,
-                  ct.wHour, ct.wMinute, ct.wSecond);
+            dbgprintf(__FUNCTION__, "rotate at %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+                      st.wYear, st.wMonth, st.wDay,
+                      st.wHour, st.wMinute, st.wSecond);
 #endif
-        SystemTimeToFileTime(&ct, &ft);
-        rotatetmo.HighPart  = ft.dwHighDateTime;
-        rotatetmo.LowPart   = ft.dwLowDateTime;
+        }
     }
     if (rp != NULL) {
         LONGLONG siz;
@@ -1306,7 +1281,7 @@ static int resolverotate(const wchar_t *str)
             return __LINE__;
         if (IS_EMPTY_WCS(ep)) {
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "rotate if size > %lu bytes", (DWORD)siz);
+            dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
 #endif
         }
         else {
@@ -1328,7 +1303,7 @@ static int resolverotate(const wchar_t *str)
                 break;
             }
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "rotate if size > %lu %Cb", (DWORD)siz, mm);
+            dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
 #endif
         }
         rotatesiz.QuadPart = siz * mux;
@@ -1651,6 +1626,9 @@ static unsigned int __stdcall rotatethread(void *unused)
                                 setsvcstatusexit(rc);
                                 xcreatethread(1, 0, &stopthread);
                             }
+                            else {
+                                rotatesynctime();
+                            }
                         }
                         else {
                             FlushFileBuffers(logfhandle);
@@ -1674,8 +1652,8 @@ static unsigned int __stdcall rotatethread(void *unused)
                 rc = rotatelogs();
                 if (rc == 0) {
                     CancelWaitableTimer(wh[0]);
-                    rotatenow.QuadPart  = rotatetmo.QuadPart;
-                    rotatetmo.QuadPart += rotateint;
+                    if (rotateint == ONE_DAY)
+                        rotatetmo.QuadPart += rotateint;
                     SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
                 }
                 if (rc != 0) {
