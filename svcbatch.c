@@ -1706,14 +1706,19 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
         case CTRL_SHUTDOWN_EVENT:
-            EnterCriticalSection(&logfilelock);
-            h = InterlockedExchangePointer(&logfhandle, NULL);
-            if (h != NULL) {
-                logfflush(h);
-                logwrline(h, "CTRL_SHUTDOWN_EVENT signaled");
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "CTRL_CLOSE_EVENT signaled");
+#endif
+            if (consolemode) {
+                EnterCriticalSection(&logfilelock);
+                h = InterlockedExchangePointer(&logfhandle, NULL);
+                if (h != NULL) {
+                    logfflush(h);
+                    logwrline(h, "CTRL_SHUTDOWN_EVENT signaled");
+                }
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
             }
-            InterlockedExchangePointer(&logfhandle, h);
-            LeaveCriticalSection(&logfilelock);
         break;
         case CTRL_C_EVENT:
 #if defined(_DBGVIEW)
@@ -1728,6 +1733,14 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
 #endif
+            if (hasctrlbreak && consolemode) {
+                /**
+                 * Signal to monitorthread that
+                 * user send custom service control
+                 */
+                InterlockedExchange(&monitorsig, ctrl);
+                SetEvent(monitorevent);
+            }
         break;
         case CTRL_LOGOFF_EVENT:
         break;
