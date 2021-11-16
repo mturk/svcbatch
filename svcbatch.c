@@ -412,14 +412,13 @@ static wchar_t *xuuidstring(void)
 }
 
 #if defined(_DBGVIEW)
-static void dbgprintf(const char *funcname, const char *format, ...)
+static void dbgprints(const char *funcname, const char *string)
 {
     char    buf[MBUFSIZ];
     char   *bp;
     size_t  blen = MBUFSIZ - 1;
     int     n = 0;
     int     z = 0;
-    va_list ap;
 #if defined(_DBGVIEW_SAVE)
     HANDLE  h;
     DWORD   ct, wr, ss, ms;
@@ -441,9 +440,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
                   "[%.4lu] %-16s ",
                   GetCurrentThreadId(), funcname);
     bp = bp + n;
-    va_start(ap, format);
-    _vsnprintf(bp, blen - n - z, format, ap);
-    va_end(ap);
+    strncat(bp, string, blen - n - z);
 
     EnterCriticalSection(&dbgviewlock);
     if (consolemode) {
@@ -473,7 +470,20 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 #endif
     LeaveCriticalSection(&dbgviewlock);
 }
+
+static void dbgprintf(const char *funcname, const char *format, ...)
+{
+    char    buf[MBUFSIZ];
+    va_list ap;
+
+    memset(buf, 0, sizeof(buf));
+    va_start(ap, format);
+    _vsnprintf(buf, MBUFSIZ -1, format, ap);
+    va_end(ap);
+    dbgprints(funcname, buf);
+}
 #else
+#define dbgprints(_a, _b) (void)0
 #define dbgprintf(x, ...) (void)0
 #endif
 
@@ -1312,7 +1322,7 @@ static unsigned int __stdcall stopthread(void *unused)
     int   i;
 
     if (InterlockedIncrement(&sstarted) > 1) {
-        dbgprintf(__FUNCTION__, "already started");
+        dbgprints(__FUNCTION__, "already started");
         XENDTHREAD(0);
     }
     ResetEvent(svcstopended);
@@ -1391,7 +1401,7 @@ static unsigned int __stdcall stopthread(void *unused)
 finished:
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
-    dbgprintf(__FUNCTION__, "done");
+    dbgprints(__FUNCTION__, "done");
     SetEvent(svcstopended);
     XENDTHREAD(0);
 }
@@ -1400,7 +1410,7 @@ static unsigned int __stdcall iopipethread(void *unused)
 {
     DWORD  rc = 0;
 
-    dbgprintf(__FUNCTION__, "started");
+    dbgprints(__FUNCTION__, "started");
     while (rc == 0) {
         BYTE  rb[HBUFSIZ];
         DWORD rd = 0;
@@ -1437,14 +1447,14 @@ static unsigned int __stdcall iopipethread(void *unused)
     }
 #if defined(_DBGVIEW)
     if (rc == ERROR_BROKEN_PIPE)
-        dbgprintf(__FUNCTION__, "ERROR_BROKEN_PIPE");
+        dbgprints(__FUNCTION__, "ERROR_BROKEN_PIPE");
     else if (rc == ERROR_NO_DATA)
-        dbgprintf(__FUNCTION__, "ERROR_NO_DATA");
+        dbgprints(__FUNCTION__, "ERROR_NO_DATA");
     else if (rc == ERROR_NO_MORE_FILES)
-        dbgprintf(__FUNCTION__, "logfile closed");
+        dbgprints(__FUNCTION__, "logfile closed");
     else
         dbgprintf(__FUNCTION__, "err=%lu", rc);
-    dbgprintf(__FUNCTION__, "done");
+    dbgprints(__FUNCTION__, "done");
 #endif
 
     XENDTHREAD(0);
@@ -1455,7 +1465,7 @@ static unsigned int __stdcall monitorthread(void *unused)
     HANDLE wh[2];
     DWORD  wc, rc = 0;
 
-    dbgprintf(__FUNCTION__, "started");
+    dbgprints(__FUNCTION__, "started");
     wh[0] = monitorevent;
     wh[1] = processended;
     do {
@@ -1466,14 +1476,14 @@ static unsigned int __stdcall monitorthread(void *unused)
             case WAIT_OBJECT_0:
                 cc = InterlockedExchange(&monitorsig, 0);
                 if (cc == 0) {
-                    dbgprintf(__FUNCTION__, "quit signaled");
+                    dbgprints(__FUNCTION__, "quit signaled");
                     rc = ERROR_WAIT_NO_CHILDREN;
                     break;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
                     HANDLE h;
 
-                    dbgprintf(__FUNCTION__, "break signaled");
+                    dbgprints(__FUNCTION__, "break signaled");
                     EnterCriticalSection(&logfilelock);
                     h = InterlockedExchangePointer(&logfhandle, NULL);
 
@@ -1496,7 +1506,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                     GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
                 }
                 else if (cc == SVCBATCH_CTRL_ROTATE) {
-                    dbgprintf(__FUNCTION__, "log rotation signaled");
+                    dbgprints(__FUNCTION__, "log rotation signaled");
                     rc = rotatelogs();
                     if (rc != 0) {
                         setsvcstatusexit(rc);
@@ -1514,7 +1524,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                     ResetEvent(monitorevent);
             break;
             case WAIT_OBJECT_1:
-                dbgprintf(__FUNCTION__, "processended signaled");
+                dbgprints(__FUNCTION__, "processended signaled");
                 rc = ERROR_WAIT_NO_CHILDREN;
             break;
             default:
@@ -1524,7 +1534,7 @@ static unsigned int __stdcall monitorthread(void *unused)
 #if defined(_DBGVIEW)
     if ((rc != 0) && (rc != ERROR_WAIT_NO_CHILDREN))
         dbgprintf(__FUNCTION__, "log rotation failed: %lu", rc);
-    dbgprintf(__FUNCTION__, "done");
+    dbgprints(__FUNCTION__, "done");
 #endif
     XENDTHREAD(0);
 }
@@ -1540,13 +1550,13 @@ static unsigned int __stdcall rotatethread(void *unused)
     if (wc != WAIT_TIMEOUT) {
 #if defined(_DBGVIEW)
         if (wc == WAIT_OBJECT_0)
-            dbgprintf(__FUNCTION__, "processended signaled");
+            dbgprints(__FUNCTION__, "processended signaled");
         else
             dbgprintf(__FUNCTION__, "processended %lu", wc);
 #endif
         goto finished;
     }
-    dbgprintf(__FUNCTION__, "running");
+    dbgprints(__FUNCTION__, "running");
 
     if (rotatesiz.QuadPart)
         ms = SVCBATCH_LOGROTATE_HINT;
@@ -1595,7 +1605,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                 LeaveCriticalSection(&logfilelock);
             break;
             case WAIT_OBJECT_0:
-                dbgprintf(__FUNCTION__, "rotate by time");
+                dbgprints(__FUNCTION__, "rotate by time");
                 rc = rotatelogs();
                 if (rc == 0) {
                     CancelWaitableTimer(wh[0]);
@@ -1610,7 +1620,7 @@ static unsigned int __stdcall rotatethread(void *unused)
             break;
             case WAIT_OBJECT_1:
                 rc = ERROR_PROCESS_ABORTED;
-                dbgprintf(__FUNCTION__, "processended signaled");
+                dbgprints(__FUNCTION__, "processended signaled");
             break;
             case WAIT_FAILED:
                 rc = GetLastError();
@@ -1624,7 +1634,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     }
 
 finished:
-    dbgprintf(__FUNCTION__, "done");
+    dbgprints(__FUNCTION__, "done");
     SAFE_CLOSE_HANDLE(rotatedev);
     XENDTHREAD(0);
 }
@@ -1635,11 +1645,11 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
-            dbgprintf(__FUNCTION__, "CTRL_CLOSE_EVENT signaled");
+            dbgprints(__FUNCTION__, "CTRL_CLOSE_EVENT signaled");
         case CTRL_SHUTDOWN_EVENT:
 #if defined(_DBGVIEW)
             if (ctrl == CTRL_SHUTDOWN_EVENT)
-                dbgprintf(__FUNCTION__, "CTRL_SHUTDOWN_EVENT signaled");
+                dbgprints(__FUNCTION__, "CTRL_SHUTDOWN_EVENT signaled");
 #endif
             if (consolemode) {
                 EnterCriticalSection(&logfilelock);
@@ -1655,14 +1665,14 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             }
         break;
         case CTRL_C_EVENT:
-            dbgprintf(__FUNCTION__, "CTRL_C_EVENT signaled");
+            dbgprints(__FUNCTION__, "CTRL_C_EVENT signaled");
             if (consolemode) {
                 reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
                 xcreatethread(1, 0, &stopthread);
             }
         break;
         case CTRL_BREAK_EVENT:
-            dbgprintf(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
+            dbgprints(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
             if (consolemode) {
                 /**
                  * Signal to monitorthread that
@@ -1675,7 +1685,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             }
         break;
         case CTRL_LOGOFF_EVENT:
-            dbgprintf(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
+            dbgprints(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
         break;
         default:
             dbgprintf(__FUNCTION__, "unknown ctrl %lu", ctrl);
@@ -1738,7 +1748,7 @@ static unsigned int __stdcall workerthread(void *unused)
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
 
-    dbgprintf(__FUNCTION__, "started");
+    dbgprints(__FUNCTION__, "started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     if (wcshavespace(comspec))
         arg0 = xwcsvarcat(L"\"", comspec, L"\"", NULL);
@@ -1833,7 +1843,7 @@ static unsigned int __stdcall workerthread(void *unused)
     ResumeThread(wh[1]);
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    dbgprintf(__FUNCTION__, "service running");
+    dbgprints(__FUNCTION__, "service running");
 
     xcreatethread(1, 0, &rotatethread);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
@@ -1848,7 +1858,7 @@ finished:
     if (ssvcstatus.dwServiceSpecificExitCode)
         dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%lu",
                   ssvcstatus.dwServiceSpecificExitCode);
-    dbgprintf(__FUNCTION__, "done");
+    dbgprints(__FUNCTION__, "done");
 #endif
 
     XENDTHREAD(0);
@@ -1928,16 +1938,16 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         svcsyserror(__LINE__, rv, L"workerthread");
         goto finished;
     }
-    dbgprintf(__FUNCTION__, "running");
+    dbgprints(__FUNCTION__, "running");
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[0]);
     CloseHandle(wh[1]);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "wait for stop thread to finish");
     if (WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT) == WAIT_OBJECT_0)
-        dbgprintf(__FUNCTION__, "svcstopended");
+        dbgprints(__FUNCTION__, "svcstopended");
     else
-        dbgprintf(__FUNCTION__, "svcstopended TIMEOUT");
+        dbgprints(__FUNCTION__, "svcstopended TIMEOUT");
 #else
     WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
 #endif
@@ -1950,7 +1960,7 @@ finished:
     SAFE_CLOSE_HANDLE(childprocjob);
 
     closelogfile();
-    dbgprintf(__FUNCTION__, "done");
+    dbgprints(__FUNCTION__, "done");
     reportsvcstatus(SERVICE_STOPPED, rv);
 }
 
@@ -2249,18 +2259,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[1].lpServiceName = NULL;
     se[1].lpServiceProc = NULL;
     if (consolemode) {
-        dbgprintf(__FUNCTION__, "running batchfile");
+        dbgprints(__FUNCTION__, "running batchfile");
         servicemain(cwargc, cwargv);
         rv = ssvcstatus.dwServiceSpecificExitCode;
     }
     else {
-        dbgprintf(__FUNCTION__, "starting service");
+        dbgprints(__FUNCTION__, "starting service");
         if (!StartServiceCtrlDispatcherW(se))
             rv = svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
     }
 #endif
 #if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "done");
+    dbgprints(__FUNCTION__, "done");
 #if defined(_DBGVIEW_SAVE)
     {
         HANDLE h;
@@ -2340,31 +2350,31 @@ static DWORD runapitests(DWORD argc, wchar_t **argv)
     }
 
     logfflush(logfhandle);
-    dbgprintf(__FUNCTION__, "creating monitorthread");
+    dbgprints(__FUNCTION__, "creating monitorthread");
     xcreatethread(1, 0, &monitorthread);
-    dbgprintf(__FUNCTION__, "creating rotatethread");
+    dbgprints(__FUNCTION__, "creating rotatethread");
     xcreatethread(1, 0, &rotatethread);
-    dbgprintf(__FUNCTION__, "waiting 5 seconds for initialization");
+    dbgprints(__FUNCTION__, "waiting 5 seconds for initialization");
     Sleep(5000);
 
-    dbgprintf(__FUNCTION__, "working ...");
+    dbgprints(__FUNCTION__, "working ...");
     if (autorotate) {
-        dbgprintf(__FUNCTION__, "sleeping for 3 minutes ...");
+        dbgprints(__FUNCTION__, "sleeping for 3 minutes ...");
         Sleep(3 * 60000);
-        dbgprintf(__FUNCTION__, "signaling rotatelogs");
+        dbgprints(__FUNCTION__, "signaling rotatelogs");
         InterlockedExchange(&monitorsig, SVCBATCH_CTRL_ROTATE);
         SetEvent(monitorevent);
-        dbgprintf(__FUNCTION__, "sleeping for 5 minutes ...");
+        dbgprints(__FUNCTION__, "sleeping for 5 minutes ...");
         Sleep(5 * 60000);
     }
-    dbgprintf(__FUNCTION__, "signaling processended");
+    dbgprints(__FUNCTION__, "signaling processended");
     SetEvent(processended);
-    dbgprintf(__FUNCTION__, "waiting 2 seconds for thread cleanup");
+    dbgprints(__FUNCTION__, "waiting 2 seconds for thread cleanup");
     Sleep(2000);
 
 finished:
     closelogfile();
-    dbgprintf(__FUNCTION__, "done");
+    dbgprints(__FUNCTION__, "done");
     reportsvcstatus(SERVICE_STOPPED, rv);
     return rv;
 }
