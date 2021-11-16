@@ -1705,9 +1705,13 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
-        case CTRL_SHUTDOWN_EVENT:
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "CTRL_CLOSE_EVENT signaled");
+#endif
+        case CTRL_SHUTDOWN_EVENT:
+#if defined(_DBGVIEW)
+            if (ctrl == CTRL_SHUTDOWN_EVENT)
+                dbgprintf(__FUNCTION__, "CTRL_SHUTDOWN_EVENT signaled");
 #endif
             if (consolemode) {
                 EnterCriticalSection(&logfilelock);
@@ -1743,6 +1747,9 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             }
         break;
         case CTRL_LOGOFF_EVENT:
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
+#endif
         break;
         default:
 #if defined(_DBGVIEW)
