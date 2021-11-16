@@ -1724,6 +1724,8 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
                 }
                 InterlockedExchangePointer(&logfhandle, h);
                 LeaveCriticalSection(&logfilelock);
+                reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+                xcreatethread(1, 0, &stopthread);
             }
         break;
         case CTRL_C_EVENT:
