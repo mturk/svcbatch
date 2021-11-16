@@ -414,9 +414,9 @@ static wchar_t *xuuidstring(void)
 #if defined(_DBGVIEW)
 static void dbgprints(const char *funcname, const char *string)
 {
-    char    buf[MBUFSIZ];
+    char    buf[SBUFSIZ];
     char   *bp;
-    size_t  blen = MBUFSIZ - 1;
+    size_t  blen = SBUFSIZ - 1;
     int     n = 0;
     int     z = 0;
 #if defined(_DBGVIEW_SAVE)
@@ -473,12 +473,12 @@ static void dbgprints(const char *funcname, const char *string)
 
 static void dbgprintf(const char *funcname, const char *format, ...)
 {
-    char    buf[MBUFSIZ];
+    char    buf[SBUFSIZ];
     va_list ap;
 
     memset(buf, 0, sizeof(buf));
     va_start(ap, format);
-    _vsnprintf(buf, MBUFSIZ -1, format, ap);
+    _vsnprintf(buf, SBUFSIZ -1, format, ap);
     va_end(ap);
     dbgprints(funcname, buf);
 }
