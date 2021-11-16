@@ -94,25 +94,26 @@ rem
 rem
 sc stop "%SERVICE_NAME%" >NUL
 sc delete "%SERVICE_NAME%"
+echo Deleted %SERVICE_NAME%
 goto End
 
 :doRemove
 rem
 rem
-sc stop "%SERVICE_NAME%" >NUL
-sc delete "%SERVICE_NAME%" >NUL
-rd /S /Q Logs 2>NUL
+sc stop "%SERVICE_NAME%" >NUL 2>&1
+sc delete "%SERVICE_NAME%" >NUL 2>&1
+rd /S /Q Logs >NUL 2>&1
+del /Q %~nx0.Y >NUL 2>&1
 echo Removed %SERVICE_NAME%
 goto end
 
 :doRunInteractive
 rem Suppress Terminate batch job on CTRL+C
 rem
-echo Y > "%~nx0.Y"
-call "%~f0" runme < "%~nx0.Y"
+echo Y > %~nx0.Y
+call %~nx0 runme < %~nx0.Y
 rem Use provided errorlevel
-set RETVAL=%ERRORLEVEL%
-exit /B %RETVAL%
+exit /B %ERRORLEVEL%
 rem
 :doRunMe
 rem

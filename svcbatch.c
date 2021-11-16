@@ -509,6 +509,8 @@ static int setupeventlog(void)
     DWORD c;
     HKEY  k;
 
+    if (consolemode)
+        return 0;
     if (InterlockedIncrement(&eset) > 1)
         return ssrv;
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
@@ -576,7 +578,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         dbgprintf(__FUNCTION__, "%S %S", buf, err);
 #endif
     }
-    if ((consolemode == 0) && setupeventlog()) {
+    if (setupeventlog()) {
         HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
         if (es != NULL) {
             /**
@@ -724,15 +726,16 @@ static int resolvebatchname(const wchar_t *batch)
 
     i = xwcslen(svcbatchfile);
     while (--i > 5) {
-        if (consolemode && (d == 0) && (svcbatchfile[i] == L'.')) {
+        if ((d == 0) && (svcbatchfile[i] == L'.')) {
             d = i;
             svcbatchfile[i] = L'\0';
         }
         if (svcbatchfile[i] == L'\\') {
             svcbatchfile[i] = L'\0';
             batchdirname = xwcsdup(svcbatchfile);
-            if (consolemode && d) {
-                cwargv[0] = xwcsdup(svcbatchfile + i + 1);
+            if (d > 0) {
+                if (consolemode)
+                    cwargv[0] = xwcsdup(svcbatchfile + i + 1);
                 svcbatchfile[d] = L'.';
             }
             svcbatchfile[i] = L'\\';
@@ -2051,7 +2054,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         cwargc     = 0;
     int         envc       = 0;
     int         hasopts    = 1;
-    HANDLE      hstdin;
+
 #if defined(_RUN_API_TESTS)
     consolemode = 1;
 #else
@@ -2159,6 +2162,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              */
             return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
         }
+    }
+    if (consolemode) {
+        fputs(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
     }
 #if defined(_CHECK_IF_SERVICE)
     if ((consolemode == 0) && (runningasservice() == 0)) {
@@ -2286,12 +2292,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
 
-    hstdin = GetStdHandle(STD_INPUT_HANDLE);
-    if (consolemode) {
-        fputs(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
-    }
-    else {
-        if (hstdin != NULL)
+    if (consolemode == 0) {
+        HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
+        if (h != NULL)
             return svcsyserror(__LINE__, GetLastError(), L"Console already exists");
         if (AllocConsole()) {
             /**
@@ -2299,11 +2302,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              * standard i/o handles
              */
             atexit(cconsolecleanup);
-            hstdin = GetStdHandle(STD_INPUT_HANDLE);
+            h = GetStdHandle(STD_INPUT_HANDLE);
         }
+        if (IS_INVALID_HANDLE(h))
+            return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
     }
-    if (IS_INVALID_HANDLE(hstdin))
-        return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
 #if defined(_RUN_API_TESTS)
     i = runapitests(cwargc, cwargv);
 #else
