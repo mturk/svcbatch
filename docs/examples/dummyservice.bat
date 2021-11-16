@@ -26,6 +26,8 @@ if /i "x%~1" == "xdelete" goto doDelete
 if /i "x%~1" == "xremove" goto doRemove
 if /i "x%~1" == "xstart"  goto doStart
 if /i "x%~1" == "xstop"   goto doStop
+if /i "x%~1" == "xruncmd" goto doRunInteractive
+if /i "x%~1" == "xrunme"  goto doRunMe
 if /i "x%~1" == "xrotate" goto doRotate
 rem
 set "SERVICE_NAME="
@@ -101,5 +103,22 @@ sc stop "%SERVICE_NAME%" >NUL
 sc delete "%SERVICE_NAME%" >NUL
 rd /S /Q Logs 2>NUL
 echo Removed %SERVICE_NAME%
+goto end
+
+:doRunInteractive
+rem Suppress Terminate batch job on CTRL+C
+rem
+echo Y > "%~nx0.Y"
+call "%~f0" runme < "%~nx0.Y"
+rem Use provided errorlevel
+set RETVAL=%ERRORLEVEL%
+exit /B %RETVAL%
+rem
+:doRunMe
+rem
+rem
+rem Presuming this is the build tree ...
+rem Run batch file
+..\..\x64\svcbatch.exe -i -w "%cd%" -r @30~100K %~nx0
 
 :End

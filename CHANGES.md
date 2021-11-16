@@ -13,6 +13,7 @@ For a full list of changes, see the [git commit log][log]
  * Improve _DGVIEW_SAVE thread safety
  * Report error to Service Manager if createiopipes fails
  * Log SvcBatch features defined at install time
+ * Add interactive mode
 
 ## v1.0.5
 

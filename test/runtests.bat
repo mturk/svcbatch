@@ -48,7 +48,7 @@ rd /S /Q Logs 2>NUL
 echo Runnig tests in: %BaseDir%
 echo Using SvcBatch : %BuildDir%\svcbatch.exe
 echo.
-%BuildDir%\svcbatch.exe -C -w %BaseDir% /S -b %AutoRotate% noservice.bat %ServiceName%
+%BuildDir%\svcbatch.exe -C -w %BaseDir% /S -b %AutoRotate% %ServiceName%.bat
 if %ERRORLEVEL% neq 0 goto Failed
 
 echo.

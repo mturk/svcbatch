@@ -297,6 +297,13 @@ make sure to get familiar with `sc.exe` utility.
   exiting `SvcBatch.log` to `SvcBatch.log.YYYY-MM-DD.hhmmss`.
   Timestamp used is the last write time of `SvcBatch.log`
 
+* **-i**
+
+  **Run as console application**
+
+  When define SvcBatch will run as standard application.
+  This option is used mostly for debug purposes.
+
 ## Private Environment Variables
 
 SvcBatch sets a few private environment variables that

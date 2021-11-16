@@ -24,7 +24,8 @@
 #include "svcbatch.h"
 
 #if defined(_RUN_API_TESTS)
-static DWORD runapitests(DWORD, const wchar_t **);
+#undef _CHECK_IF_SERVICE
+static DWORD runapitests(DWORD, wchar_t **);
 #endif
 
 static volatile LONG         monitorsig  = 0;
@@ -51,6 +52,7 @@ static int       hasctrlbreak     = 0;
 static int       usecleanpath     = 0;
 static int       usesafeenv       = 0;
 static int       autorotate       = 0;
+static int       consolemode      = 0;
 
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *batchdirname     = NULL;
@@ -82,6 +84,7 @@ static HANDLE    inputpipewrs     = NULL;
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
+static wchar_t     *cwargv[]      = { NULL, NULL };
 
 static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32;"              \
@@ -443,12 +446,13 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_end(ap);
 
     EnterCriticalSection(&dbgviewlock);
-#if defined(_RUN_API_TESTS)
-    fputs(buf,  stdout);
-    fputc('\n', stdout);
-#else
-    OutputDebugStringA(buf + z);
-#endif
+    if (consolemode) {
+        fputs(buf,  stdout);
+        fputc('\n', stdout);
+    }
+    else {
+        OutputDebugStringA(buf + z);
+    }
 #if defined(_DBGVIEW_SAVE)
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h != NULL) {
@@ -572,10 +576,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         dbgprintf(__FUNCTION__, "%S %S", buf, err);
 #endif
     }
-#if defined(_RUN_API_TESTS)
-    return ern;
-#else
-    if (setupeventlog()) {
+    if ((consolemode == 0) && setupeventlog()) {
         HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
         if (es != NULL) {
             /**
@@ -588,7 +589,6 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         }
     }
     return ern;
-#endif
 }
 
 static HANDLE xcreatethread(int detach, unsigned initflag,
@@ -717,16 +717,24 @@ static int resolvesvcbatchexe(void)
 static int resolvebatchname(const wchar_t *batch)
 {
     int i;
-
+    int d = 0;
     svcbatchfile = getrealpathname(batch, 0);
     if (IS_EMPTY_WCS(svcbatchfile))
         return 0;
 
     i = xwcslen(svcbatchfile);
-    while (--i > 0) {
+    while (--i > 5) {
+        if (consolemode && (d == 0) && (svcbatchfile[i] == L'.')) {
+            d = i;
+            svcbatchfile[i] = L'\0';
+        }
         if (svcbatchfile[i] == L'\\') {
             svcbatchfile[i] = L'\0';
             batchdirname = xwcsdup(svcbatchfile);
+            if (consolemode && d) {
+                cwargv[0] = xwcsdup(svcbatchfile + i + 1);
+                svcbatchfile[d] = L'.';
+            }
             svcbatchfile[i] = L'\\';
             return 1;
         }
@@ -804,14 +812,10 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwWaitHint   = param;
     }
     ssvcstatus.dwCurrentState = status;
-#if defined(_RUN_API_TESTS)
-    InterlockedExchange(&sscstate, status);
-#else
-    if (SetServiceStatus(hsvcstatus, &ssvcstatus))
+    if (consolemode || SetServiceStatus(hsvcstatus, &ssvcstatus))
         InterlockedExchange(&sscstate, status);
     else
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
-#endif
 finished:
     LeaveCriticalSection(&servicelock);
 }
@@ -1712,6 +1716,10 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "CTRL_C_EVENT signaled");
 #endif
+            if (consolemode) {
+                reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+                xcreatethread(1, 0, &stopthread);
+            }
         break;
         case CTRL_BREAK_EVENT:
 #if defined(_DBGVIEW)
@@ -1925,11 +1933,13 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
 
     servicename = xwcsdup(argv[0]);
-    hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
-    if (IS_INVALID_HANDLE(hsvcstatus)) {
-        svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx");
-        exit(ERROR_INVALID_HANDLE);
-        return;
+    if (consolemode == 0) {
+        hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
+        if (IS_INVALID_HANDLE(hsvcstatus)) {
+            svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx");
+            exit(ERROR_INVALID_HANDLE);
+            return;
+        }
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 #if defined(_DBGVIEW)
@@ -2038,11 +2048,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *cpath;
     wchar_t    *bname = NULL;
     wchar_t    *rotateparam = NULL;
-
+    int         cwargc     = 0;
     int         envc       = 0;
     int         hasopts    = 1;
     HANDLE      hstdin;
-
+#if defined(_RUN_API_TESTS)
+    consolemode = 1;
+#else
+    SERVICE_TABLE_ENTRYW se[2];
+#endif
     /**
      * Make sure children (cmd.exe) are kept quiet.
      */
@@ -2053,9 +2067,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DBGVIEW_SAVE)
     dbginitick = GetTickCount64();
 #endif
-#if defined(_RUN_API_TESTS)
-    fputs(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
-#else
+#if !defined(_RUN_API_TESTS)
     OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
 #endif
 #endif
@@ -2069,9 +2081,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Simple case insensitive argument parsing
      * that allows both '-' and '/' as cmdswitches
      */
-    wargv++;
-    for (i = 1; i < argc; i++, wargv++) {
-        const wchar_t *p = *wargv;
+    for (i = 1; i < argc; i++) {
+        const wchar_t *p = wargv[i];
         if (p[0] == L'\0')
             return svcsyserror(__LINE__, 0, L"Empty command line argument");
         if (hasopts) {
@@ -2112,6 +2123,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'c':
                         usecleanpath = 1;
                     break;
+                    case L'i':
+                        consolemode  = 1;
+                    break;
                     case L'o':
                         loglocation  = zerostring;
                     break;
@@ -2139,22 +2153,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             xreplacepathsep(bname);
         }
         else {
-#if defined(_RUN_API_TESTS)
-            break;
-#else
             /**
              * We have extra parameters after batch file.
              * This is user install error.
              */
             return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
-#endif
         }
     }
-#if defined(_RUN_API_TESTS)
-    argc = argc - i;
-#endif
 #if defined(_CHECK_IF_SERVICE)
-    if (runningasservice() == 0) {
+    if ((consolemode == 0) && (runningasservice() == 0)) {
         fputs("\n" SVCBATCH_NAME " " SVCBATCH_VERSION_STR, stderr);
         fputs(" "  SVCBATCH_BUILD_STAMP, stderr);
         fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
@@ -2204,6 +2211,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (!SetCurrentDirectoryW(servicehome))
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
+    if (cwargv[0] != NULL)
+        cwargc = 1;
     if (loglocation == NULL)
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
     dupwenvp = waalloc(envc + 8);
@@ -2278,37 +2287,44 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     atexit(objectscleanup);
 
     hstdin = GetStdHandle(STD_INPUT_HANDLE);
-#if defined(_RUN_API_TESTS)
-    dbgprintf(__FUNCTION__, "starting api tests");
-#else
-    if (hstdin != NULL)
-        return svcsyserror(__LINE__, GetLastError(), L"Console already exists");
-    if (AllocConsole()) {
-        /**
-         * AllocConsole should create new set of
-         * standard i/o handles
-         */
-        atexit(cconsolecleanup);
-        hstdin = GetStdHandle(STD_INPUT_HANDLE);
+    if (consolemode) {
+        fputs(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
     }
-#endif
+    else {
+        if (hstdin != NULL)
+            return svcsyserror(__LINE__, GetLastError(), L"Console already exists");
+        if (AllocConsole()) {
+            /**
+             * AllocConsole should create new set of
+             * standard i/o handles
+             */
+            atexit(cconsolecleanup);
+            hstdin = GetStdHandle(STD_INPUT_HANDLE);
+        }
+    }
     if (IS_INVALID_HANDLE(hstdin))
         return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
 #if defined(_RUN_API_TESTS)
-    i = runapitests(argc, wargv);
+    i = runapitests(cwargc, cwargv);
 #else
-    i = 0;
-    {
-        SERVICE_TABLE_ENTRYW se;
-        se[0].lpServiceName = zerostring;
-        se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
-        se[1].lpServiceName = NULL;
-        se[1].lpServiceProc = NULL;
+    se[0].lpServiceName = zerostring;
+    se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
+    se[1].lpServiceName = NULL;
+    se[1].lpServiceProc = NULL;
+    if (consolemode) {
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "running batchfile");
+#endif
+        servicemain(cwargc, cwargv);
+        i = ssvcstatus.dwServiceSpecificExitCode;
+    }
+    else {
 #if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "starting service");
 #endif
         if (!StartServiceCtrlDispatcherW(se))
             return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
+        i = 0;
     }
 #endif
 #if defined(_DBGVIEW)
@@ -2331,7 +2347,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 }
 
 #if defined(_RUN_API_TESTS)
-static DWORD runapitests(DWORD argc, const wchar_t **argv)
+static DWORD runapitests(DWORD argc, wchar_t **argv)
 {
     int          i;
     DWORD        rv = 0;
@@ -2344,10 +2360,11 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
      * The following is in sync with servicemain
      * minus service manager bits.
      */
-    if (argc)
-        servicename = xwcsdup(argv[0]);
-    else
-        return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"servicename");
+    if (argc == 0) {
+        svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"Missing servicename");
+        return ERROR_INVALID_PARAMETER;
+    }
+    servicename = xwcsdup(argv[0]);
     dbgprintf(__FUNCTION__, "started %S", servicename);
     rv = openlogfile(TRUE);
     if (rv != 0) {
@@ -2355,9 +2372,6 @@ static DWORD runapitests(DWORD argc, const wchar_t **argv)
         return rv;
     }
     logconfig(logfhandle);
-    for (i = 1; i < (int)argc; i++) {
-        dbgprintf(__FUNCTION__, "arg[%d]: %S", i, argv[i]);
-    }
     /**
      * Add additional environment variables
      * They are unique to this service instance
