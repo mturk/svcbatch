@@ -301,8 +301,11 @@ make sure to get familiar with `sc.exe` utility.
 
   **Run as console application**
 
-  When define SvcBatch will run as standard application.
-  This option is used mostly for debug purposes.
+  When defined, SvcBatch will run as standard console application.
+  This option is used mostly for debug purposes allowing
+  to verify service batch file functionality.
+
+  Do **not** use this option when installing regular services.
 
 ## Private Environment Variables
 
