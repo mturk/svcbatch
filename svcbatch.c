@@ -424,9 +424,7 @@ static void dbgprints(const char *funcname, const char *string)
     DWORD   ct, wr, ss, ms;
 #endif
 
-    memset(buf, 0, sizeof(buf));
     bp = buf;
-
 #if defined(_DBGVIEW_SAVE)
     ct = (DWORD)(GetTickCount64() - dbginitick);
     ms = (DWORD)(ct % MS_IN_SECOND);
@@ -441,7 +439,7 @@ static void dbgprints(const char *funcname, const char *string)
                   GetCurrentThreadId(), funcname);
     bp = bp + n;
     strncat(bp, string, blen - n - z);
-
+    buf[SBUFSIZ - 1] = '\0';
     EnterCriticalSection(&dbgviewlock);
     if (consolemode) {
         fputs(buf,  stdout);
@@ -476,10 +474,10 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     char    buf[SBUFSIZ];
     va_list ap;
 
-    memset(buf, 0, sizeof(buf));
     va_start(ap, format);
     _vsnprintf(buf, SBUFSIZ -1, format, ap);
     va_end(ap);
+    buf[SBUFSIZ - 1] = '\0';
     dbgprints(funcname, buf);
 }
 #else
