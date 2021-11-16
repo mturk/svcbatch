@@ -14,6 +14,7 @@ For a full list of changes, see the [git commit log][log]
  * Report error to Service Manager if createiopipes fails
  * Log SvcBatch features defined at install time
  * Add interactive mode
+ * Added support for service pause/continue
 
 ## v1.0.5
 

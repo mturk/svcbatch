@@ -29,6 +29,7 @@ static DWORD runapitests(DWORD, wchar_t **);
 #endif
 
 static volatile LONG         monitorsig  = 0;
+static volatile LONG         svcworking  = 1;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
@@ -78,6 +79,7 @@ static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
+static HANDLE    workingevent     = NULL;
 static HANDLE    outputpiperd     = NULL;
 static HANDLE    inputpipewrs     = NULL;
 
@@ -798,9 +800,10 @@ static void reportsvcstatus(DWORD status, DWORD param)
     ssvcstatus.dwCheckPoint       = 0;
     ssvcstatus.dwWaitHint         = 0;
 
-    if (status == SERVICE_RUNNING) {
+    if ((status == SERVICE_RUNNING) || (status == SERVICE_PAUSED)) {
         ssvcstatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
-                                         SERVICE_ACCEPT_SHUTDOWN;
+                                         SERVICE_ACCEPT_SHUTDOWN |
+                                         SERVICE_ACCEPT_PAUSE_CONTINUE;
 #if defined(SERVICE_ACCEPT_PRESHUTDOWN)
         ssvcstatus.dwControlsAccepted |= SERVICE_ACCEPT_PRESHUTDOWN;
 #endif
@@ -1414,6 +1417,19 @@ static unsigned int __stdcall iopipethread(void *unused)
         DWORD rd = 0;
         HANDLE h = NULL;
 
+        if (InterlockedExchange(&svcworking, 1) == 0) {
+            HANDLE wh[2];
+
+            wh[0] = workingevent;
+            wh[1] = processended;
+
+            dbgprints(__FUNCTION__, "waiting for continue...");
+            if (WaitForMultipleObjects(2, wh, FALSE, INFINITE) != WAIT_OBJECT_0) {
+                dbgprints(__FUNCTION__, "ended");
+                XENDTHREAD(0);
+            }
+            dbgprints(__FUNCTION__, "resuming");
+        }
         if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
             if (rd == 0) {
                 /**
@@ -1512,6 +1528,17 @@ static unsigned int __stdcall monitorthread(void *unused)
                         break;
                     }
                     rotatesynctime();
+                }
+                else if (cc == SERVICE_CONTROL_PAUSE) {
+                    dbgprints(__FUNCTION__, "pause signaled");
+                    InterlockedExchange(&svcworking, 0);
+                    reportsvcstatus(SERVICE_PAUSED, 0);
+                }
+                else if (cc == SERVICE_CONTROL_CONTINUE) {
+                    dbgprints(__FUNCTION__, "continue signaled");
+                    InterlockedExchange(&svcworking, 1);
+                    SetEvent(workingevent);
+                    reportsvcstatus(SERVICE_RUNNING, 0);
                 }
 #if defined(_DBGVIEW)
                 else {
@@ -1722,6 +1749,24 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
              * Signal to monitorthread that
              * user send custom service control
              */
+            InterlockedExchange(&monitorsig, ctrl);
+            SetEvent(monitorevent);
+        break;
+        case SERVICE_CONTROL_PAUSE:
+            /**
+             * Signal to monitorthread that
+             * service should enter pause state.
+             */
+            reportsvcstatus(SERVICE_PAUSE_PENDING, SVCBATCH_PENDING_WAIT);
+            InterlockedExchange(&monitorsig, ctrl);
+            SetEvent(monitorevent);
+        break;
+        case SERVICE_CONTROL_CONTINUE:
+            /**
+             * Signal to monitorthread that
+             * service should continue reading from child.
+             */
+            reportsvcstatus(SERVICE_CONTINUE_PENDING, SVCBATCH_PENDING_WAIT);
             InterlockedExchange(&monitorsig, ctrl);
             SetEvent(monitorevent);
         break;
@@ -1973,6 +2018,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(monitorevent);
+    SAFE_CLOSE_HANDLE(workingevent);
     SAFE_CLOSE_HANDLE(childprocjob);
 
     DeleteCriticalSection(&logfilelock);
@@ -2222,6 +2268,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
+    workingevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
+    if (IS_INVALID_HANDLE(workingevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     childprocjob = CreateJobObjectW(&sazero, NULL);
     if (IS_INVALID_HANDLE(childprocjob))
