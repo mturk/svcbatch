@@ -968,8 +968,6 @@ static void logconfig(HANDLE h)
         fs = xwcsappend(fs, L"autorotate, ");
     if (consolemode)
         fs = xwcsappend(fs, L"console mode, ");
-    else
-        fs = xwcsappend(fs, L"service, ");
     if (hasctrlbreak)
         fs = xwcsappend(fs, L"ctrl+break, ");
     if (usecleanpath)
