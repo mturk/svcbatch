@@ -2316,7 +2316,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (consolemode == 0) {
         HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
         if (h != NULL)
-            return svcsyserror(__LINE__, GetLastError(), L"Console already exists");
+            return svcsyserror(__LINE__, ERROR_ALREADY_EXISTS, L"Console already exists");
         if (AllocConsole()) {
             /**
              * AllocConsole should create new set of
@@ -2324,9 +2324,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              */
             atexit(cconsolecleanup);
             h = GetStdHandle(STD_INPUT_HANDLE);
+            if (IS_INVALID_HANDLE(h))
+                return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
         }
-        if (IS_INVALID_HANDLE(h))
-            return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
+        else {
+            return svcsyserror(__LINE__, GetLastError(), L"AllocConsole");
+        }
     }
 #if defined(_RUN_API_TESTS)
     rv = runapitests(cwargc, cwargv);
