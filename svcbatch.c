@@ -2067,6 +2067,7 @@ static void __cdecl objectscleanup(void)
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int         i;
+    int         rv = 0;
     wchar_t    *opath;
     wchar_t    *cpath;
     wchar_t    *bname = NULL;
@@ -2286,9 +2287,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     xcleanwinpath(opath);
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
-    i = resolverotate(rotateparam);
-    if (i != 0)
-        return svcsyserror(i, ERROR_INVALID_PARAMETER, rotateparam);
+    rv = resolverotate(rotateparam);
+    if (rv != 0)
+        return svcsyserror(rv, ERROR_INVALID_PARAMETER, rotateparam);
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
@@ -2328,7 +2329,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
     }
 #if defined(_RUN_API_TESTS)
-    i = runapitests(cwargc, cwargv);
+    rv = runapitests(cwargc, cwargv);
 #else
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
@@ -2339,15 +2340,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         dbgprintf(__FUNCTION__, "running batchfile");
 #endif
         servicemain(cwargc, cwargv);
-        i = ssvcstatus.dwServiceSpecificExitCode;
+        rv = ssvcstatus.dwServiceSpecificExitCode;
     }
     else {
 #if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "starting service");
 #endif
         if (!StartServiceCtrlDispatcherW(se))
-            return svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
-        i = 0;
+            rv = svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
     }
 #endif
 #if defined(_DBGVIEW)
@@ -2366,7 +2366,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
 #endif
 #endif
-    return i;
+    return rv;
 }
 
 #if defined(_RUN_API_TESTS)
