@@ -1739,11 +1739,13 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
 #endif
-            if (hasctrlbreak && consolemode) {
+            if (consolemode) {
                 /**
                  * Signal to monitorthread that
                  * user send custom service control
                  */
+                if (hasctrlbreak == 0)
+                    ctrl = SVCBATCH_CTRL_ROTATE;
                 InterlockedExchange(&monitorsig, ctrl);
                 SetEvent(monitorevent);
             }
