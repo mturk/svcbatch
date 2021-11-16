@@ -966,6 +966,10 @@ static void logconfig(HANDLE h)
     logprintf(h, "Log directory    : %S", loglocation);
     if (autorotate)
         fs = xwcsappend(fs, L"autorotate, ");
+    if (consolemode)
+        fs = xwcsappend(fs, L"console mode, ");
+    else
+        fs = xwcsappend(fs, L"service, ");
     if (hasctrlbreak)
         fs = xwcsappend(fs, L"ctrl+break, ");
     if (usecleanpath)
