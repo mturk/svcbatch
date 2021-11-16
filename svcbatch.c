@@ -1414,7 +1414,29 @@ static unsigned int __stdcall iopipethread(void *unused)
         DWORD rd = 0;
         HANDLE h = NULL;
 
-        if (!ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
+        if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
+            if (rd == 0) {
+                /**
+                 * Read zero bytes from child should
+                 * not happen.
+                 */
+                dbgprintf(__FUNCTION__, "Read 0 bytes err=%lu", GetLastError());
+                rc = ERROR_NO_DATA;
+            }
+            else {
+                EnterCriticalSection(&logfilelock);
+                h = InterlockedExchangePointer(&logfhandle, NULL);
+
+                if (h != NULL)
+                    rc = logappend(h, rb, rd);
+                else
+                    rc = ERROR_NO_MORE_FILES;
+
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
+            }
+        }
+        else {
             /**
              * Read from child failed.
              * ERROR_BROKEN_PIPE means that
@@ -1422,35 +1444,13 @@ static unsigned int __stdcall iopipethread(void *unused)
              */
             rc = GetLastError();
         }
-        else if (rd == 0) {
-            /**
-             * Read zero bytes from child should
-             * not happen.
-             */
-            dbgprintf(__FUNCTION__, "Read 0 bytes err=%lu", GetLastError());
-            rc = ERROR_NO_DATA;
-        }
-        else {
-            EnterCriticalSection(&logfilelock);
-            h = InterlockedExchangePointer(&logfhandle, NULL);
-
-            if (h != NULL)
-                rc = logappend(h, rb, rd);
-            else
-                rc = ERROR_NO_MORE_FILES;
-
-            InterlockedExchangePointer(&logfhandle, h);
-            LeaveCriticalSection(&logfilelock);
-        }
     }
 #if defined(_DBGVIEW)
     if (rc == ERROR_BROKEN_PIPE)
-        dbgprints(__FUNCTION__, "ERROR_BROKEN_PIPE");
-    else if (rc == ERROR_NO_DATA)
-        dbgprints(__FUNCTION__, "ERROR_NO_DATA");
+        dbgprints(__FUNCTION__, "pipe closed");
     else if (rc == ERROR_NO_MORE_FILES)
         dbgprints(__FUNCTION__, "logfile closed");
-    else
+    else if (rc != ERROR_NO_DATA)
         dbgprintf(__FUNCTION__, "err=%lu", rc);
     dbgprints(__FUNCTION__, "done");
 #endif
