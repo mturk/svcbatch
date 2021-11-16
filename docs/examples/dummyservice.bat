@@ -122,7 +122,7 @@ rem Presuming this is the build tree
 rem Run batch file directly in console
 rem
 if not exist %~nx0.Y (
-echo Cannot find %~nx0,Y answer file
+echo Cannot find %~nx0.Y answer file
 exit /B 1
 )
 ..\..\x64\svcbatch.exe -i -w "%cd%" -r @30~100K %~nx0
