@@ -186,7 +186,7 @@
     "Run batch files as Windows Services"
 
 #define SVCBATCH_COPYRIGHT \
-    "Copyright (c) 1964-2021 The Acme Corporation or its "              \
+    "Copyright (c) 1964-2022 The Acme Corporation or its "              \
     "licensors, as applicable."
 
 #define SVCBATCH_COMPANY_NAME "Acme Corporation"
