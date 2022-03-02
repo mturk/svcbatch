@@ -312,15 +312,6 @@ static int envsort(const void *arg1, const void *arg2)
     return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
 }
 
-static void xreplacepathsep(wchar_t *p)
-{
-    while (*p != L'\0') {
-        if (*p == L'/')
-            *p = L'\\';
-        p++;
-    }
-}
-
 static int wcshavespace(const wchar_t *s)
 {
     while (*s != L'\0') {
@@ -644,6 +635,7 @@ static wchar_t *expandenvstrings(const wchar_t *str)
             siz = len;
         }
     }
+    xcleanwinpath(buf);
     return buf;
 }
 
@@ -661,7 +653,6 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     es = expandenvstrings(path);
     if (es == NULL)
         return NULL;
-    xcleanwinpath(es);
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, fa, NULL);
     xfree(es);
@@ -727,6 +718,7 @@ static int resolvebatchname(const wchar_t *batch)
 {
     int i;
     int d = 0;
+
     svcbatchfile = getrealpathname(batch, 0);
     if (IS_EMPTY_WCS(svcbatchfile))
         return 0;
@@ -2084,7 +2076,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 loglocation = expandenvstrings(p);
                 if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
-                xcleanwinpath(loglocation);
                 continue;
             }
             if (rotateparam == zerostring) {
@@ -2138,7 +2129,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             bname = expandenvstrings(p);
             if (bname == NULL)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
-            xreplacepathsep(bname);
         }
         else {
             /**
@@ -2248,7 +2238,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
         xfree(cp);
     }
-    xcleanwinpath(opath);
+    else {
+        xcleanwinpath(opath);
+    }
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
     rv = resolverotate(rotateparam);
