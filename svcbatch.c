@@ -84,7 +84,6 @@ static HANDLE    inputpipewrs     = NULL;
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
-static int          cwargc        = 0;
 static wchar_t     *cwargv[]      = { NULL, NULL };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
@@ -772,8 +771,8 @@ static int resolvebatchname(const wchar_t *batch)
             svcbatchfile[i] = L'\0';
             batchdirname = xwcsdup(svcbatchfile);
             if (d > 0) {
-                if (nonsvcmode)
-                    cwargv[cwargc++] = xwcsdup(svcbatchfile + i + 1);
+                if (consolemode)
+                    cwargv[0] = xwcsdup(svcbatchfile + i + 1);
                 svcbatchfile[d] = L'.';
             }
             svcbatchfile[i] = L'\\';
@@ -2026,13 +2025,13 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
 
-    if (argc == 0) {
+    if (IS_EMPTY_WCS(servicename))
+        servicename = xwcsdup(argv[0]);
+    if (IS_EMPTY_WCS(servicename)) {
         svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"Missing servicename");
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
-    if (IS_EMPTY_WCS(servicename))
-        servicename = xwcsdup(argv[0]);
     if (runbatchmode == 0) {
         hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
         if (IS_INVALID_HANDLE(hsvcstatus)) {
@@ -2168,7 +2167,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             }
         }
     }
-    cwargv[cwargc++] = xwcsdup(wargv[0]);
 #if defined(_DBGVIEW)
     InitializeCriticalSection(&dbgviewlock);
 #if defined(_DBGVIEW_SAVE)
@@ -2350,8 +2348,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (!SetCurrentDirectoryW(servicehome))
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
-    if (cwargv[0] != NULL)
-        cwargc = 1;
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
     dupwenvp = waalloc(envc + 8);
@@ -2453,7 +2449,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[1].lpServiceProc = NULL;
     if (nonsvcmode) {
         dbgprints(__FUNCTION__, "running batchfile");
-        servicemain(cwargc, cwargv);
+        servicemain(1, cwargv);
         rv = ssvcstatus.dwServiceSpecificExitCode;
     }
     else {
