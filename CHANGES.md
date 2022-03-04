@@ -6,7 +6,7 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
-## v1.0.7
+## v1.1.0
 
  * In development
  * Simplify alloc functions
@@ -14,6 +14,7 @@ For a full list of changes, see the [git commit log][log]
  * Increase SVC_MAX_LOGS to 9
  * Use RunBatch.log for Console mode
  * Remove _RUN_API_TEST
+ * Add support to execute batch file using SVCBATCH_CTRL_EXEC signal
 
 ## v1.0.6
 

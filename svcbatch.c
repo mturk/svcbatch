@@ -85,7 +85,7 @@ static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
 static int          cwargc        = 0;
-static wchar_t     *cwargv[32];
+static wchar_t     *cwargv[]      = { NULL, NULL };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
 static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_SVCNAME);
@@ -1699,6 +1699,76 @@ finished:
     XENDTHREAD(0);
 }
 
+static unsigned int __stdcall runexecthread(void *unused)
+{
+    wchar_t *cmdline;
+    HANDLE   wh[2];
+    DWORD    rc;
+    PROCESS_INFORMATION cp;
+    STARTUPINFOW si;
+
+    dbgprints(__FUNCTION__, "started");
+
+    cmdline = xappendarg(NULL, svcbatchexe);
+    cmdline = xwcsappend(cmdline, L" -n ");
+    cmdline = xappendarg(cmdline, servicename);
+    cmdline = xwcsappend(cmdline, L" -w ");
+    cmdline = xappendarg(cmdline, servicehome);
+    cmdline = xwcsappend(cmdline, L" -o ");
+    cmdline = xappendarg(cmdline, loglocation);
+    cmdline = xwcsappend(cmdline, L" -u ");
+    cmdline = xappendarg(cmdline, serviceuuid);
+    cmdline = xwcsappend(cmdline, L" -d ");
+    cmdline = xappendarg(cmdline, serviceexec);
+
+    dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
+
+    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
+    memset(&si, 0, sizeof(STARTUPINFOW));
+
+    si.cb = DSIZEOF(STARTUPINFOW);
+
+    if (!CreateProcessW(NULL, cmdline, NULL, NULL, FALSE,
+                        DETACHED_PROCESS | CREATE_UNICODE_ENVIRONMENT,
+                        NULL,
+                        servicehome,
+                       &si, &cp)) {
+        rc = GetLastError();
+        svcsyserror(__LINE__, rc, L"CreateProcess");
+        goto finished;
+    }
+    dbgprintf(__FUNCTION__, "exec id %lu", cp.dwProcessId);
+    CloseHandle(cp.hThread);
+    wh[0] = cp.hProcess;
+    wh[1] = processended;
+
+    rc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
+    switch (rc) {
+        case WAIT_OBJECT_0:
+            dbgprints(__FUNCTION__, "exec process done");
+        break;
+        case WAIT_OBJECT_1:
+            dbgprints(__FUNCTION__, "processended signaled");
+            /* TODO: Signal to exec process we are done */
+        break;
+        case WAIT_FAILED:
+            rc = GetLastError();
+            dbgprintf(__FUNCTION__, "wait failed %lu", rc);
+        break;
+        default:
+            dbgprintf(__FUNCTION__, "wait error %lu", rc);
+        break;
+
+
+    }
+    CloseHandle(cp.hProcess);
+
+finished:
+    xfree(cmdline);
+    dbgprints(__FUNCTION__, "done");
+    XENDTHREAD(0);
+}
+
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
     HANDLE h = NULL;
@@ -1786,6 +1856,15 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
              */
             InterlockedExchange(&monitorsig, ctrl);
             SetEvent(monitorevent);
+        break;
+        case SVCBATCH_CTRL_EXEC:
+            if (IS_EMPTY_WCS(svcbatchexe)) {
+                dbgprints(__FUNCTION__, "SvcBatch exec undefined");
+            }
+            else {
+                dbgprintf(__FUNCTION__, "Starting exec:  %S", svcbatchexe);
+                xcreatethread(1, 0, &runexecthread);
+            }
         break;
         case SERVICE_CONTROL_PAUSE:
             /**
@@ -1952,8 +2031,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
-
-    servicename = xwcsdup(argv[0]);
+    if (IS_EMPTY_WCS(servicename))
+        servicename = xwcsdup(argv[0]);
     if (runbatchmode == 0) {
         hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
         if (IS_INVALID_HANDLE(hsvcstatus)) {
@@ -2088,9 +2167,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     runbatchmode = 1;
             }
         }
-        else {
-            break;
-        }
     }
     cwargv[cwargc++] = xwcsdup(wargv[0]);
 #if defined(_DBGVIEW)
@@ -2141,6 +2217,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 serviceuuid = xwcsdup(p);
                 continue;
             }
+            if (servicename == zerostring) {
+                servicename = xwcsdup(p);
+                continue;
+            }
             hasopts = 0;
             if ((p[0] == L'-') || (p[0] == L'/')) {
                 if (p[1] == L'\0')
@@ -2183,6 +2263,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     break;
                     case L'x':
                         serviceexec  = zerostring;
+                    break;
+                    case L'n':
+                        servicename  = zerostring;
                     break;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown command line option");

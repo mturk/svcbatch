@@ -35,8 +35,8 @@
  * Version info
  */
 #define SVCBATCH_MAJOR_VERSION  1
-#define SVCBATCH_MINOR_VERSION  0
-#define SVCBATCH_PATCH_VERSION  7
+#define SVCBATCH_MINOR_VERSION  1
+#define SVCBATCH_PATCH_VERSION  0
 #if defined(_VENDOR_NUM)
 # define SVCBATCH_MICRO_VERSION _VENDOR_NUM
 #else
@@ -86,7 +86,7 @@
 
 /**
  * This signal will execute batch file
- * defined by -x parameter
+ * defined by -x <batch file>
  *
  * eg. C:\>sc control SvcBatchServiceName 235
  *
