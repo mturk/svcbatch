@@ -49,6 +49,8 @@ static int       usecleanpath     = 0;
 static int       usesafeenv       = 0;
 static int       autorotate       = 0;
 static int       consolemode      = 0;
+static int       runbatchmode     = 0;
+static int       nonsvcmode       = 0;
 
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *batchdirname     = NULL;
@@ -57,6 +59,7 @@ static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
+static wchar_t  *serviceexec      = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -83,6 +86,10 @@ static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
 static int          cwargc        = 0;
 static wchar_t     *cwargv[32];
+
+static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_SVCNAME);
+static const wchar_t *wnbatchapp  = CPP_WIDEN(SVCBATCH_NAME);
 
 static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32;"              \
@@ -313,6 +320,36 @@ static int wcshavespace(const wchar_t *s)
     return 0;
 }
 
+static wchar_t *xappendarg(wchar_t *s1, const wchar_t *s2)
+{
+    wchar_t *cp, *rv;
+    size_t l1 = xwcslen(s1);
+    size_t l2 = xwcslen(s2);
+
+    if ((l1 + l2) == 0)
+        return NULL;
+
+    cp = rv = xwalloc(l1 + l2 + 4);
+
+    if(l1 > 0)
+        wmemcpy(cp, s1, l1);
+    cp += l1;
+    if(l2 > 0) {
+        if (wcshavespace(s2)) {
+            *(cp++) = L'\\';
+            *(cp++) = L'"';
+            wmemcpy(cp, s2, l2);
+            cp += l2;
+            *(cp++) = L'\\';
+            *(cp++) = L'"';
+        }
+        else
+            wmemcpy(cp, s2, l2);
+    }
+    xfree(s1);
+    return rv;
+}
+
 static wchar_t *xrmspaces(wchar_t *dest, const wchar_t *src)
 {
     wchar_t *dp = NULL;
@@ -500,6 +537,7 @@ static int setupeventlog(void)
     static int ssrv = 0;
     static volatile LONG eset   = 0;
     static const wchar_t emsg[] = L"%SystemRoot%\\System32\\netmsg.dll\0";
+    wchar_t *kname;
     DWORD c;
     HKEY  k;
 
@@ -507,14 +545,14 @@ static int setupeventlog(void)
         return 0;
     if (InterlockedIncrement(&eset) > 1)
         return ssrv;
-    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-                        L"SYSTEM\\CurrentControlSet\\Services\\" \
-                        L"EventLog\\Application\\" CPP_WIDEN(SVCBATCH_SVCNAME),
+    kname = xwcsconcat( L"SYSTEM\\CurrentControlSet\\Services\\" \
+                        L"EventLog\\Application\\", wnamestamp);
+    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, kname,
                         0, NULL, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
                         NULL, &k, &c) != ERROR_SUCCESS)
         return 0;
-
+    xfree(kname);
     if (c == REG_CREATED_NEW_KEY) {
         DWORD dw = EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE |
                    EVENTLOG_INFORMATION_TYPE;
@@ -539,7 +577,8 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 
     memset(buf, 0, sizeof(buf));
     _snwprintf(buf, BBUFSIZ - 1, L"svcbatch.c(%d)", line);
-    errarg[0] = L"The " CPP_WIDEN(SVCBATCH_SVCNAME) L" named";
+
+    errarg[0] = wnamestamp;
     if (IS_EMPTY_WCS(servicename))
         errarg[1] = L"(undefined)";
     else
@@ -553,23 +592,31 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     errarg[8] = NULL;
     errarg[9] = NULL;
 
-
-    dbgprintf(__FUNCTION__, "%S %S", errarg[0], errarg[1]);
+    if (consolemode)
+        fprintf(stderr, "%S %S\n", errarg[0], errarg[1]);
+    else
+        dbgprintf(__FUNCTION__, "%S %S", errarg[0], errarg[1]);
     if (ern) {
         memset(erb, 0, sizeof(erb));
         xwinapierror(erb, MBUFSIZ - 1, ern);
         errarg[5] = L":";
         errarg[6] = erb;
         errarg[7] = CRLFW;
-        dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erb);
+        if (consolemode)
+            fprintf(stderr, "%S %S : %S\n", buf, err, erb);
+        else
+            dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erb);
     }
     else {
         errarg[5] = CRLFW;
         ern = ERROR_INVALID_PARAMETER;
-        dbgprintf(__FUNCTION__, "%S %S", buf, err);
+        if (consolemode)
+            fprintf(stderr, "%S %S\n", errarg[0], errarg[1]);
+        else
+            dbgprintf(__FUNCTION__, "%S %S", buf, err);
     }
     if (setupeventlog()) {
-        HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_SVCNAME));
+        HANDLE es = RegisterEventSourceW(NULL, wnamestamp);
         if (es != NULL) {
             /**
              * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
@@ -725,8 +772,8 @@ static int resolvebatchname(const wchar_t *batch)
             svcbatchfile[i] = L'\0';
             batchdirname = xwcsdup(svcbatchfile);
             if (d > 0) {
-                if (consolemode)
-                    cwargv[0] = xwcsdup(svcbatchfile + i + 1);
+                if (nonsvcmode)
+                    cwargv[cwargc++] = xwcsdup(svcbatchfile + i + 1);
                 svcbatchfile[d] = L'.';
             }
             svcbatchfile[i] = L'\\';
@@ -807,7 +854,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwWaitHint   = param;
     }
     ssvcstatus.dwCurrentState = status;
-    if (consolemode || SetServiceStatus(hsvcstatus, &ssvcstatus))
+    if (nonsvcmode || SetServiceStatus(hsvcstatus, &ssvcstatus))
         InterlockedExchange(&sscstate, status);
     else
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
@@ -958,6 +1005,8 @@ static void logconfig(HANDLE h)
         fs = xwcsappend(fs, L"autorotate, ");
     if (consolemode)
         fs = xwcsappend(fs, L"console mode, ");
+    if (runbatchmode)
+        fs = xwcsappend(fs, L"runbatchmode mode, ");
     if (hasctrlbreak)
         fs = xwcsappend(fs, L"ctrl+break, ");
     if (usecleanpath)
@@ -1007,25 +1056,15 @@ static DWORD openlogfile(BOOL firstopen)
                       "loglocation cannot be the same as servicehome");
             return ERROR_BAD_PATHNAME;
         }
-        if (consolemode)
-            logfilename = xwcsconcat(loglocation,
-                                     L"\\" CPP_WIDEN(RUNBATCH_NAME) L".log");
-        else
-            logfilename = xwcsconcat(loglocation,
-                                     L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
-
+        logfilename = xwcsvarcat(loglocation, L"\\", wnbatchapp, L".log", NULL);
     }
 #if defined(_DBGVIEW_SAVE)
     EnterCriticalSection(&dbgviewlock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h == NULL) {
         wchar_t *dn;
-        if (consolemode)
-            dn= xwcsconcat(loglocation,
-                           L"\\" CPP_WIDEN(RUNBATCH_NAME) L".dbg");
-        else
-            dn= xwcsconcat(loglocation,
-                           L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
+
+        dn = xwcsvarcat(loglocation, L"\\", wnbatchapp, L".dbg", NULL);
 
         h  = CreateFileW(dn, GENERIC_WRITE,
                          FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
@@ -1137,10 +1176,7 @@ static DWORD openlogfile(BOOL firstopen)
     }
     xfree(logpb);
     InterlockedExchange(&logwritten, 0);
-    if (consolemode)
-        logwrline(h, RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
-    else
-        logwrline(h, SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
+    logwrline(h, cnamestamp);
 
     if (firstopen)
         logwrtime(h, "Log opened");
@@ -1520,17 +1556,13 @@ static unsigned int __stdcall monitorthread(void *unused)
                 }
                 else if (cc == SVCBATCH_CTRL_ROTATE) {
                     dbgprints(__FUNCTION__, "log rotation signaled");
-                    if (consolemode == 0) {
-                        rc = rotatelogs();
-                        if (rc != 0) {
-                            setsvcstatusexit(rc);
-                            xcreatethread(1, 0, &stopthread);
-                            break;
-                        }
-                        rotatesynctime();
-                    } else {
-                        dbgprints(__FUNCTION__, "log rotation is disabled fo console mode");
+                    rc = rotatelogs();
+                    if (rc != 0) {
+                        setsvcstatusexit(rc);
+                        xcreatethread(1, 0, &stopthread);
+                        break;
                     }
+                    rotatesynctime();
                 }
                 else if (cc == SERVICE_CONTROL_PAUSE) {
                     dbgprints(__FUNCTION__, "pause signaled");
@@ -1679,7 +1711,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             if (ctrl == CTRL_SHUTDOWN_EVENT)
                 dbgprints(__FUNCTION__, "CTRL_SHUTDOWN_EVENT signaled");
 #endif
-            if (consolemode) {
+            if (nonsvcmode) {
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h != NULL) {
@@ -1694,7 +1726,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         break;
         case CTRL_C_EVENT:
             dbgprints(__FUNCTION__, "CTRL_C_EVENT signaled");
-            if (consolemode) {
+            if (nonsvcmode) {
                 reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
                 xcreatethread(1, 0, &stopthread);
             }
@@ -1713,7 +1745,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             }
         break;
         case CTRL_LOGOFF_EVENT:
-            dbgprints(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
+            dbgprints(__FUNCTION__, "CTRL_LOGOFF_EVENT signaled");
         break;
         default:
             dbgprintf(__FUNCTION__, "unknown ctrl %lu", ctrl);
@@ -1786,8 +1818,6 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 static unsigned int __stdcall workerthread(void *unused)
 {
     wchar_t *cmdline;
-    wchar_t *arg0;
-    wchar_t *arg1;
     HANDLE   wh[2];
     DWORD    rc;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
@@ -1796,15 +1826,11 @@ static unsigned int __stdcall workerthread(void *unused)
 
     dbgprints(__FUNCTION__, "started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    if (wcshavespace(comspec))
-        arg0 = xwcsvarcat(L"\"", comspec, L"\"", NULL);
-    else
-        arg0 = comspec;
-    if (wcshavespace(svcbatchfile))
-        arg1 = xwcsvarcat(L"\"", svcbatchfile, L"\"", NULL);
-    else
-        arg1 = svcbatchfile;
-    cmdline = xwcsvarcat(arg0, L" /D /C \"", arg1, L"\"", NULL);
+
+    cmdline = xappendarg(NULL, comspec);
+    cmdline = xwcsappend(cmdline, L" /D /C \"");
+    cmdline = xappendarg(cmdline, svcbatchfile);
+    cmdline = xwcsappend(cmdline, L"\"");
     dbgprintf(__FUNCTION__, "comspec %S", comspec);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
@@ -1890,7 +1916,7 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprints(__FUNCTION__, "service running");
-    if ((autorotate == 1) || (consolemode == 0))
+    if (runbatchmode == 0)
         xcreatethread(1, 0, &rotatethread);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
@@ -1928,7 +1954,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
 
     servicename = xwcsdup(argv[0]);
-    if (consolemode == 0) {
+    if (runbatchmode == 0) {
         hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
         if (IS_INVALID_HANDLE(hsvcstatus)) {
             svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx");
@@ -2048,13 +2074,31 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
-
+    for (i = 1; i < argc; i++) {
+        const wchar_t *p = wargv[i];
+        if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
+            int pchar = towlower(p[1]);
+            if (pchar == L'i' || pchar == L'd') {
+                cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+                wnamestamp   = CPP_WIDEN(RUNBATCH_APPNAME);
+                wnbatchapp   = CPP_WIDEN(RUNBATCH_NAME);
+                if (pchar == L'i')
+                    consolemode  = 1;
+                if (pchar == L'd')
+                    runbatchmode = 1;
+            }
+        }
+        else {
+            break;
+        }
+    }
+    cwargv[cwargc++] = xwcsdup(wargv[0]);
 #if defined(_DBGVIEW)
     InitializeCriticalSection(&dbgviewlock);
 #if defined(_DBGVIEW_SAVE)
     dbginitick = GetTickCount64();
 #endif
-    OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
+    OutputDebugStringA(cnamestamp);
 #endif
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
@@ -2081,6 +2125,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 loglocation = expandenvstrings(p);
                 if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
+                continue;
+            }
+            if (serviceexec == zerostring) {
+                serviceexec = xwcsdup(p);
                 continue;
             }
             if (rotateparam == zerostring) {
@@ -2114,6 +2162,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'i':
                         consolemode  = 1;
                     break;
+                    case L'd':
+                        runbatchmode = 1;
+                    break;
                     case L'o':
                         loglocation  = zerostring;
                     break;
@@ -2129,6 +2180,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     break;
                     case L'u':
                         serviceuuid  = zerostring;
+                    break;
+                    case L'x':
+                        serviceexec  = zerostring;
+                    break;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown command line option");
                     break;
@@ -2150,26 +2205,29 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     if (consolemode) {
-        fputs(RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
+        fputs(cnamestamp, stdout);
+        fputs("\n\n",     stdout);
     }
 #if defined(_CHECK_IF_SERVICE)
     else {
         if (runningasservice() == 0) {
-            fputs("\n" SVCBATCH_NAME " " SVCBATCH_VERSION_STR, stderr);
-            fputs(" "  SVCBATCH_BUILD_STAMP, stderr);
+            fputs(cnamestamp, stderr);
             fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
             fputs("This program can only run as Windows Service\n", stderr);
             return svcsyserror(__LINE__, 0, L"Not a Windows Service");;
         }
     }
 #endif
+    nonsvcmode = consolemode + runbatchmode;
+    if (nonsvcmode > 1)
+        return svcsyserror(__LINE__, 0, L"Both -i and -d parameters are specified");
     if (IS_EMPTY_WCS(bname))
         return svcsyserror(__LINE__, 0, L"Missing batch file");
 
     if (resolvesvcbatchexe() == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
     if (IS_EMPTY_WCS(serviceuuid)) {
-        if (consolemode)
+        if (runbatchmode)
             serviceuuid = xwcsdup(L"00000000-0000-0000-0000-000000000000");
         else
             serviceuuid = xuuidstring();
@@ -2310,7 +2368,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
     se[1].lpServiceName = NULL;
     se[1].lpServiceProc = NULL;
-    if (consolemode) {
+    if (nonsvcmode) {
         dbgprints(__FUNCTION__, "running batchfile");
         servicemain(cwargc, cwargv);
         rv = ssvcstatus.dwServiceSpecificExitCode;

@@ -50,6 +50,7 @@
 
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_SVCNAME        "SvcBatch Service"
+#define RUNBATCH_APPNAME        "RunBatch Application"
 #define RUNBATCH_NAME           "RunBatch"
 
 /**
@@ -82,6 +83,16 @@
  * Check documentation for more details
  */
 #define SVCBATCH_CTRL_ROTATE    234
+
+/**
+ * This signal will execute batch file
+ * defined by -x parameter
+ *
+ * eg. C:\>sc control SvcBatchServiceName 235
+ *
+ * Check documentation for more details
+ */
+#define SVCBATCH_CTRL_EXEC      235
 
 #define SVCBATCH_START_HINT     5000
 #define SVCBATCH_STOP_HINT      20000
