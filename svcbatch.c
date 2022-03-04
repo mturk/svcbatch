@@ -2308,7 +2308,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fputs("\n\n",     stdout);
     }
 #if defined(_CHECK_IF_SERVICE)
-    else {
+    else if (runbatchmode == 0} {
         if (runningasservice() == 0) {
             fputs(cnamestamp, stderr);
             fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
@@ -2327,7 +2327,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
     if (IS_EMPTY_WCS(serviceuuid)) {
         if (runbatchmode)
-            serviceuuid = xwcsdup(L"00000000-0000-0000-0000-000000000000");
+            return svcsyserror(__LINE__, 0, L"Missing -u <SVCBATCH_SERVICE_UUID> parameter");
         else
             serviceuuid = xuuidstring();
     }
@@ -2450,7 +2450,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     h = GetStdHandle(STD_INPUT_HANDLE);
     if (IS_INVALID_HANDLE(h)) {
-       dbgprints(__FUNCTION__, "allocating new console");
        if (AllocConsole()) {
             /**
              * AllocConsole should create new set of
@@ -2460,6 +2459,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             h = GetStdHandle(STD_INPUT_HANDLE);
             if (IS_INVALID_HANDLE(h))
                 return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle");
+            dbgprints(__FUNCTION__, "allocated new console");
         }
         else {
             return svcsyserror(__LINE__, GetLastError(), L"AllocConsole");
