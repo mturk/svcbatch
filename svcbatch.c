@@ -1062,46 +1062,48 @@ static DWORD openlogfile(BOOL firstopen)
         logfilename = xwcsvarcat(loglocation, L"\\", wrunbatchn, L".log", NULL);
     }
 #if defined(_DBGVIEW_SAVE)
-    EnterCriticalSection(&dbgviewlock);
-    h = InterlockedExchangePointer(&dbgfhandle, NULL);
-    if ((h == NULL) && servicemode) {
-        wchar_t *dn;
+    if (servicemode) {
+        EnterCriticalSection(&dbgviewlock);
+        h = InterlockedExchangePointer(&dbgfhandle, NULL);
+        if (h == NULL) {
+            wchar_t *dn;
 
-        dn = xwcsconcat(loglocation, L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
+            dn = xwcsconcat(loglocation, L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
 
-        h  = CreateFileW(dn, GENERIC_WRITE,
-                         FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
-                         FILE_ATTRIBUTE_NORMAL, NULL);
-        if (IS_INVALID_HANDLE(h)) {
-            h = NULL;
-            dbgprintf(__FUNCTION__, "failed to create %S", dn);
+            h  = CreateFileW(dn, GENERIC_WRITE,
+                             FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
+                             FILE_ATTRIBUTE_NORMAL, NULL);
+            if (IS_INVALID_HANDLE(h)) {
+                h = NULL;
+                dbgprintf(__FUNCTION__, "failed to create %S", dn);
+            }
+            else {
+                SYSTEMTIME tt;
+                if (GetLastError() == ERROR_ALREADY_EXISTS) {
+                    DWORD wr;
+                    LARGE_INTEGER ee = {{ 0, 0 }};
+
+                    SetFilePointerEx(h, ee, NULL, FILE_END);
+                    WriteFile(h, CRLFA, 4, &wr, NULL);
+                }
+
+                GetSystemTime(&tt);
+                InterlockedExchangePointer(&dbgfhandle, h);
+                dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+                          tt.wYear, tt.wMonth, tt.wDay,
+                          tt.wHour, tt.wMinute, tt.wSecond);
+                dbgprintf(__FUNCTION__, "tracing %S to %S", servicename, dn);
+            }
+            xfree(dn);
         }
         else {
-            SYSTEMTIME tt;
-            if (GetLastError() == ERROR_ALREADY_EXISTS) {
-                DWORD wr;
-                LARGE_INTEGER ee = {{ 0, 0 }};
-
-                SetFilePointerEx(h, ee, NULL, FILE_END);
-                WriteFile(h, CRLFA, 4, &wr, NULL);
-            }
-
-            GetSystemTime(&tt);
+            /**
+             * Already opened
+             */
             InterlockedExchangePointer(&dbgfhandle, h);
-            dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
-                      tt.wYear, tt.wMonth, tt.wDay,
-                      tt.wHour, tt.wMinute, tt.wSecond);
-            dbgprintf(__FUNCTION__, "tracing %S to %S", servicename, dn);
         }
-        xfree(dn);
+        LeaveCriticalSection(&dbgviewlock);
     }
-    else {
-        /**
-         * Already opened
-         */
-        InterlockedExchangePointer(&dbgfhandle, h);
-    }
-    LeaveCriticalSection(&dbgviewlock);
 #endif
     memset(sfx, 0, sizeof(sfx));
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
