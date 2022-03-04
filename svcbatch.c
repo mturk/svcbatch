@@ -1509,13 +1509,17 @@ static unsigned int __stdcall monitorthread(void *unused)
                 }
                 else if (cc == SVCBATCH_CTRL_ROTATE) {
                     dbgprints(__FUNCTION__, "log rotation signaled");
-                    rc = rotatelogs();
-                    if (rc != 0) {
-                        setsvcstatusexit(rc);
-                        xcreatethread(1, 0, &stopthread);
-                        break;
+                    if (consolemode == 0) {
+                        rc = rotatelogs();
+                        if (rc != 0) {
+                            setsvcstatusexit(rc);
+                            xcreatethread(1, 0, &stopthread);
+                            break;
+                        }
+                        rotatesynctime();
+                    } else {
+                        dbgprints(__FUNCTION__, "log rotation is disabled fo console mode");
                     }
-                    rotatesynctime();
                 }
                 else if (cc == SERVICE_CONTROL_PAUSE) {
                     dbgprints(__FUNCTION__, "pause signaled");
@@ -1875,8 +1879,8 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprints(__FUNCTION__, "service running");
-
-    xcreatethread(1, 0, &rotatethread);
+    if (consolemode == 0)
+        xcreatethread(1, 0, &rotatethread);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
 
@@ -2080,6 +2084,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
                 continue;
             }
+            if (serviceuuid == zerostring) {
+                serviceuuid = xwcsdup(p);
+                continue;
+            }
             hasopts = 0;
             if ((p[0] == L'-') || (p[0] == L'/')) {
                 if (p[1] == L'\0')
@@ -2114,6 +2122,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'w':
                         servicehome  = zerostring;
                     break;
+                    case L'u':
+                        serviceuuid  = zerostring;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown command line option");
                     break;
@@ -2121,7 +2131,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 continue;
             }
         }
-        if (bname == NULL) {
+        if (IS_EMPTY_WCS(bname)) {
             bname = expandenvstrings(p);
             if (bname == NULL)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
@@ -2138,23 +2148,29 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fputs(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
     }
 #if defined(_CHECK_IF_SERVICE)
-    if ((consolemode == 0) && (runningasservice() == 0)) {
-        fputs("\n" SVCBATCH_NAME " " SVCBATCH_VERSION_STR, stderr);
-        fputs(" "  SVCBATCH_BUILD_STAMP, stderr);
-        fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
-        fputs("This program can only run as Windows Service\n", stderr);
-        return svcsyserror(__LINE__, 0, L"Not a Windows Service");;
+    else {
+        if (runningasservice() == 0) {
+            fputs("\n" SVCBATCH_NAME " " SVCBATCH_VERSION_STR, stderr);
+            fputs(" "  SVCBATCH_BUILD_STAMP, stderr);
+            fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
+            fputs("This program can only run as Windows Service\n", stderr);
+            return svcsyserror(__LINE__, 0, L"Not a Windows Service");;
+        }
     }
 #endif
-    if (bname == NULL)
+    if (IS_EMPTY_WCS(bname))
         return svcsyserror(__LINE__, 0, L"Missing batch file");
 
     if (resolvesvcbatchexe() == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
-
-    if ((serviceuuid = xuuidstring()) == NULL)
+    if (IS_EMPTY_WCS(serviceuuid)) {
+        if (consolemode)
+            serviceuuid = xwcsdup(L"00000000-0000-0000-0000-000000000000");
+        else
+            serviceuuid = xuuidstring();
+    }
+    if (IS_EMPTY_WCS(serviceuuid))
         return svcsyserror(__LINE__, GetLastError(), L"xuuidstring");
-
     if ((opath = xgetenv(L"PATH")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"PATH");
     if ((cpath = xgetenv(L"COMSPEC")) == NULL)
@@ -2172,7 +2188,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         servicehome = servicebase;
     }
 
-    if (servicehome != NULL) {
+    if (IS_EMPTY_WCS(servicehome)) {
         if (!SetCurrentDirectoryW(servicehome))
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }
@@ -2180,7 +2196,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(bname) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, bname);
     xfree(bname);
-    if (servicehome == NULL) {
+    if (IS_EMPTY_WCS(servicehome)) {
         /**
          * Use batch file directory as new cwd
          */
@@ -2190,7 +2206,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (cwargv[0] != NULL)
         cwargc = 1;
-    if (loglocation == NULL)
+    if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
@@ -2230,7 +2246,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                  stdwinpaths, NULL);
         xfree(opath);
         opath = expandenvstrings(cp);
-        if (opath == NULL)
+        if (IS_EMPTY_WCS(opath))
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
         xfree(cp);
     }
@@ -2239,9 +2255,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
-    rv = resolverotate(rotateparam);
-    if (rv != 0)
-        return svcsyserror(rv, ERROR_INVALID_PARAMETER, rotateparam);
+    if (consolemode == 0) {
+        rv = resolverotate(rotateparam);
+        if (rv != 0)
+            return svcsyserror(rv, ERROR_INVALID_PARAMETER, rotateparam);
+    }
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);

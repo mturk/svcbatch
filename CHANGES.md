@@ -10,6 +10,7 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
  * Simplify alloc function
+ * Improve consolemode
 
 ## v1.0.6
 
