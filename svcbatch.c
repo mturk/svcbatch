@@ -1785,21 +1785,39 @@ finished:
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
     HANDLE h = NULL;
+    const char *msg = "(unknown)";
 
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
-            dbgprints(__FUNCTION__, "CTRL_CLOSE_EVENT signaled");
+            msg = "CTRL_CLOSE_EVENT signaled";
+        break;
         case CTRL_SHUTDOWN_EVENT:
+            msg = "CTRL_SHUTDOWN_EVENT signaled";
+        break;
+        case CTRL_C_EVENT:
+            msg = "CTRL_C_EVENT signaled";
+        break;
+        case CTRL_BREAK_EVENT:
+            msg = "CTRL_BREAK_EVENT signaled";
+        break;
+        case CTRL_LOGOFF_EVENT:
+            msg = "CTRL_LOGOFF_EVENT signaled";
+        break;
+    }
+    switch(ctrl) {
+        case CTRL_CLOSE_EVENT:
+        case CTRL_SHUTDOWN_EVENT:
+        case CTRL_C_EVENT:
+        case CTRL_BREAK_EVENT:
 #if defined(_DBGVIEW)
-            if (ctrl == CTRL_SHUTDOWN_EVENT)
-                dbgprints(__FUNCTION__, "CTRL_SHUTDOWN_EVENT signaled");
+            dbgprints(__FUNCTION__, msg);
 #endif
             if (nonsvcmode) {
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h != NULL) {
                     logfflush(h);
-                    logwrline(h, "CTRL_SHUTDOWN_EVENT signaled");
+                    logwrline(h, msg);
                 }
                 InterlockedExchangePointer(&logfhandle, h);
                 LeaveCriticalSection(&logfilelock);
@@ -1807,25 +1825,8 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
                 xcreatethread(1, 0, &stopthread);
             }
         break;
-        case CTRL_C_EVENT:
-            dbgprints(__FUNCTION__, "CTRL_C_EVENT signaled");
-            if (nonsvcmode) {
-                reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-                xcreatethread(1, 0, &stopthread);
-            }
-        break;
-        case CTRL_BREAK_EVENT:
-            dbgprints(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
-            if (nonsvcmode) {
-                /**
-                 * We have received stop signal from parent
-                 */
-                reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-                xcreatethread(1, 0, &stopthread);
-            }
-        break;
         case CTRL_LOGOFF_EVENT:
-            dbgprints(__FUNCTION__, "CTRL_LOGOFF_EVENT signaled");
+            dbgprints(__FUNCTION__, msg);
         break;
         default:
             dbgprintf(__FUNCTION__, "unknown ctrl %lu", ctrl);
