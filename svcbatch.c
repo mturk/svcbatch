@@ -448,13 +448,16 @@ static void dbgprints(const char *funcname, const char *string)
 
     bp = buf;
 #if defined(_DBGVIEW_SAVE)
-    ct = (DWORD)(GetTickCount64() - dbginitick);
-    ms = (DWORD)(ct % MS_IN_SECOND);
-    ss = (DWORD)(ct / MS_IN_SECOND);
-    z  = _snprintf(bp, blen,
-                   "[%.6lu.%.3lu] [%.4lu] ",
-                   ss, ms, GetCurrentProcessId());
-    bp = bp + z;
+    h = InterlockedExchangePointer(&dbgfhandle, NULL);
+    if (h != NULL) {
+        ct = (DWORD)(GetTickCount64() - dbginitick);
+        ms = (DWORD)(ct % MS_IN_SECOND);
+        ss = (DWORD)(ct / MS_IN_SECOND);
+        z  = _snprintf(bp, blen,
+                       "[%.6lu.%.3lu] [%.4lu] ",
+                       ss, ms, GetCurrentProcessId());
+        bp = bp + z;
+    }
 #endif
     n = _snprintf(bp, blen - z,
                   "[%.4lu] %-16s ",
@@ -471,7 +474,6 @@ static void dbgprints(const char *funcname, const char *string)
         OutputDebugStringA(buf + z);
     }
 #if defined(_DBGVIEW_SAVE)
-    h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h != NULL) {
         LARGE_INTEGER ee = {{ 0, 0 }};
 
@@ -1062,10 +1064,10 @@ static DWORD openlogfile(BOOL firstopen)
 #if defined(_DBGVIEW_SAVE)
     EnterCriticalSection(&dbgviewlock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
-    if (h == NULL) {
+    if ((h == NULL) && servicemode) {
         wchar_t *dn;
 
-        dn = xwcsvarcat(loglocation, L"\\", wnbatchapp, L".dbg", NULL);
+        dn = xwcsconcat(loglocation, L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
 
         h  = CreateFileW(dn, GENERIC_WRITE,
                          FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
@@ -2299,9 +2301,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     for (i = 1; i < argc; i++) {
         const wchar_t *p = wargv[i];
         if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
-            if (p[1] == L'i' || p[1] == L'x' || p[1] == L'X') {
-                cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-                wrunbatchx   = CPP_WIDEN(RUNBATCH_APPNAME);
+            if (p[1] == L'i' || p[1] == L'I' || p[1] == L'x' || p[1] == L'X') {
+                cnamestamp = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+                wrunbatchx = CPP_WIDEN(RUNBATCH_APPNAME);
                 if (p[1] == L'i' || p[1] == L'I')
                     consolemode  = 1;
                 if (p[1] == L'x' || p[1] == L'X')
@@ -2311,6 +2313,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 else
                     wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
                 servicemode = 0;
+                break;
             }
         }
     }
