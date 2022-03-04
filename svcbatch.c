@@ -2166,7 +2166,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     DWORD        rv = 0;
     int          eblen = 0;
     wchar_t     *ep;
-    HANDLE       wh[2] = { NULL, NULL };
+    HANDLE       wh[4] = { NULL, NULL, NULL, NULL };
     DWORD        wc = 1;
 
     ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
@@ -2243,10 +2243,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SAFE_CLOSE_HANDLE(wh[0]);
     SAFE_CLOSE_HANDLE(wh[1]);
 
+    wc = 1;
     wh[0] = svcstopended;
-    wh[1] = svcexecended;
-    dbgprintf(__FUNCTION__, "wait for stop and exec threads to finish");
-    WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_WAIT);
+    if (svcexecended != NULL)
+        wh[wc++] = svcexecended;
+    if (svchookended != NULL)
+        wh[wc++] = svchookended;
+    dbgprintf(__FUNCTION__, "wait for %lu event(s) to finish", wc);
+    WaitForMultipleObjects(wc, wh, TRUE, SVCBATCH_STOP_WAIT);
 
 finished:
 
