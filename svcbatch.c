@@ -23,11 +23,6 @@
 #include <shellapi.h>
 #include "svcbatch.h"
 
-#if defined(_RUN_API_TESTS)
-#undef _CHECK_IF_SERVICE
-static DWORD runapitests(DWORD, wchar_t **);
-#endif
-
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         svcworking  = 1;
 static volatile LONG         sstarted    = 0;
@@ -86,7 +81,8 @@ static HANDLE    inputpipewrs     = NULL;
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
-static wchar_t     *cwargv[]      = { NULL, NULL };
+static int          cwargc        = 0;
+static wchar_t     *cwargv[32];
 
 static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32;"              \
@@ -2043,15 +2039,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *cpath;
     wchar_t    *bname = NULL;
     wchar_t    *rotateparam = NULL;
-    int         cwargc     = 0;
     int         envc       = 0;
     int         hasopts    = 1;
     HANDLE      h;
-#if defined(_RUN_API_TESTS)
-    consolemode = 1;
-#else
     SERVICE_TABLE_ENTRYW se[2];
-#endif
+
     /**
      * Make sure children (cmd.exe) are kept quiet.
      */
@@ -2062,9 +2054,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DBGVIEW_SAVE)
     dbginitick = GetTickCount64();
 #endif
-#if !defined(_RUN_API_TESTS)
     OutputDebugStringA(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
-#endif
 #endif
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
@@ -2316,9 +2306,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, GetLastError(), L"AllocConsole");
         }
     }
-#if defined(_RUN_API_TESTS)
-    rv = runapitests(cwargc, cwargv);
-#else
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
     se[1].lpServiceName = NULL;
@@ -2333,7 +2320,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (!StartServiceCtrlDispatcherW(se))
             rv = svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
     }
-#endif
 #if defined(_DBGVIEW)
     dbgprints(__FUNCTION__, "done");
 #if defined(_DBGVIEW_SAVE)
@@ -2348,95 +2334,3 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #endif
     return rv;
 }
-
-#if defined(_RUN_API_TESTS)
-static DWORD runapitests(DWORD argc, wchar_t **argv)
-{
-    int          i;
-    DWORD        rv = 0;
-    int          eblen = 0;
-    wchar_t     *ep;
-
-    ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
-    ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
-    /**
-     * The following is in sync with servicemain
-     * minus service manager bits.
-     */
-    if (argc == 0) {
-        svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"Missing servicename");
-        return ERROR_INVALID_PARAMETER;
-    }
-    servicename = xwcsdup(argv[0]);
-    dbgprintf(__FUNCTION__, "started %S", servicename);
-    rv = openlogfile(TRUE);
-    if (rv != 0) {
-        svcsyserror(__LINE__, rv, L"openlogfile");
-        return rv;
-    }
-    logconfig(logfhandle);
-    /**
-     * Add additional environment variables
-     * They are unique to this service instance
-     */
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=",   servicebase);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=",   servicehome);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_SELF=",   svcbatchexe);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
-
-    qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
-    for (i = 0; i < dupwenvc; i++) {
-        eblen += xwcslen(dupwenvp[i]) + 1;
-    }
-    wenvblock = xwalloc(eblen);
-    for (i = 0, ep = wenvblock; i < dupwenvc; i++) {
-        int nn = xwcslen(dupwenvp[i]);
-        wmemcpy(ep, dupwenvp[i], nn);
-        ep += nn + 1;
-    }
-    rotatedev  = CreateWaitableTimerW(NULL, TRUE, NULL);
-    if (IS_INVALID_HANDLE(rotatedev)) {
-        rv = GetLastError();
-        setsvcstatusexit(rv);
-        svcsyserror(__LINE__, rv, L"CreateWaitableTimer");
-        goto finished;
-    }
-    if (!SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0)) {
-        rv = GetLastError();
-        setsvcstatusexit(rv);
-        svcsyserror(__LINE__, rv, L"SetWaitableTimer");
-        goto finished;
-    }
-
-    logfflush(logfhandle);
-    dbgprints(__FUNCTION__, "creating monitorthread");
-    xcreatethread(1, 0, &monitorthread);
-    dbgprints(__FUNCTION__, "creating rotatethread");
-    xcreatethread(1, 0, &rotatethread);
-    dbgprints(__FUNCTION__, "waiting 5 seconds for initialization");
-    Sleep(5000);
-
-    dbgprints(__FUNCTION__, "working ...");
-    if (autorotate) {
-        dbgprints(__FUNCTION__, "sleeping for 3 minutes ...");
-        Sleep(3 * 60000);
-        dbgprints(__FUNCTION__, "signaling rotatelogs");
-        InterlockedExchange(&monitorsig, SVCBATCH_CTRL_ROTATE);
-        SetEvent(monitorevent);
-        dbgprints(__FUNCTION__, "sleeping for 5 minutes ...");
-        Sleep(5 * 60000);
-    }
-    dbgprints(__FUNCTION__, "signaling processended");
-    SetEvent(processended);
-    dbgprints(__FUNCTION__, "waiting 2 seconds for thread cleanup");
-    Sleep(2000);
-
-finished:
-    closelogfile();
-    dbgprints(__FUNCTION__, "done");
-    reportsvcstatus(SERVICE_STOPPED, rv);
-    return rv;
-}
-#endif
