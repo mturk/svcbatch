@@ -329,18 +329,16 @@ static wchar_t *xappendarg(wchar_t *s1, const wchar_t *s2)
     if ((l1 + l2) == 0)
         return NULL;
 
-    cp = rv = xwalloc(l1 + l2 + 4);
+    cp = rv = xwalloc(l1 + l2 + 2);
 
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
     cp += l1;
     if(l2 > 0) {
         if (wcshavespace(s2)) {
-            *(cp++) = L'\\';
             *(cp++) = L'"';
             wmemcpy(cp, s2, l2);
             cp += l2;
-            *(cp++) = L'\\';
             *(cp++) = L'"';
         }
         else
