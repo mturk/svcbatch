@@ -1807,20 +1807,21 @@ static unsigned int __stdcall workerthread(void *unused)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    rotatedev  = CreateWaitableTimerW(NULL, TRUE, NULL);
-    if (IS_INVALID_HANDLE(rotatedev)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
-        goto finished;
+    if (nonsvcmode == 0) {
+        rotatedev  = CreateWaitableTimerW(NULL, TRUE, NULL);
+        if (IS_INVALID_HANDLE(rotatedev)) {
+            rc = GetLastError();
+            setsvcstatusexit(rc);
+            svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
+            goto finished;
+        }
+        if (!SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0)) {
+            rc = GetLastError();
+            setsvcstatusexit(rc);
+            svcsyserror(__LINE__, rc, L"SetWaitableTimer");
+            goto finished;
+        }
     }
-    if (!SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"SetWaitableTimer");
-        goto finished;
-    }
-
     rc = createiopipes(&si);
     if (rc != 0) {
         setsvcstatusexit(rc);
@@ -1882,7 +1883,7 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprints(__FUNCTION__, "service running");
-    if (runbatchmode == 0)
+    if (nonsvcmode == 0)
         xcreatethread(1, 0, &rotatethread);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
