@@ -1741,7 +1741,7 @@ static unsigned int __stdcall runexecthread(void *unused)
         svcsyserror(__LINE__, rc, L"CreateProcess");
         goto finished;
     }
-    dbgprintf(__FUNCTION__, "exec id %lu", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "exec pid %lu", cp.dwProcessId);
     CloseHandle(cp.hThread);
     wh[0] = cp.hProcess;
     wh[1] = processended;
@@ -1816,10 +1816,11 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         break;
         case CTRL_BREAK_EVENT:
             dbgprints(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
-            if (runbatchmode) {
+            if (nonsvcmode) {
                 /**
                  * We have received stop signal from parent
                  */
+                reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
                 xcreatethread(1, 0, &stopthread);
             }
         break;
@@ -1980,7 +1981,7 @@ static unsigned int __stdcall workerthread(void *unused)
         goto finished;
     }
     childprocess = cp.hProcess;
-    dbgprintf(__FUNCTION__, "child id %lu", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "child pid %lu", cp.dwProcessId);
     /**
      * Close our side of the pipes
      */
@@ -2098,17 +2099,19 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     wh[0] = xcreatethread(0, 0, &workerthread);
     if (IS_INVALID_HANDLE(wh[0])) {
-        InterlockedExchange(&monitorsig, 0);
-        SetEvent(monitorevent);
-        CloseHandle(wh[1]);
+        if (runbatchmode == 0) {
+            InterlockedExchange(&monitorsig, 0);
+            SetEvent(monitorevent);
+            CloseHandle(wh[1]);
+        }
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"workerthread");
         goto finished;
     }
     dbgprints(__FUNCTION__, "running");
     WaitForMultipleObjects(wc, wh, TRUE, INFINITE);
-    CloseHandle(wh[0]);
-    CloseHandle(wh[1]);
+    SAFE_CLOSE_HANDLE(wh[0]);
+    SAFE_CLOSE_HANDLE(wh[1]);
 
     wh[0] = svcstopended;
     wh[1] = svcexecended;
