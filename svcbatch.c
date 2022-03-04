@@ -1011,15 +1011,26 @@ static DWORD openlogfile(BOOL firstopen)
                       "loglocation cannot be the same as servicehome");
             return ERROR_BAD_PATHNAME;
         }
-        logfilename = xwcsconcat(loglocation,
-                                 L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
+        if (consolemode)
+            logfilename = xwcsconcat(loglocation,
+                                     L"\\" CPP_WIDEN(RUNBATCH_NAME) L".log");
+        else
+            logfilename = xwcsconcat(loglocation,
+                                     L"\\" CPP_WIDEN(SVCBATCH_NAME) L".log");
+
     }
 #if defined(_DBGVIEW_SAVE)
     EnterCriticalSection(&dbgviewlock);
     h = InterlockedExchangePointer(&dbgfhandle, NULL);
     if (h == NULL) {
-        wchar_t *dn = xwcsconcat(loglocation,
-                                 L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
+        wchar_t *dn;
+        if (consolemode)
+            dn= xwcsconcat(loglocation,
+                           L"\\" CPP_WIDEN(RUNBATCH_NAME) L".dbg");
+        else
+            dn= xwcsconcat(loglocation,
+                           L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
+
         h  = CreateFileW(dn, GENERIC_WRITE,
                          FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
                          FILE_ATTRIBUTE_NORMAL, NULL);
@@ -1130,7 +1141,11 @@ static DWORD openlogfile(BOOL firstopen)
     }
     xfree(logpb);
     InterlockedExchange(&logwritten, 0);
-    logwrline(h, SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
+    if (consolemode)
+        logwrline(h, RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
+    else
+        logwrline(h, SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP);
+
     if (firstopen)
         logwrtime(h, "Log opened");
     InterlockedExchangePointer(&logfhandle, h);
@@ -1879,7 +1894,7 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprints(__FUNCTION__, "service running");
-    if (consolemode == 0)
+    if ((autorotate == 1) || (consolemode == 0))
         xcreatethread(1, 0, &rotatethread);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
@@ -2031,7 +2046,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         cwargc     = 0;
     int         envc       = 0;
     int         hasopts    = 1;
-
+    HANDLE      h;
 #if defined(_RUN_API_TESTS)
     consolemode = 1;
 #else
@@ -2145,7 +2160,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     if (consolemode) {
-        fputs(SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
+        fputs(RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP "\n\n", stdout);
     }
 #if defined(_CHECK_IF_SERVICE)
     else {
@@ -2255,11 +2270,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
-    if (consolemode == 0) {
-        rv = resolverotate(rotateparam);
-        if (rv != 0)
-            return svcsyserror(rv, ERROR_INVALID_PARAMETER, rotateparam);
-    }
+
+    rv = resolverotate(rotateparam);
+    if (rv != 0)
+        return svcsyserror(rv, ERROR_INVALID_PARAMETER, rotateparam);
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
@@ -2286,10 +2300,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
 
-    if (consolemode == 0) {
-        HANDLE h = GetStdHandle(STD_INPUT_HANDLE);
-        if (h != NULL)
-            return svcsyserror(__LINE__, ERROR_ALREADY_EXISTS, L"Console already exists");
+    h = GetStdHandle(STD_INPUT_HANDLE);
+    if (IS_INVALID_HANDLE(h)) {
         if (AllocConsole()) {
             /**
              * AllocConsole should create new set of
@@ -2325,17 +2337,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DBGVIEW)
     dbgprints(__FUNCTION__, "done");
 #if defined(_DBGVIEW_SAVE)
-    {
-        HANDLE h;
-
-        EnterCriticalSection(&dbgviewlock);
-        h = InterlockedExchangePointer(&dbgfhandle, NULL);
-        if (h != NULL) {
-            FlushFileBuffers(h);
-            CloseHandle(h);
-        }
-        LeaveCriticalSection(&dbgviewlock);
+    EnterCriticalSection(&dbgviewlock);
+    h = InterlockedExchangePointer(&dbgfhandle, NULL);
+    if (h != NULL) {
+        FlushFileBuffers(h);
+        CloseHandle(h);
     }
+    LeaveCriticalSection(&dbgviewlock);
 #endif
 #endif
     return rv;

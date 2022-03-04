@@ -50,6 +50,7 @@
 
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_SVCNAME        "SvcBatch Service"
+#define RUNBATCH_NAME           "RunBatch"
 
 /**
  * Maximum number of SvcBatch.log.N files
