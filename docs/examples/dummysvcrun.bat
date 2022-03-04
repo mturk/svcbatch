@@ -33,5 +33,7 @@ ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
+rem
+rem sc stop "%SVCBATCH_SERVICE_NAME%"
 
 :End
