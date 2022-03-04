@@ -52,6 +52,7 @@
 #define SVCBATCH_SVCNAME        "SvcBatch Service"
 #define RUNBATCH_APPNAME        "RunBatch Application"
 #define RUNBATCH_NAME           "RunBatch"
+#define STOPHOOK_NAME           "SvcStop"
 
 /**
  * Maximum number of SvcBatch.log.N files

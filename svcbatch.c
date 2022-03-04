@@ -1029,11 +1029,9 @@ static DWORD openlogfile(BOOL firstopen)
     wchar_t  sfx[24];
     wchar_t *logpb = NULL;
     DWORD rc = 0;
-    DWORD cf = CREATE_NEW;
     HANDLE h = NULL;
     WIN32_FILE_ATTRIBUTE_DATA ad;
     int i;
-    int inuse = 0;
 
     logtickcount = GetTickCount64();
 
@@ -1126,14 +1124,8 @@ static DWORD openlogfile(BOOL firstopen)
         logpb = xwcsconcat(logfilename, sfx);
         if (!MoveFileExW(logfilename, logpb, mm)) {
             rc = GetLastError();
-            if (rc == ERROR_SHARING_VIOLATION) {
-                inuse = 1;
-                cf = OPEN_EXISTING;
-            }
-            else {
-                xfree(logpb);
-                return svcsyserror(__LINE__, rc, L"MoveFileExW");
-            }
+            xfree(logpb);
+            return svcsyserror(__LINE__, rc, L"MoveFileExW");
         }
     }
     else {
@@ -1146,7 +1138,7 @@ static DWORD openlogfile(BOOL firstopen)
 
     if (firstopen)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    if ((autorotate == 0) && (inuse == 0)) {
+    if (autorotate == 0) {
         /**
          * Rotate previous log files
          */
@@ -1176,18 +1168,12 @@ static DWORD openlogfile(BOOL firstopen)
         }
     }
     h = CreateFileW(logfilename, GENERIC_WRITE,
-                    FILE_SHARE_READ | FILE_SHARE_WRITE, &sazero, cf,
+                    FILE_SHARE_READ, &sazero, CREATE_NEW,
                     FILE_ATTRIBUTE_NORMAL, NULL);
 
     if (IS_INVALID_HANDLE(h)) {
         rc = GetLastError();
         goto failed;
-    }
-    if (inuse) {
-        LARGE_INTEGER ee = {{ 0, 0 }};
-        if (!SetFilePointerEx(h, ee, NULL, FILE_END)) {
-            dbgprintf(__FUNCTION__, "failed to SetFilePointerEx %lu", GetLastError());
-        }
     }
     xfree(logpb);
     InterlockedExchange(&logwritten, 0);
@@ -1395,7 +1381,7 @@ static unsigned int __stdcall runhookthread(void *unused)
     cmdline = xappendarg(cmdline, loglocation);
     cmdline = xwcsappend(cmdline, L" -u ");
     cmdline = xwcsappend(cmdline, serviceuuid);
-    cmdline = xwcsappend(cmdline, L" -x ");
+    cmdline = xwcsappend(cmdline, L" -X ");
     cmdline = xappendarg(cmdline, svcstopexec);
 
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
@@ -2313,15 +2299,17 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     for (i = 1; i < argc; i++) {
         const wchar_t *p = wargv[i];
         if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
-            int pchar = towlower(p[1]);
-            if (pchar == L'i' || pchar == L'x') {
+            if (p[1] == L'i' || p[1] == L'x' || p[1] == L'X') {
                 cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
                 wrunbatchx   = CPP_WIDEN(RUNBATCH_APPNAME);
-                wrunbatchn   = CPP_WIDEN(RUNBATCH_NAME);
-                if (pchar == L'i')
+                if (p[1] == L'i' || p[1] == L'I')
                     consolemode  = 1;
-                if (pchar == L'x')
+                if (p[1] == L'x' || p[1] == L'X')
                     runbatchmode = 1;
+                if (p[1] == L'X')
+                    wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
+                else
+                    wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
                 servicemode = 0;
             }
         }
