@@ -538,7 +538,7 @@ finished:
 static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 {
     wchar_t        buf[BBUFSIZ];
-    wchar_t        erd[MBUFSIZ];
+    wchar_t        erb[MBUFSIZ];
     const wchar_t *errarg[10];
 
     memset(buf, 0, sizeof(buf));
@@ -560,11 +560,12 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 
     dbgprintf(__FUNCTION__, "%S %S", errarg[0], errarg[1]);
     if (ern) {
-        xwinapierror(erd, MBUFSIZ, ern);
+        memset(erb, 0, sizeof(erb));
+        xwinapierror(erb, MBUFSIZ - 1, ern);
         errarg[5] = L":";
-        errarg[6] = erd;
+        errarg[6] = erb;
         errarg[7] = CRLFW;
-        dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erd);
+        dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erb);
     }
     else {
         errarg[5] = CRLFW;
