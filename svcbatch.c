@@ -52,6 +52,7 @@ static int       autorotate       = 0;
 static int       consolemode      = 0;
 static int       runbatchmode     = 0;
 static int       servicemode      = 1;
+static int       runonstopsvc     = 1;
 
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *batchdirname     = NULL;
@@ -150,6 +151,8 @@ static const wchar_t *safewinenv[] = {
     L"WINDIR=",
     NULL
 };
+
+static unsigned int __stdcall runexecthread(void *);
 
 static wchar_t *xwalloc(size_t size)
 {
@@ -1361,7 +1364,7 @@ static unsigned int __stdcall stopthread(void *unused)
     }
     ResetEvent(svcstopended);
 
-    dbgprintf(__FUNCTION__, "started");
+    dbgprints(__FUNCTION__, "started");
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     EnterCriticalSection(&logfilelock);
@@ -1373,13 +1376,32 @@ static unsigned int __stdcall stopthread(void *unused)
     InterlockedExchangePointer(&logfhandle, h);
     LeaveCriticalSection(&logfilelock);
 
-    dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT");
+    if (runonstopsvc) {
+        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+        if (InterlockedIncrement(&rstarted) > 1) {
+            dbgprints(__FUNCTION__, "already running stop hook");
+        }
+        else {
+            dbgprints(__FUNCTION__, "calling stop hook");
+            h = xcreatethread(0, 0, &runexecthread);
+            if (IS_INVALID_HANDLE(h)) {
+                dbgprints(__FUNCTION__, "cannot create runexecthread");
+            }
+            else {
+                ws = WaitForSingleObject(h, SVCBATCH_STOP_HINT);
+                CloseHandle(h);
+                reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+                dbgprints(__FUNCTION__, "stop hook done");
+            }
+        }
+    }
+    dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         ws = WaitForSingleObject(processended, SVCBATCH_PENDING_INIT);
         SetConsoleCtrlHandler(NULL, FALSE);
         if (ws == WAIT_OBJECT_0) {
-            dbgprintf(__FUNCTION__, "processended by CTRL_C_EVENT");
+            dbgprints(__FUNCTION__, "processended by CTRL_C_EVENT");
             goto finished;
         }
     }
@@ -1393,7 +1415,7 @@ static unsigned int __stdcall stopthread(void *unused)
 
         ws = WaitForSingleObject(processended, wn);
         if (ws == WAIT_OBJECT_0) {
-            dbgprintf(__FUNCTION__, "processended signaled");
+            dbgprints(__FUNCTION__, "processended signaled");
             goto finished;
         }
         else if (ws == WAIT_TIMEOUT) {
@@ -1412,7 +1434,7 @@ static unsigned int __stdcall stopthread(void *unused)
         wn = SVCBATCH_PENDING_WAIT;
     }
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-    dbgprintf(__FUNCTION__, "wait for processended signal");
+    dbgprints(__FUNCTION__, "wait for processended signal");
     /**
      * Wait for main process to finish or times out.
      *
@@ -1421,7 +1443,7 @@ static unsigned int __stdcall stopthread(void *unused)
      */
     ws = WaitForSingleObject(processended, SVCBATCH_STOP_HINT / 2);
     if (ws == WAIT_TIMEOUT) {
-        dbgprintf(__FUNCTION__, "Child is still active, terminating");
+        dbgprints(__FUNCTION__, "Child is still active, terminating");
         /**
          * WAIT_TIMEOUT means that child is
          * still running and we need to terminate
@@ -2005,6 +2027,10 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 dbgprints(__FUNCTION__, "undefined RunBatch file");
                 return ERROR_CALL_NOT_IMPLEMENTED;
             }
+            else if (runonstopsvc) {
+                dbgprints(__FUNCTION__, "defined as STOP hook");
+                return ERROR_CALL_NOT_IMPLEMENTED;
+            }
             else {
                 if (InterlockedIncrement(&rstarted) > 1) {
                     dbgprints(__FUNCTION__, "already running another RunBatch instance");
@@ -2193,7 +2219,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 wrunbatchn   = CPP_WIDEN(RUNBATCH_NAME);
                 if (pchar == L'i')
                     consolemode  = 1;
-                if (pchar == L'd')
+                if (pchar == L'x')
                     runbatchmode = 1;
                 servicemode = 0;
             }
@@ -2291,6 +2317,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'u':
                         serviceuuid  = zerostring;
                     break;
+                    case L'h':
+                        runonstopsvc = 1;
                     case L'e':
                         serviceexec  = zerostring;
                     break;

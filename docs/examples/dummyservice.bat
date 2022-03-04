@@ -33,6 +33,7 @@ if /i "x%~1" == "xrotate"   goto doRotate
 if /i "x%~1" == "xrunbatch" goto doRunBatch
 rem
 set "SERVICE_NAME="
+if "x%SVCBATCH_SERVICE_NAME%" == "x" goto noService
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo.
 rem Dump environment variables to log file
@@ -64,7 +65,7 @@ rem
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
-set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" -o \"Log Files\" -r @30~100K -e dummysvcrun.bat %~nx0"
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" -o \"Log Files\" -r @30~100K -h dummysvcrun.bat %~nx0"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
@@ -121,6 +122,10 @@ del /Q %~nx0.Y >NUL 2>&1
 echo Removed %SERVICE_NAME%
 goto End
 
+:noService
+echo SVCBATCH_SERVICE_NAME not defined
+exit /B 1
+
 :doRunInteractive
 rem Suppress Terminate batch job on CTRL+C
 rem
@@ -129,6 +134,7 @@ call %~nx0 runme < %~nx0.Y
 rem Use provided errorlevel
 exit /B %ERRORLEVEL%
 rem
+
 :doRunMe
 rem
 rem
