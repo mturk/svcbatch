@@ -26,14 +26,17 @@ rem Dump environment variables to log file
 set
 echo.
 
+:doRepeat
 rem
 echo [%TIME%] ... running
 rem Simulate work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
+goto doRepeat
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
 rem
+echo [%TIME%] ... done
 rem sc stop "%SVCBATCH_SERVICE_NAME%"
 
 :End

@@ -26,6 +26,7 @@
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         svcworking  = 1;
 static volatile LONG         sstarted    = 0;
+static volatile LONG         rstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG         logwritten  = 0;
@@ -75,6 +76,7 @@ static ULONGLONG       dbginitick;
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
+static HANDLE    svcexecended     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    workingevent     = NULL;
@@ -1514,6 +1516,7 @@ static unsigned int __stdcall monitorthread(void *unused)
     DWORD  wc, rc = 0;
 
     dbgprints(__FUNCTION__, "started");
+
     wh[0] = monitorevent;
     wh[1] = processended;
     do {
@@ -1706,6 +1709,8 @@ static unsigned int __stdcall runexecthread(void *unused)
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
 
+    ResetEvent(svcexecended);
+
     dbgprints(__FUNCTION__, "started");
 
     cmdline = xappendarg(NULL, svcbatchexe);
@@ -1728,7 +1733,7 @@ static unsigned int __stdcall runexecthread(void *unused)
     si.cb = DSIZEOF(STARTUPINFOW);
 
     if (!CreateProcessW(NULL, cmdline, NULL, NULL, FALSE,
-                        DETACHED_PROCESS | CREATE_UNICODE_ENVIRONMENT,
+                        CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT,
                         NULL,
                         servicehome,
                        &si, &cp)) {
@@ -1748,7 +1753,14 @@ static unsigned int __stdcall runexecthread(void *unused)
         break;
         case WAIT_OBJECT_1:
             dbgprints(__FUNCTION__, "processended signaled");
-            /* TODO: Signal to exec process we are done */
+            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
+            if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
+                dbgprintf(__FUNCTION__, "Terminating exec child %lu", cp.dwProcessId);
+                TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
+            }
+            else {
+                dbgprintf(__FUNCTION__, "Exec child ended %lu", cp.dwProcessId);
+            }
         break;
         case WAIT_FAILED:
             rc = GetLastError();
@@ -1765,6 +1777,8 @@ static unsigned int __stdcall runexecthread(void *unused)
 finished:
     xfree(cmdline);
     dbgprints(__FUNCTION__, "done");
+    SetEvent(svcexecended);
+    InterlockedExchange(&rstarted, 0L);
     XENDTHREAD(0);
 }
 
@@ -1802,15 +1816,11 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         break;
         case CTRL_BREAK_EVENT:
             dbgprints(__FUNCTION__, "CTRL_BREAK_EVENT signaled");
-            if (consolemode) {
+            if (runbatchmode) {
                 /**
-                 * Signal to monitorthread that
-                 * user send custom service control
+                 * We have received stop signal from parent
                  */
-                if (hasctrlbreak == 0)
-                    ctrl = SVCBATCH_CTRL_ROTATE;
-                InterlockedExchange(&monitorsig, ctrl);
-                SetEvent(monitorevent);
+                xcreatethread(1, 0, &stopthread);
             }
         break;
         case CTRL_LOGOFF_EVENT:
@@ -1862,6 +1872,10 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
             else {
                 dbgprintf(__FUNCTION__, "Starting exec:  %S", svcbatchexe);
+                if (InterlockedIncrement(&rstarted) > 1) {
+                    dbgprints(__FUNCTION__, "already running");
+                    return ERROR_ALREADY_EXISTS;
+                }
                 xcreatethread(1, 0, &runexecthread);
             }
         break;
@@ -2020,7 +2034,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     DWORD        rv = 0;
     int          eblen = 0;
     wchar_t     *ep;
-    HANDLE       wh[2];
+    HANDLE       wh[2] = { NULL, NULL };
+    DWORD        wc = 1;
 
     ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
@@ -2072,35 +2087,33 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         wmemcpy(ep, dupwenvp[i], nn);
         ep += nn + 1;
     }
-
-    wh[0] = xcreatethread(0, 0, &monitorthread);
-    if (IS_INVALID_HANDLE(wh[0])) {
-        rv = ERROR_TOO_MANY_TCBS;
-        svcsyserror(__LINE__, rv, L"monitorthread");
-        goto finished;
+    if (runbatchmode == 0) {
+        wh[1] = xcreatethread(0, 0, &monitorthread);
+        if (IS_INVALID_HANDLE(wh[1])) {
+            rv = ERROR_TOO_MANY_TCBS;
+            svcsyserror(__LINE__, rv, L"monitorthread");
+            goto finished;
+        }
+        wc = 2;
     }
-    wh[1] = xcreatethread(0, 0, &workerthread);
-    if (IS_INVALID_HANDLE(wh[1])) {
+    wh[0] = xcreatethread(0, 0, &workerthread);
+    if (IS_INVALID_HANDLE(wh[0])) {
         InterlockedExchange(&monitorsig, 0);
         SetEvent(monitorevent);
-        CloseHandle(wh[0]);
+        CloseHandle(wh[1]);
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__LINE__, rv, L"workerthread");
         goto finished;
     }
     dbgprints(__FUNCTION__, "running");
-    WaitForMultipleObjects(2, wh, TRUE, INFINITE);
+    WaitForMultipleObjects(wc, wh, TRUE, INFINITE);
     CloseHandle(wh[0]);
     CloseHandle(wh[1]);
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "wait for stop thread to finish");
-    if (WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT) == WAIT_OBJECT_0)
-        dbgprints(__FUNCTION__, "svcstopended");
-    else
-        dbgprints(__FUNCTION__, "svcstopended TIMEOUT");
-#else
-    WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
-#endif
+
+    wh[0] = svcstopended;
+    wh[1] = svcexecended;
+    dbgprintf(__FUNCTION__, "wait for stop and exec threads to finish");
+    WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_WAIT);
 
 finished:
 
@@ -2124,6 +2137,7 @@ static void __cdecl objectscleanup(void)
 {
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
+    SAFE_CLOSE_HANDLE(svcexecended);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(workingevent);
     SAFE_CLOSE_HANDLE(childprocjob);
@@ -2410,6 +2424,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     svcstopended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
+    svcexecended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
+    if (IS_INVALID_HANDLE(svcexecended))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
@@ -2429,7 +2446,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     h = GetStdHandle(STD_INPUT_HANDLE);
     if (IS_INVALID_HANDLE(h)) {
-        if (AllocConsole()) {
+       dbgprints(__FUNCTION__, "allocating new console");
+       if (AllocConsole()) {
             /**
              * AllocConsole should create new set of
              * standard i/o handles
