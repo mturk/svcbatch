@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.0.7
 
  * In development
+ * Simplify alloc function
 
 ## v1.0.6
 

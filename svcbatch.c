@@ -148,18 +148,9 @@ static const wchar_t *safewinenv[] = {
     NULL
 };
 
-static void *xmalloc(size_t size)
-{
-    void *p = calloc(size, 1);
-    if (p == NULL)
-        _exit(ERROR_OUTOFMEMORY);
-
-    return p;
-}
-
 static wchar_t *xwalloc(size_t size)
 {
-    wchar_t *p = (wchar_t *)calloc(size, sizeof(wchar_t));
+    wchar_t *p = (wchar_t *)calloc(size + 2, sizeof(wchar_t));
     if (p == NULL)
         _exit(ERROR_OUTOFMEMORY);
 
@@ -168,7 +159,11 @@ static wchar_t *xwalloc(size_t size)
 
 static wchar_t **waalloc(size_t size)
 {
-    return (wchar_t **)xmalloc((size + 1) * sizeof(wchar_t *));
+    wchar_t **p = (wchar_t **)calloc(size + 2, sizeof(wchar_t *));
+    if (p == NULL)
+        _exit(ERROR_OUTOFMEMORY);
+
+    return p;
 }
 
 static void xfree(void *m)
@@ -185,7 +180,7 @@ static wchar_t *xwcsdup(const wchar_t *s)
     if (IS_EMPTY_WCS(s))
         return NULL;
     n = wcslen(s);
-    p = xwalloc(n + 2);
+    p = xwalloc(n);
     wmemcpy(p, s, n);
     return p;
 }
@@ -197,7 +192,7 @@ static wchar_t *xgetenv(const wchar_t *s)
     wchar_t *d = NULL;
 
     if ((n = GetEnvironmentVariableW(s, e, 1)) != 0) {
-        d = xwalloc(n + 1);
+        d = xwalloc(n);
         GetEnvironmentVariableW(s, d, n);
     }
     return d;
@@ -220,7 +215,7 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     if ((l1 + l2) == 0)
         return NULL;
 
-    cp = rv = xwalloc(l1 + l2 + 2);
+    cp = rv = xwalloc(l1 + l2);
 
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
@@ -239,7 +234,7 @@ static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
     if ((l1 + l2) == 0)
         return NULL;
 
-    cp = rv = xwalloc(l1 + l2 + 2);
+    cp = rv = xwalloc(l1 + l2);
 
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
@@ -273,7 +268,7 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
 
     if (len == 0)
         return NULL;
-    cp = rp = xwalloc(len + 2);
+    cp = rp = xwalloc(len);
     if (sls[0] != 0) {
         wmemcpy(cp, p, sls[0]);
         cp += sls[0];
@@ -619,7 +614,7 @@ static wchar_t *expandenvstrings(const wchar_t *str)
             len++;
     }
     if (len == 0) {
-        buf = xwalloc(siz + 2);
+        buf = xwalloc(siz);
         wmemcpy(buf, str, siz);
     }
     while (buf == NULL) {
@@ -1951,7 +1946,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     for (i = 0; i < dupwenvc; i++) {
         eblen += xwcslen(dupwenvp[i]) + 1;
     }
-    wenvblock = xwalloc(eblen + 2);
+    wenvblock = xwalloc(eblen);
     for (i = 0, ep = wenvblock; i < dupwenvc; i++) {
         int nn = xwcslen(dupwenvp[i]);
         wmemcpy(ep, dupwenvp[i], nn);
@@ -2368,7 +2363,7 @@ static DWORD runapitests(DWORD argc, wchar_t **argv)
     for (i = 0; i < dupwenvc; i++) {
         eblen += xwcslen(dupwenvp[i]) + 1;
     }
-    wenvblock = xwalloc(eblen + 2);
+    wenvblock = xwalloc(eblen);
     for (i = 0, ep = wenvblock; i < dupwenvc; i++) {
         int nn = xwcslen(dupwenvp[i]);
         wmemcpy(ep, dupwenvp[i], nn);
