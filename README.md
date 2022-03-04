@@ -126,11 +126,13 @@ present inside `Logs` directory using the following procedure:
 ```no-highlight
 
 * If exists move SvcBatch.log to SvcBatch.log.0
-* If exists move SvcBatch.log.3 to SvcBatch.log.4
+* If exists move SvcBatch.log.8 to SvcBatch.log.9
 
-  This means that SvcBatch.log.4 will be overwritten, so make sure
-  to backup SvcBatch.log.4 before log rotation occurs if needed
+  This means that SvcBatch.log.9 will be overwritten, so make sure
+  to backup SvcBatch.log.9 before log rotation occurs if needed
 
+* If exists move SvcBatch.log.2 to SvcBatch.log.9
+* ...
 * If exists move SvcBatch.log.2 to SvcBatch.log.3
 * If exists move SvcBatch.log.1 to SvcBatch.log.2
 * If exists move SvcBatch.log.0 to SvcBatch.log.1
@@ -343,11 +345,6 @@ SvcBatch sets for each instance.
   echo Running service %SVCBATCH_SERVICE_NAME%
 
   ```
-
-* **SVCBATCH_SERVICE_SELF**
-
-  This variable is set to the SvcBatch executable name.
-
 
 * **SVCBATCH_SERVICE_UUID**
 

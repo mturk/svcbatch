@@ -106,7 +106,6 @@ static const wchar_t *removeenv[] = {
     L"SVCBATCH_SERVICE_HOME=",
     L"SVCBATCH_SERVICE_LOGDIR=",
     L"SVCBATCH_SERVICE_NAME=",
-    L"SVCBATCH_SERVICE_SELF=",
     L"SVCBATCH_SERVICE_UUID=",
     L"PATH=",
     NULL
@@ -2076,7 +2075,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=",   servicehome);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_SELF=",   svcbatchexe);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
