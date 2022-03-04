@@ -1908,32 +1908,34 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
     HANDLE h = NULL;
     const char *msg = "(unknown)";
 
+#if defined(_DBGVIEW)
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
-            msg = "CTRL_CLOSE_EVENT signaled";
+            msg = "signaled CTRL_CLOSE_EVENT";
         break;
         case CTRL_SHUTDOWN_EVENT:
-            msg = "CTRL_SHUTDOWN_EVENT signaled";
+            msg = "signaled CTRL_SHUTDOWN_EVENT";
         break;
         case CTRL_C_EVENT:
-            msg = "CTRL_C_EVENT signaled";
+            msg = "signaled CTRL_C_EVENT";
         break;
         case CTRL_BREAK_EVENT:
-            msg = "CTRL_BREAK_EVENT signaled";
+            msg = "signaled CTRL_BREAK_EVENT";
         break;
         case CTRL_LOGOFF_EVENT:
-            msg = "CTRL_LOGOFF_EVENT signaled";
+            msg = "signaled CTRL_LOGOFF_EVENT";
         break;
     }
+#endif
+
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
         case CTRL_SHUTDOWN_EVENT:
         case CTRL_C_EVENT:
         case CTRL_BREAK_EVENT:
-#if defined(_DBGVIEW)
             dbgprints(__FUNCTION__, msg);
-#endif
             if (servicemode == 0) {
+                dbgprints(__FUNCTION__, "calling stop for RunBatch mode");
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h != NULL) {
@@ -1986,19 +1988,22 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
              * Signal to monitorthread that
              * user send custom service control
              */
+            dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_ROTATE");
             InterlockedExchange(&monitorsig, ctrl);
             SetEvent(monitorevent);
         break;
         case SVCBATCH_CTRL_EXEC:
+            dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_EXEC");
             if (IS_EMPTY_WCS(svcbatchexe)) {
-                dbgprints(__FUNCTION__, "SvcBatch exec undefined");
+                dbgprints(__FUNCTION__, "undefined RunBatch file");
+                return ERROR_CALL_NOT_IMPLEMENTED;
             }
             else {
-                dbgprintf(__FUNCTION__, "Starting exec:  %S", svcbatchexe);
                 if (InterlockedIncrement(&rstarted) > 1) {
-                    dbgprints(__FUNCTION__, "already running");
+                    dbgprints(__FUNCTION__, "already running another RunBatch instance");
                     return ERROR_ALREADY_EXISTS;
                 }
+                dbgprintf(__FUNCTION__, "calling RunBatch: %S", svcbatchexe);
                 xcreatethread(1, 0, &runexecthread);
             }
         break;
@@ -2007,6 +2012,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
              * Signal to monitorthread that
              * service should enter pause state.
              */
+            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_PAUSE");
             reportsvcstatus(SERVICE_PAUSE_PENDING, SVCBATCH_PENDING_WAIT);
             InterlockedExchange(&monitorsig, ctrl);
             SetEvent(monitorevent);
@@ -2016,6 +2022,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
              * Signal to monitorthread that
              * service should continue reading from child.
              */
+            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_CONTINUE");
             reportsvcstatus(SERVICE_CONTINUE_PENDING, SVCBATCH_PENDING_WAIT);
             InterlockedExchange(&monitorsig, ctrl);
             SetEvent(monitorevent);
