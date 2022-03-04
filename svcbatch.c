@@ -89,8 +89,8 @@ static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
 static wchar_t     *cwargv[]      = { NULL, NULL };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_SVCNAME);
-static const wchar_t *wnbatchapp  = CPP_WIDEN(SVCBATCH_NAME);
+static const wchar_t *wrunbatchx  = CPP_WIDEN(SVCBATCH_SVCNAME);
+static const wchar_t *wrunbatchn  = CPP_WIDEN(SVCBATCH_NAME);
 
 static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32;"              \
@@ -547,7 +547,7 @@ static int setupeventlog(void)
     if (InterlockedIncrement(&eset) > 1)
         return ssrv;
     kname = xwcsconcat( L"SYSTEM\\CurrentControlSet\\Services\\" \
-                        L"EventLog\\Application\\", wnamestamp);
+                        L"EventLog\\Application\\", wrunbatchx);
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, kname,
                         0, NULL, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
@@ -579,7 +579,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     memset(buf, 0, sizeof(buf));
     _snwprintf(buf, BBUFSIZ - 1, L"svcbatch.c(%d)", line);
 
-    errarg[0] = wnamestamp;
+    errarg[0] = wrunbatchx;
     if (IS_EMPTY_WCS(servicename))
         errarg[1] = L"(undefined)";
     else
@@ -617,7 +617,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
             dbgprintf(__FUNCTION__, "%S %S", buf, err);
     }
     if (setupeventlog()) {
-        HANDLE es = RegisterEventSourceW(NULL, wnamestamp);
+        HANDLE es = RegisterEventSourceW(NULL, wrunbatchx);
         if (es != NULL) {
             /**
              * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
@@ -1057,7 +1057,7 @@ static DWORD openlogfile(BOOL firstopen)
                       "loglocation cannot be the same as servicehome");
             return ERROR_BAD_PATHNAME;
         }
-        logfilename = xwcsvarcat(loglocation, L"\\", wnbatchapp, L".log", NULL);
+        logfilename = xwcsvarcat(loglocation, L"\\", wrunbatchn, L".log", NULL);
     }
 #if defined(_DBGVIEW_SAVE)
     EnterCriticalSection(&dbgviewlock);
@@ -1722,7 +1722,7 @@ static unsigned int __stdcall runexecthread(void *unused)
     cmdline = xappendarg(cmdline, loglocation);
     cmdline = xwcsappend(cmdline, L" -u ");
     cmdline = xappendarg(cmdline, serviceuuid);
-    cmdline = xwcsappend(cmdline, L" -d ");
+    cmdline = xwcsappend(cmdline, L" -x ");
     cmdline = xappendarg(cmdline, serviceexec);
 
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
@@ -1779,6 +1779,127 @@ finished:
     dbgprints(__FUNCTION__, "done");
     SetEvent(svcexecended);
     InterlockedExchange(&rstarted, 0L);
+    XENDTHREAD(0);
+}
+
+static unsigned int __stdcall workerthread(void *unused)
+{
+    wchar_t *cmdline;
+    HANDLE   wh[2];
+    DWORD    rc;
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
+    PROCESS_INFORMATION cp;
+    STARTUPINFOW si;
+
+    dbgprints(__FUNCTION__, "started");
+    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+
+    cmdline = xappendarg(NULL, comspec);
+    cmdline = xwcsappend(cmdline, L" /D /C \"");
+    cmdline = xappendarg(cmdline, svcbatchfile);
+    cmdline = xwcsappend(cmdline, L"\"");
+    dbgprintf(__FUNCTION__, "comspec %S", comspec);
+    dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
+
+    memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
+    memset(&si, 0, sizeof(STARTUPINFOW));
+
+    si.cb      = DSIZEOF(STARTUPINFOW);
+    si.dwFlags = STARTF_USESTDHANDLES;
+
+    rotatedev  = CreateWaitableTimerW(NULL, TRUE, NULL);
+    if (IS_INVALID_HANDLE(rotatedev)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
+        goto finished;
+    }
+    if (!SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"SetWaitableTimer");
+        goto finished;
+    }
+
+    rc = createiopipes(&si);
+    if (rc != 0) {
+        setsvcstatusexit(rc);
+        goto finished;
+    }
+    ji.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_BREAKAWAY_OK |
+        JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
+        JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+    if (!SetInformationJobObject(childprocjob,
+                                 JobObjectExtendedLimitInformation,
+                                &ji,
+                                 DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"SetInformationJobObject");
+        goto finished;
+    }
+
+    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    if (!CreateProcessW(comspec, cmdline, NULL, NULL, TRUE,
+                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
+                        wenvblock,
+                        servicehome,
+                       &si, &cp)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"CreateProcess");
+        goto finished;
+    }
+    childprocess = cp.hProcess;
+    dbgprintf(__FUNCTION__, "child pid %lu", cp.dwProcessId);
+    /**
+     * Close our side of the pipes
+     */
+    SAFE_CLOSE_HANDLE(si.hStdInput);
+    SAFE_CLOSE_HANDLE(si.hStdError);
+    if (!AssignProcessToJobObject(childprocjob, childprocess)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"AssignProcessToJobObject");
+        TerminateProcess(childprocess, rc);
+        goto finished;
+    }
+    wh[0] = childprocess;
+    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread);
+    if (IS_INVALID_HANDLE(wh[1])) {
+        rc = ERROR_TOO_MANY_TCBS;
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"iopipethread");
+        TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
+        goto finished;
+    }
+
+    ResumeThread(cp.hThread);
+    ResumeThread(wh[1]);
+    SAFE_CLOSE_HANDLE(cp.hThread);
+    reportsvcstatus(SERVICE_RUNNING, 0);
+    dbgprints(__FUNCTION__, "service running");
+    if (runbatchmode == 0)
+        xcreatethread(1, 0, &rotatethread);
+    WaitForMultipleObjects(2, wh, TRUE, INFINITE);
+    CloseHandle(wh[1]);
+
+finished:
+    SAFE_CLOSE_HANDLE(cp.hThread);
+    SAFE_CLOSE_HANDLE(si.hStdInput);
+    SAFE_CLOSE_HANDLE(si.hStdError);
+    SetEvent(processended);
+#if defined(_DBGVIEW)
+    if (ssvcstatus.dwServiceSpecificExitCode)
+        dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%lu",
+                  ssvcstatus.dwServiceSpecificExitCode);
+    dbgprints(__FUNCTION__, "done");
+#endif
+
     XENDTHREAD(0);
 }
 
@@ -1909,127 +2030,6 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
     return 0;
 }
 
-static unsigned int __stdcall workerthread(void *unused)
-{
-    wchar_t *cmdline;
-    HANDLE   wh[2];
-    DWORD    rc;
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
-    PROCESS_INFORMATION cp;
-    STARTUPINFOW si;
-
-    dbgprints(__FUNCTION__, "started");
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-
-    cmdline = xappendarg(NULL, comspec);
-    cmdline = xwcsappend(cmdline, L" /D /C \"");
-    cmdline = xappendarg(cmdline, svcbatchfile);
-    cmdline = xwcsappend(cmdline, L"\"");
-    dbgprintf(__FUNCTION__, "comspec %S", comspec);
-    dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
-
-    memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
-    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
-    memset(&si, 0, sizeof(STARTUPINFOW));
-
-    si.cb      = DSIZEOF(STARTUPINFOW);
-    si.dwFlags = STARTF_USESTDHANDLES;
-
-    rotatedev  = CreateWaitableTimerW(NULL, TRUE, NULL);
-    if (IS_INVALID_HANDLE(rotatedev)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"CreateWaitableTimer");
-        goto finished;
-    }
-    if (!SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"SetWaitableTimer");
-        goto finished;
-    }
-
-    rc = createiopipes(&si);
-    if (rc != 0) {
-        setsvcstatusexit(rc);
-        goto finished;
-    }
-    ji.BasicLimitInformation.LimitFlags =
-        JOB_OBJECT_LIMIT_BREAKAWAY_OK |
-        JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
-        JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-
-    if (!SetInformationJobObject(childprocjob,
-                                 JobObjectExtendedLimitInformation,
-                                &ji,
-                                 DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"SetInformationJobObject");
-        goto finished;
-    }
-
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    if (!CreateProcessW(comspec, cmdline, NULL, NULL, TRUE,
-                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
-                        wenvblock,
-                        servicehome,
-                       &si, &cp)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"CreateProcess");
-        goto finished;
-    }
-    childprocess = cp.hProcess;
-    dbgprintf(__FUNCTION__, "child pid %lu", cp.dwProcessId);
-    /**
-     * Close our side of the pipes
-     */
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
-    if (!AssignProcessToJobObject(childprocjob, childprocess)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"AssignProcessToJobObject");
-        TerminateProcess(childprocess, rc);
-        goto finished;
-    }
-    wh[0] = childprocess;
-    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread);
-    if (IS_INVALID_HANDLE(wh[1])) {
-        rc = ERROR_TOO_MANY_TCBS;
-        setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"iopipethread");
-        TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
-        goto finished;
-    }
-
-    ResumeThread(cp.hThread);
-    ResumeThread(wh[1]);
-    SAFE_CLOSE_HANDLE(cp.hThread);
-    reportsvcstatus(SERVICE_RUNNING, 0);
-    dbgprints(__FUNCTION__, "service running");
-    if (runbatchmode == 0)
-        xcreatethread(1, 0, &rotatethread);
-    WaitForMultipleObjects(2, wh, TRUE, INFINITE);
-    CloseHandle(wh[1]);
-
-finished:
-    SAFE_CLOSE_HANDLE(cp.hThread);
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
-    SetEvent(processended);
-#if defined(_DBGVIEW)
-    if (ssvcstatus.dwServiceSpecificExitCode)
-        dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%lu",
-                  ssvcstatus.dwServiceSpecificExitCode);
-    dbgprints(__FUNCTION__, "done");
-#endif
-
-    XENDTHREAD(0);
-}
-
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
     int          i;
@@ -2049,7 +2049,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
-    if (runbatchmode == 0) {
+    if (nonsvcmode == 0) {
         hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
         if (IS_INVALID_HANDLE(hsvcstatus)) {
             svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx");
@@ -2089,7 +2089,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         wmemcpy(ep, dupwenvp[i], nn);
         ep += nn + 1;
     }
-    if (runbatchmode == 0) {
+    if (nonsvcmode == 0) {
         wh[1] = xcreatethread(0, 0, &monitorthread);
         if (IS_INVALID_HANDLE(wh[1])) {
             rv = ERROR_TOO_MANY_TCBS;
@@ -2100,7 +2100,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     wh[0] = xcreatethread(0, 0, &workerthread);
     if (IS_INVALID_HANDLE(wh[0])) {
-        if (runbatchmode == 0) {
+        if (nonsvcmode == 0) {
             InterlockedExchange(&monitorsig, 0);
             SetEvent(monitorevent);
             CloseHandle(wh[1]);
@@ -2176,8 +2176,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             int pchar = towlower(p[1]);
             if (pchar == L'i' || pchar == L'd') {
                 cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-                wnamestamp   = CPP_WIDEN(RUNBATCH_APPNAME);
-                wnbatchapp   = CPP_WIDEN(RUNBATCH_NAME);
+                wrunbatchx   = CPP_WIDEN(RUNBATCH_APPNAME);
+                wrunbatchn   = CPP_WIDEN(RUNBATCH_NAME);
                 if (pchar == L'i')
                     consolemode  = 1;
                 if (pchar == L'd')
@@ -2258,7 +2258,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'i':
                         consolemode  = 1;
                     break;
-                    case L'd':
+                    case L'x':
                         runbatchmode = 1;
                     break;
                     case L'o':
@@ -2277,7 +2277,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'u':
                         serviceuuid  = zerostring;
                     break;
-                    case L'x':
+                    case L'e':
                         serviceexec  = zerostring;
                     break;
                     case L'n':
@@ -2319,7 +2319,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #endif
     nonsvcmode = consolemode + runbatchmode;
     if (nonsvcmode > 1)
-        return svcsyserror(__LINE__, 0, L"Both -i and -d parameters are specified");
+        return svcsyserror(__LINE__, 0, L"Both -i and -x parameters are specified");
     if (IS_EMPTY_WCS(bname))
         return svcsyserror(__LINE__, 0, L"Missing batch file");
 
