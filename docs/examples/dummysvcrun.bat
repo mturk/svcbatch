@@ -15,28 +15,31 @@ rem See the License for the specific language governing permissions and
 rem limitations under the License.
 rem
 rem --------------------------------------------------
-rem Dummy SvcBatch runtime batch
+rem Dummy RunBatch file
 rem
 rem
 setlocal
 rem
-echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Called from %SVCBATCH_SERVICE_NAME% Service
 echo.
-rem Dump environment variables to log file
+rem Dump environment variables to RunBatch.log file
 set
 echo.
 
 :doRepeat
 rem
 echo [%TIME%] ... running
-rem Simulate work by sleeping for 5 seconds
+rem Simulate some work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
+rem Infinite loop simulation
 goto doRepeat
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
 rem
 echo [%TIME%] ... done
+rem Uncomment to terminate parrent service
+rem from this batch file
 rem sc stop "%SVCBATCH_SERVICE_NAME%"
 
 :End
