@@ -51,7 +51,7 @@ static int       usesafeenv       = 0;
 static int       autorotate       = 0;
 static int       consolemode      = 0;
 static int       runbatchmode     = 0;
-static int       nonsvcmode       = 0;
+static int       servicemode      = 1;
 
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *batchdirname     = NULL;
@@ -854,7 +854,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwWaitHint   = param;
     }
     ssvcstatus.dwCurrentState = status;
-    if (nonsvcmode || SetServiceStatus(hsvcstatus, &ssvcstatus))
+    if ((servicemode == 0) || SetServiceStatus(hsvcstatus, &ssvcstatus))
         InterlockedExchange(&sscstate, status);
     else
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
@@ -1807,7 +1807,7 @@ static unsigned int __stdcall workerthread(void *unused)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    if (nonsvcmode == 0) {
+    if (servicemode) {
         rotatedev  = CreateWaitableTimerW(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(rotatedev)) {
             rc = GetLastError();
@@ -1883,7 +1883,7 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprints(__FUNCTION__, "service running");
-    if (nonsvcmode == 0)
+    if (servicemode)
         xcreatethread(1, 0, &rotatethread);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
@@ -1933,7 +1933,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 #if defined(_DBGVIEW)
             dbgprints(__FUNCTION__, msg);
 #endif
-            if (nonsvcmode) {
+            if (servicemode == 0) {
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h != NULL) {
@@ -2049,7 +2049,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
-    if (nonsvcmode == 0) {
+    if (servicemode) {
         hsvcstatus  = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
         if (IS_INVALID_HANDLE(hsvcstatus)) {
             svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx");
@@ -2088,7 +2088,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         wmemcpy(ep, dupwenvp[i], nn);
         ep += nn + 1;
     }
-    if (nonsvcmode == 0) {
+    if (servicemode) {
         wh[1] = xcreatethread(0, 0, &monitorthread);
         if (IS_INVALID_HANDLE(wh[1])) {
             rv = ERROR_TOO_MANY_TCBS;
@@ -2099,7 +2099,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     wh[0] = xcreatethread(0, 0, &workerthread);
     if (IS_INVALID_HANDLE(wh[0])) {
-        if (nonsvcmode == 0) {
+        if (servicemode) {
             InterlockedExchange(&monitorsig, 0);
             SetEvent(monitorevent);
             CloseHandle(wh[1]);
@@ -2173,7 +2173,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         const wchar_t *p = wargv[i];
         if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
             int pchar = towlower(p[1]);
-            if (pchar == L'i' || pchar == L'd') {
+            if (pchar == L'i' || pchar == L'x') {
                 cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
                 wrunbatchx   = CPP_WIDEN(RUNBATCH_APPNAME);
                 wrunbatchn   = CPP_WIDEN(RUNBATCH_NAME);
@@ -2181,6 +2181,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     consolemode  = 1;
                 if (pchar == L'd')
                     runbatchmode = 1;
+                servicemode = 0;
             }
         }
     }
@@ -2316,8 +2317,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 #endif
-    nonsvcmode = consolemode + runbatchmode;
-    if (nonsvcmode > 1)
+    if (consolemode && runbatchmode)
         return svcsyserror(__LINE__, 0, L"Both -i and -x parameters are specified");
     if (IS_EMPTY_WCS(bname))
         return svcsyserror(__LINE__, 0, L"Missing batch file");
@@ -2468,7 +2468,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
     se[1].lpServiceName = NULL;
     se[1].lpServiceProc = NULL;
-    if (nonsvcmode) {
+    if (servicemode == 0) {
         dbgprints(__FUNCTION__, "running batchfile");
         servicemain(1, cwargv);
         rv = ssvcstatus.dwServiceSpecificExitCode;
