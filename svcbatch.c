@@ -1702,6 +1702,7 @@ static unsigned int __stdcall runexecthread(void *unused)
 {
     wchar_t *cmdline;
     HANDLE   wh[2];
+    HANDLE   h = NULL;
     DWORD    rc;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
@@ -1709,6 +1710,14 @@ static unsigned int __stdcall runexecthread(void *unused)
     ResetEvent(svcexecended);
 
     dbgprints(__FUNCTION__, "started");
+    EnterCriticalSection(&logfilelock);
+    h = InterlockedExchangePointer(&logfhandle, NULL);
+    if (h != NULL) {
+        logfflush(h);
+        logwrline(h, "RunBatch signaled\r\n");
+    }
+    InterlockedExchangePointer(&logfhandle, h);
+    LeaveCriticalSection(&logfilelock);
 
     cmdline = xappendarg(NULL, svcbatchexe);
     cmdline = xwcsappend(cmdline, L" -n ");
