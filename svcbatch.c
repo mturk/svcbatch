@@ -2334,7 +2334,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         servicehome = servicebase;
     }
 
-    if (IS_EMPTY_WCS(servicehome)) {
+    if (servicehome != NULL) {
         if (!SetCurrentDirectoryW(servicehome))
             return svcsyserror(__LINE__, GetLastError(), servicehome);
     }

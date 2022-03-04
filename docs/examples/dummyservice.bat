@@ -29,6 +29,7 @@ if /i "x%~1" == "xstop"   goto doStop
 if /i "x%~1" == "xruncmd" goto doRunInteractive
 if /i "x%~1" == "xrunme"  goto doRunMe
 if /i "x%~1" == "xrotate" goto doRotate
+if /i "x%~1" == "xexec"   goto doExec
 rem
 set "SERVICE_NAME="
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
@@ -62,7 +63,7 @@ rem
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
-set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" -r @30~100K %~nx0"
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" -r @30~100K -x dummysvcrun.bat %~nx0"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
@@ -87,6 +88,12 @@ goto End
 rem
 rem
 sc control "%SERVICE_NAME%" 234
+goto End
+
+:doExec
+rem
+rem
+sc control "%SERVICE_NAME%" 235
 goto End
 
 :doDelete
