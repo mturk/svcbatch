@@ -1727,7 +1727,7 @@ static unsigned int __stdcall runexecthread(void *unused)
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
     cmdline = xwcsappend(cmdline, L" -u ");
-    cmdline = xappendarg(cmdline, serviceuuid);
+    cmdline = xwcsappend(cmdline, serviceuuid);
     cmdline = xwcsappend(cmdline, L" -x ");
     cmdline = xappendarg(cmdline, serviceexec);
 
