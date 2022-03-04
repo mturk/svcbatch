@@ -2629,13 +2629,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DBGVIEW)
     dbgprints(__FUNCTION__, "done");
 #if defined(_DBGVIEW_SAVE)
-    EnterCriticalSection(&dbgviewlock);
-    h = InterlockedExchangePointer(&dbgfhandle, NULL);
-    if (h != NULL) {
-        FlushFileBuffers(h);
-        CloseHandle(h);
+    if (servicemode) {
+        EnterCriticalSection(&dbgviewlock);
+        h = InterlockedExchangePointer(&dbgfhandle, NULL);
+        if (h != NULL) {
+            FlushFileBuffers(h);
+            CloseHandle(h);
+        }
+        LeaveCriticalSection(&dbgviewlock);
     }
-    LeaveCriticalSection(&dbgviewlock);
 #endif
 #endif
     return rv;
