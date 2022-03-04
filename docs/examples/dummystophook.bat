@@ -15,7 +15,7 @@ rem See the License for the specific language governing permissions and
 rem limitations under the License.
 rem
 rem --------------------------------------------------
-rem Dummy RunBatch file
+rem Dummy file executed on Service Stop
 rem
 rem
 setlocal
@@ -32,14 +32,6 @@ echo [%TIME%] ... running
 rem Simulate some work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
 rem Infinite loop simulation
-goto doRepeat
-ping -n 6 localhost >NUL
-ping -n 6 localhost >NUL
-ping -n 6 localhost >NUL
-rem
-rem Uncomment to terminate parrent service
-rem from this batch file
-rem sc stop "%SVCBATCH_SERVICE_NAME%"
 
 :End
 echo [%TIME%] ... done
