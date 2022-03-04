@@ -21,15 +21,16 @@ rem
 setlocal
 set "SERVICE_NAME=adummysvc"
 rem
-if /i "x%~1" == "xcreate" goto doCreate
-if /i "x%~1" == "xdelete" goto doDelete
-if /i "x%~1" == "xremove" goto doRemove
-if /i "x%~1" == "xstart"  goto doStart
-if /i "x%~1" == "xstop"   goto doStop
-if /i "x%~1" == "xruncmd" goto doRunInteractive
-if /i "x%~1" == "xrunme"  goto doRunMe
-if /i "x%~1" == "xrotate" goto doRotate
-if /i "x%~1" == "xexec"   goto doExec
+if /i "x%~1" == "xcreate"   goto doCreate
+if /i "x%~1" == "xdelete"   goto doDelete
+if /i "x%~1" == "xremove"   goto doRemove
+if /i "x%~1" == "xstart"    goto doStart
+if /i "x%~1" == "xstop"     goto doStop
+if /i "x%~1" == "xbreak"    goto doBreak
+if /i "x%~1" == "xruncmd"   goto doRunInteractive
+if /i "x%~1" == "xrunme"    goto doRunMe
+if /i "x%~1" == "xrotate"   goto doRotate
+if /i "x%~1" == "xrunbatch" goto doRunBatch
 rem
 set "SERVICE_NAME="
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
@@ -84,13 +85,19 @@ rem
 sc stop "%SERVICE_NAME%"
 goto End
 
+:doBreak
+rem
+rem
+sc control "%SERVICE_NAME%" 233
+goto End
+
 :doRotate
 rem
 rem
 sc control "%SERVICE_NAME%" 234
 goto End
 
-:doExec
+:doRunBatch
 rem
 rem
 sc control "%SERVICE_NAME%" 235
@@ -109,7 +116,7 @@ rem
 rem
 sc stop "%SERVICE_NAME%" >NUL 2>&1
 sc delete "%SERVICE_NAME%" >NUL 2>&1
-rd /S /Q Logs >NUL 2>&1
+rd /S /Q "Log Files" >NUL 2>&1
 del /Q %~nx0.Y >NUL 2>&1
 echo Removed %SERVICE_NAME%
 goto End
@@ -132,6 +139,6 @@ if not exist %~nx0.Y (
 echo Cannot find %~nx0.Y answer file
 exit /B 1
 )
-..\..\x64\svcbatch.exe -i -w "%cd%" -r @30~100K %~nx0
+..\..\x64\svcbatch.exe -i -w "%cd%" -o "Log Files" -r @30~100K %~nx0
 
 :End
