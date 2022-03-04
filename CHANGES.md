@@ -9,12 +9,10 @@ For a full list of changes, see the [git commit log][log]
 ## v1.1.0
 
  * In development
- * Simplify alloc functions
- * Improve consolemode so it can be used from service
+ * Bump minor version
+ * Add RunBatch feature
  * Increase SVC_MAX_LOGS to 9
- * Use RunBatch.log for Console mode
  * Remove _RUN_API_TEST
- * Add support to execute batch file using SVCBATCH_CTRL_EXEC signal
 
 ## v1.0.6
 
