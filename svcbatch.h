@@ -86,7 +86,8 @@
 
 /**
  * This signal will execute batch file
- * defined by -x <batch file>
+ * defined by -e <batch file> parameter
+ * on service install.
  *
  * eg. C:\>sc control SvcBatchServiceName 235
  *
