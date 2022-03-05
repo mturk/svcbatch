@@ -1371,7 +1371,7 @@ static unsigned int __stdcall runhookthread(void *unused)
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h != NULL) {
         logfflush(h);
-        logwrline(h, "Service Stop RunBatch signaled\r\n");
+        logwrline(h, "Starting Stop RunBatch\r\n");
     }
     InterlockedExchangePointer(&logfhandle, h);
     LeaveCriticalSection(&logfilelock);
@@ -1404,7 +1404,7 @@ static unsigned int __stdcall runhookthread(void *unused)
         svcsyserror(__LINE__, rc, L"CreateProcess");
         goto finished;
     }
-    dbgprintf(__FUNCTION__, "exec pid %lu", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
     CloseHandle(cp.hThread);
     wh[0] = cp.hProcess;
     wh[1] = processended;
@@ -1412,13 +1412,13 @@ static unsigned int __stdcall runhookthread(void *unused)
     rc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
     switch (rc) {
         case WAIT_OBJECT_0:
-            dbgprints(__FUNCTION__, "exec process done");
+            dbgprints(__FUNCTION__, "child process done");
         break;
         case WAIT_OBJECT_1:
             dbgprints(__FUNCTION__, "processended signaled");
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
             if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
-                dbgprintf(__FUNCTION__, "Terminating exec child %lu", cp.dwProcessId);
+                dbgprintf(__FUNCTION__, "terminating child: %lu", cp.dwProcessId);
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
             else {
@@ -1427,10 +1427,10 @@ static unsigned int __stdcall runhookthread(void *unused)
         break;
         case WAIT_FAILED:
             rc = GetLastError();
-            dbgprintf(__FUNCTION__, "wait failed %lu", rc);
+            dbgprintf(__FUNCTION__, "wait failed: %lu", rc);
         break;
         default:
-            dbgprintf(__FUNCTION__, "wait error %lu", rc);
+            dbgprintf(__FUNCTION__, "wait error: %lu", rc);
         break;
 
 
@@ -1522,7 +1522,7 @@ static unsigned int __stdcall stopthread(void *unused)
             FlushFileBuffers(inputpipewrs);
         }
         else {
-            dbgprintf(__FUNCTION__, "WaitForSingleObject failed %lu", GetLastError());
+            dbgprintf(__FUNCTION__, "failed WaitForSingleObject: %lu", GetLastError());
             break;
         }
         wn = SVCBATCH_PENDING_WAIT;
@@ -1727,7 +1727,7 @@ static unsigned int __stdcall rotatethread(void *unused)
         if (wc == WAIT_OBJECT_0)
             dbgprints(__FUNCTION__, "processended signaled");
         else
-            dbgprintf(__FUNCTION__, "processended %lu", wc);
+            dbgprintf(__FUNCTION__, "processended: %lu", wc);
 #endif
         goto finished;
     }
@@ -1799,11 +1799,11 @@ static unsigned int __stdcall rotatethread(void *unused)
             break;
             case WAIT_FAILED:
                 rc = GetLastError();
-                dbgprintf(__FUNCTION__, "wait failed %lu", rc);
+                dbgprintf(__FUNCTION__, "wait failed: %lu", rc);
             break;
             default:
                 rc = wc;
-                dbgprintf(__FUNCTION__, "wait error %lu", rc);
+                dbgprintf(__FUNCTION__, "wait error: %lu", rc);
             break;
         }
     }
@@ -1830,7 +1830,7 @@ static unsigned int __stdcall runexecthread(void *unused)
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h != NULL) {
         logfflush(h);
-        logwrline(h, "RunBatch signaled\r\n");
+        logwrline(h, "Starting RunBatch\r\n");
     }
     InterlockedExchangePointer(&logfhandle, h);
     LeaveCriticalSection(&logfilelock);
@@ -1863,7 +1863,7 @@ static unsigned int __stdcall runexecthread(void *unused)
         svcsyserror(__LINE__, rc, L"CreateProcess");
         goto finished;
     }
-    dbgprintf(__FUNCTION__, "exec pid %lu", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
     CloseHandle(cp.hThread);
     wh[0] = cp.hProcess;
     wh[1] = processended;
@@ -1871,25 +1871,25 @@ static unsigned int __stdcall runexecthread(void *unused)
     rc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
     switch (rc) {
         case WAIT_OBJECT_0:
-            dbgprints(__FUNCTION__, "exec process done");
+            dbgprints(__FUNCTION__, "child process done");
         break;
         case WAIT_OBJECT_1:
             dbgprints(__FUNCTION__, "processended signaled");
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
             if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
-                dbgprintf(__FUNCTION__, "Terminating exec child %lu", cp.dwProcessId);
+                dbgprintf(__FUNCTION__, "terminating RunBatch child: %lu", cp.dwProcessId);
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
             else {
-                dbgprintf(__FUNCTION__, "Exec child ended %lu", cp.dwProcessId);
+                dbgprintf(__FUNCTION__, "child ended: %lu", cp.dwProcessId);
             }
         break;
         case WAIT_FAILED:
             rc = GetLastError();
-            dbgprintf(__FUNCTION__, "wait failed %lu", rc);
+            dbgprintf(__FUNCTION__, "wait failed: %lu", rc);
         break;
         default:
-            dbgprintf(__FUNCTION__, "wait error %lu", rc);
+            dbgprintf(__FUNCTION__, "wait error: %lu", rc);
         break;
 
 
@@ -1978,7 +1978,7 @@ static unsigned int __stdcall workerthread(void *unused)
         goto finished;
     }
     childprocess = cp.hProcess;
-    dbgprintf(__FUNCTION__, "child pid %lu", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
     /**
      * Close our side of the pipes
      */
@@ -2075,7 +2075,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             dbgprints(__FUNCTION__, msg);
         break;
         default:
-            dbgprintf(__FUNCTION__, "unknown ctrl %lu", ctrl);
+            dbgprintf(__FUNCTION__, "unknown ctrl: %lu", ctrl);
             return FALSE;
         break;
     }
@@ -2153,7 +2153,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_INTERROGATE:
         break;
         default:
-            dbgprintf(__FUNCTION__, "unknown ctrl %lu", ctrl);
+            dbgprintf(__FUNCTION__, "unknown ctrl: %lu", ctrl);
             return ERROR_CALL_NOT_IMPLEMENTED;
         break;
     }

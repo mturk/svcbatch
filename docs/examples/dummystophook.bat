@@ -22,7 +22,7 @@ setlocal
 rem
 echo %~nx0: Called from %SVCBATCH_SERVICE_NAME% Service
 echo.
-rem Dump environment variables to RunBatch.log file
+rem Dump environment variables to SvcStop.log file
 set
 echo.
 
@@ -31,7 +31,8 @@ rem
 echo [%TIME%] ... running
 rem Simulate some work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
-rem Infinite loop simulation
+rem Stalled SvcStop simulation
+goto doRepeat
 
 :End
 echo [%TIME%] ... done
