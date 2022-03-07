@@ -2229,12 +2229,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     for (i = 1; i < argc; i++) {
         const wchar_t *p = wargv[i];
         if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
-            if (p[1] == L'i' || p[1] == L'I' || p[1] == L'x' || p[1] == L'X') {
+            int pchar = towlower(p[1]);
+            if (pchar == L'i' || pchar == L'x') {
                 cnamestamp = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
                 wrunbatchx = CPP_WIDEN(RUNBATCH_APPNAME);
-                if (p[1] == L'i' || p[1] == L'I')
+                if (pchar == L'i')
                     consolemode  = 1;
-                if (p[1] == L'x' || p[1] == L'X')
+                if (pchar == L'x')
                     runbatchmode = 1;
                 if (p[1] == L'X')
                     wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
