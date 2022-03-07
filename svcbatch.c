@@ -27,7 +27,6 @@ static volatile LONG         monitorsig  = 0;
 static volatile LONG         svcworking  = 1;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         rstarted    = 0;
-static volatile LONG         hstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG         logwritten  = 0;
@@ -634,12 +633,13 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
 }
 
 static HANDLE xcreatethread(int detach, unsigned initflag,
-                            unsigned int (__stdcall *threadfn)(void *))
+                            unsigned int (__stdcall *threadfn)(void *),
+                            void *param)
 {
     unsigned u;
     HANDLE   h;
 
-    h = (HANDLE)_beginthreadex(NULL, 0, threadfn, NULL, initflag, &u);
+    h = (HANDLE)_beginthreadex(NULL, 0, threadfn, param, initflag, &u);
 
     if (IS_INVALID_HANDLE(h))
         return NULL;
@@ -1355,23 +1355,27 @@ static int resolverotate(const wchar_t *str)
     return 0;
 }
 
-static unsigned int __stdcall runhookthread(void *unused)
+static unsigned int __stdcall runexecthread(void *param)
 {
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   h = NULL;
+    HANDLE   z = (HANDLE)param;
     DWORD    rc;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
 
-    ResetEvent(svchookended);
+    ResetEvent(z);
 
     dbgprints(__FUNCTION__, "started");
     EnterCriticalSection(&logfilelock);
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h != NULL) {
         logfflush(h);
-        logwrline(h, "Starting Stop RunBatch\r\n");
+        if (z == svcexecended)
+            logprintf(h, "Starting RunBatch\r\n");
+        else
+            logprintf(h, "Starting SvcStop\r\n");
     }
     InterlockedExchangePointer(&logfhandle, h);
     LeaveCriticalSection(&logfilelock);
@@ -1385,8 +1389,14 @@ static unsigned int __stdcall runhookthread(void *unused)
     cmdline = xappendarg(cmdline, loglocation);
     cmdline = xwcsappend(cmdline, L" -u ");
     cmdline = xwcsappend(cmdline, serviceuuid);
-    cmdline = xwcsappend(cmdline, L" -X ");
-    cmdline = xappendarg(cmdline, svcstopexec);
+    if (z == svcexecended) {
+        cmdline = xwcsappend(cmdline, L" -x ");
+        cmdline = xappendarg(cmdline, svcrunbatch);
+    }
+    else {
+        cmdline = xwcsappend(cmdline, L" -X ");
+        cmdline = xappendarg(cmdline, svcstopexec);
+    }
 
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
@@ -1418,11 +1428,11 @@ static unsigned int __stdcall runhookthread(void *unused)
             dbgprints(__FUNCTION__, "processended signaled");
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
             if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
-                dbgprintf(__FUNCTION__, "terminating child: %lu", cp.dwProcessId);
+                dbgprintf(__FUNCTION__, "terminating RunBatch child: %lu", cp.dwProcessId);
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
             else {
-                dbgprintf(__FUNCTION__, "Exec child ended %lu", cp.dwProcessId);
+                dbgprintf(__FUNCTION__, "child ended: %lu", cp.dwProcessId);
             }
         break;
         case WAIT_FAILED:
@@ -1440,8 +1450,9 @@ static unsigned int __stdcall runhookthread(void *unused)
 finished:
     xfree(cmdline);
     dbgprints(__FUNCTION__, "done");
-    SetEvent(svchookended);
-    InterlockedExchange(&hstarted, 0L);
+    SetEvent(z);
+    if (z == svcexecended)
+        InterlockedExchange(&rstarted, 0L);
     XENDTHREAD(0);
 }
 
@@ -1472,21 +1483,16 @@ static unsigned int __stdcall stopthread(void *unused)
 
     if (svcstopexec != NULL) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        if (InterlockedIncrement(&hstarted) > 1) {
-            dbgprints(__FUNCTION__, "already running stop hook");
+        dbgprints(__FUNCTION__, "calling stop hook");
+        h = xcreatethread(0, 0, &runexecthread, svchookended);
+        if (IS_INVALID_HANDLE(h)) {
+            dbgprints(__FUNCTION__, "cannot create runexecthread");
         }
         else {
-            dbgprints(__FUNCTION__, "calling stop hook");
-            h = xcreatethread(0, 0, &runhookthread);
-            if (IS_INVALID_HANDLE(h)) {
-                dbgprints(__FUNCTION__, "cannot create runhookthread");
-            }
-            else {
-                ws = WaitForSingleObject(h, SVCBATCH_STOP_HINT);
-                CloseHandle(h);
-                reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-                dbgprints(__FUNCTION__, "stop hook done");
-            }
+            ws = WaitForSingleObject(h, SVCBATCH_STOP_HINT);
+            CloseHandle(h);
+            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+            dbgprints(__FUNCTION__, "stop hook done");
         }
     }
     dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
@@ -1674,7 +1680,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                     rc = rotatelogs();
                     if (rc != 0) {
                         setsvcstatusexit(rc);
-                        xcreatethread(1, 0, &stopthread);
+                        xcreatethread(1, 0, &stopthread, NULL);
                         break;
                     }
                     rotatesynctime();
@@ -1758,7 +1764,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                             rc = rotatelogs();
                             if (rc != 0) {
                                 setsvcstatusexit(rc);
-                                xcreatethread(1, 0, &stopthread);
+                                xcreatethread(1, 0, &stopthread, NULL);
                             }
                             else {
                                 rotatesynctime();
@@ -1774,7 +1780,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                         CloseHandle(h);
                         setsvcstatusexit(rc);
                         svcsyserror(__LINE__, rc, L"GetFileSizeEx");
-                        xcreatethread(1, 0, &stopthread);
+                        xcreatethread(1, 0, &stopthread, NULL);
                     }
                 }
                 LeaveCriticalSection(&logfilelock);
@@ -1790,7 +1796,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                 }
                 if (rc != 0) {
                     setsvcstatusexit(rc);
-                    xcreatethread(1, 0, &stopthread);
+                    xcreatethread(1, 0, &stopthread, NULL);
                 }
             break;
             case WAIT_OBJECT_1:
@@ -1811,96 +1817,6 @@ static unsigned int __stdcall rotatethread(void *unused)
 finished:
     dbgprints(__FUNCTION__, "done");
     SAFE_CLOSE_HANDLE(rotatedev);
-    XENDTHREAD(0);
-}
-
-static unsigned int __stdcall runexecthread(void *unused)
-{
-    wchar_t *cmdline;
-    HANDLE   wh[2];
-    HANDLE   h = NULL;
-    DWORD    rc;
-    PROCESS_INFORMATION cp;
-    STARTUPINFOW si;
-
-    ResetEvent(svcexecended);
-
-    dbgprints(__FUNCTION__, "started");
-    EnterCriticalSection(&logfilelock);
-    h = InterlockedExchangePointer(&logfhandle, NULL);
-    if (h != NULL) {
-        logfflush(h);
-        logwrline(h, "Starting RunBatch\r\n");
-    }
-    InterlockedExchangePointer(&logfhandle, h);
-    LeaveCriticalSection(&logfilelock);
-
-    cmdline = xappendarg(NULL, svcbatchexe);
-    cmdline = xwcsappend(cmdline, L" -n ");
-    cmdline = xappendarg(cmdline, servicename);
-    cmdline = xwcsappend(cmdline, L" -w ");
-    cmdline = xappendarg(cmdline, servicehome);
-    cmdline = xwcsappend(cmdline, L" -o ");
-    cmdline = xappendarg(cmdline, loglocation);
-    cmdline = xwcsappend(cmdline, L" -u ");
-    cmdline = xwcsappend(cmdline, serviceuuid);
-    cmdline = xwcsappend(cmdline, L" -x ");
-    cmdline = xappendarg(cmdline, svcrunbatch);
-
-    dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
-
-    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
-    memset(&si, 0, sizeof(STARTUPINFOW));
-
-    si.cb = DSIZEOF(STARTUPINFOW);
-
-    if (!CreateProcessW(NULL, cmdline, NULL, NULL, FALSE,
-                        CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT,
-                        NULL,
-                        servicehome,
-                       &si, &cp)) {
-        rc = GetLastError();
-        svcsyserror(__LINE__, rc, L"CreateProcess");
-        goto finished;
-    }
-    dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
-    CloseHandle(cp.hThread);
-    wh[0] = cp.hProcess;
-    wh[1] = processended;
-
-    rc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
-    switch (rc) {
-        case WAIT_OBJECT_0:
-            dbgprints(__FUNCTION__, "child process done");
-        break;
-        case WAIT_OBJECT_1:
-            dbgprints(__FUNCTION__, "processended signaled");
-            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
-            if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
-                dbgprintf(__FUNCTION__, "terminating RunBatch child: %lu", cp.dwProcessId);
-                TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
-            }
-            else {
-                dbgprintf(__FUNCTION__, "child ended: %lu", cp.dwProcessId);
-            }
-        break;
-        case WAIT_FAILED:
-            rc = GetLastError();
-            dbgprintf(__FUNCTION__, "wait failed: %lu", rc);
-        break;
-        default:
-            dbgprintf(__FUNCTION__, "wait error: %lu", rc);
-        break;
-
-
-    }
-    CloseHandle(cp.hProcess);
-
-finished:
-    xfree(cmdline);
-    dbgprints(__FUNCTION__, "done");
-    SetEvent(svcexecended);
-    InterlockedExchange(&rstarted, 0L);
     XENDTHREAD(0);
 }
 
@@ -1992,7 +1908,7 @@ static unsigned int __stdcall workerthread(void *unused)
         goto finished;
     }
     wh[0] = childprocess;
-    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread);
+    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
@@ -2007,7 +1923,7 @@ static unsigned int __stdcall workerthread(void *unused)
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprints(__FUNCTION__, "service running");
     if (servicemode)
-        xcreatethread(1, 0, &rotatethread);
+        xcreatethread(1, 0, &rotatethread, NULL);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
 
@@ -2068,7 +1984,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
                 InterlockedExchangePointer(&logfhandle, h);
                 LeaveCriticalSection(&logfilelock);
                 reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-                xcreatethread(1, 0, &stopthread);
+                xcreatethread(1, 0, &stopthread, NULL);
             }
         break;
         case CTRL_LOGOFF_EVENT:
@@ -2101,7 +2017,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            xcreatethread(1, 0, &stopthread);
+            xcreatethread(1, 0, &stopthread, NULL);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak == 0)
@@ -2127,7 +2043,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                     return ERROR_ALREADY_EXISTS;
                 }
                 dbgprintf(__FUNCTION__, "calling RunBatch: %S", svcbatchexe);
-                xcreatethread(1, 0, &runexecthread);
+                xcreatethread(1, 0, &runexecthread, svcexecended);
             }
         break;
         case SERVICE_CONTROL_PAUSE:
@@ -2219,7 +2135,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         ep += nn + 1;
     }
     if (servicemode) {
-        wh[1] = xcreatethread(0, 0, &monitorthread);
+        wh[1] = xcreatethread(0, 0, &monitorthread, NULL);
         if (IS_INVALID_HANDLE(wh[1])) {
             rv = ERROR_TOO_MANY_TCBS;
             svcsyserror(__LINE__, rv, L"monitorthread");
@@ -2227,7 +2143,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         }
         wc = 2;
     }
-    wh[0] = xcreatethread(0, 0, &workerthread);
+    wh[0] = xcreatethread(0, 0, &workerthread, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
         if (servicemode) {
             InterlockedExchange(&monitorsig, 0);
