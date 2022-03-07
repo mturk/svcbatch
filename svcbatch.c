@@ -2094,7 +2094,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
 
-    if (IS_EMPTY_WCS(servicename))
+    if (IS_EMPTY_WCS(servicename) && (argc > 0))
         servicename = xwcsdup(argv[0]);
     if (IS_EMPTY_WCS(servicename)) {
         svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"Missing servicename");
