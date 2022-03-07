@@ -2020,8 +2020,14 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             xcreatethread(1, 0, &stopthread, NULL);
         break;
         case SVCBATCH_CTRL_BREAK:
-            if (hasctrlbreak == 0)
+            dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_BREAK");
+            if (hasctrlbreak == 0) {
+                dbgprints(__FUNCTION__, "disabled SVCBATCH_CTRL_BREAK signal");
                 return ERROR_CALL_NOT_IMPLEMENTED;
+            }
+            InterlockedExchange(&monitorsig, ctrl);
+            SetEvent(monitorevent);
+        break;
         case SVCBATCH_CTRL_ROTATE:
             /**
              * Signal to monitorthread that
