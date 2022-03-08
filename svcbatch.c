@@ -63,7 +63,7 @@ static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *svcrunbatch      = NULL;
 static wchar_t  *svcstopexec      = NULL;
-static wchar_t  *rungeneration    = NULL;
+static wchar_t  *sgeneration      = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -1358,7 +1358,7 @@ static unsigned int __stdcall runexecthread(void *param)
     if (h == svcexecended) {
         wchar_t giid[64];
         InterlockedIncrement(&rgeneration);
-        _snwprintf(g, 60, L" -g %lu ", rgeneration);
+        _snwprintf(giid, 60, L" -g %lu ", rgeneration);
         cmdline = xwcsappend(cmdline, giid);
         cmdline = xwcsappend(cmdline, L" -x ");
         cmdline = xappendarg(cmdline, svcrunbatch);
@@ -2106,8 +2106,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
-    if (rungeneration != NULL) {
-        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_GIID=", rungeneration);
+    if (sgeneration != NULL) {
+        /**
+         * Add generation id
+         */
+        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_GIID=", sgeneration);
     }
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
@@ -2276,16 +2279,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
                 continue;
             }
-            if (serviceuuid  == zerostring) {
-                serviceuuid  = xwcsdup(p);
+            if (serviceuuid == zerostring) {
+                serviceuuid = xwcsdup(p);
                 continue;
             }
-            if (servicename  == zerostring) {
-                servicename  = xwcsdup(p);
+            if (servicename == zerostring) {
+                servicename = xwcsdup(p);
                 continue;
             }
-            if (rungeneration == zerostring) {
-                rungeneration = xwcsdup(p);
+            if (sgeneration == zerostring) {
+                sgeneration = xwcsdup(p);
                 continue;
             }
             hasopts = 0;
@@ -2332,7 +2335,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                      * Private options
                      */
                     case L'g':
-                        rungeneration = zerostring;
+                        sgeneration  = zerostring;
                     break;
                     case L'n':
                         servicename  = zerostring;
