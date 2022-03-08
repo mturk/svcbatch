@@ -32,7 +32,7 @@ echo [%TIME%] ... running
 rem Simulate some work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
 rem Infinite loop simulation
-goto doRepeat
+rem goto doRepeat
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL

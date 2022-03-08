@@ -27,6 +27,7 @@ static volatile LONG         monitorsig  = 0;
 static volatile LONG         svcworking  = 1;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         rstarted    = 0;
+static volatile LONG         rgeneration = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG         logwritten  = 0;
@@ -62,6 +63,7 @@ static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *svcrunbatch      = NULL;
 static wchar_t  *svcstopexec      = NULL;
+static wchar_t  *rungeneration    = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -1354,6 +1356,10 @@ static unsigned int __stdcall runexecthread(void *param)
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
     if (h == svcexecended) {
+        wchar_t giid[64];
+        InterlockedIncrement(&rgeneration);
+        _snwprintf(g, 60, L" -g %lu ", rgeneration);
+        cmdline = xwcsappend(cmdline, giid);
         cmdline = xwcsappend(cmdline, L" -x ");
         cmdline = xappendarg(cmdline, svcrunbatch);
     }
@@ -2100,6 +2106,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
+    if (rungeneration != NULL) {
+        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_GIID=", rungeneration);
+    }
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
     for (i = 0; i < dupwenvc; i++) {
@@ -2204,13 +2213,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         const wchar_t *p = wargv[i];
         if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
             if (p[1] == L'x' || p[1] == L'X') {
-                cnamestamp = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-                wrunbatchx = CPP_WIDEN(RUNBATCH_APPNAME);
-                if (p[1] == L'X')
-                    wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
-                else
-                    wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
+                cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+                wrunbatchx   = CPP_WIDEN(RUNBATCH_APPNAME);
                 runbatchmode = 1;
+                if (p[1] == L'X') {
+                    runbatchmode++;
+                    wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
+                }
+                else {
+                    wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
+                }
                 servicemode  = 0;
                 break;
             }
@@ -2264,12 +2276,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
                 continue;
             }
-            if (serviceuuid == zerostring) {
-                serviceuuid = xwcsdup(p);
+            if (serviceuuid  == zerostring) {
+                serviceuuid  = xwcsdup(p);
                 continue;
             }
-            if (servicename == zerostring) {
-                servicename = xwcsdup(p);
+            if (servicename  == zerostring) {
+                servicename  = xwcsdup(p);
+                continue;
+            }
+            if (rungeneration == zerostring) {
+                rungeneration = xwcsdup(p);
                 continue;
             }
             hasopts = 0;
@@ -2315,6 +2331,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     /**
                      * Private options
                      */
+                    case L'g':
+                        rungeneration = zerostring;
+                    break;
                     case L'n':
                         servicename  = zerostring;
                     break;
