@@ -88,7 +88,6 @@ static HANDLE    inputpipewrs     = NULL;
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
-static wchar_t     *cwargv[]      = { NULL, NULL };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
 static const wchar_t *wrunbatchx  = CPP_WIDEN(SVCBATCH_SVCNAME);
@@ -2198,11 +2197,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
+    /**
+     * Check if running as service or as a child process.
+     */
     for (i = 1; i < argc; i++) {
         const wchar_t *p = wargv[i];
         if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
-            int pchar = towlower(p[1]);
-            if (pchar == L'x') {
+            if (p[1] == L'x' || p[1] == L'X') {
                 cnamestamp = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
                 wrunbatchx = CPP_WIDEN(RUNBATCH_APPNAME);
                 if (p[1] == L'X')
@@ -2510,9 +2511,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
     se[1].lpServiceName = NULL;
     se[1].lpServiceProc = NULL;
-    if (servicemode == 0) {
+    if (runbatchmode) {
         dbgprints(__FUNCTION__, "running batchfile");
-        servicemain(1, cwargv);
+        servicemain(0, NULL);
         rv = ssvcstatus.dwServiceSpecificExitCode;
     }
     else {
