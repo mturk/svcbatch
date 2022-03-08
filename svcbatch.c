@@ -1359,37 +1359,25 @@ static unsigned int __stdcall runexecthread(void *param)
 {
     wchar_t *cmdline;
     HANDLE   wh[2];
-    HANDLE   h = NULL;
-    HANDLE   z = (HANDLE)param;
+    HANDLE   h = (HANDLE)param;
     DWORD    rc;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
 
-    ResetEvent(z);
+    ResetEvent(h);
 
     dbgprints(__FUNCTION__, "started");
-    EnterCriticalSection(&logfilelock);
-    h = InterlockedExchangePointer(&logfhandle, NULL);
-    if (h != NULL) {
-        logfflush(h);
-        if (z == svcexecended)
-            logprintf(h, "Starting RunBatch\r\n");
-        else
-            logprintf(h, "Starting SvcStop\r\n");
-    }
-    InterlockedExchangePointer(&logfhandle, h);
-    LeaveCriticalSection(&logfilelock);
 
     cmdline = xappendarg(NULL, svcbatchexe);
     cmdline = xwcsappend(cmdline, L" -n ");
     cmdline = xappendarg(cmdline, servicename);
+    cmdline = xwcsappend(cmdline, L" -u ");
+    cmdline = xwcsappend(cmdline, serviceuuid);
     cmdline = xwcsappend(cmdline, L" -w ");
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
-    cmdline = xwcsappend(cmdline, L" -u ");
-    cmdline = xwcsappend(cmdline, serviceuuid);
-    if (z == svcexecended) {
+    if (h == svcexecended) {
         cmdline = xwcsappend(cmdline, L" -x ");
         cmdline = xappendarg(cmdline, svcrunbatch);
     }
@@ -1450,8 +1438,8 @@ static unsigned int __stdcall runexecthread(void *param)
 finished:
     xfree(cmdline);
     dbgprints(__FUNCTION__, "done");
-    SetEvent(z);
-    if (z == svcexecended)
+    SetEvent(h);
+    if (h == svcexecended)
         InterlockedExchange(&rstarted, 0L);
     XENDTHREAD(0);
 }
@@ -1476,7 +1464,7 @@ static unsigned int __stdcall stopthread(void *unused)
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h != NULL) {
         logfflush(h);
-        logwrline(h, "Service STOP signaled\r\n");
+        logwrline(h, "Running service STOP");
     }
     InterlockedExchangePointer(&logfhandle, h);
     LeaveCriticalSection(&logfilelock);
@@ -1489,6 +1477,7 @@ static unsigned int __stdcall stopthread(void *unused)
             dbgprints(__FUNCTION__, "cannot create runexecthread");
         }
         else {
+            dbgprints(__FUNCTION__, "waiting for stop hook finish ...");
             ws = WaitForSingleObject(h, SVCBATCH_STOP_HINT);
             CloseHandle(h);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
@@ -1659,7 +1648,7 @@ static unsigned int __stdcall monitorthread(void *unused)
 
                     if (h != NULL) {
                         logfflush(h);
-                        logwrline(h, "CTRL_BREAK_EVENT signaled\r\n");
+                        logwrline(h, "signaled CTRL_BREAK_EVENT");
                     }
                     InterlockedExchangePointer(&logfhandle, h);
                     LeaveCriticalSection(&logfilelock);
@@ -2007,6 +1996,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 #if defined(SERVICE_CONTROL_PRESHUTDOWN)
         case SERVICE_CONTROL_PRESHUTDOWN:
 #endif
+            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_SHUTDOWN");
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
             if (h != NULL) {
@@ -2016,6 +2006,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
         case SERVICE_CONTROL_STOP:
+            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_STOP");
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
             xcreatethread(1, 0, &stopthread, NULL);
         break;
@@ -2235,7 +2226,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 wrunbatchx = CPP_WIDEN(RUNBATCH_APPNAME);
                 if (pchar == L'i')
                     consolemode  = 1;
-                if (pchar == L'x')
+                else
                     runbatchmode = 1;
                 if (p[1] == L'X')
                     wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
