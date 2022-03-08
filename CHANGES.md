@@ -13,6 +13,7 @@ For a full list of changes, see the [git commit log][log]
  * Add feature to run batch file on service stop.
  * Add Service preshutdown option
  * Increase SVC_MAX_LOGS to 9
+ * Drop consolemode
  * Remove _RUN_API_TEST
 
 ## v1.0.6

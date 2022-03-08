@@ -49,7 +49,6 @@ static int       hasctrlbreak     = 0;
 static int       usecleanpath     = 0;
 static int       usesafeenv       = 0;
 static int       autorotate       = 0;
-static int       consolemode      = 0;
 static int       runbatchmode     = 0;
 static int       servicemode      = 1;
 static DWORD     preshutdown      = 0;
@@ -466,13 +465,7 @@ static void dbgprints(const char *funcname, const char *string)
     strncat(bp, string, blen - n - z);
     buf[SBUFSIZ - 1] = '\0';
     EnterCriticalSection(&dbgviewlock);
-    if (consolemode) {
-        fputs(buf,  stdout);
-        fputc('\n', stdout);
-    }
-    else {
-        OutputDebugStringA(buf + z);
-    }
+    OutputDebugStringA(buf + z);
 #if defined(_DBGVIEW_SAVE)
     if (h != NULL) {
         LARGE_INTEGER ee = {{ 0, 0 }};
@@ -544,8 +537,6 @@ static int setupeventlog(void)
     DWORD c;
     HKEY  k;
 
-    if (consolemode)
-        return 0;
     if (InterlockedIncrement(&eset) > 1)
         return ssrv;
     kname = xwcsconcat( L"SYSTEM\\CurrentControlSet\\Services\\" \
@@ -595,28 +586,19 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     errarg[8] = NULL;
     errarg[9] = NULL;
 
-    if (consolemode)
-        fprintf(stderr, "%S %S\n", errarg[0], errarg[1]);
-    else
-        dbgprintf(__FUNCTION__, "%S %S", errarg[0], errarg[1]);
+    dbgprintf(__FUNCTION__, "%S %S", errarg[0], errarg[1]);
     if (ern) {
         memset(erb, 0, sizeof(erb));
         xwinapierror(erb, MBUFSIZ - 1, ern);
         errarg[5] = L":";
         errarg[6] = erb;
         errarg[7] = CRLFW;
-        if (consolemode)
-            fprintf(stderr, "%S %S : %S\n", buf, err, erb);
-        else
-            dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erb);
+        dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erb);
     }
     else {
         errarg[5] = CRLFW;
         ern = ERROR_INVALID_PARAMETER;
-        if (consolemode)
-            fprintf(stderr, "%S %S\n", errarg[0], errarg[1]);
-        else
-            dbgprintf(__FUNCTION__, "%S %S", buf, err);
+        dbgprintf(__FUNCTION__, "%S %S", buf, err);
     }
     if (setupeventlog()) {
         HANDLE es = RegisterEventSourceW(NULL, wrunbatchx);
@@ -776,8 +758,6 @@ static int resolvebatchname(const wchar_t *batch)
             svcbatchfile[i] = L'\0';
             batchdirname = xwcsdup(svcbatchfile);
             if (d > 0) {
-                if (consolemode)
-                    cwargv[0] = xwcsdup(svcbatchfile + i + 1);
                 svcbatchfile[d] = L'.';
             }
             svcbatchfile[i] = L'\\';
@@ -1005,8 +985,6 @@ static void logconfig(HANDLE h)
     logprintf(h, "Log directory    : %S", loglocation);
     if (autorotate)
         fs = xwcsappend(fs, L"autorotate, ");
-    if (consolemode)
-        fs = xwcsappend(fs, L"console mode, ");
     if (runbatchmode)
         fs = xwcsappend(fs, L"runbatchmode mode, ");
     if (hasctrlbreak)
@@ -2224,17 +2202,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         const wchar_t *p = wargv[i];
         if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
             int pchar = towlower(p[1]);
-            if (pchar == L'i' || pchar == L'x') {
+            if (pchar == L'x') {
                 cnamestamp = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
                 wrunbatchx = CPP_WIDEN(RUNBATCH_APPNAME);
-                if (pchar == L'i')
-                    consolemode  = 1;
-                else
-                    runbatchmode = 1;
                 if (p[1] == L'X')
                     wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
                 else
                     wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
+                runbatchmode = 1;
                 servicemode = 0;
                 break;
             }
@@ -2314,9 +2289,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'c':
                         usecleanpath = 1;
                     break;
-                    case L'i':
-                        consolemode  = 1;
-                    break;
                     case L'x':
                         runbatchmode = 1;
                     break;
@@ -2368,12 +2340,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
         }
     }
-    if (consolemode) {
-        fputs(cnamestamp, stdout);
-        fputs("\n\n",     stdout);
-    }
 #if defined(_CHECK_IF_SERVICE)
-    else if (runbatchmode == 0} {
+    if (servicemode} {
         if (runningasservice() == 0) {
             fputs(cnamestamp, stderr);
             fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
@@ -2382,8 +2350,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 #endif
-    if (consolemode && runbatchmode)
-        return svcsyserror(__LINE__, 0, L"Both -i and -x parameters are specified");
     if (IS_EMPTY_WCS(bname))
         return svcsyserror(__LINE__, 0, L"Missing batch file");
 

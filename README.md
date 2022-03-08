@@ -299,16 +299,6 @@ make sure to get familiar with `sc.exe` utility.
   exiting `SvcBatch.log` to `SvcBatch.log.YYYY-MM-DD.hhmmss`.
   Timestamp used is the last write time of `SvcBatch.log`
 
-* **-i**
-
-  **Run as console application**
-
-  When defined, SvcBatch will run as standard console application.
-  This option is used mostly for debug purposes allowing
-  to verify service batch file functionality.
-
-  Do **not** use this option when installing regular services.
-
 * **-p**
 
   **Enable preshutdown service notification **
@@ -316,6 +306,15 @@ make sure to get familiar with `sc.exe` utility.
   When defined, SvcBatch will accept SERVICE_CONTROL_PRESHUTDOWN control code.
   The service control manager waits until the service stops or the specified
   preshutdown time-out value expires
+
+* **-e [batchfile]**
+
+  **Execute batch file at runtime**
+
+
+* **-h [batchfile]**
+
+  **Execute batch file on service shutdown**
 
 
 ## Private Environment Variables
