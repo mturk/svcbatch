@@ -1934,9 +1934,8 @@ finished:
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
     HANDLE h = NULL;
-    const char *msg = "(unknown)";
+    const char *msg = NULL;
 
-#if defined(_DBGVIEW)
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
             msg = "signaled CTRL_CLOSE_EVENT";
@@ -1953,8 +1952,10 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         case CTRL_LOGOFF_EVENT:
             msg = "signaled CTRL_LOGOFF_EVENT";
         break;
+        default:
+            msg = "(unknown)";
+        break;
     }
-#endif
 
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
@@ -2101,9 +2102,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         }
         dbgprintf(__FUNCTION__, "started %S", servicename);
     }
+#if defined(_DBGVIEW)
     else {
         dbgprintf(__FUNCTION__, "running child for %S service", servicename);
     }
+#endif
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     rv = openlogfile(TRUE);
     if (rv != 0) {
