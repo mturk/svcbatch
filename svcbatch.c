@@ -836,7 +836,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwWaitHint   = param;
     }
     ssvcstatus.dwCurrentState = status;
-    if ((servicemode == 0) || SetServiceStatus(hsvcstatus, &ssvcstatus))
+    if (runbatchmode || SetServiceStatus(hsvcstatus, &ssvcstatus))
         InterlockedExchange(&sscstate, status);
     else
         svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
@@ -1940,7 +1940,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         case CTRL_C_EVENT:
         case CTRL_BREAK_EVENT:
             dbgprints(__FUNCTION__, msg);
-            if (servicemode == 0) {
+            if (runbatchmode) {
                 dbgprints(__FUNCTION__, "calling stop for RunBatch mode");
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
@@ -2210,7 +2210,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 else
                     wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
                 runbatchmode = 1;
-                servicemode = 0;
+                servicemode  = 0;
                 break;
             }
         }
@@ -2289,11 +2289,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'c':
                         usecleanpath = 1;
                     break;
-                    case L'x':
-                        runbatchmode = 1;
-                    break;
                     case L'o':
                         loglocation  = zerostring;
+                    break;
+                    case L'p':
+                        preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
                     break;
                     case L'r':
                         autorotate   = 1;
@@ -2305,20 +2305,24 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'w':
                         servicehome  = zerostring;
                     break;
-                    case L'u':
-                        serviceuuid  = zerostring;
+                    /**
+                     * Private options
+                     */
+                    case L'e':
+                        svcrunbatch  = zerostring;
                     break;
                     case L'h':
                         svcstopexec  = zerostring;
                     break;
-                    case L'e':
-                        svcrunbatch  = zerostring;
-                    break;
                     case L'n':
                         servicename  = zerostring;
                     break;
-                    case L'p':
-                        preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
+                    case L'u':
+                        serviceuuid  = zerostring;
+                    break;
+                    case L'x':
+                        runbatchmode = 1;
+                        servicemode  = 0;
                     break;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown command line option");
