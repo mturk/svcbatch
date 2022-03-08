@@ -131,9 +131,9 @@ present inside `Logs` directory using the following procedure:
   This means that SvcBatch.log.9 will be overwritten, so make sure
   to backup SvcBatch.log.9 before log rotation occurs if needed
 
-* If exists move SvcBatch.log.2 to SvcBatch.log.9
+* If exists move SvcBatch.log.7 to SvcBatch.log.8
 * ...
-* If exists move SvcBatch.log.2 to SvcBatch.log.3
+* ...
 * If exists move SvcBatch.log.1 to SvcBatch.log.2
 * If exists move SvcBatch.log.0 to SvcBatch.log.1
 * Create new SvcBatch.log and use it as current log file.
@@ -295,7 +295,7 @@ make sure to get familiar with `sc.exe` utility.
   When this parameter is defined log rotation will not use
   the logic defined in [Log Rotation](#log-rotation) section.
 
-  Intead rotating Svcbatch.log from `1...4` it will rotate
+  Intead rotating Svcbatch.log from `1...9` it will rotate
   exiting `SvcBatch.log` to `SvcBatch.log.YYYY-MM-DD.hhmmss`.
   Timestamp used is the last write time of `SvcBatch.log`
 

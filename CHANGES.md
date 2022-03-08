@@ -9,8 +9,8 @@ For a full list of changes, see the [git commit log][log]
 ## v1.1.0
 
  * In development
- * Bump minor version
  * Add RunBatch feature
+ * Add feature to run batch file on service stop.
  * Add Service preshutdown option
  * Increase SVC_MAX_LOGS to 9
  * Remove _RUN_API_TEST
