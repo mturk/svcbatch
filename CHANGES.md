@@ -15,6 +15,7 @@ For a full list of changes, see the [git commit log][log]
  * Increase SVC_MAX_LOGS to 9
  * Drop interactive mode
  * Remove _RUN_API_TEST
+ * Remove _DBGVIEW_SAVE
 
 ## v1.0.6
 

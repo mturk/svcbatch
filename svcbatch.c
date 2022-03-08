@@ -70,11 +70,6 @@ static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 #if defined(_DBGVIEW)
 static CRITICAL_SECTION dbgviewlock;
-#if defined(_DBGVIEW_SAVE)
-static volatile LONG   dbgwritten = 0;
-static volatile HANDLE dbgfhandle = NULL;
-static ULONGLONG       dbginitick;
-#endif
 #endif
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
@@ -441,24 +436,8 @@ static void dbgprints(const char *funcname, const char *string)
     size_t  blen = SBUFSIZ - 1;
     int     n = 0;
     int     z = 0;
-#if defined(_DBGVIEW_SAVE)
-    HANDLE  h;
-    DWORD   ct, wr, ss, ms;
-#endif
 
     bp = buf;
-#if defined(_DBGVIEW_SAVE)
-    h = InterlockedExchangePointer(&dbgfhandle, NULL);
-    if (h != NULL) {
-        ct = (DWORD)(GetTickCount64() - dbginitick);
-        ms = (DWORD)(ct % MS_IN_SECOND);
-        ss = (DWORD)(ct / MS_IN_SECOND);
-        z  = _snprintf(bp, blen,
-                       "[%.6lu.%.3lu] [%.4lu] ",
-                       ss, ms, GetCurrentProcessId());
-        bp = bp + z;
-    }
-#endif
     n = _snprintf(bp, blen - z,
                   "[%.4lu] %-16s ",
                   GetCurrentThreadId(), funcname);
@@ -467,23 +446,6 @@ static void dbgprints(const char *funcname, const char *string)
     buf[SBUFSIZ - 1] = '\0';
     EnterCriticalSection(&dbgviewlock);
     OutputDebugStringA(buf + z);
-#if defined(_DBGVIEW_SAVE)
-    if (h != NULL) {
-        LARGE_INTEGER ee = {{ 0, 0 }};
-
-        if (SetFilePointerEx(h, ee, NULL, FILE_END)) {
-            if (WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL)) {
-                InterlockedAdd(&dbgwritten, wr);
-                WriteFile(h, CRLFA, 2, &wr, NULL);
-                if (InterlockedAdd(&dbgwritten, wr) >= SVCBATCH_LOGFLUSH_SIZE) {
-                    FlushFileBuffers(h);
-                    InterlockedExchange(&dbgwritten, 0);
-                }
-            }
-        }
-        InterlockedExchangePointer(&dbgfhandle, h);
-    }
-#endif
     LeaveCriticalSection(&dbgviewlock);
 }
 
@@ -1039,50 +1001,6 @@ static DWORD openlogfile(BOOL firstopen)
         }
         logfilename = xwcsvarcat(loglocation, L"\\", wrunbatchn, L".log", NULL);
     }
-#if defined(_DBGVIEW_SAVE)
-    if (servicemode) {
-        EnterCriticalSection(&dbgviewlock);
-        h = InterlockedExchangePointer(&dbgfhandle, NULL);
-        if (h == NULL) {
-            wchar_t *dn;
-
-            dn = xwcsconcat(loglocation, L"\\" CPP_WIDEN(SVCBATCH_NAME) L".dbg");
-
-            h  = CreateFileW(dn, GENERIC_WRITE,
-                             FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
-                             FILE_ATTRIBUTE_NORMAL, NULL);
-            if (IS_INVALID_HANDLE(h)) {
-                h = NULL;
-                dbgprintf(__FUNCTION__, "failed to create %S", dn);
-            }
-            else {
-                SYSTEMTIME tt;
-                if (GetLastError() == ERROR_ALREADY_EXISTS) {
-                    DWORD wr;
-                    LARGE_INTEGER ee = {{ 0, 0 }};
-
-                    SetFilePointerEx(h, ee, NULL, FILE_END);
-                    WriteFile(h, CRLFA, 4, &wr, NULL);
-                }
-
-                GetSystemTime(&tt);
-                InterlockedExchangePointer(&dbgfhandle, h);
-                dbgprintf(__FUNCTION__, "%.4d-%.2d-%.2d %.2d:%.2d:%.2d",
-                          tt.wYear, tt.wMonth, tt.wDay,
-                          tt.wHour, tt.wMinute, tt.wSecond);
-                dbgprintf(__FUNCTION__, "tracing %S to %S", servicename, dn);
-            }
-            xfree(dn);
-        }
-        else {
-            /**
-             * Already opened
-             */
-            InterlockedExchangePointer(&dbgfhandle, h);
-        }
-        LeaveCriticalSection(&dbgviewlock);
-    }
-#endif
     memset(sfx, 0, sizeof(sfx));
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
         DWORD mm;
@@ -2233,9 +2151,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
 #if defined(_DBGVIEW)
     InitializeCriticalSection(&dbgviewlock);
-#if defined(_DBGVIEW_SAVE)
-    dbginitick = GetTickCount64();
-#endif
     OutputDebugStringA(cnamestamp);
 #endif
     if (wenv != NULL) {
@@ -2543,19 +2458,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (!StartServiceCtrlDispatcherW(se))
             rv = svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher");
     }
-#if defined(_DBGVIEW)
     dbgprints(__FUNCTION__, "done");
-#if defined(_DBGVIEW_SAVE)
-    if (servicemode) {
-        EnterCriticalSection(&dbgviewlock);
-        h = InterlockedExchangePointer(&dbgfhandle, NULL);
-        if (h != NULL) {
-            FlushFileBuffers(h);
-            CloseHandle(h);
-        }
-        LeaveCriticalSection(&dbgviewlock);
-    }
-#endif
-#endif
     return rv;
 }
