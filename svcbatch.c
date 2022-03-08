@@ -2305,15 +2305,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'w':
                         servicehome  = zerostring;
                     break;
-                    /**
-                     * Private options
-                     */
                     case L'e':
                         svcrunbatch  = zerostring;
                     break;
                     case L'h':
                         svcstopexec  = zerostring;
                     break;
+                    /**
+                     * Private options
+                     */
                     case L'n':
                         servicename  = zerostring;
                     break;
