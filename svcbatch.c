@@ -836,11 +836,9 @@ static void reportsvcstatus(DWORD status, DWORD param)
 
     if ((status == SERVICE_RUNNING) || (status == SERVICE_PAUSED)) {
         ssvcstatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
+                                         SERVICE_ACCEPT_PRESHUTDOWN |
                                          SERVICE_ACCEPT_SHUTDOWN |
                                          SERVICE_ACCEPT_PAUSE_CONTINUE;
-#if defined(SERVICE_ACCEPT_PRESHUTDOWN)
-        ssvcstatus.dwControlsAccepted |= SERVICE_ACCEPT_PRESHUTDOWN;
-#endif
         cpcnt = 1;
     }
     else if (status == SERVICE_STOPPED) {
@@ -1993,16 +1991,14 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
     HANDLE h = NULL;
 
     switch(ctrl) {
-        case SERVICE_CONTROL_SHUTDOWN:
-#if defined(SERVICE_CONTROL_PRESHUTDOWN)
         case SERVICE_CONTROL_PRESHUTDOWN:
-#endif
-            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_SHUTDOWN");
+            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_PRESHUTDOWN");
+        case SERVICE_CONTROL_SHUTDOWN:
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
             if (h != NULL) {
                 logfflush(h);
-                logprintf(h, "Service SHUTDOWN (0x%08x) signaled", ctrl);
+                logprintf(h, "Service %sSHUTDOWN signaled", ctrl == SERVICE_CONTROL_PRESHUTDOWN ? "PRE" : "");
             }
             InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
