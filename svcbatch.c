@@ -2099,9 +2099,12 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             exit(ERROR_INVALID_HANDLE);
             return;
         }
+        dbgprintf(__FUNCTION__, "started %S", servicename);
+    }
+    else {
+        dbgprintf(__FUNCTION__, "running child for %S service", servicename);
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    dbgprintf(__FUNCTION__, "started %S", servicename);
     rv = openlogfile(TRUE);
     if (rv != 0) {
         svcsyserror(__LINE__, rv, L"openlogfile");
