@@ -309,6 +309,15 @@ make sure to get familiar with `sc.exe` utility.
 
   Do **not** use this option when installing regular services.
 
+* **-p**
+
+  **Enable preshutdown service notification **
+
+  When defined, SvcBatch will accept SERVICE_CONTROL_PRESHUTDOWN control code.
+  The service control manager waits until the service stops or the specified
+  preshutdown time-out value expires
+
+
 ## Private Environment Variables
 
 SvcBatch sets a few private environment variables that

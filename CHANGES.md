@@ -11,6 +11,7 @@ For a full list of changes, see the [git commit log][log]
  * In development
  * Bump minor version
  * Add RunBatch feature
+ * Add Service preshutdown option
  * Increase SVC_MAX_LOGS to 9
  * Remove _RUN_API_TEST
 

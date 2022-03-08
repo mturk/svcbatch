@@ -52,6 +52,7 @@ static int       autorotate       = 0;
 static int       consolemode      = 0;
 static int       runbatchmode     = 0;
 static int       servicemode      = 1;
+static DWORD     preshutdown      = 0;
 
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *batchdirname     = NULL;
@@ -836,9 +837,9 @@ static void reportsvcstatus(DWORD status, DWORD param)
 
     if ((status == SERVICE_RUNNING) || (status == SERVICE_PAUSED)) {
         ssvcstatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
-                                         SERVICE_ACCEPT_PRESHUTDOWN |
                                          SERVICE_ACCEPT_SHUTDOWN |
-                                         SERVICE_ACCEPT_PAUSE_CONTINUE;
+                                         SERVICE_ACCEPT_PAUSE_CONTINUE |
+                                         preshutdown;
         cpcnt = 1;
     }
     else if (status == SERVICE_STOPPED) {
@@ -2343,6 +2344,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     break;
                     case L'n':
                         servicename  = zerostring;
+                    break;
+                    case L'p':
+                        preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
                     break;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown command line option");

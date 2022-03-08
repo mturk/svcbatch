@@ -65,7 +65,7 @@ rem
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
-set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -w \"%cd%\" -o \"Log Files\" -r @30~100K -e dummysvcrun.bat -h dummystophook.bat %~nx0"
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -p -w \"%cd%\" -o \"Log Files\" -r @30~100K -e dummysvcrun.bat -h dummystophook.bat %~nx0"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
