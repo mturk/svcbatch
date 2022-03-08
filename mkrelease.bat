@@ -18,7 +18,7 @@ rem --------------------------------------------------
 rem SvcBatch release helper script
 rem
 rem Usage: mkrelease.bat version [options]
-rem    eg: mkrelease 1.0.6_1 "_VENDOR_SFX=_1"
+rem    eg: mkrelease 1.1.0_1 "_VENDOR_SFX=_1"
 rem
 setlocal
 if "x%~1" == "x" goto Einval

@@ -33,7 +33,7 @@ Open command prompt in the directory where you have
 downloaded or cloned SvcBatch and do the following
 
 ```cmd
-> C:\cmsc-15.0_33\setenv.bat
+> C:\cmsc-15.0_45\setenv.bat
 Using default architecture: x64
 Setting build environment for win-x64/0x0601
 
@@ -167,7 +167,7 @@ section for more info about ClamAV installation and setup.
 
 To create a .zip distribution archive download
 and extract the 7-zip standalone console version from
-[7-Zip Extra](https://www.7-zip.org/a/7z1900-extra.7z)
+[7-Zip Extra](https://www.7-zip.org/a/7z2107-extra.7z)
 and put **7za.exe** somewhere in the PATH.
 
 After compilation, run the [release](../mkrelease.bat) batch file
