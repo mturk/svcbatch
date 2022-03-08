@@ -1358,10 +1358,9 @@ static unsigned int __stdcall runexecthread(void *param)
     if (h == svcexecended) {
         wchar_t giid[64];
 
-        _snwprintf(giid, 60, L" -g %lu ", rgeneration);
+        _snwprintf(giid, 60, L" -g %lu -x ", rgeneration);
         InterlockedIncrement(&rgeneration);
         cmdline = xwcsappend(cmdline, giid);
-        cmdline = xwcsappend(cmdline, L" -x ");
         cmdline = xappendarg(cmdline, svcrunbatch);
     }
     else {
