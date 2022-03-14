@@ -97,55 +97,55 @@ static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0";
 
 static const wchar_t *removeenv[] = {
-    L"_=",
-    L"!::=",
-    L"!;=",
-    L"SVCBATCH_SERVICE_BASE=",
-    L"SVCBATCH_SERVICE_HOME=",
-    L"SVCBATCH_SERVICE_LOGDIR=",
-    L"SVCBATCH_SERVICE_NAME=",
-    L"SVCBATCH_SERVICE_UUID=",
-    L"PATH=",
+    L"_",
+    L"!::",
+    L"!;",
+    L"SVCBATCH_SERVICE_BASE",
+    L"SVCBATCH_SERVICE_HOME",
+    L"SVCBATCH_SERVICE_LOGDIR",
+    L"SVCBATCH_SERVICE_NAME",
+    L"SVCBATCH_SERVICE_UUID",
+    L"PATH",
     NULL
 };
 
 static const wchar_t *safewinenv[] = {
-    L"ALLUSERSPROFILE=",
-    L"APPDATA=",
-    L"COMMONPROGRAMFILES(X86)=",
-    L"COMMONPROGRAMFILES=",
-    L"COMMONPROGRAMW6432=",
-    L"COMPUTERNAME=",
-    L"COMSPEC=",
-    L"HOMEDRIVE=",
-    L"HOMEPATH=",
-    L"LOCALAPPDATA=",
-    L"LOGONSERVER=",
-    L"NUMBER_OF_PROCESSORS=",
-    L"OS=",
-    L"PATHEXT=",
-    L"PROCESSOR_ARCHITECTURE=",
-    L"PROCESSOR_ARCHITEW6432=",
-    L"PROCESSOR_IDENTIFIER=",
-    L"PROCESSOR_LEVEL=",
-    L"PROCESSOR_REVISION=",
-    L"PROGRAMDATA=",
-    L"PROGRAMFILES(X86)=",
-    L"PROGRAMFILES=",
-    L"PROGRAMW6432=",
-    L"PSMODULEPATH=",
-    L"PUBLIC=",
-    L"SESSIONNAME=",
-    L"SYSTEMDRIVE=",
-    L"SYSTEMROOT=",
-    L"TEMP=",
-    L"TMP=",
-    L"USERDNSDOMAIN=",
-    L"USERDOMAIN=",
-    L"USERDOMAIN_ROAMINGPROFILE=",
-    L"USERNAME=",
-    L"USERPROFILE=",
-    L"WINDIR=",
+    L"ALLUSERSPROFILE",
+    L"APPDATA",
+    L"COMMONPROGRAMFILES(X86)",
+    L"COMMONPROGRAMFILES",
+    L"COMMONPROGRAMW6432",
+    L"COMPUTERNAME",
+    L"COMSPEC",
+    L"HOMEDRIVE",
+    L"HOMEPATH",
+    L"LOCALAPPDATA",
+    L"LOGONSERVER",
+    L"NUMBER_OF_PROCESSORS",
+    L"OS",
+    L"PATHEXT",
+    L"PROCESSOR_ARCHITECTURE",
+    L"PROCESSOR_ARCHITEW6432",
+    L"PROCESSOR_IDENTIFIER",
+    L"PROCESSOR_LEVEL",
+    L"PROCESSOR_REVISION",
+    L"PROGRAMDATA",
+    L"PROGRAMFILES(X86)",
+    L"PROGRAMFILES",
+    L"PROGRAMW6432",
+    L"PSMODULEPATH",
+    L"PUBLIC",
+    L"SESSIONNAME",
+    L"SYSTEMDRIVE",
+    L"SYSTEMROOT",
+    L"TEMP",
+    L"TMP",
+    L"USERDNSDOMAIN",
+    L"USERDOMAIN",
+    L"USERDOMAIN_ROAMINGPROFILE",
+    L"USERNAME",
+    L"USERPROFILE",
+    L"WINDIR",
     NULL
 };
 
@@ -290,19 +290,18 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
     return rp;
 }
 
-static int strstartswith(const wchar_t *str, const wchar_t *src)
+static int xwcsisenvvar(const wchar_t *str, const wchar_t *var)
 {
     while (*str != L'\0') {
-        if (towlower(*str) != towlower(*src))
+        if (towlower(*str) != towlower(*var))
             break;
         str++;
-        src++;
-        if (*src == L'\0')
-            return 1;
+        var++;
+        if (*var == L'\0')
+            return *str == L'=';
     }
     return 0;
 }
-
 static int envsort(const void *arg1, const void *arg2)
 {
     return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
@@ -743,7 +742,7 @@ static int runningasservice(void)
 
         if (GetUserObjectInformationW(ws, UOI_NAME, name,
                                       BBUFSIZ, &len)) {
-            if (strstartswith(name, L"Service-")) {
+            if (_wcsnicmp(name, L"Service-", 8) == 0) {
                 if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
                                               DSIZEOF(uf), &len)) {
                     if (uf.dwFlags != WSF_VISIBLE)
@@ -2351,7 +2350,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             e = safewinenv;
             p = NULL;
             while (*e != NULL) {
-                if (strstartswith(wenv[i], *e)) {
+                if (xwcsisenvvar(wenv[i], *e)) {
                     p = wenv[i];
                     break;
                 }
@@ -2361,7 +2360,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         else {
             e = removeenv;
             while (*e != NULL) {
-                if (strstartswith(p, *e)) {
+                if (xwcsisenvvar(p, *e)) {
                     p = NULL;
                     break;
                 }
