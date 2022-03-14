@@ -67,9 +67,7 @@ static wchar_t  *sgeneration      = NULL;
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
-#if defined(_DBGVIEW)
-static CRITICAL_SECTION dbgviewlock;
-#endif
+
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
@@ -432,18 +430,15 @@ static void dbgprints(const char *funcname, const char *string)
     char   *bp;
     size_t  blen = SBUFSIZ - 1;
     int     n = 0;
-    int     z = 0;
 
     bp = buf;
-    n = _snprintf(bp, blen - z,
+    n = _snprintf(bp, blen,
                   "[%.4lu] %-16s ",
                   GetCurrentThreadId(), funcname);
     bp = bp + n;
-    strncat(bp, string, blen - n - z);
+    strncat(bp, string, blen - n);
     buf[SBUFSIZ - 1] = '\0';
-    EnterCriticalSection(&dbgviewlock);
-    OutputDebugStringA(buf + z);
-    LeaveCriticalSection(&dbgviewlock);
+    OutputDebugStringA(buf);
 }
 
 static void dbgprintf(const char *funcname, const char *format, ...)
@@ -2076,9 +2071,6 @@ static void __cdecl objectscleanup(void)
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
-#if defined(_DBGVIEW)
-    DeleteCriticalSection(&dbgviewlock);
-#endif
 }
 
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
@@ -2121,7 +2113,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 #if defined(_DBGVIEW)
-    InitializeCriticalSection(&dbgviewlock);
     OutputDebugStringA(cnamestamp);
 #endif
     if (wenv != NULL) {
