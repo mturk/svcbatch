@@ -16,6 +16,7 @@ For a full list of changes, see the [git commit log][log]
  * Drop interactive mode
  * Remove _RUN_API_TEST
  * Remove _DBGVIEW_SAVE
+ * Remove experimental support for service pause/continue
 
 ## v1.0.6
 

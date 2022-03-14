@@ -24,7 +24,6 @@
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
-static volatile LONG         svcworking  = 1;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         rstarted    = 0;
 static volatile LONG         rgeneration = 0;
@@ -78,7 +77,6 @@ static HANDLE    svcexecended     = NULL;
 static HANDLE    svchookended     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
-static HANDLE    workingevent     = NULL;
 static HANDLE    outputpiperd     = NULL;
 static HANDLE    inputpipewrs     = NULL;
 
@@ -777,10 +775,9 @@ static void reportsvcstatus(DWORD status, DWORD param)
     ssvcstatus.dwCheckPoint       = 0;
     ssvcstatus.dwWaitHint         = 0;
 
-    if ((status == SERVICE_RUNNING) || (status == SERVICE_PAUSED)) {
+    if (status == SERVICE_RUNNING) {
         ssvcstatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
                                          SERVICE_ACCEPT_SHUTDOWN |
-                                         SERVICE_ACCEPT_PAUSE_CONTINUE |
                                          preshutdown;
         cpcnt = 1;
     }
@@ -1460,19 +1457,6 @@ static unsigned int __stdcall iopipethread(void *unused)
         DWORD rd = 0;
         HANDLE h = NULL;
 
-        if (InterlockedExchange(&svcworking, 1) == 0) {
-            HANDLE wh[2];
-
-            wh[0] = workingevent;
-            wh[1] = processended;
-
-            dbgprints(__FUNCTION__, "waiting for continue...");
-            if (WaitForMultipleObjects(2, wh, FALSE, INFINITE) != WAIT_OBJECT_0) {
-                dbgprints(__FUNCTION__, "ended");
-                XENDTHREAD(0);
-            }
-            dbgprints(__FUNCTION__, "resuming");
-        }
         if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
             if (rd == 0) {
                 /**
@@ -1572,17 +1556,6 @@ static unsigned int __stdcall monitorthread(void *unused)
                         break;
                     }
                     rotatesynctime();
-                }
-                else if (cc == SERVICE_CONTROL_PAUSE) {
-                    dbgprints(__FUNCTION__, "pause signaled");
-                    InterlockedExchange(&svcworking, 0);
-                    reportsvcstatus(SERVICE_PAUSED, 0);
-                }
-                else if (cc == SERVICE_CONTROL_CONTINUE) {
-                    dbgprints(__FUNCTION__, "continue signaled");
-                    InterlockedExchange(&svcworking, 1);
-                    SetEvent(workingevent);
-                    reportsvcstatus(SERVICE_RUNNING, 0);
                 }
 #if defined(_DBGVIEW)
                 else {
@@ -2099,7 +2072,6 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(svcexecended);
     SAFE_CLOSE_HANDLE(svchookended);
     SAFE_CLOSE_HANDLE(monitorevent);
-    SAFE_CLOSE_HANDLE(workingevent);
     SAFE_CLOSE_HANDLE(childprocjob);
 
     DeleteCriticalSection(&logfilelock);
@@ -2414,9 +2386,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
-    workingevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
-    if (IS_INVALID_HANDLE(workingevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     childprocjob = CreateJobObjectW(&sazero, NULL);
     if (IS_INVALID_HANDLE(childprocjob))
