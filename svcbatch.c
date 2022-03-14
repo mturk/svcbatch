@@ -1271,9 +1271,9 @@ static unsigned int __stdcall runexecthread(void *param)
     cmdline = xappendarg(cmdline, loglocation);
     if (h == svcexecended) {
         wchar_t giid[64];
+        DWORD   gnum = (DWORD)InterlockedIncrement(&rgeneration);
 
-        _snwprintf(giid, 60, L" -g %lu -x ", rgeneration);
-        InterlockedIncrement(&rgeneration);
+        _snwprintf(giid, 60, L" -g %lu -x ", gnum);
         cmdline = xwcsappend(cmdline, giid);
         cmdline = xappendarg(cmdline, svcrunbatch);
     }
