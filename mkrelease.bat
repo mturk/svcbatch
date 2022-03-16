@@ -43,8 +43,12 @@ freshclam.exe --quiet
 pushd "%ReleaseArch%"
 echo ## Binary release v%ReleaseVersion% > %ReleaseName%.txt
 echo. >> %ReleaseName%.txt
-echo. >> %ReleaseName%.txt
 echo ```no-highlight >> %ReleaseName%.txt
+if "x%CMSC_VERSION%" == "x" goto ClamScan
+echo Compiled using: nmake _STATIC_MSVCRT=1 >> %ReleaseName%.txt
+echo Microsoft (R) C/C++ Optimizing Compiler Version 15.00.30729.207 for x64 >> %ReleaseName%.txt
+:ClamScan
+echo. >> %ReleaseName%.txt
 clamscan.exe --version >> %ReleaseName%.txt
 clamscan.exe --bytecode=no %ProjectName%.exe >> %ReleaseName%.txt
 echo ``` >> %ReleaseName%.txt
