@@ -1,4 +1,5 @@
 # Declare files that will always have LF or CRLF line endings on checkout.
+Makefile eol=crlf
 *.sh eol=lf
 *.gmk eol=lf
 *.mak eol=crlf
