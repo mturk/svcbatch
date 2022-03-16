@@ -202,7 +202,7 @@ make sure to get familiar with `sc.exe` utility.
 
 * **-o [path]**
 
-  Set Output directory to **path**
+  **Set service output directory**
 
   This option allows a user to set the output directory, which is where SvcBatch
   will create any runtime data files.
@@ -241,7 +241,7 @@ make sure to get familiar with `sc.exe` utility.
 
 * **-w [path]**
 
-  Set service working directory to **path**.
+  **Set service working directory**
 
   This option enables users to explicitly set the working
   directory. This allows for having a relative path
@@ -301,7 +301,7 @@ make sure to get familiar with `sc.exe` utility.
 
 * **-p**
 
-  **Enable preshutdown service notification **
+  **Enable preshutdown service notification**
 
   When defined, SvcBatch will accept SERVICE_CONTROL_PRESHUTDOWN control code.
   The service control manager waits until the service stops or the specified
