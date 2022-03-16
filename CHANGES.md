@@ -6,6 +6,10 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v1.1.1
+
+ * In development
+
 ## v1.1.0
 
  * Add RunBatch feature
