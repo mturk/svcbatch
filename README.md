@@ -311,11 +311,18 @@ make sure to get familiar with `sc.exe` utility.
 
   **Execute batch file at runtime**
 
+  If defined, SvcBatch will call **batchfile** when
+  custom code is signaled.
+
+  Use `sc.exe control [service name] 235` to signal the
+  SvcBatch to execute **batchfile**.
 
 * **-h [batchfile]**
 
-  **Execute batch file on service shutdown**
+  **Execute batch file on service stop or shutdown**
 
+  If defined, SvcBatch will call **batchfile** on
+  service stop event.
 
 ## Private Environment Variables
 
