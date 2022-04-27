@@ -370,14 +370,15 @@ static void xcleanwinpath(wchar_t *s)
             s[i] =  L'\\';
     }
     --i;
-    while (i > 2) {
-        if (s[i] == L';')
+    while (i > 1) {
+        if ((s[i] == L';') || (s[i] == L' ') || (s[i] == L'.'))
             s[i--] = L'\0';
         else
             break;
+
     }
     while (i > 1) {
-        if (s[i] ==  L'\\')
+        if ((s[i] ==  L'\\') && (s[i - 1] != L'.'))
             s[i--] = L'\0';
         else
             break;
@@ -670,25 +671,21 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     return buf;
 }
 
-static int resolvesvcbatchexe(void)
+static int resolvesvcbatchexe(const wchar_t *a)
 {
-    LPWSTR     *caa = NULL;
-    int         i;
+    int i;
 
-    caa = CommandLineToArgvW(zerostring, &i);
-    if (caa == NULL)
+    svcbatchexe = getrealpathname(a, 0);
+    if (IS_EMPTY_WCS(svcbatchexe))
         return 0;
-    svcbatchexe = getrealpathname(caa[0], 0);
-    LocalFree(caa);
-    if (svcbatchexe != NULL) {
-        i = xwcslen(svcbatchexe);
-        while (--i > 0) {
-            if (svcbatchexe[i] == L'\\') {
-                svcbatchexe[i] = L'\0';
-                servicebase = xwcsdup(svcbatchexe);
-                svcbatchexe[i] = L'\\';
-                return 1;
-            }
+
+    i = xwcslen(svcbatchexe);
+    while (--i > 0) {
+        if (svcbatchexe[i] == L'\\') {
+            svcbatchexe[i] = L'\0';
+            servicebase = xwcsdup(svcbatchexe);
+            svcbatchexe[i] = L'\\';
+            return 1;
         }
     }
     return 0;
@@ -2257,7 +2254,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (IS_EMPTY_WCS(bname))
         return svcsyserror(__LINE__, 0, L"Missing batch file");
 
-    if (resolvesvcbatchexe() == 0)
+    if (resolvesvcbatchexe(wargv[0]) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
     if (IS_EMPTY_WCS(serviceuuid)) {
         if (runbatchmode)
