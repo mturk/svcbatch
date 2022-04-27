@@ -71,6 +71,7 @@ static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
+static HANDLE    ssignalevent     = NULL;
 static HANDLE    svcexecended     = NULL;
 static HANDLE    svchookended     = NULL;
 static HANDLE    processended     = NULL;
@@ -1087,7 +1088,7 @@ static DWORD rotatelogs(void)
     HANDLE h = NULL;
 
     EnterCriticalSection(&logfilelock);
-    h =  InterlockedExchangePointer(&logfhandle, NULL);
+    h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h == NULL) {
         LeaveCriticalSection(&logfilelock);
         return ERROR_FILE_NOT_FOUND;
@@ -1242,7 +1243,7 @@ static int resolverotate(const wchar_t *str)
 static unsigned int __stdcall runexecthread(void *param)
 {
     wchar_t *cmdline;
-    HANDLE   wh[2];
+    HANDLE   wh[3];
     HANDLE   h = (HANDLE)param;
     DWORD    rc;
     PROCESS_INFORMATION cp;
@@ -1252,7 +1253,7 @@ static unsigned int __stdcall runexecthread(void *param)
 
     dbgprints(__FUNCTION__, "started");
 
-    cmdline = xappendarg(NULL, svcbatchexe);
+    cmdline = xappendarg(NULL,    svcbatchexe);
     cmdline = xwcsappend(cmdline, L" -n ");
     cmdline = xappendarg(cmdline, servicename);
     cmdline = xwcsappend(cmdline, L" -u ");
@@ -1270,7 +1271,7 @@ static unsigned int __stdcall runexecthread(void *param)
         cmdline = xappendarg(cmdline, svcrunbatch);
     }
     else {
-        cmdline = xwcsappend(cmdline, L" -X ");
+        cmdline = xwcsappend(cmdline, L" -z ");
         cmdline = xappendarg(cmdline, svcstopexec);
     }
 
@@ -1293,17 +1294,20 @@ static unsigned int __stdcall runexecthread(void *param)
     dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
     CloseHandle(cp.hThread);
     wh[0] = cp.hProcess;
-    wh[1] = processended;
+    wh[1] = ssignalevent;
+    wh[2] = processended;
 
-    rc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
+    rc = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
     switch (rc) {
         case WAIT_OBJECT_0:
             dbgprints(__FUNCTION__, "child process done");
         break;
         case WAIT_OBJECT_1:
+            dbgprints(__FUNCTION__, "ssignalevent signaled");
+        case WAIT_OBJECT_2:
             dbgprints(__FUNCTION__, "processended signaled");
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
-            if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_HINT) == WAIT_TIMEOUT) {
+            if (WaitForSingleObject(cp.hProcess, SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT) {
                 dbgprintf(__FUNCTION__, "terminating RunBatch child: %lu", cp.dwProcessId);
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
@@ -1365,11 +1369,11 @@ static unsigned int __stdcall stopthread(void *unused)
             dbgprints(__FUNCTION__, "cannot create runexecthread");
         }
         else {
-            dbgprints(__FUNCTION__, "waiting for stop hook finish ...");
+            dbgprints(__FUNCTION__, "waiting for stop hook to finish ...");
             ws = WaitForSingleObject(h, SVCBATCH_STOP_HINT);
             CloseHandle(h);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            dbgprints(__FUNCTION__, "stop hook done");
+            dbgprintf(__FUNCTION__, "stop hook done (ws=%lu)", ws);
         }
     }
     dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
@@ -1432,6 +1436,7 @@ static unsigned int __stdcall stopthread(void *unused)
     }
 
 finished:
+    SetEvent(ssignalevent);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
 
     dbgprints(__FUNCTION__, "done");
@@ -2063,6 +2068,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(svcexecended);
     SAFE_CLOSE_HANDLE(svchookended);
+    SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(childprocjob);
 
@@ -2092,21 +2098,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     for (i = 1; i < argc; i++) {
         const wchar_t *p = wargv[i];
-        if (((p[0] == L'-') || (p[0] == L'/')) && (p[1] != L'\0') && (p[2] == L'\0')) {
-            if (p[1] == L'x' || p[1] == L'X') {
-                cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-                wrunbatchx   = CPP_WIDEN(RUNBATCH_APPNAME);
-                runbatchmode = 1;
-                if (p[1] == L'X') {
-                    runbatchmode++;
-                    wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
-                }
-                else {
-                    wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
-                }
-                servicemode  = 0;
-                break;
-            }
+        if ((p[0] == L'-') && ((p[1] == L'x') || (p[1] == L'z')) && (p[2] == L'\0')) {
+            cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+            wrunbatchx   = CPP_WIDEN(RUNBATCH_APPNAME);
+            runbatchmode = p[1];
+            servicemode  = 0;
+            if (p[1] == L'z')
+                wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
+            else
+                wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
+            break;
         }
     }
 #if defined(_DBGVIEW)
@@ -2183,6 +2184,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'c':
                         usecleanpath = 1;
                     break;
+                    case L'e':
+                        svcrunbatch  = zerostring;
+                    break;
+                    case L'h':
+                        svcstopexec  = zerostring;
+                    break;
                     case L'o':
                         loglocation  = zerostring;
                     break;
@@ -2199,12 +2206,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'w':
                         servicehome  = zerostring;
                     break;
-                    case L'e':
-                        svcrunbatch  = zerostring;
-                    break;
-                    case L'h':
-                        svcstopexec  = zerostring;
-                    break;
                     /**
                      * Private options
                      */
@@ -2218,7 +2219,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         serviceuuid  = zerostring;
                     break;
                     case L'x':
-                        runbatchmode = 1;
+                    case L'z':
+                        runbatchmode = pchar;
                         servicemode  = 0;
                     break;
                     default:
@@ -2304,8 +2306,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         const wchar_t **e;
         const wchar_t  *p = wenv[i];
 
-        if (IS_EMPTY_WCS(p))
-            continue;
         if (usesafeenv) {
             e = safewinenv;
             p = NULL;
@@ -2369,6 +2369,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (IS_INVALID_HANDLE(svchookended))
             return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     }
+    ssignalevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
+    if (IS_INVALID_HANDLE(ssignalevent))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
