@@ -2332,14 +2332,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
 
     if (usecleanpath) {
-        wchar_t *cp = xwcsvarcat(servicebase, L";",
-                                 servicehome,
-                                 stdwinpaths, NULL);
+        cpath = xwcsvarcat(servicehome, L";",
+                           servicebase,
+                           stdwinpaths, NULL);
         xfree(opath);
-        opath = expandenvstrings(cp);
+        opath = expandenvstrings(cpath);
         if (IS_EMPTY_WCS(opath))
-            return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cp);
-        xfree(cp);
+            return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cpath);
+        xfree(cpath);
     }
     else {
         xcleanwinpath(opath);
