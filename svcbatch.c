@@ -72,8 +72,8 @@ static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
-static HANDLE    svcexecended     = NULL;
-static HANDLE    svchookended     = NULL;
+static HANDLE    runbatchdone     = NULL;
+static HANDLE    stopexecdone     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    outputpiperd     = NULL;
@@ -1262,7 +1262,7 @@ static unsigned int __stdcall runexecthread(void *param)
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
-    if (h == svcexecended) {
+    if (h == runbatchdone) {
         wchar_t giid[64];
         DWORD   gnum = (DWORD)InterlockedIncrement(&rgeneration);
 
@@ -1331,7 +1331,7 @@ finished:
     xfree(cmdline);
     dbgprints(__FUNCTION__, "done");
     SetEvent(h);
-    if (h == svcexecended)
+    if (h == runbatchdone)
         InterlockedExchange(&rstarted, 0L);
     XENDTHREAD(0);
 }
@@ -1364,7 +1364,7 @@ static unsigned int __stdcall stopthread(void *unused)
     if (svcstopexec != NULL) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         dbgprints(__FUNCTION__, "calling stop hook");
-        h = xcreatethread(0, 0, &runexecthread, svchookended);
+        h = xcreatethread(0, 0, &runexecthread, stopexecdone);
         if (IS_INVALID_HANDLE(h)) {
             dbgprints(__FUNCTION__, "cannot create runexecthread");
         }
@@ -1908,7 +1908,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                     return ERROR_ALREADY_EXISTS;
                 }
                 dbgprintf(__FUNCTION__, "calling RunBatch: %S", svcbatchexe);
-                xcreatethread(1, 0, &runexecthread, svcexecended);
+                xcreatethread(1, 0, &runexecthread, runbatchdone);
             }
         break;
         case SERVICE_CONTROL_PAUSE:
@@ -2037,10 +2037,10 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     wc = 1;
     wh[0] = svcstopended;
-    if (svcexecended != NULL)
-        wh[wc++] = svcexecended;
-    if (svchookended != NULL)
-        wh[wc++] = svchookended;
+    if (runbatchdone != NULL)
+        wh[wc++] = runbatchdone;
+    if (stopexecdone != NULL)
+        wh[wc++] = stopexecdone;
     dbgprintf(__FUNCTION__, "wait for %lu event(s) to finish", wc);
     WaitForMultipleObjects(wc, wh, TRUE, SVCBATCH_STOP_WAIT);
 
@@ -2066,8 +2066,8 @@ static void __cdecl objectscleanup(void)
 {
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
-    SAFE_CLOSE_HANDLE(svcexecended);
-    SAFE_CLOSE_HANDLE(svchookended);
+    SAFE_CLOSE_HANDLE(runbatchdone);
+    SAFE_CLOSE_HANDLE(stopexecdone);
     SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(childprocjob);
@@ -2360,13 +2360,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (IS_INVALID_HANDLE(svcstopended))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     if (svcrunbatch != NULL) {
-        svcexecended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
-        if (IS_INVALID_HANDLE(svcexecended))
+        runbatchdone = CreateEventW(&sazero, TRUE, TRUE,  NULL);
+        if (IS_INVALID_HANDLE(runbatchdone))
             return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     }
     if (svcstopexec != NULL) {
-        svchookended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
-        if (IS_INVALID_HANDLE(svchookended))
+        stopexecdone = CreateEventW(&sazero, TRUE, TRUE,  NULL);
+        if (IS_INVALID_HANDLE(stopexecdone))
             return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     }
     ssignalevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
