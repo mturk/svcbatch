@@ -94,12 +94,13 @@ static const wchar_t *removeenv[] = {
     L"_",
     L"!::",
     L"!;",
+    L"COMSPEC",
+    L"PATH",
     L"SVCBATCH_SERVICE_BASE",
     L"SVCBATCH_SERVICE_HOME",
     L"SVCBATCH_SERVICE_LOGDIR",
     L"SVCBATCH_SERVICE_NAME",
     L"SVCBATCH_SERVICE_UUID",
-    L"PATH",
     NULL
 };
 
@@ -2047,8 +2048,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int         i;
     int         rv = 0;
-    wchar_t    *opath;
-    wchar_t    *cpath;
+    wchar_t    *orgpath;
     wchar_t    *bname = NULL;
     wchar_t    *rotateparam = NULL;
     int         envc       = 0;
@@ -2185,8 +2185,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     break;
                     case L'x':
                     case L'z':
-                        runbatchmode = pchar;
-                        servicemode  = 0;
+                        /**
+                         * Already handled
+                         */
                     break;
                     default:
                         return svcsyserror(__LINE__, 0, L"Unknown command line option");
@@ -2231,13 +2232,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (IS_EMPTY_WCS(serviceuuid))
         return svcsyserror(__LINE__, GetLastError(), L"xuuidstring");
-    if ((opath = xgetenv(L"PATH")) == NULL)
-        return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"PATH");
-    if ((cpath = xgetenv(L"COMSPEC")) == NULL)
+    if ((comspec = xgetenv(L"COMSPEC")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC");
-    if ((comspec = getrealpathname(cpath, 0)) == NULL)
-        return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, cpath);
-    xfree(cpath);
+    if ((orgpath = xgetenv(L"PATH")) == NULL)
+        return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"PATH");
+
+    xcleanwinpath(comspec);
+    xcleanwinpath(orgpath);
 
     if ((servicehome == NULL) && isrelativepath(bname)) {
         /**
@@ -2282,9 +2283,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             dupwenvp[dupwenvc++] = xwcsdup(p);
     }
 
-    xcleanwinpath(opath);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
-    xfree(opath);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"COMSPEC=", comspec);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", orgpath);
+    xfree(orgpath);
 
     rv = resolverotate(rotateparam);
     if (rv != 0)
