@@ -25,7 +25,7 @@ echo.
 rem Dump environment variables to RunBatch.log file
 set
 echo.
-
+rem
 :doRepeat
 rem
 echo [%TIME%] ... running
@@ -33,6 +33,7 @@ rem Simulate some work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
 rem Infinite loop simulation
 rem goto doRepeat
+rem
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
 ping -n 6 localhost >NUL
@@ -40,6 +41,7 @@ rem
 rem Uncomment to terminate parrent service
 rem from this batch file
 rem sc stop "%SVCBATCH_SERVICE_NAME%"
-
+rem
 :End
 echo [%TIME%] ... done
+exit /B 0
