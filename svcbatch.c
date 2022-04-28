@@ -936,8 +936,10 @@ static void logconfig(HANDLE h)
     logprintf(h, "Log directory    : %S", loglocation);
     if (autorotate)
         fs = xwcsappend(fs, L"autorotate, ");
-    if (runbatchmode)
+    if (svcrunbatch)
         fs = xwcsappend(fs, L"runbatchmode mode, ");
+    if (svcstopexec)
+        fs = xwcsappend(fs, L"stop hook, ");
     if (hasctrlbreak)
         fs = xwcsappend(fs, L"ctrl+break, ");
     if (usecleanpath)
