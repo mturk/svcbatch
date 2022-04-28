@@ -34,9 +34,10 @@ ping -n 6 localhost >NUL
 rem Infinite loop simulation
 rem goto doRepeat
 rem
-ping -n 6 localhost >NUL
-ping -n 6 localhost >NUL
-ping -n 6 localhost >NUL
+for %%i in (1 2 3 4 5 6 7 8 9) do (
+  echo [%TIME%] ... running: %%i
+  ping -n 6 localhost >NUL
+)
 rem
 rem Uncomment to terminate parrent service
 rem from this batch file
