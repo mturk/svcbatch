@@ -1330,10 +1330,18 @@ static unsigned int __stdcall stopthread(void *unused)
         }
         else {
             dbgprints(__FUNCTION__, "waiting for stop hook to finish ...");
-            ws = WaitForSingleObject(h, SVCBATCH_STOP_HINT);
+            ws = WaitForSingleObject(h, SVCBATCH_STOP_HINT / 2);
+            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT / 2);
             CloseHandle(h);
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            dbgprintf(__FUNCTION__, "stop hook done (ws=%lu)", ws);
+            if (ws == WAIT_TIMEOUT) {
+                SetEvent(ssignalevent);
+                dbgprints(__FUNCTION__, "stop hook timeout");
+            }
+            ws = WaitForSingleObject(processended, SVCBATCH_PENDING_WAIT);
+            if (ws == WAIT_OBJECT_0) {
+                dbgprints(__FUNCTION__, "processended by stop hook");
+                goto finished;
+            }
         }
     }
     dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
