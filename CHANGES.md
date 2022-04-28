@@ -10,6 +10,7 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
  * Remove -s (safe environment) support
+ * Remove -c (clean path) support
  * Ensure that RunBatch and SvcStop processes are closed in timely manner
 
 ## v1.1.0

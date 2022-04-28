@@ -173,33 +173,6 @@ make sure to get familiar with `sc.exe` utility.
 
   See [Custom Control Codes](#custom-control-codes) section below for more details
 
-* **-c**
-
-  **Use clean PATH environment variable**
-
-  This option will replace **PATH** environment variable with minimal
-  set of paths that are needed to run the batch file.
-
-  The path of svcbatch.exe is used as the first path element.
-  For example if you have installed a service with svcbatch.exe from
-  `C:\Program Files\SvcBatch\svcbatch.exe` then the **PATH** environment
-  variable will be set to:
-
-
-  ```no-highlight
-      C:\Program Files\SvcBatch;
-      C:\Working\Directory;
-      %SystemRoot%\System32;
-      %SystemRoot%;
-      %SystemRoot%\System32\Wbem;
-      %SystemRoot%\System32\WindowsPowerShell\v1.0"
-  ```
-
-  This option is useful to separate the service from
-  other services running with the same account.
-  The batch file can set **PATH** to the desired value
-  and then call the actual application.
-
 * **-o [path]**
 
   **Set service output directory**

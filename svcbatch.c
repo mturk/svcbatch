@@ -45,7 +45,6 @@ static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
 static int       hasctrlbreak     = 0;
-static int       usecleanpath     = 0;
 static int       autorotate       = 0;
 static int       runbatchmode     = 0;
 static int       servicemode      = 1;
@@ -901,10 +900,10 @@ static void logconfig(HANDLE h)
         fs = xwcsappend(fs, L"stop batch, ");
     if (hasctrlbreak)
         fs = xwcsappend(fs, L"ctrl+break, ");
-    if (usecleanpath)
-        fs = xwcsappend(fs, L"clean path, ");
     if (preshutdown)
         fs = xwcsappend(fs, L"accept preshutdown, ");
+    if (servicemode)
+        fs = xwcsappend(fs, L"service, ");
 
     if (fs != NULL) {
         int i = xwcslen(fs);
@@ -1267,7 +1266,7 @@ static unsigned int __stdcall runexecthread(void *param)
         case WAIT_OBJECT_2:
             dbgprints(__FUNCTION__, "processended signaled");
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
-            if (WaitForSingleObject(cp.hProcess, SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT) {
+            if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
                 dbgprintf(__FUNCTION__, "terminating RunBatch child: %lu", cp.dwProcessId);
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
@@ -1553,7 +1552,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     DWORD  wc, ms, rc = 0;
 
     dbgprintf(__FUNCTION__, "started");
-    wc = WaitForSingleObject(processended, SVCBATCH_LOGROTATE_INI);
+    wc = WaitForSingleObject(processended, SVCBATCH_LOGROTATE_INIT);
     if (wc != WAIT_TIMEOUT) {
 #if defined(_DBGVIEW)
         if (wc == WAIT_OBJECT_0)
@@ -1566,7 +1565,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     dbgprints(__FUNCTION__, "running");
 
     if (rotatesiz.QuadPart)
-        ms = SVCBATCH_LOGROTATE_HINT;
+        ms = SVCBATCH_LOGROTATE_STEP;
     else
         ms = INFINITE;
 
@@ -2153,9 +2152,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'b':
                         hasctrlbreak = 1;
                     break;
-                    case L'c':
-                        usecleanpath = 1;
-                    break;
                     case L'e':
                         svcrunbatch  = zerostring;
                     break;
@@ -2286,19 +2282,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             dupwenvp[dupwenvc++] = xwcsdup(p);
     }
 
-    if (usecleanpath) {
-        cpath = xwcsvarcat(servicehome, L";",
-                           servicebase,
-                           stdwinpaths, NULL);
-        xfree(opath);
-        opath = expandenvstrings(cpath);
-        if (IS_EMPTY_WCS(opath))
-            return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, cpath);
-        xfree(cpath);
-    }
-    else {
-        xcleanwinpath(opath);
-    }
+    xcleanwinpath(opath);
     dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=", opath);
     xfree(opath);
 
