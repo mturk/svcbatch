@@ -1330,14 +1330,14 @@ static unsigned int __stdcall stopthread(void *unused)
         }
         else {
             dbgprints(__FUNCTION__, "waiting for stop hook to finish ...");
-            ws = WaitForSingleObject(h, SVCBATCH_STOP_HINT / 2);
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT / 2);
+            ws = WaitForSingleObject(h, SVCBATCH_STOP_CHECK);
+            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
             CloseHandle(h);
             if (ws == WAIT_TIMEOUT) {
                 SetEvent(ssignalevent);
                 dbgprints(__FUNCTION__, "stop hook timeout");
             }
-            ws = WaitForSingleObject(processended, SVCBATCH_PENDING_WAIT);
+            ws = WaitForSingleObject(processended, SVCBATCH_STOP_CHECK);
             if (ws == WAIT_OBJECT_0) {
                 dbgprints(__FUNCTION__, "processended by stop hook");
                 goto finished;
@@ -1347,7 +1347,7 @@ static unsigned int __stdcall stopthread(void *unused)
     dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        ws = WaitForSingleObject(processended, SVCBATCH_PENDING_INIT);
+        ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
         SetConsoleCtrlHandler(NULL, FALSE);
         if (ws == WAIT_OBJECT_0) {
             dbgprints(__FUNCTION__, "processended by CTRL_C_EVENT");
@@ -1390,7 +1390,7 @@ static unsigned int __stdcall stopthread(void *unused)
      * We are waiting at most for SVCBATCH_STOP_HINT
      * timeout and then kill all child processes.
      */
-    ws = WaitForSingleObject(processended, SVCBATCH_STOP_HINT / 2);
+    ws = WaitForSingleObject(processended, SVCBATCH_PENDING_WAIT);
     if (ws == WAIT_TIMEOUT) {
         dbgprints(__FUNCTION__, "Child is still active, terminating");
         /**
@@ -1398,14 +1398,14 @@ static unsigned int __stdcall stopthread(void *unused)
          * still running and we need to terminate
          * child tree by brute force
          */
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
         SAFE_CLOSE_HANDLE(childprocess);
         SAFE_CLOSE_HANDLE(childprocjob);
     }
 
 finished:
     SetEvent(ssignalevent);
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
 
     dbgprints(__FUNCTION__, "done");
     SetEvent(svcstopended);
