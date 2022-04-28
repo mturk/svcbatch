@@ -9,6 +9,8 @@ For a full list of changes, see the [git commit log][log]
 ## v1.1.1
 
  * In development
+ * Remove -s (safe environment) support
+ * Ensure that RunBatch and SvcStop processes are closed in timely manner
 
 ## v1.1.0
 

@@ -221,24 +221,6 @@ make sure to get familiar with `sc.exe` utility.
 
   **SVCBATCH_SERVICE_LOGDIR** will be set to **path**.
 
-* **-s**
-
-  **Use safe environment**
-
-  Removes all environment variables for child
-  processes, except the system ones.
-
-  This option allows every batch file to have a clean
-  environment, regardless of how many variables are
-  defined for the `LOCAL_SERVICE` account.
-
-  Check [svcbatch.c](svcbatch.c) **safewinenv[]**
-  string array for a complete list of environment variables
-  that are passed to child processes. If this option is set,
-  all other environment variables not belonging to that set
-  will be omitted from the child process environment.
-
-
 * **-w [path]**
 
   **Set service working directory**

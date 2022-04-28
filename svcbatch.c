@@ -46,7 +46,6 @@ static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
 static int       hasctrlbreak     = 0;
 static int       usecleanpath     = 0;
-static int       usesafeenv       = 0;
 static int       autorotate       = 0;
 static int       runbatchmode     = 0;
 static int       servicemode      = 1;
@@ -102,46 +101,6 @@ static const wchar_t *removeenv[] = {
     L"SVCBATCH_SERVICE_NAME",
     L"SVCBATCH_SERVICE_UUID",
     L"PATH",
-    NULL
-};
-
-static const wchar_t *safewinenv[] = {
-    L"ALLUSERSPROFILE",
-    L"APPDATA",
-    L"COMMONPROGRAMFILES(X86)",
-    L"COMMONPROGRAMFILES",
-    L"COMMONPROGRAMW6432",
-    L"COMPUTERNAME",
-    L"COMSPEC",
-    L"HOMEDRIVE",
-    L"HOMEPATH",
-    L"LOCALAPPDATA",
-    L"LOGONSERVER",
-    L"NUMBER_OF_PROCESSORS",
-    L"OS",
-    L"PATHEXT",
-    L"PROCESSOR_ARCHITECTURE",
-    L"PROCESSOR_ARCHITEW6432",
-    L"PROCESSOR_IDENTIFIER",
-    L"PROCESSOR_LEVEL",
-    L"PROCESSOR_REVISION",
-    L"PROGRAMDATA",
-    L"PROGRAMFILES(X86)",
-    L"PROGRAMFILES",
-    L"PROGRAMW6432",
-    L"PSMODULEPATH",
-    L"PUBLIC",
-    L"SESSIONNAME",
-    L"SYSTEMDRIVE",
-    L"SYSTEMROOT",
-    L"TEMP",
-    L"TMP",
-    L"USERDNSDOMAIN",
-    L"USERDOMAIN",
-    L"USERDOMAIN_ROAMINGPROFILE",
-    L"USERNAME",
-    L"USERPROFILE",
-    L"WINDIR",
     NULL
 };
 
@@ -944,8 +903,6 @@ static void logconfig(HANDLE h)
         fs = xwcsappend(fs, L"ctrl+break, ");
     if (usecleanpath)
         fs = xwcsappend(fs, L"clean path, ");
-    if (usesafeenv)
-        fs = xwcsappend(fs, L"safe environment, ");
     if (preshutdown)
         fs = xwcsappend(fs, L"accept preshutdown, ");
 
@@ -2207,9 +2164,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         autorotate   = 1;
                         rotateparam  = zerostring;
                     break;
-                    case L's':
-                        usesafeenv   = 1;
-                    break;
                     case L'w':
                         servicehome  = zerostring;
                     break;
@@ -2310,29 +2264,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
-        const wchar_t **e;
+        const wchar_t **e = removeenv;
         const wchar_t  *p = wenv[i];
 
-        if (usesafeenv) {
-            e = safewinenv;
-            p = NULL;
-            while (*e != NULL) {
-                if (xwcsisenvvar(wenv[i], *e)) {
-                    p = wenv[i];
-                    break;
-                }
-                e++;
+        while (*e != NULL) {
+            if (xwcsisenvvar(p, *e)) {
+                p = NULL;
+                break;
             }
-        }
-        else {
-            e = removeenv;
-            while (*e != NULL) {
-                if (xwcsisenvvar(p, *e)) {
-                    p = NULL;
-                    break;
-                }
-                e++;
-            }
+            e++;
         }
         if (p != NULL)
             dupwenvp[dupwenvc++] = xwcsdup(p);
