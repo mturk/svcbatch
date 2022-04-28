@@ -946,6 +946,8 @@ static void logconfig(HANDLE h)
         fs = xwcsappend(fs, L"clean path, ");
     if (usesafeenv)
         fs = xwcsappend(fs, L"safe environment, ");
+    if (preshutdown)
+        fs = xwcsappend(fs, L"accept preshutdown, ");
 
     if (fs != NULL) {
         int i = xwcslen(fs);
