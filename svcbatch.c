@@ -937,9 +937,9 @@ static void logconfig(HANDLE h)
     if (autorotate)
         fs = xwcsappend(fs, L"autorotate, ");
     if (svcrunbatch)
-        fs = xwcsappend(fs, L"runbatchmode mode, ");
+        fs = xwcsappend(fs, L"run batch, ");
     if (svcstopexec)
-        fs = xwcsappend(fs, L"stop hook, ");
+        fs = xwcsappend(fs, L"stop batch, ");
     if (hasctrlbreak)
         fs = xwcsappend(fs, L"ctrl+break, ");
     if (usecleanpath)
