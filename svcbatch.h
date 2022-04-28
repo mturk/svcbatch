@@ -52,6 +52,7 @@
 #define SVCBATCH_SVCNAME        "SvcBatch Service"
 #define RUNBATCH_APPNAME        "RunBatch Application"
 #define RUNBATCH_NAME           "RunBatch"
+#define STOPHOOK_APPNAME        "SvcStop Application"
 #define STOPHOOK_NAME           "SvcStop"
 
 /**

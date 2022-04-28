@@ -20,7 +20,6 @@
 #include <string.h>
 #include <wchar.h>
 #include <process.h>
-#include <shellapi.h>
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
@@ -2099,14 +2098,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     for (i = 1; i < argc; i++) {
         const wchar_t *p = wargv[i];
         if ((p[0] == L'-') && ((p[1] == L'x') || (p[1] == L'z')) && (p[2] == L'\0')) {
-            cnamestamp   = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-            wrunbatchx   = CPP_WIDEN(RUNBATCH_APPNAME);
             runbatchmode = p[1];
             servicemode  = 0;
-            if (p[1] == L'z')
+            if (p[1] == L'z') {
+                cnamestamp = STOPHOOK_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+                wrunbatchx = CPP_WIDEN(STOPHOOK_APPNAME);
                 wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
-            else
+            }
+            else {
+                cnamestamp = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+                wrunbatchx = CPP_WIDEN(RUNBATCH_APPNAME);
                 wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
+            }
             break;
         }
     }
