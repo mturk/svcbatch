@@ -83,8 +83,8 @@ static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-static const wchar_t *wrunbatchx  = CPP_WIDEN(SVCBATCH_SVCNAME);
-static const wchar_t *wrunbatchn  = CPP_WIDEN(SVCBATCH_NAME);
+static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_SVCNAME);
+static const wchar_t *ccsappname  = CPP_WIDEN(SVCBATCH_NAME);
 
 static const wchar_t *stdwinpaths = L";"    \
     L"%SystemRoot%\\System32;"              \
@@ -496,7 +496,7 @@ static int setupeventlog(void)
     if (InterlockedIncrement(&eset) > 1)
         return ssrv;
     kname = xwcsconcat( L"SYSTEM\\CurrentControlSet\\Services\\" \
-                        L"EventLog\\Application\\", wrunbatchx);
+                        L"EventLog\\Application\\", cwsappname);
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, kname,
                         0, NULL, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
@@ -528,7 +528,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     memset(buf, 0, sizeof(buf));
     _snwprintf(buf, BBUFSIZ - 1, L"svcbatch.c(%d)", line);
 
-    errarg[0] = wrunbatchx;
+    errarg[0] = cwsappname;
     if (IS_EMPTY_WCS(servicename))
         errarg[1] = L"(undefined)";
     else
@@ -557,7 +557,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
         dbgprintf(__FUNCTION__, "%S %S", buf, err);
     }
     if (setupeventlog()) {
-        HANDLE es = RegisterEventSourceW(NULL, wrunbatchx);
+        HANDLE es = RegisterEventSourceW(NULL, cwsappname);
         if (es != NULL) {
             /**
              * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
@@ -987,7 +987,7 @@ static DWORD openlogfile(BOOL firstopen)
                       "loglocation cannot be the same as servicehome");
             return ERROR_BAD_PATHNAME;
         }
-        logfilename = xwcsvarcat(loglocation, L"\\", wrunbatchn, L".log", NULL);
+        logfilename = xwcsvarcat(loglocation, L"\\", ccsappname, L".log", NULL);
     }
     memset(sfx, 0, sizeof(sfx));
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
@@ -2102,13 +2102,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             servicemode  = 0;
             if (p[1] == L'z') {
                 cnamestamp = STOPHOOK_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-                wrunbatchx = CPP_WIDEN(STOPHOOK_APPNAME);
-                wrunbatchn = CPP_WIDEN(STOPHOOK_NAME);
+                cwsappname = CPP_WIDEN(STOPHOOK_APPNAME);
+                ccsappname = CPP_WIDEN(STOPHOOK_NAME);
             }
             else {
                 cnamestamp = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-                wrunbatchx = CPP_WIDEN(RUNBATCH_APPNAME);
-                wrunbatchn = CPP_WIDEN(RUNBATCH_NAME);
+                cwsappname = CPP_WIDEN(RUNBATCH_APPNAME);
+                ccsappname = CPP_WIDEN(RUNBATCH_NAME);
             }
             break;
         }
