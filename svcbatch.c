@@ -79,6 +79,7 @@ static HANDLE    inputpipewrs     = NULL;
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
+static char         YYES[2]       = { 'Y', '\n'};
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_SVCNAME);
@@ -754,7 +755,7 @@ finished:
     LeaveCriticalSection(&servicelock);
 }
 
-static DWORD createiopipes(LPSTARTUPINFOW si)
+static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
 {
     SECURITY_ATTRIBUTES sa;
     DWORD  rc = 0;
@@ -771,7 +772,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si)
     if (!CreatePipe(&(si->hStdInput), &sh, &sa, 0))
         return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
     if (!DuplicateHandle(cp, sh, cp,
-                         &inputpipewrs, FALSE, 0,
+                         iwrs, FALSE, 0,
                          DUPLICATE_SAME_ACCESS)) {
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
         goto finished;
@@ -785,7 +786,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si)
     if (!CreatePipe(&sh, &(si->hStdError), &sa, 0))
         return svcsyserror(__LINE__, GetLastError(), L"CreatePipe");
     if (!DuplicateHandle(cp, sh, cp,
-                         &outputpiperd, FALSE, 0,
+                         ords, FALSE, 0,
                          DUPLICATE_SAME_ACCESS))
         rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle");
     si->hStdOutput = si->hStdError;
@@ -1200,14 +1201,72 @@ static int resolverotate(const wchar_t *str)
     return 0;
 }
 
+static unsigned int __stdcall iopipethread(void *rdpipe)
+{
+    DWORD  rc = 0;
+
+    dbgprints(__FUNCTION__, "started");
+    while (rc == 0) {
+        BYTE  rb[HBUFSIZ];
+        DWORD rd = 0;
+        HANDLE h = NULL;
+
+        if (ReadFile((HANDLE)rdpipe, rb, HBUFSIZ, &rd, NULL)) {
+            if (rd == 0) {
+                /**
+                 * Read zero bytes from child should
+                 * not happen.
+                 */
+                dbgprintf(__FUNCTION__, "Read 0 bytes err=%lu", GetLastError());
+                rc = ERROR_NO_DATA;
+            }
+            else {
+                EnterCriticalSection(&logfilelock);
+                h = InterlockedExchangePointer(&logfhandle, NULL);
+
+                if (h != NULL)
+                    rc = logappend(h, rb, rd);
+                else
+                    rc = ERROR_NO_MORE_FILES;
+
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
+            }
+        }
+        else {
+            /**
+             * Read from child failed.
+             * ERROR_BROKEN_PIPE means that
+             * child process closed its side of the pipe.
+             */
+            rc = GetLastError();
+        }
+    }
+#if defined(_DBGVIEW)
+    if (rc == ERROR_BROKEN_PIPE)
+        dbgprints(__FUNCTION__, "pipe closed");
+    else if (rc == ERROR_NO_MORE_FILES)
+        dbgprints(__FUNCTION__, "logfile closed");
+    else if (rc != ERROR_NO_DATA)
+        dbgprintf(__FUNCTION__, "err=%lu", rc);
+    dbgprints(__FUNCTION__, "done");
+#endif
+
+    XENDTHREAD(0);
+}
+
 static unsigned int __stdcall runexecthread(void *param)
 {
     wchar_t *cmdline;
-    HANDLE   wh[3];
-    HANDLE   h = (HANDLE)param;
+    HANDLE   wh[4];
+    HANDLE   h   = (HANDLE)param;
+    HANDLE   job = NULL;
+    HANDLE   wrs = NULL;
+    HANDLE   rds = NULL;
     DWORD    rc;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     ResetEvent(h);
 
@@ -1222,6 +1281,7 @@ static unsigned int __stdcall runexecthread(void *param)
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
+
     if (h == runbatchdone) {
         wchar_t giid[64];
         DWORD   gnum = (DWORD)InterlockedIncrement(&rgeneration);
@@ -1237,13 +1297,40 @@ static unsigned int __stdcall runexecthread(void *param)
 
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
+    memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     memset(&si, 0, sizeof(STARTUPINFOW));
-
     si.cb = DSIZEOF(STARTUPINFOW);
 
+    ji.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_BREAKAWAY_OK |
+        JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
+        JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+    job = CreateJobObjectW(&sazero, NULL);
+    if (IS_INVALID_HANDLE(job)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"CreateJobObjectW");
+        goto finished;
+    }
+    if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation,
+                                &ji,
+                                 DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"SetInformationJobObject");
+        goto finished;
+    }
+
+    rc = createiopipes(&si, &wrs, &rds);
+    if (rc != 0) {
+        setsvcstatusexit(rc);
+        goto finished;
+    }
     if (!CreateProcessW(NULL, cmdline, NULL, NULL, FALSE,
-                        CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT,
+                        CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
                         NULL,
                         servicehome,
                        &si, &cp)) {
@@ -1251,13 +1338,31 @@ static unsigned int __stdcall runexecthread(void *param)
         svcsyserror(__LINE__, rc, L"CreateProcess");
         goto finished;
     }
+
+    dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
+    /**
+     * Close our side of the pipes
+     */
+    SAFE_CLOSE_HANDLE(si.hStdInput);
+    SAFE_CLOSE_HANDLE(si.hStdError);
+    if (!AssignProcessToJobObject(job, cp.hProcess)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"AssignProcessToJobObject");
+        TerminateProcess(cp.hProcess, rc);
+        goto finished;
+    }
+
     dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
     CloseHandle(cp.hThread);
     wh[0] = cp.hProcess;
     wh[1] = ssignalevent;
     wh[2] = processended;
+    wh[3] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread, rds);
+    ResumeThread(wh[0]);
+    ResumeThread(wh[3]);
 
-    rc = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
+    rc = WaitForMultipleObjects(4, wh, FALSE, INFINITE);
     switch (rc) {
         case WAIT_OBJECT_0:
             dbgprints(__FUNCTION__, "child process done");
@@ -1275,6 +1380,9 @@ static unsigned int __stdcall runexecthread(void *param)
                 dbgprintf(__FUNCTION__, "child ended: %lu", cp.dwProcessId);
             }
         break;
+        case WAIT_OBJECT_3:
+            dbgprints(__FUNCTION__, "iopipethread done");
+        break;
         case WAIT_FAILED:
             rc = GetLastError();
             dbgprintf(__FUNCTION__, "wait failed: %lu", rc);
@@ -1288,6 +1396,9 @@ static unsigned int __stdcall runexecthread(void *param)
     CloseHandle(cp.hProcess);
 
 finished:
+    SAFE_CLOSE_HANDLE(rds);
+    SAFE_CLOSE_HANDLE(wrs);
+    SAFE_CLOSE_HANDLE(job);
     xfree(cmdline);
     dbgprints(__FUNCTION__, "done");
     SetEvent(h);
@@ -1298,7 +1409,6 @@ finished:
 
 static unsigned int __stdcall stopthread(void *unused)
 {
-    const char yn[2] = { 'Y', '\n'};
     DWORD  wr, ws, wn = SVCBATCH_PENDING_INIT;
     HANDLE h = NULL;
     int   i;
@@ -1373,7 +1483,7 @@ static unsigned int __stdcall stopthread(void *unused)
              * Write Y to stdin pipe in case cmd.exe waits for
              * user reply to "Terminate batch job (Y/N)?"
              */
-            WriteFile(inputpipewrs, yn, 2, &wr, NULL);
+            WriteFile(inputpipewrs, YYES, 2, &wr, NULL);
             FlushFileBuffers(inputpipewrs);
         }
         else {
@@ -1409,60 +1519,6 @@ finished:
 
     dbgprints(__FUNCTION__, "done");
     SetEvent(svcstopended);
-    XENDTHREAD(0);
-}
-
-static unsigned int __stdcall iopipethread(void *unused)
-{
-    DWORD  rc = 0;
-
-    dbgprints(__FUNCTION__, "started");
-    while (rc == 0) {
-        BYTE  rb[HBUFSIZ];
-        DWORD rd = 0;
-        HANDLE h = NULL;
-
-        if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
-            if (rd == 0) {
-                /**
-                 * Read zero bytes from child should
-                 * not happen.
-                 */
-                dbgprintf(__FUNCTION__, "Read 0 bytes err=%lu", GetLastError());
-                rc = ERROR_NO_DATA;
-            }
-            else {
-                EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
-
-                if (h != NULL)
-                    rc = logappend(h, rb, rd);
-                else
-                    rc = ERROR_NO_MORE_FILES;
-
-                InterlockedExchangePointer(&logfhandle, h);
-                LeaveCriticalSection(&logfilelock);
-            }
-        }
-        else {
-            /**
-             * Read from child failed.
-             * ERROR_BROKEN_PIPE means that
-             * child process closed its side of the pipe.
-             */
-            rc = GetLastError();
-        }
-    }
-#if defined(_DBGVIEW)
-    if (rc == ERROR_BROKEN_PIPE)
-        dbgprints(__FUNCTION__, "pipe closed");
-    else if (rc == ERROR_NO_MORE_FILES)
-        dbgprints(__FUNCTION__, "logfile closed");
-    else if (rc != ERROR_NO_DATA)
-        dbgprintf(__FUNCTION__, "err=%lu", rc);
-    dbgprints(__FUNCTION__, "done");
-#endif
-
     XENDTHREAD(0);
 }
 
@@ -1687,11 +1743,19 @@ static unsigned int __stdcall workerthread(void *unused)
             goto finished;
         }
     }
-    rc = createiopipes(&si);
+    rc = createiopipes(&si, &inputpipewrs, &outputpiperd);
     if (rc != 0) {
         setsvcstatusexit(rc);
         goto finished;
     }
+    childprocjob = CreateJobObjectW(&sazero, NULL);
+    if (IS_INVALID_HANDLE(childprocjob)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"CreateJobObjectW");
+        goto finished;
+    }
+
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
         JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
@@ -1734,7 +1798,7 @@ static unsigned int __stdcall workerthread(void *unused)
         goto finished;
     }
     wh[0] = childprocess;
-    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread, NULL);
+    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread, outputpiperd);
     if (IS_INVALID_HANDLE(wh[1])) {
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
@@ -2318,9 +2382,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
-    childprocjob = CreateJobObjectW(&sazero, NULL);
-    if (IS_INVALID_HANDLE(childprocjob))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateJobObject");
 
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);

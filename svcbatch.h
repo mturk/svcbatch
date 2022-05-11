@@ -145,6 +145,7 @@
 #define XENDTHREAD(_r)          _endthreadex(_r); return (_r)
 #define WAIT_OBJECT_1          (WAIT_OBJECT_0 + 1)
 #define WAIT_OBJECT_2          (WAIT_OBJECT_0 + 2)
+#define WAIT_OBJECT_3          (WAIT_OBJECT_0 + 3)
 
 
 /**
