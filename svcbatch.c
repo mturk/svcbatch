@@ -1283,7 +1283,8 @@ static unsigned int __stdcall runexecthread(void *param)
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     memset(&si, 0, sizeof(STARTUPINFOW));
-    si.cb = DSIZEOF(STARTUPINFOW);
+
+    si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
     ji.BasicLimitInformation.LimitFlags =
@@ -1348,12 +1349,12 @@ static unsigned int __stdcall runexecthread(void *param)
     rc = WaitForMultipleObjects(4, wh, FALSE, INFINITE);
     switch (rc) {
         case WAIT_OBJECT_0:
-            dbgprints(__FUNCTION__, "child process done");
+            dbgprintf(__FUNCTION__, "child process: %lu done", cp.dwProcessId);
         break;
         case WAIT_OBJECT_1:
         case WAIT_OBJECT_2:
         case WAIT_OBJECT_3:
-            dbgprints(__FUNCTION__, "event signaled");
+            dbgprintf(__FUNCTION__, "generating CTRL_BREAK_EVENT for: %lu", cp.dwProcessId);
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
             /**
              * Write Y to stdin pipe in case cmd.exe waits for
@@ -1361,13 +1362,13 @@ static unsigned int __stdcall runexecthread(void *param)
              */
             WriteFile(wrs, YYES, 2, &wr, NULL);
             FlushFileBuffers(wrs);
-
-            if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
-                dbgprintf(__FUNCTION__, "terminating RunBatch child: %lu", cp.dwProcessId);
+            rc = WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_STEP);
+            if (rc == WAIT_TIMEOUT) {
+                dbgprintf(__FUNCTION__, "calling TerminateProcess for child: %lu", cp.dwProcessId);
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
             else {
-                dbgprintf(__FUNCTION__, "child ended: %lu", cp.dwProcessId);
+                dbgprintf(__FUNCTION__, "child process: %lu ended: %lu", cp.dwProcessId, rc);
             }
         break;
         case WAIT_FAILED:
@@ -1822,7 +1823,7 @@ finished:
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
-    HANDLE h = NULL;
+#if defined(_DBGVIEW)
     const char *msg = NULL;
 
     switch(ctrl) {
@@ -1838,22 +1839,23 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         case CTRL_BREAK_EVENT:
             msg = "signaled CTRL_BREAK_EVENT";
         break;
-        case CTRL_LOGOFF_EVENT:
-            msg = "signaled CTRL_LOGOFF_EVENT";
-        break;
-        default:
-            msg = "(unknown)";
-        break;
     }
+#endif
 
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
         case CTRL_SHUTDOWN_EVENT:
         case CTRL_C_EVENT:
         case CTRL_BREAK_EVENT:
-            dbgprints(__FUNCTION__, msg);
             if (runbatchmode) {
-                dbgprints(__FUNCTION__, "calling stop for RunBatch mode");
+                HANDLE h = NULL;
+#if defined(_DBGVIEW)
+                dbgprints(__FUNCTION__, msg);
+                if (runbatchmode == L'x')
+                    dbgprints(__FUNCTION__, "creating stopthread for RunBatch");
+                else
+                    dbgprints(__FUNCTION__, "creating stopthread for SvcStop");
+#endif
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h != NULL) {
@@ -1867,7 +1869,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             }
         break;
         case CTRL_LOGOFF_EVENT:
-            dbgprints(__FUNCTION__, msg);
+            dbgprints(__FUNCTION__, "signaled CTRL_LOGOFF_EVENT");
         break;
         default:
             dbgprintf(__FUNCTION__, "unknown ctrl: %lu", ctrl);
