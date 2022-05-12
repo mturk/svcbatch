@@ -83,12 +83,6 @@ static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " S
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_SVCNAME);
 static const wchar_t *ccsappname  = CPP_WIDEN(SVCBATCH_NAME);
 
-static const wchar_t *stdwinpaths = L";"    \
-    L"%SystemRoot%\\System32;"              \
-    L"%SystemRoot%;"                        \
-    L"%SystemRoot%\\System32\\Wbem;"        \
-    L"%SystemRoot%\\System32\\WindowsPowerShell\\v1.0";
-
 static const wchar_t *removeenv[] = {
     L"_",
     L"!::",
