@@ -1400,6 +1400,7 @@ static unsigned int __stdcall stopthread(void *unused)
 {
     DWORD  wr, ws, wn = SVCBATCH_PENDING_INIT;
     HANDLE h = NULL;
+    HANDLE wh[2];
     int   i;
 
     if (InterlockedIncrement(&sstarted) > 1) {
@@ -1423,23 +1424,27 @@ static unsigned int __stdcall stopthread(void *unused)
     if (svcstopexec != NULL) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         dbgprints(__FUNCTION__, "calling stop hook");
-        h = xcreatethread(0, 0, &runexecthread, stopexecdone);
-        if (IS_INVALID_HANDLE(h)) {
+        wh[0] = processended;
+        wh[1] = xcreatethread(0, 0, &runexecthread, stopexecdone);
+        if (IS_INVALID_HANDLE(wh[1])) {
             dbgprints(__FUNCTION__, "cannot create runexecthread");
         }
         else {
-            dbgprints(__FUNCTION__, "waiting for stop hook to finish ...");
-            ws = WaitForSingleObject(h, SVCBATCH_STOP_CHECK);
+            ws = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_STOP_CHECK);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            CloseHandle(h);
-            if (ws == WAIT_TIMEOUT) {
-                SetEvent(ssignalevent);
-                dbgprints(__FUNCTION__, "stop hook timeout");
-            }
-            ws = WaitForSingleObject(processended, SVCBATCH_STOP_CHECK);
+            CloseHandle(wh[1]);
             if (ws == WAIT_OBJECT_0) {
                 dbgprints(__FUNCTION__, "processended by stop hook");
                 goto finished;
+            }
+            else {
+                SetEvent(ssignalevent);
+#if defined(_DBGVIEW)
+                if (ws == WAIT_TIMEOUT)
+                    dbgprints(__FUNCTION__, "stop hook timeout");
+                else
+                    dbgprintf(__FUNCTION__, "stop hook failed: %lu", ws);
+#endif
             }
         }
     }
