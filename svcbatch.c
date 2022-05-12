@@ -1261,8 +1261,7 @@ static unsigned int __stdcall runexecthread(void *param)
     HANDLE   job = NULL;
     HANDLE   wrs = NULL;
     HANDLE   rds = NULL;
-    HANDLE   xph = NULL;
-    DWORD    rc;
+    DWORD    rc, wr;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
@@ -1323,11 +1322,10 @@ static unsigned int __stdcall runexecthread(void *param)
         setsvcstatusexit(rc);
         goto finished;
     }
-    dbgprintf(__FUNCTION__, "creating %S", svcbatchexe);
 
     if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, TRUE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP,
-                        NULL,
+                        wenvblock,
                         servicehome,
                        &si, &cp)) {
         rc = GetLastError();
@@ -1336,26 +1334,25 @@ static unsigned int __stdcall runexecthread(void *param)
     }
 
     dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
-    xph = cp.hProcess;
     /**
      * Close our side of the pipes
      */
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
-    if (!AssignProcessToJobObject(job, xph)) {
+    if (!AssignProcessToJobObject(job, cp.hProcess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"AssignProcessToJobObject");
-        TerminateProcess(xph, rc);
+        TerminateProcess(cp.hProcess, rc);
         goto finished;
     }
 
-    wh[0] = xph;
+    wh[0] = cp.hProcess;
     wh[1] = ssignalevent;
     wh[2] = processended;
     wh[3] = xcreatethread(0, 0, &iopipethread, rds);
     ResumeThread(cp.hThread);
-    CloseHandle(cp.hThread);
+    SAFE_CLOSE_HANDLE(cp.hThread);
 
     rc = WaitForMultipleObjects(4, wh, FALSE, INFINITE);
     switch (rc) {
@@ -1363,20 +1360,24 @@ static unsigned int __stdcall runexecthread(void *param)
             dbgprints(__FUNCTION__, "child process done");
         break;
         case WAIT_OBJECT_1:
-            dbgprints(__FUNCTION__, "ssignalevent signaled");
         case WAIT_OBJECT_2:
-            dbgprints(__FUNCTION__, "processended signaled");
+        case WAIT_OBJECT_3:
+            dbgprints(__FUNCTION__, "event signaled");
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
-            if (WaitForSingleObject(xph, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
+            /**
+             * Write Y to stdin pipe in case cmd.exe waits for
+             * user reply to "Terminate batch job (Y/N)?"
+             */
+            WriteFile(wrs, YYES, 2, &wr, NULL);
+            FlushFileBuffers(wrs);
+
+            if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
                 dbgprintf(__FUNCTION__, "terminating RunBatch child: %lu", cp.dwProcessId);
-                TerminateProcess(xph, ERROR_BROKEN_PIPE);
+                TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
             else {
                 dbgprintf(__FUNCTION__, "child ended: %lu", cp.dwProcessId);
             }
-        break;
-        case WAIT_OBJECT_3:
-            dbgprints(__FUNCTION__, "iopipethread done");
         break;
         case WAIT_FAILED:
             rc = GetLastError();
@@ -1390,9 +1391,10 @@ static unsigned int __stdcall runexecthread(void *param)
     }
     CloseHandle(wh[3]);
 finished:
-    SAFE_CLOSE_HANDLE(xph);
     SAFE_CLOSE_HANDLE(rds);
     SAFE_CLOSE_HANDLE(wrs);
+    SAFE_CLOSE_HANDLE(cp.hThread);
+    SAFE_CLOSE_HANDLE(cp.hProcess);
     SAFE_CLOSE_HANDLE(job);
     xfree(cmdline);
     dbgprints(__FUNCTION__, "done");
