@@ -1287,6 +1287,12 @@ static unsigned int __stdcall runexecthread(void *param)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
+    rc = createiopipes(&si, &wrs, &rds);
+    if (rc != 0) {
+        setsvcstatusexit(rc);
+        goto finished;
+    }
+
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
         JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
@@ -1306,12 +1312,6 @@ static unsigned int __stdcall runexecthread(void *param)
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"SetInformationJobObject");
-        goto finished;
-    }
-
-    rc = createiopipes(&si, &wrs, &rds);
-    if (rc != 0) {
-        setsvcstatusexit(rc);
         goto finished;
     }
 
@@ -1383,6 +1383,8 @@ static unsigned int __stdcall runexecthread(void *param)
     }
     CloseHandle(wh[3]);
 finished:
+    SAFE_CLOSE_HANDLE(si.hStdInput);
+    SAFE_CLOSE_HANDLE(si.hStdError);
     SAFE_CLOSE_HANDLE(rds);
     SAFE_CLOSE_HANDLE(wrs);
     SAFE_CLOSE_HANDLE(cp.hThread);
