@@ -25,7 +25,6 @@
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         rstarted    = 0;
-static volatile LONG         rgeneration = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG         logwritten  = 0;
@@ -59,7 +58,6 @@ static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *svcrunbatch      = NULL;
 static wchar_t  *svcstopexec      = NULL;
-static wchar_t  *sgeneration      = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -1281,26 +1279,21 @@ static unsigned int __stdcall runexecthread(void *param)
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
-
     if (h == runbatchdone) {
-        wchar_t giid[64];
-        DWORD   gnum = (DWORD)InterlockedIncrement(&rgeneration);
-
-        _snwprintf(giid, 60, L" -g %lu -x ", gnum);
-        cmdline = xwcsappend(cmdline, giid);
+        cmdline = xwcsappend(cmdline, L" -x ");
         cmdline = xappendarg(cmdline, svcrunbatch);
     }
     else {
         cmdline = xwcsappend(cmdline, L" -z ");
         cmdline = xappendarg(cmdline, svcstopexec);
     }
-
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     memset(&si, 0, sizeof(STARTUPINFOW));
     si.cb = DSIZEOF(STARTUPINFOW);
+    si.dwFlags = STARTF_USESTDHANDLES;
 
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
@@ -1329,8 +1322,10 @@ static unsigned int __stdcall runexecthread(void *param)
         setsvcstatusexit(rc);
         goto finished;
     }
-    if (!CreateProcessW(NULL, cmdline, NULL, NULL, FALSE,
-                        CREATE_NEW_PROCESS_GROUP | CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED,
+    dbgprintf(__FUNCTION__, "creating %S", svcbatchexe);
+
+    if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, TRUE,
+                        CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_PROCESS_GROUP,
                         NULL,
                         servicehome,
                        &si, &cp)) {
@@ -1353,14 +1348,12 @@ static unsigned int __stdcall runexecthread(void *param)
         goto finished;
     }
 
-    dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
-    CloseHandle(cp.hThread);
     wh[0] = cp.hProcess;
     wh[1] = ssignalevent;
     wh[2] = processended;
-    wh[3] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread, rds);
-    ResumeThread(wh[0]);
-    ResumeThread(wh[3]);
+    wh[3] = xcreatethread(0, 0, &iopipethread, rds);
+    ResumeThread(cp.hThread);
+    CloseHandle(cp.hThread);
 
     rc = WaitForMultipleObjects(4, wh, FALSE, INFINITE);
     switch (rc) {
@@ -2025,12 +2018,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
-    if (sgeneration != NULL) {
-        /**
-         * Add generation id
-         */
-        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_GIID=", sgeneration);
-    }
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
     for (i = 0; i < dupwenvc; i++) {
@@ -2197,10 +2184,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 servicename = xwcsdup(p);
                 continue;
             }
-            if (sgeneration == zerostring) {
-                sgeneration = xwcsdup(p);
-                continue;
-            }
             hasopts = 0;
             if ((p[0] == L'-') || (p[0] == L'/')) {
                 if (p[1] == L'\0')
@@ -2219,9 +2202,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     case L'e':
                         svcrunbatch  = zerostring;
                     break;
-                    case L'h':
-                        svcstopexec  = zerostring;
-                    break;
                     case L'o':
                         loglocation  = zerostring;
                     break;
@@ -2232,15 +2212,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         autorotate   = 1;
                         rotateparam  = zerostring;
                     break;
+                    case L's':
+                        svcstopexec  = zerostring;
+                    break;
                     case L'w':
                         servicehome  = zerostring;
                     break;
                     /**
                      * Private options
                      */
-                    case L'g':
-                        sgeneration  = zerostring;
-                    break;
                     case L'n':
                         servicename  = zerostring;
                     break;

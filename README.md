@@ -272,7 +272,7 @@ make sure to get familiar with `sc.exe` utility.
   Use `sc.exe control [service name] 235` to signal the
   SvcBatch to execute **batchfile**.
 
-* **-h [batchfile]**
+* **-s [batchfile]**
 
   **Execute batch file on service stop or shutdown**
 

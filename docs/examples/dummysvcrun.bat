@@ -28,14 +28,14 @@ echo.
 rem
 :doRepeat
 rem
-echo [%TIME%] ... running
+echo %~nx0: [%TIME%] ... running
 rem Simulate some work by sleeping for 5 seconds
 ping -n 6 localhost >NUL
 rem Infinite loop simulation
 rem goto doRepeat
 rem
 for %%i in (1 2 3 4 5 6 7 8 9) do (
-  echo [%TIME%] ... running: %%i
+  echo %~nx0: [%TIME%] ... running: %%i
   ping -n 6 localhost >NUL
 )
 rem
@@ -44,5 +44,5 @@ rem from this batch file
 rem sc stop "%SVCBATCH_SERVICE_NAME%"
 rem
 :End
-echo [%TIME%] ... done
+echo %~nx0: [%TIME%] ... done
 exit /B 0

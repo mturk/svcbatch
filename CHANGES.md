@@ -9,7 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.1.1
 
  * In development
- * Remove -s (safe environment) support
+ * Use -s option for SvcStop batch file
  * Remove -c (clean path) support
  * Ensure that RunBatch and SvcStop processes are closed in timely manner
  * Use Job Object for RunBatch and SvcStop
