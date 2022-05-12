@@ -1261,6 +1261,7 @@ static unsigned int __stdcall runexecthread(void *param)
     HANDLE   job = NULL;
     HANDLE   wrs = NULL;
     HANDLE   rds = NULL;
+    HANDLE   xph = NULL;
     DWORD    rc;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
@@ -1335,20 +1336,21 @@ static unsigned int __stdcall runexecthread(void *param)
     }
 
     dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
+    xph = cp.hProcess;
     /**
      * Close our side of the pipes
      */
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
-    if (!AssignProcessToJobObject(job, cp.hProcess)) {
+    if (!AssignProcessToJobObject(job, xph)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__LINE__, rc, L"AssignProcessToJobObject");
-        TerminateProcess(cp.hProcess, rc);
+        TerminateProcess(xph, rc);
         goto finished;
     }
 
-    wh[0] = cp.hProcess;
+    wh[0] = xph;
     wh[1] = ssignalevent;
     wh[2] = processended;
     wh[3] = xcreatethread(0, 0, &iopipethread, rds);
@@ -1365,9 +1367,9 @@ static unsigned int __stdcall runexecthread(void *param)
         case WAIT_OBJECT_2:
             dbgprints(__FUNCTION__, "processended signaled");
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cp.dwProcessId);
-            if (WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
+            if (WaitForSingleObject(xph, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
                 dbgprintf(__FUNCTION__, "terminating RunBatch child: %lu", cp.dwProcessId);
-                TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
+                TerminateProcess(xph, ERROR_BROKEN_PIPE);
             }
             else {
                 dbgprintf(__FUNCTION__, "child ended: %lu", cp.dwProcessId);
@@ -1386,9 +1388,9 @@ static unsigned int __stdcall runexecthread(void *param)
 
 
     }
-    CloseHandle(cp.hProcess);
 
 finished:
+    SAFE_CLOSE_HANDLE(xph);
     SAFE_CLOSE_HANDLE(rds);
     SAFE_CLOSE_HANDLE(wrs);
     SAFE_CLOSE_HANDLE(job);
