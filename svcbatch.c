@@ -1388,7 +1388,7 @@ static unsigned int __stdcall runexecthread(void *param)
 
 
     }
-
+    CloseHandle(wh[3]);
 finished:
     SAFE_CLOSE_HANDLE(xph);
     SAFE_CLOSE_HANDLE(rds);
