@@ -1348,9 +1348,6 @@ static unsigned int __stdcall runexecthread(void *param)
 
     rc = WaitForMultipleObjects(4, wh, FALSE, INFINITE);
     switch (rc) {
-        case WAIT_OBJECT_0:
-            dbgprintf(__FUNCTION__, "child process: %lu done", cp.dwProcessId);
-        break;
         case WAIT_OBJECT_1:
         case WAIT_OBJECT_2:
         case WAIT_OBJECT_3:
@@ -1367,9 +1364,15 @@ static unsigned int __stdcall runexecthread(void *param)
                 dbgprintf(__FUNCTION__, "calling TerminateProcess for child: %lu", cp.dwProcessId);
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
+#if defined(_DBGVIEW)
             else {
                 dbgprintf(__FUNCTION__, "child process: %lu ended: %lu", cp.dwProcessId, rc);
             }
+#endif
+        break;
+#if defined(_DBGVIEW)
+        case WAIT_OBJECT_0:
+            dbgprintf(__FUNCTION__, "child process: %lu done", cp.dwProcessId);
         break;
         case WAIT_FAILED:
             rc = GetLastError();
@@ -1378,8 +1381,7 @@ static unsigned int __stdcall runexecthread(void *param)
         default:
             dbgprintf(__FUNCTION__, "wait error: %lu", rc);
         break;
-
-
+#endif
     }
     CloseHandle(wh[3]);
 finished:
