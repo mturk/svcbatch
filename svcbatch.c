@@ -84,9 +84,6 @@ static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_SVCNAME);
 static const wchar_t *ccsappname  = CPP_WIDEN(SVCBATCH_NAME);
 
 static const wchar_t *removeenv[] = {
-    L"_",
-    L"!::",
-    L"!;",
     L"COMSPEC",
     L"PATH",
     L"SVCBATCH_SERVICE_BASE",
