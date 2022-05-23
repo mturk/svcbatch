@@ -57,7 +57,7 @@ static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *svcrunbatch      = NULL;
-static wchar_t  *svcstopexec      = NULL;
+static wchar_t  *svcendbatch      = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -68,7 +68,7 @@ static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
 static HANDLE    runbatchdone     = NULL;
-static HANDLE    stopexecdone     = NULL;
+static HANDLE    endbatchdone     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    outputpiperd     = NULL;
@@ -640,27 +640,19 @@ static int resolvesvcbatchexe(const wchar_t *a)
     return 0;
 }
 
-static int resolvebatchname(const wchar_t *batch)
+static int resolvebatchname(const wchar_t *a)
 {
     int i;
-    int d = 0;
 
-    svcbatchfile = getrealpathname(batch, 0);
+    svcbatchfile = getrealpathname(a, 0);
     if (IS_EMPTY_WCS(svcbatchfile))
         return 0;
 
     i = xwcslen(svcbatchfile);
-    while (--i > 5) {
-        if ((d == 0) && (svcbatchfile[i] == L'.')) {
-            d = i;
-            svcbatchfile[i] = L'\0';
-        }
+    while (--i > 0) {
         if (svcbatchfile[i] == L'\\') {
             svcbatchfile[i] = L'\0';
             batchdirname = xwcsdup(svcbatchfile);
-            if (d > 0) {
-                svcbatchfile[d] = L'.';
-            }
             svcbatchfile[i] = L'\\';
             return 1;
         }
@@ -887,7 +879,7 @@ static void logconfig(HANDLE h)
         fs = xwcsappend(fs, L"autorotate, ");
     if (svcrunbatch)
         fs = xwcsappend(fs, L"run batch, ");
-    if (svcstopexec)
+    if (svcendbatch)
         fs = xwcsappend(fs, L"stop batch, ");
     if (hasctrlbreak)
         fs = xwcsappend(fs, L"ctrl+break, ");
@@ -1276,7 +1268,7 @@ static unsigned int __stdcall runexecthread(void *param)
     }
     else {
         cmdline = xwcsappend(cmdline, L" -z ");
-        cmdline = xappendarg(cmdline, svcstopexec);
+        cmdline = xappendarg(cmdline, svcendbatch);
     }
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
@@ -1425,11 +1417,11 @@ static unsigned int __stdcall stopthread(void *unused)
     InterlockedExchangePointer(&logfhandle, h);
     LeaveCriticalSection(&logfilelock);
 
-    if (svcstopexec != NULL) {
+    if (svcendbatch != NULL) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         dbgprints(__FUNCTION__, "calling stop hook");
         wh[0] = processended;
-        wh[1] = xcreatethread(0, 0, &runexecthread, stopexecdone);
+        wh[1] = xcreatethread(0, 0, &runexecthread, endbatchdone);
         if (IS_INVALID_HANDLE(wh[1])) {
             dbgprints(__FUNCTION__, "cannot create runexecthread");
         }
@@ -1441,15 +1433,14 @@ static unsigned int __stdcall stopthread(void *unused)
                 dbgprints(__FUNCTION__, "processended by stop hook");
                 goto finished;
             }
-            else {
-                SetEvent(ssignalevent);
 #if defined(_DBGVIEW)
+            else {
                 if (ws == WAIT_TIMEOUT)
                     dbgprints(__FUNCTION__, "stop hook timeout");
                 else
                     dbgprintf(__FUNCTION__, "stop hook failed: %lu", ws);
-#endif
             }
+#endif
         }
     }
     dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
@@ -1512,8 +1503,9 @@ static unsigned int __stdcall stopthread(void *unused)
     }
 
 finished:
-    SetEvent(ssignalevent);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
+    if (ssignalevent != NULL)
+        SetEvent(ssignalevent);
 
     dbgprints(__FUNCTION__, "done");
     SetEvent(svcstopended);
@@ -1832,7 +1824,6 @@ finished:
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
-#if defined(_DBGVIEW)
     const char *msg = NULL;
 
     switch(ctrl) {
@@ -1849,7 +1840,6 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             msg = "signaled CTRL_BREAK_EVENT";
         break;
     }
-#endif
 
     switch(ctrl) {
         case CTRL_CLOSE_EVENT:
@@ -1929,7 +1919,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
         case SVCBATCH_CTRL_EXEC:
             dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_EXEC");
-            if (IS_EMPTY_WCS(svcbatchexe)) {
+            if (IS_EMPTY_WCS(svcrunbatch)) {
                 dbgprints(__FUNCTION__, "undefined RunBatch file");
                 return ERROR_CALL_NOT_IMPLEMENTED;
             }
@@ -1938,7 +1928,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                     dbgprints(__FUNCTION__, "already running another RunBatch instance");
                     return ERROR_ALREADY_EXISTS;
                 }
-                dbgprintf(__FUNCTION__, "calling RunBatch: %S", svcbatchexe);
+                dbgprintf(__FUNCTION__, "calling RunBatch: %S", svcrunbatch);
                 xcreatethread(1, 0, &runexecthread, runbatchdone);
             }
         break;
@@ -2064,10 +2054,12 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     wh[0] = svcstopended;
     if (runbatchdone != NULL)
         wh[wc++] = runbatchdone;
-    if (stopexecdone != NULL)
-        wh[wc++] = stopexecdone;
+    if (endbatchdone != NULL)
+        wh[wc++] = endbatchdone;
     dbgprintf(__FUNCTION__, "wait for %lu event(s) to finish", wc);
     WaitForMultipleObjects(wc, wh, TRUE, SVCBATCH_STOP_WAIT);
+    if (ssignalevent != NULL)
+        SetEvent(ssignalevent);
 
 finished:
 
@@ -2092,7 +2084,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(runbatchdone);
-    SAFE_CLOSE_HANDLE(stopexecdone);
+    SAFE_CLOSE_HANDLE(endbatchdone);
     SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(childprocjob);
@@ -2106,12 +2098,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         i;
     int         rv = 0;
     wchar_t    *orgpath;
-    wchar_t    *bname = NULL;
+    wchar_t    *bname       = NULL;
     wchar_t    *rotateparam = NULL;
-    int         envc       = 0;
-    int         hasopts    = 1;
+    int         envc        = 0;
+    int         hasopts     = 1;
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
+    const wchar_t *svcendparam = NULL;
+    const wchar_t *svcrunparam = NULL;
 
     /**
      * Make sure children (cmd.exe) are kept quiet.
@@ -2168,12 +2162,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
             }
-            if (svcrunbatch == zerostring) {
-                svcrunbatch = xwcsdup(p);
+            if (svcrunparam == zerostring) {
+                svcrunparam = p;
                 continue;
             }
-            if (svcstopexec == zerostring) {
-                svcstopexec = xwcsdup(p);
+            if (svcendparam == zerostring) {
+                svcendparam = p;
                 continue;
             }
             if (rotateparam == zerostring) {
@@ -2206,7 +2200,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         hasctrlbreak = 1;
                     break;
                     case L'e':
-                        svcrunbatch  = zerostring;
+                        svcrunparam  = zerostring;
                     break;
                     case L'o':
                         loglocation  = zerostring;
@@ -2219,7 +2213,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         rotateparam  = zerostring;
                     break;
                     case L's':
-                        svcstopexec  = zerostring;
+                        svcendparam  = zerostring;
                     break;
                     case L'w':
                         servicehome  = zerostring;
@@ -2317,6 +2311,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
+    if (svcrunparam != NULL) {
+        svcrunbatch = getrealpathname(svcrunparam, 0);
+        if (IS_EMPTY_WCS(svcrunbatch))
+            return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, svcrunparam);
+    }
+    if (svcendparam != NULL) {
+        svcendbatch = getrealpathname(svcendparam, 0);
+        if (IS_EMPTY_WCS(svcendbatch))
+            return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, svcendparam);
+    }
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e = removeenv;
@@ -2354,14 +2358,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (IS_INVALID_HANDLE(runbatchdone))
             return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     }
-    if (svcstopexec != NULL) {
-        stopexecdone = CreateEventW(&sazero, TRUE, TRUE,  NULL);
-        if (IS_INVALID_HANDLE(stopexecdone))
+    if (svcendbatch != NULL) {
+        endbatchdone = CreateEventW(&sazero, TRUE, TRUE,  NULL);
+        if (IS_INVALID_HANDLE(endbatchdone))
             return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     }
-    ssignalevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
-    if (IS_INVALID_HANDLE(ssignalevent))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
+    if ((svcrunbatch != NULL) || (svcendbatch != NULL)) {
+        ssignalevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
+        if (IS_INVALID_HANDLE(ssignalevent))
+            return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
+    }
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
