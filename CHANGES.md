@@ -9,10 +9,10 @@ For a full list of changes, see the [git commit log][log]
 ## v1.1.1
 
  * In development
- * Use -s option for SvcStop batch file
+ * Use -s option for StopHook batch file
  * Remove -c (clean path) support
- * Ensure that RunBatch and SvcStop processes are closed in timely manner
- * Use Job Object for RunBatch and SvcStop
+ * Ensure that RunBatch and StopHook processes are closed in timely manner
+ * Use Job Object for RunBatch and StopHook
 
 ## v1.1.0
 

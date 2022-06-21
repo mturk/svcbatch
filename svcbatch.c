@@ -1810,7 +1810,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
                 if (runbatchmode == L'x')
                     dbgprints(__FUNCTION__, "creating stopthread for RunBatch");
                 else
-                    dbgprints(__FUNCTION__, "creating stopthread for SvcStop");
+                    dbgprints(__FUNCTION__, "creating stopthread for StopHook");
 #endif
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
