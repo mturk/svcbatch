@@ -26,14 +26,16 @@ rem
 set "ProjectName=svcbatch"
 set "ReleaseArch=x64"
 set "ReleaseVersion=%~1"
+set "MakefileFlags=_STATIC_MSVCRT=1 %~2 %~3 %~4"
 rem
 set "ReleaseName=%ProjectName%-%ReleaseVersion%-win-%ReleaseArch%"
+set "ReleaseLog=%ReleaseName%.txt
 pushd %~dp0
 set "BuildDir=%cd%"
 popd
 rem
 rem Create builds
-nmake /nologo /A _STATIC_MSVCRT=1 %~2 %~3 %~4 >NUL
+nmake /nologo /A %MakefileFlags%
 if not %ERRORLEVEL% == 0 goto Failed
 rem Set path for ClamAV and 7za
 rem
@@ -41,17 +43,17 @@ rem set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"
 rem
 freshclam.exe --quiet
 pushd "%ReleaseArch%"
-echo ## Binary release v%ReleaseVersion% > %ReleaseName%.txt
-echo. >> %ReleaseName%.txt
-echo ```no-highlight >> %ReleaseName%.txt
-if "x%CMSC_VERSION%" == "x" goto ClamScan
-echo Compiled using: nmake _STATIC_MSVCRT=1 >> %ReleaseName%.txt
-echo Microsoft (R) C/C++ Optimizing Compiler Version 15.00.30729.207 for x64 >> %ReleaseName%.txt
-:ClamScan
-echo. >> %ReleaseName%.txt
-clamscan.exe --version >> %ReleaseName%.txt
-clamscan.exe --bytecode=no %ProjectName%.exe >> %ReleaseName%.txt
-echo ``` >> %ReleaseName%.txt
+echo. > %ReleaseLog%
+cl.exe /EP %ReleaseLog% 2>%ProjectName%.out
+echo ## Binary release v%ReleaseVersion% > %ReleaseLog%
+echo. >> %ReleaseLog%
+echo ```no-highlight >> %ReleaseLog%
+echo Compiled using: nmake %MakefileFlags% >> %ReleaseLog%
+findstr /B /C:"Microsoft (R) C/C++" %ProjectName%.out >> %ReleaseLog%
+echo. >> %ReleaseLog%
+clamscan.exe --version >> %ReleaseLog%
+clamscan.exe --bytecode=no %ProjectName%.exe >> %ReleaseLog%
+echo ``` >> %ReleaseLog%
 del /F /Q %ReleaseName%.zip 2>NUL
 7za.exe a -bd %ReleaseName%.zip %ProjectName%.exe
 sigtool.exe --sha256 %ReleaseName%.zip > %ReleaseName%-sha256.txt
@@ -69,3 +71,4 @@ echo Error: Cannot build %ProjectName%.exe
 exit /b 1
 
 :End
+exit /b 0
