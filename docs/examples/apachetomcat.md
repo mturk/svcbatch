@@ -42,10 +42,8 @@ version you are using.
 
 After creating a service, edit `winservice.bat` file and modify
 JAVA_HOME to your actual jdk location. You can replace that line
-with JRE_HOME. You can set JAVA_HOME or JRE_HOME inside
-System Environment, but then you must remove the `/s` switch inside
-servicemgr.bat `sc create ...` command, because with `/s` switch, SvcBatch
-will remove any *unsafe* environment variable.
+with JRE_HOME. You can set JAVA_HOME or JRE_HOME directly inside
+System Environment.
 
 That's it! Now, just type ...
 ```cmd

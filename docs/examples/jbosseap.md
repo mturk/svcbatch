@@ -42,9 +42,7 @@ for `DisplayName=` and `sc description ...` directly as fits.
 
 After creating a service, edit the [winservice](jbosseap/winservice.bat)
 file and modify JAVA_HOME to your actual jdk location. You can set JAVA_HOME to
-System Environment, but then you must remove the `/s` switch inside
-`servicemgr.bat` `sc create ...` command, because with `/s` switch,
-SvcBatch will remove any *unsafe* environment variable.
+System Environment.
 
 That's it! Now, just type ...
 ```cmd

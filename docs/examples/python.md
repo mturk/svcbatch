@@ -69,7 +69,7 @@ by using **SC** Windows utility.
 
 
 ```cmd
-> sc create pyservice binPath= ""%CD%\svcbatch.exe" /c /s pyservice.bat"
+> sc create pyservice binPath= ""%CD%\svcbatch.exe" pyservice.bat"
 
 ```
 
