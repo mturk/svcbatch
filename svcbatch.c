@@ -80,8 +80,9 @@ static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
 static char         YYES[2]       = { 'Y', '\n'};
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_SVCNAME);
-static const wchar_t *ccsappname  = CPP_WIDEN(SVCBATCH_NAME);
+static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
+static const wchar_t *cwssvbatch  = CPP_WIDEN(SVCBATCH_NAME);
+static const wchar_t *cwslogname  = CPP_WIDEN(SVCBATCH_LOGNAME);
 
 static const wchar_t *removeenv[] = {
     L"COMSPEC",
@@ -932,7 +933,8 @@ static DWORD openlogfile(BOOL firstopen)
                       "loglocation cannot be the same as servicehome");
             return ERROR_BAD_PATHNAME;
         }
-        logfilename = xwcsvarcat(loglocation, L"\\", ccsappname, L".log", NULL);
+        logfilename = xwcsvarcat(loglocation, L"\\",
+                                 cwssvbatch, cwslogname, NULL);
     }
     memset(sfx, 0, sizeof(sfx));
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
@@ -1807,10 +1809,6 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
                 HANDLE h = NULL;
 #if defined(_DBGVIEW)
                 dbgprints(__FUNCTION__, msg);
-                if (runbatchmode == L'x')
-                    dbgprints(__FUNCTION__, "creating stopthread for RunBatch");
-                else
-                    dbgprints(__FUNCTION__, "creating stopthread for StopHook");
 #endif
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
@@ -2061,14 +2059,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             runbatchmode = p[1];
             servicemode  = 0;
             if (p[1] == L'z') {
-                cnamestamp = STOPHOOK_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
-                cwsappname = CPP_WIDEN(STOPHOOK_APPNAME);
-                ccsappname = CPP_WIDEN(STOPHOOK_NAME);
+                cnamestamp = ENDBATCH_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+                cwsappname = CPP_WIDEN(ENDBATCH_APPNAME);
+                cwslogname = CPP_WIDEN(ENDBATCH_LOGNAME);
             }
             else {
-                cnamestamp = RUNBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+                cnamestamp = RUNBATCH_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
                 cwsappname = CPP_WIDEN(RUNBATCH_APPNAME);
-                ccsappname = CPP_WIDEN(RUNBATCH_NAME);
+                cwslogname = CPP_WIDEN(RUNBATCH_LOGNAME);
             }
             bname = xwcsdup(wargv[2]);
             i = 3;

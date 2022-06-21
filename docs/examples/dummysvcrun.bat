@@ -22,7 +22,7 @@ setlocal
 rem
 echo %~nx0: Called from %SVCBATCH_SERVICE_NAME% Service
 echo.
-rem Dump environment variables to RunBatch.log file
+rem Dump environment variables to SvcBatch.run.log file
 set
 echo.
 rem

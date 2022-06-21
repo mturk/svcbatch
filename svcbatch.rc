@@ -40,7 +40,7 @@ BEGIN
             VALUE "InternalName",       SVCBATCH_NAME
             VALUE "LegalCopyright",     SVCBATCH_COPYRIGHT
             VALUE "OriginalFilename",   SVCBATCH_NAME ".exe"
-            VALUE "ProductName",        SVCBATCH_SVCNAME
+            VALUE "ProductName",        SVCBATCH_APPNAME
             VALUE "ProductVersion",     SVCBATCH_VERSION_STR
         END
     END

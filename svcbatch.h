@@ -49,11 +49,12 @@
 #define SVCBATCH_ISDEV_VERSION  1
 
 #define SVCBATCH_NAME           "SvcBatch"
-#define SVCBATCH_SVCNAME        "SvcBatch Service"
-#define RUNBATCH_APPNAME        "RunBatch Application"
-#define RUNBATCH_NAME           "RunBatch"
-#define STOPHOOK_APPNAME        "StopHook Application"
-#define STOPHOOK_NAME           "StopHook"
+#define SVCBATCH_APPNAME        "SvcBatch Service"
+#define RUNBATCH_APPNAME        "SvcBatch RunBatch"
+#define ENDBATCH_APPNAME        "SvcBatch EndBatch"
+#define SVCBATCH_LOGNAME        ".log"
+#define RUNBATCH_LOGNAME        ".run.log"
+#define ENDBATCH_LOGNAME        ".end.log"
 
 /**
  * Maximum number of SvcBatch.log.N files
