@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.2.0
 
  * In development
+ * Drop experimental RunBatch feature
 
 ## v1.1.1
 

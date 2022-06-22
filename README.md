@@ -262,16 +262,6 @@ make sure to get familiar with `sc.exe` utility.
   The service control manager waits until the service stops or the specified
   preshutdown time-out value expires
 
-* **-e [batchfile]**
-
-  **Execute batch file at runtime**
-
-  If defined, SvcBatch will call **batchfile** when
-  custom code is signaled.
-
-  Use `sc.exe control [service name] 235` to signal the
-  SvcBatch to execute **batchfile**.
-
 * **-s [batchfile]**
 
   **Execute batch file on service stop or shutdown**

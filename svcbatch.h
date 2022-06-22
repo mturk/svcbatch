@@ -50,11 +50,10 @@
 
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
-#define RUNBATCH_APPNAME        "SvcBatch RunBatch"
-#define ENDBATCH_APPNAME        "SvcBatch EndBatch"
-#define SVCBATCH_LOGNAME        ".log"
-#define RUNBATCH_LOGNAME        ".run.log"
-#define ENDBATCH_LOGNAME        ".end.log"
+#define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
+#define SVCBATCH_LOGNAME       L"SvcBatch.log"
+#define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
+#define SVCBATCH_RUN_EXT       L".run"
 
 /**
  * Maximum number of SvcBatch.log.N files
@@ -87,16 +86,6 @@
  */
 #define SVCBATCH_CTRL_ROTATE    234
 
-/**
- * This signal will execute batch file
- * defined by -e <batch file> parameter
- * on service install.
- *
- * eg. C:\>sc control SvcBatchServiceName 235
- *
- * Check documentation for more details
- */
-#define SVCBATCH_CTRL_EXEC      235
 
 #define SVCBATCH_START_HINT     5000
 #define SVCBATCH_STOP_HINT      20000

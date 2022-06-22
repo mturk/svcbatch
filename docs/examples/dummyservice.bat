@@ -28,7 +28,6 @@ if /i "x%~1" == "xstart"    goto doStart
 if /i "x%~1" == "xstop"     goto doStop
 if /i "x%~1" == "xbreak"    goto doBreak
 if /i "x%~1" == "xrotate"   goto doRotate
-if /i "x%~1" == "xrunbatch" goto doRunBatch
 rem
 set "SERVICE_NAME="
 if "x%SVCBATCH_SERVICE_NAME%" == "x" goto noService
@@ -64,8 +63,9 @@ rem
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
-set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -p -w \"%cd%\" -o \"Log Files\" -r @30~100K -e dummysvcrun.bat -s dummystophook.bat %~nx0"
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -p -w \"%cd%\" -o \"Logs\%SERVICE_NAME%\" -r @30~100K -s dummyshutdown.bat %~nx0"
 rem
+md Logs 2>NUL
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
 sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= demand
@@ -97,12 +97,6 @@ rem
 sc control "%SERVICE_NAME%" 234
 goto End
 rem
-:doRunBatch
-rem
-rem
-sc control "%SERVICE_NAME%" 235
-goto End
-rem
 :doDelete
 rem
 rem
@@ -116,7 +110,7 @@ rem
 rem
 sc stop "%SERVICE_NAME%" >NUL 2>&1
 sc delete "%SERVICE_NAME%" >NUL 2>&1
-rd /S /Q "Log Files" >NUL 2>&1
+rd /S /Q "Logs" >NUL 2>&1
 echo Removed %SERVICE_NAME%
 goto End
 rem
