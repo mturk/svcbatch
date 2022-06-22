@@ -516,6 +516,55 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     return ern;
 }
 
+static DWORD xcreatedir(const wchar_t *path)
+{
+    if (!CreateDirectoryW(path, NULL)) {
+        DWORD rc = GetLastError();
+        if (rc != ERROR_ALREADY_EXISTS)
+            return rc;
+    }
+    return 0;
+}
+
+static DWORD xmdparent(wchar_t *path)
+{
+    DWORD rc;
+    wchar_t *s;
+
+    s = wcsrchr(path, L'\\');
+    if (s == NULL)
+        return ERROR_BAD_PATHNAME;
+    *s = L'\0';
+    rc = xcreatedir(path);
+    if (rc == ERROR_PATH_NOT_FOUND) {
+        /**
+         * One or more intermediate directories do not exist
+         * Call xmdparent again
+         */
+        rc = xmdparent(path);
+    }
+    *s = L'\\';
+    return rc;
+}
+
+static DWORD xcreatepath(const wchar_t *path)
+{
+    DWORD rc;
+
+    rc = xcreatedir(path);
+    if (rc == ERROR_PATH_NOT_FOUND) {
+        wchar_t *pp = xwcsdup(path);
+
+        rc = xmdparent(pp);
+        xfree(pp);
+
+        if (rc == 0)
+            rc = xcreatedir(path);
+
+    }
+    return rc;
+}
+
 static HANDLE xcreatethread(int detach, unsigned initflag,
                             unsigned int (__stdcall *threadfn)(void *),
                             void *param)
@@ -909,22 +958,18 @@ static DWORD openlogfile(BOOL firstopen)
     logtickcount = GetTickCount64();
 
     if (logfilename == NULL) {
-        if (!CreateDirectoryW(loglocation, 0)) {
-            rc = GetLastError();
-            if (rc != ERROR_ALREADY_EXISTS) {
-                dbgprintf(__FUNCTION__,
-                          "cannot create logdir: %S",
-                          loglocation);
-                return rc;
-            }
+        wchar_t *p = loglocation;
+        rc = xcreatepath(loglocation);
+        if (rc != 0) {
+            dbgprintf(__FUNCTION__,
+                      "cannot create logdir: %S",
+                      loglocation);
+            return rc;
         }
-        if (isrelativepath(loglocation)) {
-            wchar_t *n  = loglocation;
-            loglocation = getrealpathname(n, 1);
-            if (loglocation == NULL)
-                return ERROR_PATH_NOT_FOUND;
-            xfree(n);
-        }
+        loglocation = getrealpathname(p, 1);
+        if (loglocation == NULL)
+            return ERROR_PATH_NOT_FOUND;
+        xfree(p);
         if (_wcsicmp(loglocation, servicehome) == 0) {
             dbgprintf(__FUNCTION__,
                       "loglocation cannot be the same as servicehome");

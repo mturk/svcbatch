@@ -65,7 +65,6 @@ rem Presuming this is the build tree ...
 rem Create a service command line
 set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -p -w \"%cd%\" -o \"Logs\%SERVICE_NAME%\" -r @30~100K -s dummyshutdown.bat %~nx0"
 rem
-md Logs 2>NUL
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
 sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= demand

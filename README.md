@@ -258,7 +258,7 @@ make sure to get familiar with `sc.exe` utility.
 
   **Enable preshutdown service notification**
 
-  When defined, SvcBatch will accept SERVICE_CONTROL_PRESHUTDOWN control code.
+  When defined, SvcBatch will accept `SERVICE_CONTROL_PRESHUTDOWN` control code.
   The service control manager waits until the service stops or the specified
   preshutdown time-out value expires
 
