@@ -15,14 +15,8 @@ rem See the License for the specific language governing permissions and
 rem limitations under the License.
 rem
 rem --------------------------------------------------
-rem Apache Tomcat Service script
+rem Apache Tomcat environment 
 rem
 rem
-setlocal
-rem
-echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
-echo.
-rem Run Apache Tomcat
-call "%SVCBATCH_SERVICE_HOME%\bin\catalina.bat" run
-rem
-
+set "JAVA_HOME=%JDK_11_HOME%"
+set "JRE_HOME=%JRE_11_HOME%"

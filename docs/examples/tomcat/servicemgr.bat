@@ -40,7 +40,7 @@ pushd ..
 set "SERVICE_HOME=%cd%"
 popd
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /w \"%SERVICE_HOME%\" /b .\bin\winservice.bat"
+sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /w \"%SERVICE_HOME%\" /b /s .\bin\shutdown.bat .\bin\winservice.bat"
 sc config "%SERVICE_NAME%" DisplayName= "Apache Tomcat 10.0 %SERVICE_NAME% Service"
 sc description "%SERVICE_NAME%" "Apache Tomcat 10.0.0 Server - https://tomcat.apache.org/"
 
