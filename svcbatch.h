@@ -42,6 +42,7 @@
 #else
 # define SVCBATCH_MICRO_VERSION 0
 #endif
+#define SVCBATCH_ABI_VERSION    0x20220120
 
 /**
  * Set to zero for non dev versions
@@ -53,7 +54,7 @@
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
 #define SVCBATCH_LOGNAME       L"SvcBatch.log"
 #define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
-#define SVCBATCH_RUN_EXT       L".run"
+#define SVCBATCH_RUNNAME       L"SvcBatch.run"
 
 /**
  * Maximum number of SvcBatch.log.N files
