@@ -75,7 +75,7 @@ static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
 static char         YYES[2]       = { 'Y', '\n'};
 
-static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+static const char    *cnamestamp  = SVCBATCH_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *cwslogname  = SVCBATCH_LOGNAME;
 
