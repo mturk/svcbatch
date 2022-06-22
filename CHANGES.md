@@ -6,9 +6,13 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
-## v1.1.1
+## v1.2.0
 
  * In development
+
+## v1.1.1
+
+ * Not released
  * Use -s option for SvcBatchEnd batch file
  * Remove -c (clean path) support
  * Ensure that SvcBatchRun and SvcBatchEnd processes are closed in timely manner
