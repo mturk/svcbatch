@@ -756,6 +756,8 @@ static void reportsvcstatus(DWORD status, DWORD param)
 {
     static DWORD cpcnt = 1;
 
+    if (servicemode == 0)
+        return;
     EnterCriticalSection(&servicelock);
     if (InterlockedExchange(&sscstate, SERVICE_STOPPED) == SERVICE_STOPPED)
         goto finished;
@@ -783,13 +785,11 @@ static void reportsvcstatus(DWORD status, DWORD param)
         ssvcstatus.dwWaitHint   = param;
     }
     ssvcstatus.dwCurrentState = status;
-    if (servicemode) {
-        if (!SetServiceStatus(hsvcstatus, &ssvcstatus)) {
-            svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
-            goto finished;
-        }
-    }
     InterlockedExchange(&sscstate, status);
+    if (!SetServiceStatus(hsvcstatus, &ssvcstatus)) {
+        svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus");
+        InterlockedExchange(&sscstate, SERVICE_STOPPED);
+    }
 finished:
     LeaveCriticalSection(&servicelock);
 }
