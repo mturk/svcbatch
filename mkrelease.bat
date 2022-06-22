@@ -26,7 +26,15 @@ rem
 set "ProjectName=svcbatch"
 set "ReleaseArch=x64"
 set "ReleaseVersion=%~1"
-set "MakefileFlags=_STATIC_MSVCRT=1 %~2 %~3 %~4"
+set "MakefileFlags=_STATIC_MSVCRT=1"
+shift
+:setArgs
+if "x%~1" == "x" goto doneArgs
+set "MakefileFlags=%MakefileFlags% %~1"
+shift
+goto setArgs
+rem
+:doneArgs
 rem
 set "ReleaseName=%ProjectName%-%ReleaseVersion%-win-%ReleaseArch%"
 set "ReleaseLog=%ReleaseName%.txt
@@ -37,20 +45,31 @@ rem
 rem Create builds
 nmake /nologo /A %MakefileFlags%
 if not %ERRORLEVEL% == 0 goto Failed
-rem Set path for ClamAV and 7za
+rem
+pushd "%ReleaseArch%"
+rem
+rem Get nmake and cl versions
+rem
+echo _MSC_FULL_VER > %ProjectName%.i
+nmake /? 2>%ProjectName%.p 1>NUL
+cl.exe /EP %ProjectName%.i >>%ProjectName%.p 2>&1
+rem
+echo ## Binary release v%ReleaseVersion% > %ReleaseLog%
+echo. >> %ReleaseLog%
+echo ```no-highlight >> %ReleaseLog%
+echo Compiled using: >> %ReleaseLog%
+echo nmake %MakefileFlags% >> %ReleaseLog%
+findstr /B /C:"Microsoft (R) " %ProjectName%.p >> %ReleaseLog%
+echo. >> %ReleaseLog%
+rem
+del /F /Q %ProjectName%.i 2>NUL
+del /F /Q %ProjectName%.p 2>NUL
+rem
+rem Set path for ClamAV and 7za if needed
 rem
 rem set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"
 rem
 freshclam.exe --quiet
-pushd "%ReleaseArch%"
-echo. > %ReleaseLog%
-cl.exe /EP %ReleaseLog% 2>%ProjectName%.out
-echo ## Binary release v%ReleaseVersion% > %ReleaseLog%
-echo. >> %ReleaseLog%
-echo ```no-highlight >> %ReleaseLog%
-echo Compiled using: nmake %MakefileFlags% >> %ReleaseLog%
-findstr /B /C:"Microsoft (R) C/C++" %ProjectName%.out >> %ReleaseLog%
-echo. >> %ReleaseLog%
 clamscan.exe --version >> %ReleaseLog%
 clamscan.exe --bytecode=no %ProjectName%.exe >> %ReleaseLog%
 echo ``` >> %ReleaseLog%
@@ -62,7 +81,7 @@ goto End
 rem
 :Einval
 echo Error: Invalid parameter
-echo Usage: %~nx0 version
+echo Usage: %~nx0 version [options]
 exit /b 1
 
 :Failed
