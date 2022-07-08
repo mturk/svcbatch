@@ -49,9 +49,9 @@ static int       servicemode      = 1;
 static DWORD     preshutdown      = 0;
 
 static wchar_t  *svcbatchfile     = NULL;
-static wchar_t  *batchdirname     = NULL;
 static wchar_t  *shutdownfile     = NULL;
 static wchar_t  *svcbatchexe      = NULL;
+static wchar_t  *exelocation      = NULL;
 static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
@@ -312,31 +312,33 @@ static wchar_t *xrmspaces(wchar_t *dest, const wchar_t *src)
     return dp;
 }
 
-static void xcleanwinpath(wchar_t *s)
+static void xcleanwinpath(wchar_t *s, int isdir)
 {
     int i;
 
     if (IS_EMPTY_WCS(s))
         return;
+
     for (i = 0; s[i] != L'\0'; i++) {
         if (s[i] == L'/')
             s[i] =  L'\\';
     }
-    --i;
-    while (i > 1) {
-        if ((s[i] == L';') || (s[i] == L' ') || (s[i] == L'.'))
-            s[i--] = L'\0';
-        else
-            break;
+    if (isdir) {
+        --i;
+        while (i > 1) {
+            if ((s[i] == L';') || (s[i] == L' ') || (s[i] == L'.'))
+                s[i--] = L'\0';
+            else
+                break;
 
+        }
+        while (i > 1) {
+            if ((s[i] ==  L'\\') && (s[i - 1] != L'.'))
+                s[i--] = L'\0';
+            else
+                break;
+        }
     }
-    while (i > 1) {
-        if ((s[i] ==  L'\\') && (s[i - 1] != L'.'))
-            s[i--] = L'\0';
-        else
-            break;
-    }
-
 }
 
 /**
@@ -591,7 +593,7 @@ static HANDLE xcreatethread(int detach, unsigned initflag,
     return h;
 }
 
-static wchar_t *expandenvstrings(const wchar_t *str)
+static wchar_t *expandenvstrings(const wchar_t *str, int isdir)
 {
     wchar_t  *buf = NULL;
     DWORD     siz;
@@ -599,10 +601,21 @@ static wchar_t *expandenvstrings(const wchar_t *str)
 
     if (IS_EMPTY_WCS(str))
         return NULL;
+    if (servicemode == 0)
+        return xwcsdup(str);
+
+    if ((str[0] == L'.') && ((str[1] == L'\\') || (str[1] == L'/'))) {
+        /**
+         * Remove leading './' or '.\'
+         */
+        str += 2;
+    }
     for (siz = 0; str[siz] != L'\0'; siz++) {
         if (str[siz] == L'%')
             len++;
     }
+    if (siz == 0)
+        return NULL;
     if (len == 0) {
         buf = xwalloc(siz);
         wmemcpy(buf, str, siz);
@@ -620,7 +633,8 @@ static wchar_t *expandenvstrings(const wchar_t *str)
             siz = len;
         }
     }
-    xcleanwinpath(buf);
+    xcleanwinpath(buf, isdir);
+
     return buf;
 }
 
@@ -633,11 +647,12 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     HANDLE      fh;
     DWORD       fa   = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
-    if (servicemode == 0)
-        return xwcsdup(path);
-    es = expandenvstrings(path);
+    es = expandenvstrings(path, isdir);
     if (es == NULL)
         return NULL;
+    if (servicemode == 0)
+        return es;
+
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, fa, NULL);
     xfree(es);
@@ -687,7 +702,7 @@ static int resolvesvcbatchexe(const wchar_t *a)
     while (--i > 0) {
         if (svcbatchexe[i] == L'\\') {
             svcbatchexe[i] = L'\0';
-            servicebase = xwcsdup(svcbatchexe);
+            exelocation = xwcsdup(svcbatchexe);
             svcbatchexe[i] = L'\\';
             return 1;
         }
@@ -699,6 +714,8 @@ static int resolvebatchname(const wchar_t *a)
 {
     int i;
 
+    if (svcbatchfile != NULL)
+        return 1;
     svcbatchfile = getrealpathname(a, 0);
     if (IS_EMPTY_WCS(svcbatchfile))
         return 0;
@@ -707,7 +724,7 @@ static int resolvebatchname(const wchar_t *a)
     while (--i > 0) {
         if (svcbatchfile[i] == L'\\') {
             svcbatchfile[i] = L'\0';
-            batchdirname = xwcsdup(svcbatchfile);
+            servicebase = xwcsdup(svcbatchfile);
             svcbatchfile[i] = L'\\';
             return 1;
         }
@@ -966,18 +983,21 @@ static DWORD openlogfile(BOOL firstopen)
     logtickcount = GetTickCount64();
 
     if (logfilename == NULL) {
-        wchar_t *p = loglocation;
-        rc = xcreatepath(loglocation);
-        if (rc != 0) {
-            dbgprintf(__FUNCTION__,
-                      "cannot create logdir: %S",
-                      loglocation);
-            return rc;
+        wchar_t *pp = loglocation;
+
+        loglocation = getrealpathname(pp, 1);
+        if (loglocation == NULL) {
+            rc = xcreatepath(pp);
+            if (rc != 0) {
+                dbgprintf(__FUNCTION__,
+                          "cannot create logdir: %S", pp);
+                return rc;
+            }
+            loglocation = getrealpathname(pp, 1);
+            if (loglocation == NULL)
+                return ERROR_PATH_NOT_FOUND;
         }
-        loglocation = getrealpathname(p, 1);
-        if (loglocation == NULL)
-            return ERROR_PATH_NOT_FOUND;
-        xfree(p);
+        xfree(pp);
         if (_wcsicmp(loglocation, servicehome) == 0) {
             dbgprintf(__FUNCTION__,
                       "loglocation cannot be the same as servicehome");
@@ -2097,6 +2117,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         rv = 0;
     wchar_t    *orgpath;
     wchar_t    *batchparam  = NULL;
+    wchar_t    *shomeparam  = NULL;
     wchar_t    *rotateparam = NULL;
     int         envc        = 0;
     int         hasopts     = 1;
@@ -2108,6 +2129,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
+    if (resolvesvcbatchexe(wargv[0]) == 0)
+        return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
+
     /**
      * Check if running as service or as a child process.
      */
@@ -2140,14 +2164,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (p[0] == L'\0')
             return svcsyserror(__LINE__, 0, L"Empty command line argument");
         if (hasopts) {
-            if (servicehome == zerostring) {
-                servicehome = getrealpathname(p, 1);
-                if (servicehome == NULL)
+            if (shomeparam == zerostring) {
+                shomeparam = expandenvstrings(p, 1);
+                if (shomeparam == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
             }
             if (loglocation == zerostring) {
-                loglocation = expandenvstrings(p);
+                loglocation = expandenvstrings(p, 1);
                 if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p);
                 continue;
@@ -2200,10 +2224,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                             svcendparam  = zerostring;
                         break;
                         case L'w':
-                            servicehome  = zerostring;
+                            shomeparam   = zerostring;
                         break;
                         default:
-                            return svcsyserror(__LINE__, 0, L"Unknown command line option");
+                            return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
                         break;
                     }
                 }
@@ -2213,7 +2237,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                             loglocation  = zerostring;
                         break;
                         case L'w':
-                            servicehome  = zerostring;
+                            shomeparam   = zerostring;
                         break;
                         /**
                          * Private options
@@ -2225,7 +2249,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                             serviceuuid  = zerostring;
                         break;
                         default:
-                            return svcsyserror(__LINE__, 0, L"Unknown command line option");
+                            return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
                         break;
                     }
                 }
@@ -2233,7 +2257,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             }
         }
         if (IS_EMPTY_WCS(batchparam)) {
-            batchparam = expandenvstrings(p);
+            batchparam = expandenvstrings(p, 0);
             if (batchparam == NULL)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p);
         }
@@ -2257,9 +2281,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #endif
     if (IS_EMPTY_WCS(batchparam))
         return svcsyserror(__LINE__, 0, L"Missing batch file");
-
-    if (resolvesvcbatchexe(wargv[0]) == 0)
-        return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
     if (IS_EMPTY_WCS(serviceuuid)) {
         if (servicemode)
             serviceuuid = xuuidstring();
@@ -2273,34 +2294,58 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if ((orgpath = xgetenv(L"PATH")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"PATH");
 
-    xcleanwinpath(comspec);
-    xcleanwinpath(orgpath);
+    xcleanwinpath(comspec, 0);
+    xcleanwinpath(orgpath, 1);
 
-    if ((servicehome == NULL) && isrelativepath(batchparam)) {
-        /**
-         * Batch file is not absolute path
-         * and we don't have provided workdir.
-         * Use servicebase as cwd
-         */
-        servicehome = servicebase;
+    if (isrelativepath(batchparam)) {
+        if (IS_EMPTY_WCS(shomeparam)) {
+            /**
+             * Batch file is not absolute path
+             * and we don't have provided workdir.
+             * Use exelocation as cwd
+             */
+            servicehome = exelocation;
+        }
+        else {
+            if (isrelativepath(shomeparam)) {
+                if (!SetCurrentDirectoryW(exelocation))
+                    return svcsyserror(__LINE__, GetLastError(), exelocation);
+            }
+            servicehome = getrealpathname(shomeparam, 1);
+            if (IS_EMPTY_WCS(servicehome))
+                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, shomeparam);
+        }
     }
+    else {
+        if (resolvebatchname(batchparam) == 0)
+            return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, batchparam);
 
-    if (servicehome != NULL) {
-        if (!SetCurrentDirectoryW(servicehome))
-            return svcsyserror(__LINE__, GetLastError(), servicehome);
+        if (IS_EMPTY_WCS(shomeparam)) {
+            /**
+             * Batch file is an absolute path
+             * and we don't have provided workdir.
+             * Use servicebase as cwd
+             */
+            servicehome = servicebase;
+        }
+        else {
+            if (isrelativepath(shomeparam)) {
+                if (!SetCurrentDirectoryW(servicebase))
+                    return svcsyserror(__LINE__, GetLastError(), servicebase);
+            }
+            servicehome = getrealpathname(shomeparam, 1);
+            if (IS_EMPTY_WCS(servicehome))
+                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, shomeparam);
+        }
     }
+    if (!SetCurrentDirectoryW(servicehome))
+        return svcsyserror(__LINE__, GetLastError(), servicehome);
 
     if (resolvebatchname(batchparam) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, batchparam);
+
     xfree(batchparam);
-    if (IS_EMPTY_WCS(servicehome)) {
-        /**
-         * Use batch file directory as new cwd
-         */
-        servicehome = batchdirname;
-        if (!SetCurrentDirectoryW(servicehome))
-            return svcsyserror(__LINE__, GetLastError(), servicehome);
-    }
+    xfree(shomeparam);
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
     if (svcendparam != NULL) {
