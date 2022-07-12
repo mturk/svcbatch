@@ -8,7 +8,6 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.2.0
 
- * In development
  * Drop experimental RunBatch feature
  * Allow relative paths for SVCBATCH_SERVICE_HOME
  * Make sure that SVCBATCH_SERVICE_BASE is set to service batch file directory.
