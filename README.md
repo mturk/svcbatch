@@ -10,7 +10,7 @@ for a specialized service wrapper.
 
 SvcBatch was designed to be simple to use and lightweight, with a small
 memory footprint. Its only dependency is win32 API, and only has
-around 2K lines of **C** code. There are no configuration
+around 3K lines of **C** code. There are no configuration
 files or installation requirements, so it can be easily distributed
 alongside any application that requires Windows service functionality.
 
@@ -280,8 +280,8 @@ SvcBatch sets for each instance.
 
 * **SVCBATCH_SERVICE_BASE**
 
-  This variable is set to the directory of the SvcBatch
-  executable.
+  This variable is set to the directory of the service
+  batch file.
 
 * **SVCBATCH_SERVICE_HOME**
 
@@ -363,8 +363,7 @@ and write 'Y' to `cmd.exe` stdin, to handle that obnoxious
 downstream processes do not exit within that timeout,
 SvcBatch will give another 20 seconds for all processes to exit.
 After that timeout it will simply kill each descendant process
-by calling `TerminateProcess` for every process that originated
-from svcbatch.exe.
+that originated from svcbatch.exe.
 
 # License
 

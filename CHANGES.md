@@ -10,6 +10,9 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
  * Drop experimental RunBatch feature
+ * Allow relative paths for SVCBATCH_SERVICE_HOME
+ * Make sure that SVCBATCH_SERVICE_BASE is set to service batch file directory.
+ * In case both batch file and working directory are relative paths use svcbatch.exe as home.
 
 ## v1.1.1
 
