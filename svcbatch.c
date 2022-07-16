@@ -1354,7 +1354,6 @@ static unsigned int __stdcall shutdownthread(void *unused)
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
-    ResetEvent(shutdowndone);
     dbgprints(__FUNCTION__, "started");
 
     cmdline = xappendarg(NULL, svcbatchexe);
@@ -1505,9 +1504,10 @@ static unsigned int __stdcall stopthread(void *unused)
     LeaveCriticalSection(&logfilelock);
 
     if (shutdownfile != NULL) {
+        ResetEvent(shutdowndone);
         dbgprints(__FUNCTION__, "creating shutdown process");
         xcreatethread(1, 0, &shutdownthread, NULL);
-        ws = WaitForSingleObject(processended, SVCBATCH_STOP_CHECK);
+        ws = WaitForSingleObject(shutdowndone, SVCBATCH_STOP_CHECK);
         if (ws == WAIT_OBJECT_0) {
             dbgprints(__FUNCTION__, "processended by shutdown");
             goto finished;
@@ -1899,11 +1899,11 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         case CTRL_SHUTDOWN_EVENT:
         case CTRL_C_EVENT:
         case CTRL_BREAK_EVENT:
+#if defined(_DBGVIEW)
+            dbgprints(__FUNCTION__, msg);
+#endif
             if (servicemode == 0) {
                 HANDLE h = NULL;
-#if defined(_DBGVIEW)
-                dbgprints(__FUNCTION__, msg);
-#endif
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h != NULL) {
@@ -2064,16 +2064,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SAFE_CLOSE_HANDLE(wh[1]);
 
     dbgprints(__FUNCTION__, "stopping");
-    wc = 1;
     wh[0] = svcstopended;
-    if (shutdowndone != NULL)
-        wh[wc++] = shutdowndone;
-    ws = WaitForMultipleObjects(wc, wh, TRUE, SVCBATCH_STOP_HINT);
+    wh[1] = shutdowndone;
+    ws = WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_HINT);
     SetEvent(ssignalevent);
     if (ws == WAIT_TIMEOUT) {
         dbgprints(__FUNCTION__, "waiting for stop");
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        ws = WaitForMultipleObjects(wc, wh, TRUE, SVCBATCH_STOP_CHECK);
+        ws = WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_CHECK);
     }
     dbgprintf(__FUNCTION__, "wait returned %lu", ws);
 
@@ -2369,6 +2367,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     svcstopended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
+    shutdowndone = CreateEventW(&sazero, TRUE, TRUE,  NULL);
+    if (IS_INVALID_HANDLE(shutdowndone))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     ssignalevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(ssignalevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
@@ -2378,11 +2379,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (servicemode) {
         monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
         if (IS_INVALID_HANDLE(monitorevent))
-            return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
-    }
-    if (shutdownfile != NULL) {
-        shutdowndone = CreateEventW(&sazero, TRUE, TRUE,  NULL);
-        if (IS_INVALID_HANDLE(shutdowndone))
             return svcsyserror(__LINE__, GetLastError(), L"CreateEvent");
     }
 
