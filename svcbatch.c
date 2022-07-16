@@ -1454,7 +1454,10 @@ static unsigned int __stdcall stopthread(void *unused)
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h != NULL) {
         logfflush(h);
-        logwrline(h, "Running service STOP");
+        if (servicemode)
+            logwrline(h, "Running service STOP");
+        else
+            logwrline(h, "Running shutdown STOP");
     }
     InterlockedExchangePointer(&logfhandle, h);
     LeaveCriticalSection(&logfilelock);
@@ -1837,16 +1840,16 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
     switch (ctrl) {
         case CTRL_CLOSE_EVENT:
-            msg = "signaled CTRL_CLOSE_EVENT";
+            msg = "Signaled CTRL_CLOSE_EVENT";
         break;
         case CTRL_SHUTDOWN_EVENT:
-            msg = "signaled CTRL_SHUTDOWN_EVENT";
+            msg = "Signaled CTRL_SHUTDOWN_EVENT";
         break;
         case CTRL_C_EVENT:
-            msg = "signaled CTRL_C_EVENT";
+            msg = "Signaled CTRL_C_EVENT";
         break;
         case CTRL_BREAK_EVENT:
-            msg = "signaled CTRL_BREAK_EVENT";
+            msg = "Signaled CTRL_BREAK_EVENT";
         break;
     }
 
@@ -1886,22 +1889,36 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
 {
     HANDLE h = NULL;
+    const char *msg = NULL;
 
     switch (ctrl) {
         case SERVICE_CONTROL_PRESHUTDOWN:
-            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_PRESHUTDOWN");
+            msg = "Signaled SERVICE_CONTROL_PRESHUTDOWN";
+        break;
         case SERVICE_CONTROL_SHUTDOWN:
+            msg = "Signaled SERVICE_CONTROL_SHUTDOWN";
+        break;
+        case SERVICE_CONTROL_STOP:
+            msg = "Signaled SERVICE_CONTROL_STOP";
+        break;
+    }
+
+    switch (ctrl) {
+        case SERVICE_CONTROL_PRESHUTDOWN:
+        case SERVICE_CONTROL_SHUTDOWN:
+        case SERVICE_CONTROL_STOP:
+#if defined(_DBGVIEW)
+            dbgprints(__FUNCTION__, msg);
+#endif
+            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
             if (h != NULL) {
                 logfflush(h);
-                logprintf(h, "Service %sSHUTDOWN signaled", ctrl == SERVICE_CONTROL_PRESHUTDOWN ? "PRE" : "");
+                logwrline(h, msg);
             }
             InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
-        case SERVICE_CONTROL_STOP:
-            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_STOP");
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
             xcreatethread(1, 0, &stopthread, NULL);
         break;
         case SVCBATCH_CTRL_BREAK:
@@ -1923,6 +1940,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             SetEvent(monitorevent);
         break;
         case SERVICE_CONTROL_INTERROGATE:
+            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_INTERROGATE");
         break;
         default:
             dbgprintf(__FUNCTION__, "unknown ctrl: %lu", ctrl);
