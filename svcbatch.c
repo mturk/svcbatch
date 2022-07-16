@@ -2203,53 +2203,38 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             }
             if (hasopts) {
                 int pchar = towlower(p[1]);
-                if (servicemode) {
-                    switch (pchar) {
-                        case L'b':
-                            hasctrlbreak = 1;
-                        break;
-                        case L'o':
-                            loglocation  = zerostring;
-                        break;
-                        case L'p':
-                            preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
-                        break;
-                        case L'r':
-                            autorotate   = 1;
-                            rotateparam  = zerostring;
-                        break;
-                        case L's':
-                            svcendparam  = zerostring;
-                        break;
-                        case L'w':
-                            shomeparam   = zerostring;
-                        break;
-                        default:
-                            return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
-                        break;
-                    }
-                }
-                else {
-                    switch (pchar) {
-                        case L'o':
-                            loglocation  = zerostring;
-                        break;
-                        case L'w':
-                            shomeparam   = zerostring;
-                        break;
-                        /**
-                         * Private options
-                         */
-                        case L'n':
-                            servicename  = zerostring;
-                        break;
-                        case L'u':
-                            serviceuuid  = zerostring;
-                        break;
-                        default:
-                            return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
-                        break;
-                    }
+                switch (pchar) {
+                    case L'b':
+                        hasctrlbreak = 1;
+                    break;
+                    case L'o':
+                        loglocation  = zerostring;
+                    break;
+                    case L'p':
+                        preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
+                    break;
+                    case L'r':
+                        autorotate   = 1;
+                        rotateparam  = zerostring;
+                    break;
+                    case L's':
+                        svcendparam  = zerostring;
+                    break;
+                    case L'w':
+                        shomeparam   = zerostring;
+                    break;
+                    /**
+                     * Private options
+                     */
+                    case L'n':
+                        servicename  = zerostring;
+                    break;
+                    case L'u':
+                        serviceuuid  = zerostring;
+                    break;
+                    default:
+                        return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
+                    break;
                 }
                 continue;
             }
