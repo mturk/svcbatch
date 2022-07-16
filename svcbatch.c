@@ -37,7 +37,6 @@ static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 static HANDLE                rotatedev   = NULL;
-static HANDLE                runfhandle  = NULL;
 
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
@@ -59,7 +58,6 @@ static wchar_t  *serviceuuid      = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
-static wchar_t  *runfilename      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 
 static HANDLE    childprocjob     = NULL;
@@ -91,12 +89,6 @@ static const wchar_t *removeenv[] = {
     L"SVCBATCH_SERVICE_UUID",
     NULL
 };
-
-typedef struct svcbatchrun_t {
-    DWORD   version;
-    DWORD   mode;
-    wchar_t name[258];
-} svcbatchrun_t;
 
 static wchar_t *xwalloc(size_t size)
 {
@@ -987,8 +979,7 @@ static DWORD openlogfile(BOOL firstopen)
         if (loglocation == NULL) {
             rc = xcreatepath(pp);
             if (rc != 0) {
-                dbgprintf(__FUNCTION__,
-                          "cannot create logdir: %S", pp);
+                svcsyserror(__LINE__, 0, pp);
                 return rc;
             }
             loglocation = getrealpathname(pp, 1);
@@ -997,49 +988,14 @@ static DWORD openlogfile(BOOL firstopen)
         }
         xfree(pp);
         if (_wcsicmp(loglocation, servicehome) == 0) {
-            dbgprintf(__FUNCTION__,
-                      "loglocation cannot be the same as servicehome");
+            svcsyserror(__LINE__, 0,
+                        L"Loglocation cannot be the same as servicehome");
             return ERROR_BAD_PATHNAME;
         }
         logfilename = xwcsvarcat(loglocation, L"\\",
                                  cwslogname, NULL);
     }
     memset(sfx, 0, sizeof(sfx));
-    if (firstopen && servicemode) {
-        svcbatchrun_t ri;
-
-        memset(&ri, 0, sizeof(ri));
-        runfilename = xwcsconcat(loglocation, L"\\" SVCBATCH_RUNNAME);
-        runfhandle  = CreateFileW(runfilename, GENERIC_READ | GENERIC_WRITE,
-                                  0, &sazero, OPEN_ALWAYS,
-                                  FILE_ATTRIBUTE_NORMAL, NULL);
-        rc = GetLastError();
-        if (IS_INVALID_HANDLE(runfhandle)) {
-            dbgprintf(__FUNCTION__, "Cannot access %lu %S", rc, runfilename);
-            return svcsyserror(__LINE__, rc, L"CreateFileW");
-        }
-        if (rc == ERROR_ALREADY_EXISTS) {
-            DWORD rd;
-            BOOL  rs = ReadFile(runfhandle, (LPBYTE)&ri, DSIZEOF(ri), &rd, NULL);
-
-            if (rs == FALSE || rd != DSIZEOF(ri)) {
-                svcsyserror(__LINE__, 0, L"Invalid " SVCBATCH_RUNNAME L" content");
-                return ERROR_NO_DATA;
-            }
-            if (_wcsicmp(ri.name, servicename)) {
-                dbgprintf(__FUNCTION__, "Wrong service name %S", rd, ri.name);
-                svcsyserror(__LINE__, 0, ri.name);
-                return ERROR_BAD_PATHNAME;
-            }
-        }
-        else {
-            DWORD wr;
-            ri.version = SVCBATCH_ABI_VERSION;
-            wcsncpy(ri.name, servicename, 256);
-            WriteFile(runfhandle, (LPBYTE)&ri, DSIZEOF(ri), &wr, NULL);
-            FlushFileBuffers(runfhandle);
-        }
-    }
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
         DWORD mm;
 
@@ -2101,7 +2057,6 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(childprocjob);
-    SAFE_CLOSE_HANDLE(runfhandle);
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
