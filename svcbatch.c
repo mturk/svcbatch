@@ -732,7 +732,7 @@ static int resolvebatchname(const wchar_t *a)
     return 0;
 }
 
-#if defined(_CHECK_IF_SERVICE)
+#if defined(_DBGVIEW)
 static int runningasservice(void)
 {
     int     rv = 0;
@@ -750,10 +750,8 @@ static int runningasservice(void)
                                               DSIZEOF(uf), &len)) {
                     if (uf.dwFlags != WSF_VISIBLE)
                         rv = 1;
-#if defined(_DBGVIEW)
                     else
                         OutputDebugStringW(name);
-#endif
                 }
             }
         }
@@ -2269,8 +2267,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, p);
         }
     }
-#if defined(_CHECK_IF_SERVICE)
-    if (servicemode} {
+#if defined(_DBGVIEW)
+    if (servicemode) {
         if (runningasservice() == 0) {
             fputs(cnamestamp, stderr);
             fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
