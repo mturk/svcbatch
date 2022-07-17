@@ -63,7 +63,9 @@ rem
 rem Rotate Log files each 30 minutes or when larger then 100Kbytes
 set "ROTATE_RULE=@30~100K"
 rem Uncomment to disable log rotation
-rem set "ROTATE_RULE=n0"
+rem set "ROTATE_RULE=0"
+rem Uncomment to enable rotation by timestamp
+rem set "ROTATE_RULE=."
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line

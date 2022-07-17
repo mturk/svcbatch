@@ -1142,8 +1142,12 @@ static int resolverotate(const wchar_t *str)
     if (IS_EMPTY_WCS(str)) {
         return 0;
     }
-    if ((str[0] == L'n') && iswdigit(str[1]) && (str[2] == L'\0')) {
-        svcmaxlogs = _wtoi(str + 1);
+    if ((str[0] == L'.') && (str[1] == L'\0')) {
+        autorotate = 1;
+        return 0;
+    }
+    if (iswdigit(str[0]) && (str[1] == L'\0')) {
+        svcmaxlogs = _wtoi(str);
         return 0;
     }
     rp = sp = xwcsdup(str);
@@ -1301,7 +1305,6 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
 
 static unsigned int __stdcall shutdownthread(void *unused)
 {
-    wchar_t  rb[24];
     wchar_t *cmdline;
     HANDLE   wh[4];
     HANDLE   job = NULL;
@@ -1321,12 +1324,18 @@ static unsigned int __stdcall shutdownthread(void *unused)
     cmdline = xappendarg(cmdline, servicename);
     cmdline = xwcsappend(cmdline, L" -u ");
     cmdline = xwcsappend(cmdline, serviceuuid);
+    if (autorotate) {
+        cmdline = xwcsappend(cmdline, L" -r .");        
+    }
+    else {
+        wchar_t rb[8];
+        _snwprintf(rb, 6, L" -r %d", svcmaxlogs);
+        cmdline = xwcsappend(cmdline, rb);
+    }
     cmdline = xwcsappend(cmdline, L" -w ");
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
-    _snwprintf(rb, 22, L" -r n%d", svcmaxlogs);
-    cmdline = xwcsappend(cmdline, rb);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 #endif
