@@ -1212,7 +1212,7 @@ static int resolverotate(const wchar_t *str)
         wchar_t  mm  = 0;
 
         siz = _wcstoi64(rp, &ep, 10);
-        if (siz < CPP_INT64_C(0))
+        if ((ep == rp) || (siz < CPP_INT64_C(0)))
             return __LINE__;
         if (*ep != '\0') {
             mm = towupper(ep[0]);
@@ -1235,12 +1235,19 @@ static int resolverotate(const wchar_t *str)
         if (len < CPP_INT64_C(10)) {
             svcmaxlogs = (int)siz;
             autorotate = 0;
+#if defined(_DBGVIEW)
+            dbgprintf(__FUNCTION__, "max rotate logs: %d", svcmaxlogs);
+#endif
         }
         else {
             if (len < SVCBATCH_MIN_LOGSIZE)
                 return __LINE__;
 #if defined(_DBGVIEW)
-            dbgprintf(__FUNCTION__, "rotate if > %lu%C", (DWORD)siz, mm);
+            if (mm)
+                dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
+            else
+                dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
+
 #endif
             rotatesiz.QuadPart = len;
         }
