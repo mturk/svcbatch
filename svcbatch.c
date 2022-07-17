@@ -287,24 +287,6 @@ static wchar_t *xappendarg(wchar_t *s1, const wchar_t *s2)
     return rv;
 }
 
-static wchar_t *xrmspaces(wchar_t *dest, const wchar_t *src)
-{
-    wchar_t *dp = NULL;
-
-    if (IS_EMPTY_WCS(src))
-        return dest;
-    while (*src != L'\0') {
-        if (!iswspace(*src)) {
-            if (dp == NULL)
-                dp = dest;
-            *dest++ = *src;
-        }
-        ++src;
-    }
-    *dest = L'\0';
-    return dp;
-}
-
 static void xcleanwinpath(wchar_t *s, int isdir)
 {
     int i;
@@ -1106,7 +1088,7 @@ static DWORD rotatelogs(void)
     logfflush(h);
     if (svcmaxlogs == 0) {
         logwrtime(h, "Log rotatation disabled");
-        FlushFileBuffers(h);
+        logfflush(h);
         InterlockedExchangePointer(&logfhandle, h);
         LeaveCriticalSection(&logfilelock);
         return 0;
@@ -2105,11 +2087,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *orgpath;
     wchar_t    *batchparam  = NULL;
     wchar_t    *shomeparam  = NULL;
-    wchar_t    *rotateparam = NULL;
     int         envc        = 0;
     int         hasopts     = 1;
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
+    const wchar_t *rotateparam = NULL;
     const wchar_t *svcendparam = NULL;
 
     /**
@@ -2168,9 +2150,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 continue;
             }
             if (rotateparam == zerostring) {
-                rotateparam = xrmspaces(xwcsdup(p), p);
-                if (IS_EMPTY_WCS(rotateparam))
-                    return svcsyserror(__LINE__, 0, L"Invalid rotate parameter", p);
+                rotateparam = p;
                 continue;
             }
             if (serviceuuid == zerostring) {
