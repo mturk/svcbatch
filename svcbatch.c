@@ -1142,10 +1142,6 @@ static int resolverotate(const wchar_t *str)
     if (IS_EMPTY_WCS(str)) {
         return 0;
     }
-    if ((str[0] == L'.') && (str[1] == L'\0')) {
-        autorotate = 1;
-        return 0;
-    }
     if (iswdigit(str[0]) && (str[1] == L'\0')) {
         svcmaxlogs = _wtoi(str);
         return 0;
@@ -1162,11 +1158,13 @@ static int resolverotate(const wchar_t *str)
                 *(p++) = L'\0';
             mm = _wtoi(rp);
             rp = p;
-            if (mm < SVCBATCH_MIN_LOGRTIME)
-                return __LINE__;
-            rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
-            dbgprintf(__FUNCTION__, "rotate in %d minutes", mm);
-            rotatetmo.QuadPart = rotateint;
+            if (mm != 0 ) {
+                if (mm < SVCBATCH_MIN_LOGRTIME)
+                    return __LINE__;
+                rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
+                dbgprintf(__FUNCTION__, "rotate in %d minutes", mm);
+                rotatetmo.QuadPart = rotateint;
+            }
         }
         else {
             SYSTEMTIME     st;
@@ -1325,7 +1323,7 @@ static unsigned int __stdcall shutdownthread(void *unused)
     cmdline = xwcsappend(cmdline, L" -u ");
     cmdline = xwcsappend(cmdline, serviceuuid);
     if (autorotate) {
-        cmdline = xwcsappend(cmdline, L" -r .");        
+        cmdline = xwcsappend(cmdline, L" -r @0");
     }
     else {
         wchar_t rb[8];
