@@ -118,8 +118,8 @@
 #define ONE_MINUTE              CPP_INT64_C(600000000)
 #define ONE_HOUR                CPP_INT64_C(36000000000)
 #define ONE_DAY                 CPP_INT64_C(864000000000)
-#define KILOBYTES(_x)           ((_x) * CPP_INT64_C(1024))
-#define MEGABYTES(_x)           ((_x) * CPP_INT64_C(1048576))
+#define KILOBYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1024))
+#define MEGABYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1048576))
 
 /**
  * Helper macros

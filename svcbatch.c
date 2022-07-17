@@ -1143,7 +1143,7 @@ static int resolverotate(const wchar_t *str)
         return 0;
     }
     if (iswdigit(str[0]) && (str[1] == L'\0')) {
-        svcmaxlogs = str[0] - L'0';
+        svcmaxlogs = _wtoi(str);
         return 0;
     }
     rp = sp = xwcsdup(str);
@@ -1198,21 +1198,26 @@ static int resolverotate(const wchar_t *str)
             SystemTimeToFileTime(&st, &ft);
             rotatetmo.HighPart = ft.dwHighDateTime;
             rotatetmo.LowPart  = ft.dwLowDateTime;
+#if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "rotate at %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                       st.wYear, st.wMonth, st.wDay,
                       st.wHour, st.wMinute, st.wSecond);
+#endif
         }
     }
     if (rp != NULL) {
         LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(1);
         wchar_t *ep  = zerostring;
+        wchar_t  mm  = 0;
 
+        if (iswdigit(*rp) == 0)
+            return __LINE__;
         siz = _wcstoi64(rp, &ep, 10);
         if (siz < mux)
             return __LINE__;
         if (*ep != '\0') {
-            wchar_t mm = towupper(ep[0]);
+            mm = towupper(ep[0]);
             switch (mm) {
                 case L'K':
                     mux = KILOBYTES(1);
@@ -1227,11 +1232,13 @@ static int resolverotate(const wchar_t *str)
                     return __LINE__;
                 break;
             }
-            dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
         }
         rotatesiz.QuadPart = siz * mux;
         if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
             return __LINE__;
+#if defined(_DBGVIEW)
+        dbgprintf(__FUNCTION__, "rotate if > %lu%C", (DWORD)siz, mm);
+#endif
     }
     xfree(sp);
     autorotate = 1;
