@@ -1142,12 +1142,9 @@ static int resolverotate(const wchar_t *str)
     if (IS_EMPTY_WCS(str)) {
         return 0;
     }
-    if (str[0] == L'+') {
-        svcmaxlogs = str[1] - L'0';
-        if ((svcmaxlogs < 0) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
-            return __LINE__;
-        else
-            return 0;
+    if (iswdigit(str[0]) && (str[1] == L'\0')) {
+        svcmaxlogs = str[0] - L'0';
+        return 0;
     }
     rp = sp = xwcsdup(str);
     if (*rp == L'@') {
@@ -1321,7 +1318,7 @@ static unsigned int __stdcall shutdownthread(void *unused)
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
-    _snwprintf(rb, 22, L" -r +%d", svcmaxlogs);
+    _snwprintf(rb, 22, L" -r %d", svcmaxlogs);
     cmdline = xwcsappend(cmdline, rb);
 #if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
