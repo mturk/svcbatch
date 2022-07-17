@@ -9,6 +9,8 @@ For a full list of changes, see the [git commit log][log]
 ## v1.2.1
 
  * In development
+ * Add rule option to define SVC_MAX_LOGS at runtime
+ * Use -r . to define autorotate without time or size
 
 ## v1.2.0
 

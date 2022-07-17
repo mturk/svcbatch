@@ -147,10 +147,13 @@ Number **234** has been randomly chosen, since win32
 API requires that this number must be larger then `127` and
 lower then `255`.
 
-By default log rotation will be executed each 30 days
+By default log rotation will be executed each 90 days
 unles **-r [rule]** option is defined by internal watchdog
 thread.
 
+Users can disable log rotation by adding **-r 0** option.
+In that case SvcBatch.log file will be be created or opened
+for append if already present.
 
 ## Command Line Options
 
@@ -240,11 +243,20 @@ make sure to get familiar with `sc.exe` utility.
   log file gets larger the 200Kbytes within that interval,
   it will be rotated as well.
 
+  In case the **rule** contains a single decimal number
+  between `0 and 9` it will be used instead default `1...9`.
+
+  ```no-highlight
+      sc create ... -r 4
+  ```
+  Intead rotating Svcbatch.log from `1...9` it will rotate
+  exiting log files from `1...4.`. In case that number is 0,
+  log rotation will be disabled.
 
   The **rule** parameter uses the following format:
 
   ```no-highlight
-      <[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
+      <[0-9]>|<[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
   ```
 
   When this parameter is defined log rotation will not use
