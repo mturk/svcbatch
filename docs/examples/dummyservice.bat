@@ -60,10 +60,14 @@ rem
 rem
 :doCreate
 rem
+rem Rotate Log files each 30 minutes or when larger then 100Kbytes
+set "ROTATE_RULE=@30~100K"
+rem Uncomment to disable log rotation
+rem set "ROTATE_RULE=n0"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
-set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -p -w \"%cd%\" -o \"Logs\%SERVICE_NAME%\" -r @30~100K -s dummyshutdown.bat %~nx0"
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -p -w \"%cd%\" -o \"Logs\%SERVICE_NAME%\" -r %ROTATE_RULE% -s dummyshutdown.bat %~nx0"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
