@@ -1087,7 +1087,7 @@ static DWORD rotatelogs(void)
     }
     logfflush(h);
     if (svcmaxlogs == 0) {
-        logwrtime(h, "Log rotatation disabled");
+        logwrline(h, "Log rotatation disabled");
         logfflush(h);
         InterlockedExchangePointer(&logfhandle, h);
         LeaveCriticalSection(&logfilelock);
@@ -1441,8 +1441,7 @@ finished:
 
 static unsigned int __stdcall stopthread(void *unused)
 {
-    DWORD  wr, ws;
-    HANDLE h = NULL;
+    DWORD wr, ws;
     int   i;
 
     if (InterlockedIncrement(&sstarted) > 1) {
@@ -1451,20 +1450,13 @@ static unsigned int __stdcall stopthread(void *unused)
     }
     ResetEvent(svcstopended);
 
-    dbgprints(__FUNCTION__, "started");
+#if defined(_DBGVIEW)
+    if (servicemode)
+        dbgprints(__FUNCTION__, "service stop");
+    else
+        dbgprints(__FUNCTION__, "shutdown stop ");
+#endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-
-    EnterCriticalSection(&logfilelock);
-    h = InterlockedExchangePointer(&logfhandle, NULL);
-    if (h != NULL) {
-        logfflush(h);
-        if (servicemode)
-            logwrline(h, "Running service STOP");
-        else
-            logwrline(h, "Running shutdown STOP");
-    }
-    InterlockedExchangePointer(&logfhandle, h);
-    LeaveCriticalSection(&logfilelock);
 
     if (shutdownfile != NULL) {
         ResetEvent(shutdowndone);
@@ -1475,6 +1467,7 @@ static unsigned int __stdcall stopthread(void *unused)
             dbgprints(__FUNCTION__, "processended by shutdown");
             goto finished;
         }
+        dbgprints(__FUNCTION__, "shutdown still running");
     }
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
@@ -1485,6 +1478,7 @@ static unsigned int __stdcall stopthread(void *unused)
             dbgprints(__FUNCTION__, "processended by CTRL_C_EVENT");
             goto finished;
         }
+        dbgprints(__FUNCTION__, "process still running");
     }
 #if defined(_DBGVIEW)
     else {
@@ -1844,13 +1838,13 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
     switch (ctrl) {
         case CTRL_CLOSE_EVENT:
-            msg = "Signaled CTRL_CLOSE_EVENT";
+            msg = "signaled CTRL_CLOSE_EVENT";
         break;
         case CTRL_SHUTDOWN_EVENT:
-            msg = "Signaled CTRL_SHUTDOWN_EVENT";
+            msg = "signaled CTRL_SHUTDOWN_EVENT";
         break;
         case CTRL_C_EVENT:
-            msg = "Signaled CTRL_C_EVENT";
+            msg = "signaled CTRL_C_EVENT";
         break;
         case CTRL_BREAK_EVENT:
             msg = "Signaled CTRL_BREAK_EVENT";
@@ -1861,9 +1855,13 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         case CTRL_CLOSE_EVENT:
         case CTRL_SHUTDOWN_EVENT:
         case CTRL_C_EVENT:
-        case CTRL_BREAK_EVENT:
 #if defined(_DBGVIEW)
             dbgprints(__FUNCTION__, msg);
+#endif
+        break;
+        case CTRL_BREAK_EVENT:
+#if defined(_DBGVIEW)
+            dbgprints(__FUNCTION__, "signaled CTRL_BREAK_EVENT");
 #endif
             if (servicemode == 0) {
                 HANDLE h = NULL;
@@ -2041,17 +2039,15 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SAFE_CLOSE_HANDLE(wh[0]);
     SAFE_CLOSE_HANDLE(wh[1]);
 
-    dbgprints(__FUNCTION__, "stopping");
+    dbgprints(__FUNCTION__, "waiting for stop");
     wh[0] = svcstopended;
     wh[1] = shutdowndone;
     ws = WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_HINT);
     if (ws == WAIT_TIMEOUT) {
+        dbgprints(__FUNCTION__, "sending stop signal");
         SetEvent(ssignalevent);
-        dbgprints(__FUNCTION__, "waiting for stop");
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        ws = WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_CHECK);
+        WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_CHECK);
     }
-    dbgprintf(__FUNCTION__, "wait returned %lu", ws);
 
 finished:
 
