@@ -489,19 +489,19 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err)
     errarg[8] = NULL;
     errarg[9] = NULL;
 
-    dbgprintf(__FUNCTION__, "%S %S", errarg[0], errarg[1]);
+#if defined(_DBGVIEW)
+    dbgprintf(__FUNCTION__, "%S (%lu) %S", buf, ern, err);
+#endif
     if (ern) {
         memset(erb, 0, sizeof(erb));
         xwinapierror(erb, MBUFSIZ - 1, ern);
         errarg[5] = L":";
         errarg[6] = erb;
         errarg[7] = CRLFW;
-        dbgprintf(__FUNCTION__, "%S %S : %S", buf, err, erb);
     }
     else {
         errarg[5] = CRLFW;
         ern = ERROR_INVALID_PARAMETER;
-        dbgprintf(__FUNCTION__, "%S %S", buf, err);
     }
     if (setupeventlog()) {
         HANDLE es = RegisterEventSourceW(NULL, cwsappname);
@@ -2041,8 +2041,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     wh[0] = svcstopended;
     wh[1] = shutdowndone;
     ws = WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_HINT);
-    SetEvent(ssignalevent);
     if (ws == WAIT_TIMEOUT) {
+        SetEvent(ssignalevent);
         dbgprints(__FUNCTION__, "waiting for stop");
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         ws = WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_CHECK);
@@ -2098,8 +2098,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
-    if (resolvesvcbatchexe(wargv[0]) == 0)
-        return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
 
     /**
      * Check if running as service or as a child process.
@@ -2116,7 +2114,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 #if defined(_DBGVIEW)
-    OutputDebugStringA(cnamestamp);
+    dbgprints(__FUNCTION__, cnamestamp);
 #endif
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
@@ -2124,6 +2122,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (envc == 0)
         return svcsyserror(__LINE__, 0, L"Missing environment");
+    if (resolvesvcbatchexe(wargv[0]) == 0)
+        return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0]);
     /**
      * Simple case insensitive argument parsing
      * that allows both '-' and '/' as cmdswitches
