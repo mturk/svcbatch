@@ -256,7 +256,7 @@ make sure to get familiar with `sc.exe` utility.
   The **rule** parameter uses the following format:
 
   ```no-highlight
-      <[0-9]>|<[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
+      <[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
   ```
 
   When this parameter is defined log rotation will not use

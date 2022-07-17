@@ -1142,10 +1142,7 @@ static int resolverotate(const wchar_t *str)
     if (IS_EMPTY_WCS(str)) {
         return 0;
     }
-    if (iswdigit(str[0]) && (str[1] == L'\0')) {
-        svcmaxlogs = _wtoi(str);
-        return 0;
-    }
+    autorotate = 1;
     rp = sp = xwcsdup(str);
     if (*rp == L'@') {
         int      hh, mm, ss;
@@ -1213,10 +1210,8 @@ static int resolverotate(const wchar_t *str)
         wchar_t *ep  = zerostring;
         wchar_t  mm  = 0;
 
-        if (iswdigit(*rp) == 0)
-            return __LINE__;
         siz = _wcstoi64(rp, &ep, 10);
-        if (siz < mux)
+        if (siz < CPP_INT64_C(0))
             return __LINE__;
         if (*ep != '\0') {
             mm = towupper(ep[0]);
@@ -1236,14 +1231,19 @@ static int resolverotate(const wchar_t *str)
             }
         }
         rotatesiz.QuadPart = siz * mux;
-        if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
-            return __LINE__;
+        if (rotatesiz.QuadPart < CPP_INT64_C(10)) {
+            svcmaxlogs = (int)rotatesiz.LowPart;
+            autorotate = 0;
+        }
+        else {
+            if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
+                return __LINE__;
 #if defined(_DBGVIEW)
-        dbgprintf(__FUNCTION__, "rotate if > %lu%C", (DWORD)siz, mm);
+            dbgprintf(__FUNCTION__, "rotate if > %lu%C", (DWORD)siz, mm);
 #endif
+        }
     }
     xfree(sp);
-    autorotate = 1;
     return 0;
 }
 
