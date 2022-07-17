@@ -35,6 +35,7 @@ goto Einval
 rem
 rem Create service
 :doCreate
+pushd %~dp0
 set "SERVICE_BASE=%cd%"
 pushd ..
 set "SERVICE_HOME=%cd%"
@@ -51,6 +52,7 @@ sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= auto
 rem Set required privileges so we can kill process tree
 rem even if Tomcat created multiple child processes.
 sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
+popd
 goto End
 
 rem
