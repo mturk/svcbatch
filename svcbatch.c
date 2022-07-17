@@ -523,12 +523,14 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t 
 
 static DWORD xcreatedir(const wchar_t *path)
 {
+    DWORD rc = 0;
+
     if (!CreateDirectoryW(path, NULL)) {
-        DWORD rc = GetLastError();
-        if (rc != ERROR_ALREADY_EXISTS)
-            return rc;
+        rc = GetLastError();
+        if (rc == ERROR_ALREADY_EXISTS)
+            rc = 0;
     }
-    return 0;
+    return rc;
 }
 
 static DWORD xmdparent(wchar_t *path)
@@ -565,7 +567,6 @@ static DWORD xcreatepath(const wchar_t *path)
 
         if (rc == 0)
             rc = xcreatedir(path);
-
     }
     return rc;
 }
@@ -966,7 +967,7 @@ static void logconfig(HANDLE h)
 
 static DWORD openlogfile(BOOL firstopen)
 {
-    wchar_t  sfx[24];
+    wchar_t sfx[4] = { L'.', L'0', L'\0', L'\0' };
     wchar_t *logpb = NULL;
     DWORD rc = 0;
     HANDLE h = NULL;
@@ -997,27 +998,25 @@ static DWORD openlogfile(BOOL firstopen)
         }
         logfilename = xwcsconcat(loglocation, cwslogname);
     }
-    memset(sfx, 0, sizeof(sfx));
     if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
-        DWORD mm;
+        DWORD mm = 0;
 
         if (firstopen)
             reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-        if (autorotate) {
-            SYSTEMTIME st;
-
-            FileTimeToSystemTime(&ad.ftLastWriteTime, &st);
-            _snwprintf(sfx, 20, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
-                       st.wYear, st.wMonth, st.wDay,
-                       st.wHour, st.wMinute, st.wSecond);
-            mm = 0;
+        if (autorotate == 0) {
+            mm = MOVEFILE_REPLACE_EXISTING;
+            logpb = xwcsconcat(logfilename, sfx);
         }
         else {
-            mm = MOVEFILE_REPLACE_EXISTING;
-            sfx[0] = L'.';
-            sfx[1] = L'0';
+            SYSTEMTIME st;
+            wchar_t wrb[24];
+
+            FileTimeToSystemTime(&ad.ftLastWriteTime, &st);
+            _snwprintf(wrb, 22, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
+                       st.wYear, st.wMonth, st.wDay,
+                       st.wHour, st.wMinute, st.wSecond);
+            logpb = xwcsconcat(logfilename, wrb);
         }
-        logpb = xwcsconcat(logfilename, sfx);
         if (!MoveFileExW(logfilename, logpb, mm)) {
             rc = GetLastError();
             xfree(logpb);
@@ -1037,7 +1036,6 @@ static DWORD openlogfile(BOOL firstopen)
         /**
          * Rotate previous log files
          */
-        sfx[0] = L'.';
         for (i = SVCBATCH_MAX_LOGS; i > 0; i--) {
             wchar_t *logpn;
 
