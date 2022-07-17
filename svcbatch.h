@@ -54,6 +54,7 @@
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
 #define SVCBATCH_LOGNAME       L"SvcBatch.log"
 #define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
+#define SHUTDOWN_IPCNAME       L"Local\\SvcBatch-Shutdown-"
 
 /**
  * Maximum number of SvcBatch.log.N files
