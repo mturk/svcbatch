@@ -1205,6 +1205,7 @@ static int resolverotate(const wchar_t *str)
         }
     }
     if (rp != NULL) {
+        LONGLONG len;
         LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(1);
         wchar_t *ep  = zerostring;
@@ -1230,17 +1231,18 @@ static int resolverotate(const wchar_t *str)
                 break;
             }
         }
-        rotatesiz.QuadPart = siz * mux;
-        if (rotatesiz.QuadPart < CPP_INT64_C(10)) {
-            svcmaxlogs = (int)rotatesiz.LowPart;
+        len = siz * mux;
+        if (len < CPP_INT64_C(10)) {
+            svcmaxlogs = (int)siz;
             autorotate = 0;
         }
         else {
-            if (rotatesiz.QuadPart < SVCBATCH_MIN_LOGSIZE)
+            if (len < SVCBATCH_MIN_LOGSIZE)
                 return __LINE__;
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "rotate if > %lu%C", (DWORD)siz, mm);
 #endif
+            rotatesiz.QuadPart = len;
         }
     }
     xfree(sp);
