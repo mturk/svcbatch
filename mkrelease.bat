@@ -27,6 +27,8 @@ set "ProjectName=svcbatch"
 set "ReleaseArch=x64"
 set "ReleaseVersion=%~1"
 set "MakefileFlags=_STATIC_MSVCRT=1"
+for /f "delims=" %%# in ('powershell get-date -format "{yyyyddMMHHmmss}"') do @set BuildTimestamp=%%#
+set "MakefileFlags=%MakefileFlags% _BUILD_TIMESTAMP=%BuildTimestamp%"
 shift
 :setArgs
 if "x%~1" == "x" goto doneArgs

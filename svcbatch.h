@@ -163,8 +163,11 @@
 #else
 # define SVCBATCH_BUILD_CC      "unknown"
 #endif
+#if defined(_BUILD_TIMESTAMP)
+#define SVCBATCH_BUILD_STAMP    "(" CPP_TOSTR(_BUILD_TIMESTAMP) " " SVCBATCH_BUILD_CC ")"
+#else
 #define SVCBATCH_BUILD_STAMP    "(" __DATE__ " " __TIME__ " " SVCBATCH_BUILD_CC ")"
-
+#endif
 #if defined(_VENDOR_SFX)
 # define SVCBATCH_VENDOR_SFX    CPP_TOSTR(_VENDOR_SFX)
 #else
