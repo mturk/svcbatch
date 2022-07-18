@@ -1268,7 +1268,8 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
                 rc = ERROR_NO_DATA;
             }
             else {
-                if (InterlockedAdd(&vterminate, 0) && (rd == lterminate)) {
+                LONG v = InterlockedCompareExchange(&vterminate, 0, 0);
+                if ((v > 0) && (rd == lterminate)) {
                     if (memcmp(rb, cterminate, lterminate) == 0) {
                         DWORD wr;
                         dbgprints(__FUNCTION__, cterminate);
@@ -1287,6 +1288,10 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
 
                     InterlockedExchangePointer(&logfhandle, h);
                     LeaveCriticalSection(&logfilelock);
+                    if ((v == 2) && (rd > lterminate)) {
+                        dbgprints(__FUNCTION__, "reseting CTRL_BREAK terminate parser");
+                        InterlockedExchange(&vterminate, 0);
+                    }
                 }
             }
         }
@@ -1405,7 +1410,7 @@ static unsigned int __stdcall shutdownthread(void *unused)
         goto finished;
     }
 
-    InterlockedIncrement(&vterminate);
+    InterlockedExchange(&vterminate, 1);
     wh[0] = cp.hProcess;
     wh[1] = processended;
     wh[2] = xcreatethread(0, 0, &iopipethread, rds);
@@ -1469,7 +1474,7 @@ static unsigned int __stdcall stopthread(void *unused)
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
-        InterlockedIncrement(&vterminate);
+        InterlockedExchange(&vterminate, 1);
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
         SetConsoleCtrlHandler(NULL, FALSE);
@@ -1601,11 +1606,10 @@ static unsigned int __stdcall monitorthread(void *unused)
                          * This is useful if batch file is running java
                          * CTRL_BREAK signal tells JDK to dump thread stack
                          *
-                         * In case subchild does not handle CTRL_BREAK cmd.exe
-                         * will probably block on "Terminate batch job (Y/N)?"
                          */
+                        InterlockedExchange(&vterminate, 2);
                         GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-                        ResetEvent(monitorevent);
+                        dbgprints(__FUNCTION__, "break send");
                     }
                     else if (cc == SVCBATCH_CTRL_ROTATE) {
                         dbgprints(__FUNCTION__, "log rotation signaled");
@@ -1616,16 +1620,17 @@ static unsigned int __stdcall monitorthread(void *unused)
                             break;
                         }
                         rotatesynctime();
-                        ResetEvent(monitorevent);
                     }
                     else {
-                        ResetEvent(monitorevent);
                         dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
                     }
                 break;
                 default:
                     rc = 1;
                 break;
+            }
+            if (rc == 0) {
+                ResetEvent(monitorevent);
             }
         } while (rc == 0);
     }
@@ -2011,7 +2016,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     wh[0] = xcreatethread(0, 0, &workerthread, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
-        InterlockedExchange(&monitorsig, 0);
         SetEvent(monitorevent);
         CloseHandle(wh[1]);
         rv = ERROR_TOO_MANY_TCBS;
@@ -2338,6 +2342,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (IS_INVALID_HANDLE(ssignalevent))
         return svcsyserror(__LINE__, GetLastError(), signalname, NULL);
+    dbgprintf(__FUNCTION__, "using signal name: %S", signalname);
+    xfree(signalname);
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
