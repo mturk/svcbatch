@@ -482,6 +482,10 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t 
     if (eds != NULL) {
         errarg[i++] = L":";
         errarg[i++] = eds;
+        dbgprintf(__FUNCTION__, "%S %S : %S",  buf, err, eds);
+    }
+    else {
+        dbgprintf(__FUNCTION__, "%S %S : %lu", buf, err, ern);
     }
     errarg[i++] = CRLFW;
     while (i < 10) {
@@ -1288,7 +1292,7 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
 
                     InterlockedExchangePointer(&logfhandle, h);
                     LeaveCriticalSection(&logfilelock);
-                    if ((v == 2) && (rd > lterminate)) {
+                    if ((v == 2) && (rd >= lterminate)) {
                         dbgprints(__FUNCTION__, "reseting CTRL_BREAK terminate parser");
                         InterlockedExchange(&vterminate, 0);
                     }
@@ -1615,11 +1619,13 @@ static unsigned int __stdcall monitorthread(void *unused)
                         dbgprints(__FUNCTION__, "log rotation signaled");
                         rc = rotatelogs();
                         if (rc != 0) {
+                            dbgprintf(__FUNCTION__, "log rotation failed: %lu", rc);
                             setsvcstatusexit(rc);
                             createstopthread();
                             break;
                         }
                         rotatesynctime();
+                        dbgprints(__FUNCTION__, "log rotation done");
                     }
                     else {
                         dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
