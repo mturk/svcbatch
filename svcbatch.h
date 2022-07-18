@@ -42,7 +42,6 @@
 #else
 # define SVCBATCH_MICRO_VERSION 0
 #endif
-#define SVCBATCH_ABI_VERSION    0x20220120
 
 /**
  * Set to zero for non dev versions
@@ -191,6 +190,9 @@
                                 CPP_TOSTR(SVCBATCH_MINOR_VERSION) "."   \
                                 CPP_TOSTR(SVCBATCH_PATCH_VERSION)       \
                                 SVCBATCH_VERSION_SFX
+
+#define SVCBATCH_PROJECT_URL \
+    "https://github.com/mturk/svcbatch"
 
 #define SVCBATCH_DESCRIPTION \
     "Run batch files as Windows Services"

@@ -2087,7 +2087,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
+    if (argc == 1) {
+        fputs(cnamestamp, stdout);
+        fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details", stdout);
 
+        return 0;
+    }
     /**
      * Check if running as service or as a child process.
      */

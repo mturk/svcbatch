@@ -36,6 +36,7 @@ with your application.
   - [Private Environment Variables](#private-environment-variables)
   - [Custom Control Codes](#custom-control-codes)
   - [Stop and Shutdown](#stop-and-shutdown)
+  - [Version Information](#version-information)
 - [License](#license)
 
 # Getting Started
@@ -403,6 +404,24 @@ downstream processes do not exit within that timeout,
 SvcBatch will give another 20 seconds for all processes to exit.
 After that timeout it will simply kill each descendant process
 that originated from svcbatch.exe.
+
+## Version Information
+
+An easy way to get SvcBatch version and build information
+is to open command prompt and type
+
+```cmd
+> svcbatch.exe
+SvcBatch Service 1.2.1-dev (Jul 18 2022 10:00:00 msc 192930146.0)
+
+>
+```
+
+The same information can be obtained by inspecting the top
+of the `SvcBatch.log` file.
+
+Make sure to use the correct information when filing
+bug reports.
 
 # License
 
