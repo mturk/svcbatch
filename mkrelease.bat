@@ -19,17 +19,21 @@ rem SvcBatch release helper script
 rem
 rem Usage: mkrelease.bat version [options]
 rem    eg: mkrelease 1.2.0_1 "_VENDOR_SFX=_1"
+rem        mkrelease c ...   compile only
 rem
 setlocal
-if "x%~1" == "x" goto Einval
 rem
 set "ProjectName=svcbatch"
 set "ReleaseArch=x64"
+rem
+if "x%~1" == "x" goto Einval
+rem
 set "ReleaseVersion=%~1"
-set "MakefileFlags=_STATIC_MSVCRT=1"
-for /f "delims=" %%# in ('powershell get-date -format "{yyyyddMMHHmmss}"') do @set BuildTimestamp=%%#
-set "MakefileFlags=%MakefileFlags% _BUILD_TIMESTAMP=%BuildTimestamp%"
 shift
+rem
+rem Get timestamp using Powershell
+for /f "delims=" %%# in ('powershell get-date -format "{yyyyddMMHHmmss}"') do @set BuildTimestamp=%%#
+set "MakefileFlags=_BUILD_TIMESTAMP=%BuildTimestamp%"
 :setArgs
 if "x%~1" == "x" goto doneArgs
 set "MakefileFlags=%MakefileFlags% %~1"
@@ -38,16 +42,17 @@ goto setArgs
 rem
 :doneArgs
 rem
+if "%ReleaseVersion%" == "c" goto makeBuild
+set "MakefileFlags=%MakefileFlags% _STATIC_MSVCRT=1"
 set "ReleaseName=%ProjectName%-%ReleaseVersion%-win-%ReleaseArch%"
 set "ReleaseLog=%ReleaseName%.txt
-pushd %~dp0
-set "BuildDir=%cd%"
-popd
 rem
+:makeBuild
 rem Create builds
 nmake /nologo /A %MakefileFlags%
 if not %ERRORLEVEL% == 0 goto Failed
 rem
+if "%ReleaseVersion%" == "c" goto End
 pushd "%ReleaseArch%"
 rem
 rem Get nmake and cl versions
