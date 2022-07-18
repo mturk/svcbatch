@@ -2086,7 +2086,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Make sure children (cmd.exe) are kept quiet.
      */
-    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX);
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
     if (argc == 1) {
         fputs(cnamestamp, stdout);
         fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details", stdout);
