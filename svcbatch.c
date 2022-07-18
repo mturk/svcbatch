@@ -973,7 +973,7 @@ static DWORD openlogfile(BOOL firstopen)
             }
             loglocation = getrealpathname(pp, 1);
             if (loglocation == NULL)
-                return ERROR_PATH_NOT_FOUND;
+                return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
         }
         xfree(pp);
         if (_wcsicmp(loglocation, servicehome) == 0) {
@@ -1073,7 +1073,7 @@ failed:
         MoveFileExW(logpb, logfilename, MOVEFILE_REPLACE_EXISTING);
         xfree(logpb);
     }
-    return rc;
+    return svcsyserror(__LINE__, rc, L"openlogfile", logfilename);
 }
 
 static DWORD rotatelogs(void)
@@ -1988,7 +1988,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     rv = openlogfile(TRUE);
     if (rv != 0) {
-        svcsyserror(__LINE__, rv, L"openlogfile", logfilename);
+        svcsyserror(__LINE__, 0, L"servicemain", L"openlogfile failed");
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
