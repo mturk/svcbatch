@@ -25,6 +25,7 @@ PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
 WORKDIR = $(SRCDIR)/x64
 OUTPUT  = $(WORKDIR)/$(TARGET)
+TSTAMP := $(shell date +%Y%m%d%H%M%S)
 
 WINVER  = 0x0601
 CFLAGS  = -DNDEBUG -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
@@ -55,10 +56,10 @@ $(WORKDIR):
 	@mkdir -p $@
 
 $(WORKDIR)/%.obj: $(SRCDIR)/%.c $(SRCDIR)/%.h
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) $<
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
-	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -I $(SRCDIR) $<
+	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -D _BUILD_TIMESTAMP=$(TSTAMP) -I $(SRCDIR) $<
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
