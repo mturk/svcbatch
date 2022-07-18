@@ -271,8 +271,8 @@ make sure to get familiar with `sc.exe` utility.
   ```no-highlight
       sc create ... -r 4
   ```
-  Intead rotating Svcbatch.log from `1...9` it will rotate
-  exiting log files from `1...4.`. In case that number is 0,
+  Instead rotating Svcbatch.log from `1...9` it will rotate
+  exiting log files from `1...4.`. In case that number is `0`,
   log rotation will be disabled.
 
   The **rule** parameter uses the following format:
@@ -300,8 +300,13 @@ make sure to get familiar with `sc.exe` utility.
 
   **Execute batch file on service stop or shutdown**
 
-  If defined, SvcBatch will call **batchfile** on
-  service stop event.
+  If defined, on shutdown or stop event the service
+  will create separate `svcbatch.exe` process and call **batchfile**.
+  The purpose of that file is to use some sort of `IPC` mechanism
+  and signal the service to exit.
+
+  This is particularly useful for services that do not handle
+  `CTRL_C_EVENT` or have specific shutdown requirements.
 
 ## Private Environment Variables
 
@@ -391,7 +396,7 @@ child processes.
 
 It is up to the application started from batch file to
 handle this event and do any cleanup needed and then exit.
-After sending `CTRL_C_EVENT` service will wait for one second
+After sending `CTRL_C_EVENT` service will wait for few seconds
 and write 'Y' to `cmd.exe` stdin, to handle that obnoxious
 `Terminate batch job (Y/N)?` prompt. If batch file or any of
 downstream processes do not exit within that timeout,
