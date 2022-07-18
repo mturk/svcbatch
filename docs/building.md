@@ -120,25 +120,6 @@ for SvcBatch development and maintenance
 This will remove all produced binaries and object files
 by deleting **x64** subdirectory.
 
-### DebugView support
-
-For debug and development purposes you can compile
-SvcBatch with the `_DBGVIEW` option that will enable
-internal tracing which can be viewed by using
-[SysInternals DebugView](https://download.sysinternals.com/files/DebugView.zip)
-utility.
-
-This option can be enabled at compile time by using
-the following:
-
-```cmd
-> nmake _DBGVIEW=1
-```
-
-For more information about DebugView check the
-[DebugView](https://docs.microsoft.com/en-us/sysinternals/downloads/debugview)
-official site.
-
 ### Vendor version support
 
 At compile time you can define vendor suffix and/or version
