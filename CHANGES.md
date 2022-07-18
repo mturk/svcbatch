@@ -9,8 +9,10 @@ For a full list of changes, see the [git commit log][log]
 ## v1.2.1
 
  * In development
+ * Fix propagating CTRL_C_EVENT from shutdown process
+ * Use the same rotation rules for shutdown log
  * Add rule option to define SVC_MAX_LOGS at runtime
- * Use -r . to define autorotate without time or size
+ * Add option to disable log rotation
 
 ## v1.2.0
 
