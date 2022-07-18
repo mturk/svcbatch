@@ -27,6 +27,7 @@ static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG         logwritten  = 0;
+static volatile LONG         vterminate  = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -76,6 +77,8 @@ static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
 static char         YYES[2]       = { 'Y', '\n'};
 
+static DWORD          lterminate  = 27;
+static const char    *terminatep  = "Terminate batch job (Y/N)? ";
 static const char    *cnamestamp  = SVCBATCH_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *cwslogname  = L"\\" SVCBATCH_LOGNAME;
@@ -1276,16 +1279,26 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
                 rc = ERROR_NO_DATA;
             }
             else {
-                EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
+                if (InterlockedAdd(&vterminate, 0) && (rd == lterminate)) {
+                    if (memcmp(rb, terminatep, lterminate) == 0) {
+                        DWORD wr;
+                        dbgprints(__FUNCTION__, "found Terminate");
+                        WriteFile(inputpipewrs, YYES, 2, &wr, NULL);
+                        rc = ERROR_NO_DATA;
+                    }
+                }
+                if (rc == 0) {
+                    EnterCriticalSection(&logfilelock);
+                    h = InterlockedExchangePointer(&logfhandle, NULL);
 
-                if (h != NULL)
-                    rc = logappend(h, rb, rd);
-                else
-                    rc = ERROR_NO_MORE_FILES;
+                    if (h != NULL)
+                        rc = logappend(h, rb, rd);
+                    else
+                        rc = ERROR_NO_MORE_FILES;
 
-                InterlockedExchangePointer(&logfhandle, h);
-                LeaveCriticalSection(&logfilelock);
+                    InterlockedExchangePointer(&logfhandle, h);
+                    LeaveCriticalSection(&logfilelock);
+                }
             }
         }
         else {
@@ -1405,22 +1418,23 @@ static unsigned int __stdcall shutdownthread(void *unused)
         goto finished;
     }
 
+    InterlockedIncrement(&vterminate);
     wh[0] = cp.hProcess;
     wh[1] = processended;
     wh[2] = xcreatethread(0, 0, &iopipethread, rds);
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
 
-    ws = WaitForMultipleObjects(3, wh, FALSE, SVCBATCH_STOP_CHECK);
+    ws = WaitForMultipleObjects(3, wh, FALSE, SVCBATCH_STOP_CHECK + SVCBATCH_STOP_STEP);
     switch (ws) {
         case WAIT_TIMEOUT:
         case WAIT_OBJECT_1:
+        case WAIT_OBJECT_2:
 #if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "sending signal event for: %lu",
                       cp.dwProcessId);
 #endif
             SetEvent(ssignalevent);
-        case WAIT_OBJECT_2:
             rc = WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_CHECK);
             if (rc != WAIT_OBJECT_0) {
 #if defined(_DBGVIEW)
@@ -1437,7 +1451,7 @@ static unsigned int __stdcall shutdownthread(void *unused)
         default:
         break;
     }
-    CloseHandle(wh[3]);
+    CloseHandle(wh[2]);
 
 finished:
     xfree(cmdline);
@@ -1465,34 +1479,31 @@ static unsigned int __stdcall stopthread(void *unused)
     else
         dbgprints(__FUNCTION__, "shutdown stop ");
 #endif
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
     if (shutdownfile != NULL) {
         ResetEvent(shutdowndone);
         dbgprints(__FUNCTION__, "creating shutdown process");
         xcreatethread(1, 0, &shutdownthread, NULL);
-        ws = WaitForSingleObject(shutdowndone, SVCBATCH_STOP_CHECK);
-        if (ws == WAIT_OBJECT_0) {
-            dbgprints(__FUNCTION__, "processended by shutdown");
-            goto finished;
-        }
-        dbgprints(__FUNCTION__, "shutdown still running");
+        WaitForSingleObject(shutdowndone, SVCBATCH_STOP_HINT);
+        dbgprints(__FUNCTION__, "shutdown done");
     }
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
+        InterlockedIncrement(&vterminate);
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        ws = WaitForSingleObject(processended, SVCBATCH_STOP_SYNC);
+        ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
         SetConsoleCtrlHandler(NULL, FALSE);
         if (ws == WAIT_OBJECT_0) {
             dbgprints(__FUNCTION__, "processended by CTRL_C_EVENT");
             goto finished;
         }
-        dbgprints(__FUNCTION__, "process still running");
     }
 #if defined(_DBGVIEW)
     else {
         dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %lu", GetLastError());
     }
+    dbgprints(__FUNCTION__, "process still running");
 #endif
     for (i = 0; i < 2; i++) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
@@ -1503,21 +1514,20 @@ static unsigned int __stdcall stopthread(void *unused)
          * Write Y to stdin pipe in case cmd.exe waits for
          * user reply to "Terminate batch job (Y/N)?"
          */
-        WriteFile(inputpipewrs, YYES, 2, &wr, NULL);
-
-        ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
-        if (ws == WAIT_OBJECT_0) {
-            dbgprints(__FUNCTION__, "processended signaled");
-            goto finished;
+        if (WriteFile(inputpipewrs, YYES, 2, &wr, NULL) && (wr != 0)) {
+            ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
+            if (ws == WAIT_OBJECT_0) {
+                dbgprints(__FUNCTION__, "processended signaled");
+                goto finished;
+            }
+        }
+        else {
+            dbgprints(__FUNCTION__, "write to child failed");
+            break;
         }
     }
-    dbgprints(__FUNCTION__, "Child is still active, terminating");
-    /**
-     * WAIT_TIMEOUT means that child is
-     * still running and we need to terminate
-     * child tree by brute force
-     */
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
+    dbgprints(__FUNCTION__, "Child is still active ... terminating");
     SAFE_CLOSE_HANDLE(childprocess);
     SAFE_CLOSE_HANDLE(childprocjob);
 
@@ -1941,7 +1951,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 #if defined(_DBGVIEW)
             dbgprints(__FUNCTION__, msg);
 #endif
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
             if (h != NULL) {
