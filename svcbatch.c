@@ -43,6 +43,11 @@ static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
+#if defined(_DBGVIEW)
+static int       hasdebuginfo     = 1;
+#else
+static int       hasdebuginfo     = 0;
+#endif
 static int       hasctrlbreak     = 0;
 static int       autorotate       = 0;
 static int       servicemode      = 1;
@@ -74,11 +79,11 @@ static HANDLE    inputpipewrs     = NULL;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
-static char         CRLFA[4]      = { '\r', '\n', '\r', '\n' };
+static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
 static char         YYES[2]       = { 'Y', '\n'};
 
 static DWORD          lterminate  = 27;
-static const char    *terminatep  = "Terminate batch job (Y/N)? ";
+static const char    *cterminate  = "Terminate batch job (Y/N)? ";
 static const char    *cnamestamp  = SVCBATCH_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *cwslogname  = L"\\" SVCBATCH_LOGNAME;
@@ -357,39 +362,33 @@ static wchar_t *xuuidstring(void)
     return b;
 }
 
-#if defined(_DBGVIEW)
 static void dbgprints(const char *funcname, const char *string)
 {
-    char    buf[SBUFSIZ];
-    char   *bp;
-    size_t  blen = SBUFSIZ - 1;
-    int     n = 0;
-
-    bp = buf;
-    n = _snprintf(bp, blen,
-                  "[%.4lu] %-16s ",
-                  GetCurrentThreadId(), funcname);
-    bp = bp + n;
-    strncat(bp, string, blen - n);
-    buf[SBUFSIZ - 1] = '\0';
-    OutputDebugStringA(buf);
+    if (hasdebuginfo) {
+        char buf[SBUFSIZ];
+        _snprintf(buf, SBUFSIZ - 1,
+                  "[%.4lu] %d %-16s %s",
+                  GetCurrentThreadId(),
+                  servicemode,
+                  funcname, string);
+         buf[SBUFSIZ - 1] = '\0';
+         OutputDebugStringA(buf);
+    }
 }
 
 static void dbgprintf(const char *funcname, const char *format, ...)
 {
-    char    buf[SBUFSIZ];
-    va_list ap;
+    if (hasdebuginfo) {
+        char    buf[SBUFSIZ];
+        va_list ap;
 
-    va_start(ap, format);
-    _vsnprintf(buf, SBUFSIZ -1, format, ap);
-    va_end(ap);
-    buf[SBUFSIZ - 1] = '\0';
-    dbgprints(funcname, buf);
+        va_start(ap, format);
+        _vsnprintf(buf, SBUFSIZ - 1, format, ap);
+        va_end(ap);
+        buf[SBUFSIZ - 1] = '\0';
+        dbgprints(funcname, buf);
+    }
 }
-#else
-#define dbgprints(_a, _b) (void)0
-#define dbgprintf(x, ...) (void)0
-#endif
 
 static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
 {
@@ -471,10 +470,6 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t 
     errarg[i++] = buf;
     errarg[i++] = err;
 
-#if defined(_DBGVIEW)
-    dbgprintf(__FUNCTION__, "%S (%lu) %S %S",
-              buf, ern, err, eds == NULL ? L"" : eds);
-#endif
     if (ern) {
         memset(erb, 0, sizeof(erb));
         xwinapierror(erb, MBUFSIZ - 1, ern);
@@ -1200,11 +1195,9 @@ static int resolverotate(const wchar_t *str)
             SystemTimeToFileTime(&st, &ft);
             rotatetmo.HighPart = ft.dwHighDateTime;
             rotatetmo.LowPart  = ft.dwLowDateTime;
-#if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "rotate at %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                       st.wYear, st.wMonth, st.wDay,
                       st.wHour, st.wMinute, st.wSecond);
-#endif
         }
     }
     if (rp != NULL) {
@@ -1238,20 +1231,16 @@ static int resolverotate(const wchar_t *str)
         if (len < CPP_INT64_C(10)) {
             svcmaxlogs = (int)siz;
             autorotate = 0;
-#if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "max rotate logs: %d", svcmaxlogs);
-#endif
         }
         else {
             if (len < SVCBATCH_MIN_LOGSIZE)
                 return __LINE__;
-#if defined(_DBGVIEW)
             if (mm)
                 dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
             else
                 dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
 
-#endif
             rotatesiz.QuadPart = len;
         }
     }
@@ -1280,9 +1269,9 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
             }
             else {
                 if (InterlockedAdd(&vterminate, 0) && (rd == lterminate)) {
-                    if (memcmp(rb, terminatep, lterminate) == 0) {
+                    if (memcmp(rb, cterminate, lterminate) == 0) {
                         DWORD wr;
-                        dbgprints(__FUNCTION__, "found Terminate");
+                        dbgprints(__FUNCTION__, cterminate);
                         WriteFile(inputpipewrs, YYES, 2, &wr, NULL);
                         rc = ERROR_NO_DATA;
                     }
@@ -1310,7 +1299,6 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
             rc = GetLastError();
         }
     }
-#if defined(_DBGVIEW)
     if (rc == ERROR_BROKEN_PIPE)
         dbgprints(__FUNCTION__, "pipe closed");
     else if (rc == ERROR_NO_MORE_FILES)
@@ -1318,7 +1306,6 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
     else if (rc != ERROR_NO_DATA)
         dbgprintf(__FUNCTION__, "err=%lu", rc);
     dbgprints(__FUNCTION__, "done");
-#endif
 
     XENDTHREAD(0);
 }
@@ -1352,13 +1339,13 @@ static unsigned int __stdcall shutdownthread(void *unused)
         _snwprintf(rb, 6, L" -r %d", svcmaxlogs);
         cmdline = xwcsappend(cmdline, rb);
     }
+    if (hasdebuginfo)
+        cmdline = xwcsappend(cmdline, L" -d");
     cmdline = xwcsappend(cmdline, L" -w ");
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
-#if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
-#endif
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     memset(&si, 0, sizeof(STARTUPINFOW));
@@ -1430,24 +1417,18 @@ static unsigned int __stdcall shutdownthread(void *unused)
         case WAIT_TIMEOUT:
         case WAIT_OBJECT_1:
         case WAIT_OBJECT_2:
-#if defined(_DBGVIEW)
             dbgprintf(__FUNCTION__, "sending signal event for: %lu",
                       cp.dwProcessId);
-#endif
             SetEvent(ssignalevent);
             rc = WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_CHECK);
             if (rc != WAIT_OBJECT_0) {
-#if defined(_DBGVIEW)
                 dbgprintf(__FUNCTION__, "calling TerminateProcess for child: %lu", cp.dwProcessId);
-#endif
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
         break;
-#if defined(_DBGVIEW)
         case WAIT_OBJECT_0:
             dbgprintf(__FUNCTION__, "child process: %lu done", cp.dwProcessId);
         break;
-#endif
         default:
         break;
     }
@@ -1473,12 +1454,10 @@ static unsigned int __stdcall stopthread(void *unused)
     DWORD wr, ws;
     int   i;
 
-#if defined(_DBGVIEW)
     if (servicemode)
         dbgprints(__FUNCTION__, "service stop");
     else
         dbgprints(__FUNCTION__, "shutdown stop ");
-#endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
     if (shutdownfile != NULL) {
         ResetEvent(shutdowndone);
@@ -1499,17 +1478,13 @@ static unsigned int __stdcall stopthread(void *unused)
             goto finished;
         }
     }
-#if defined(_DBGVIEW)
     else {
         dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %lu", GetLastError());
     }
     dbgprints(__FUNCTION__, "process still running");
-#endif
     for (i = 0; i < 2; i++) {
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-#if defined(_DBGVIEW)
         dbgprintf(__FUNCTION__, "sending Y to child (attempt=%d)", i + 1);
-#endif
         /**
          * Write Y to stdin pipe in case cmd.exe waits for
          * user reply to "Terminate batch job (Y/N)?"
@@ -1545,11 +1520,9 @@ static void createstopthread(void)
         ResetEvent(svcstopended);
         xcreatethread(1, 0, &stopthread, NULL);
     }
-#if defined(_DBGVIEW)
     else {
         dbgprints(__FUNCTION__, "already started");
     }
-#endif
 }
 
 static unsigned int __stdcall monitorthread(void *unused)
@@ -1568,14 +1541,12 @@ static unsigned int __stdcall monitorthread(void *unused)
         wh[2] = ssignalevent;
         wc = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
         switch (wc) {
-#if defined(_DBGVIEW)
             case WAIT_OBJECT_0:
                 dbgprints(__FUNCTION__, "processended signaled");
             break;
             case WAIT_OBJECT_1:
                 dbgprints(__FUNCTION__, "monitorevent signaled");
             break;
-#endif
             case WAIT_OBJECT_2:
                 dbgprints(__FUNCTION__, "stop signaled");
                 EnterCriticalSection(&logfilelock);
@@ -1649,9 +1620,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                     }
                     else {
                         ResetEvent(monitorevent);
-#if defined(_DBGVIEW)
                         dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
-#endif
                     }
                 break;
                 default:
@@ -1674,12 +1643,10 @@ static unsigned int __stdcall rotatethread(void *unused)
     dbgprintf(__FUNCTION__, "started");
     wc = WaitForSingleObject(processended, SVCBATCH_LOGROTATE_INIT);
     if (wc != WAIT_TIMEOUT) {
-#if defined(_DBGVIEW)
         if (wc == WAIT_OBJECT_0)
             dbgprints(__FUNCTION__, "processended signaled");
         else
             dbgprintf(__FUNCTION__, "processended: %lu", wc);
-#endif
         goto finished;
     }
     dbgprints(__FUNCTION__, "running");
@@ -1781,9 +1748,7 @@ static unsigned int __stdcall workerthread(void *unused)
     cmdline = xwcsappend(cmdline, L" /D /C \"");
     cmdline = xappendarg(cmdline, svcbatchfile);
     cmdline = xwcsappend(cmdline, L"\"");
-#if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
-#endif
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     memset(&si, 0, sizeof(STARTUPINFOW));
@@ -1873,35 +1838,28 @@ static unsigned int __stdcall workerthread(void *unused)
     ResumeThread(wh[1]);
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-#if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "running child pid: %lu", cp.dwProcessId);
-#endif
     if (servicemode)
         xcreatethread(1, 0, &rotatethread, NULL);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
-#if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "finished child pid: %lu", cp.dwProcessId);
-#endif
 
 finished:
     SAFE_CLOSE_HANDLE(cp.hThread);
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
     SetEvent(processended);
-#if defined(_DBGVIEW)
+
     if (ssvcstatus.dwServiceSpecificExitCode)
         dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%lu",
                   ssvcstatus.dwServiceSpecificExitCode);
     dbgprints(__FUNCTION__, "done");
-#endif
-
     XENDTHREAD(0);
 }
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
-#if defined(_DBGVIEW)
     switch (ctrl) {
         case CTRL_CLOSE_EVENT:
             dbgprints(__FUNCTION__, "signaled CTRL_CLOSE_EVENT");
@@ -1923,7 +1881,6 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             return FALSE;
         break;
     }
-#endif
     return TRUE;
 }
 
@@ -1948,9 +1905,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_PRESHUTDOWN:
         case SERVICE_CONTROL_SHUTDOWN:
         case SERVICE_CONTROL_STOP:
-#if defined(_DBGVIEW)
             dbgprints(__FUNCTION__, msg);
-#endif
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
@@ -2018,9 +1973,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             return;
         }
     }
-#if defined(_DBGVIEW)
     dbgprintf(__FUNCTION__, "started %S", servicename);
-#endif
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     rv = openlogfile(TRUE);
     if (rv != 0) {
@@ -2145,9 +2098,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             i = 3;
         }
     }
-#if defined(_DBGVIEW)
     dbgprints(__FUNCTION__, cnamestamp);
-#endif
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
             ++envc;
@@ -2207,6 +2158,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 switch (pchar) {
                     case L'b':
                         hasctrlbreak = 1;
+                    break;
+                    case L'd':
+                        hasdebuginfo = 1;
                     break;
                     case L'o':
                         loglocation  = zerostring;

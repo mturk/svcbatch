@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.2.1
 
  * In development
+ * Add -d command option for debug tracing
  * Fix propagating CTRL_C_EVENT from shutdown process
  * Use the same rotation rules for shutdown log
  * Add rule option to define SVC_MAX_LOGS at runtime
