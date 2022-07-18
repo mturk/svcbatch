@@ -26,19 +26,15 @@ TARGET  = $(PROJECT).exe
 WORKDIR = $(SRCDIR)/x64
 OUTPUT  = $(WORKDIR)/$(TARGET)
 
-ifdef _DBGVIEW
-DFLAGS = -D_DBGVIEW
-endif
-
 WINVER  = 0x0601
 CFLAGS  = -DNDEBUG -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
 	-D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE \
-	-DUNICODE -D_UNICODE $(DFLAGS) $(EXTRA_CFLAGS)
+	-DUNICODE -D_UNICODE $(EXTRA_CFLAGS)
 LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-implicit-fallthrough -municode -mconsole
 RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
 RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER) $(EXTRA_RFLAGS)
 CLOPTS  = $(LNOPTS) -c
-LDLIBS  = -lkernel32 -ladvapi32 -luser32 -lshell32
+LDLIBS  = -lkernel32 -ladvapi32 -luser32
 
 ifdef _VENDOR_SFX
 CFLAGS += -D_VENDOR_SFX=$(_VENDOR_SFX)

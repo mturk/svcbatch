@@ -43,11 +43,7 @@ static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
-#if defined(_DBGVIEW)
-static int       hasdebuginfo     = 1;
-#else
-static int       hasdebuginfo     = 0;
-#endif
+static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
 static int       hasctrlbreak     = 0;
 static int       autorotate       = 0;
 static int       servicemode      = 1;
@@ -713,7 +709,6 @@ static int resolvebatchname(const wchar_t *a)
     return 0;
 }
 
-#if defined(_DBGVIEW)
 static int runningasservice(void)
 {
     int     rv = 0;
@@ -739,7 +734,6 @@ static int runningasservice(void)
     }
     return rv;
 }
-#endif
 
 static void setsvcstatusexit(DWORD e)
 {
@@ -2216,8 +2210,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, 0, L"Extra parameters", p);
         }
     }
-#if defined(_DBGVIEW)
-    if (servicemode) {
+    if (servicemode && hasdebuginfo) {
         if (runningasservice() == 0) {
             fputs(cnamestamp, stderr);
             fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
@@ -2225,7 +2218,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return ERROR_INVALID_PARAMETER;
         }
     }
-#endif
     if (IS_EMPTY_WCS(batchparam))
         return svcsyserror(__LINE__, 0, L"Missing batch file", NULL);
     if (IS_EMPTY_WCS(serviceuuid)) {
