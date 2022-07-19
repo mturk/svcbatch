@@ -16,13 +16,14 @@ rem limitations under the License.
 rem
 rem
 setlocal
-set "rrstr=%1"
-set "ifile=%2"
-set "ofile=%3"
+set "irstr=%1"
+set "rrstr=%2"
+set "ifile=%3"
+set "ofile=%4"
 (for /f "delims=" %%i in (%ifile%) do (
     set "line=%%i"
     setlocal enabledelayedexpansion
-    set "line=!line:@@version@@=%rrstr%!"
+    set "line=!line:@@%irstr%@@=%rrstr%!"
     echo(!line!
     endlocal
 ))>"%ofile%"
