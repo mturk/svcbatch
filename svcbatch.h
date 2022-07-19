@@ -34,19 +34,11 @@
 /**
  * Version info
  */
-#define SVCBATCH_MAJOR_VERSION  1
-#define SVCBATCH_MINOR_VERSION  2
-#define SVCBATCH_PATCH_VERSION  1
-#if defined(_VENDOR_NUM)
-# define SVCBATCH_MICRO_VERSION _VENDOR_NUM
-#else
-# define SVCBATCH_MICRO_VERSION 0
-#endif
-
-/**
- * Set to zero for non dev versions
- */
-#define SVCBATCH_ISDEV_VERSION  1
+#define SVCBATCH_MAJOR_VERSION  VERSION_MAJOR
+#define SVCBATCH_MINOR_VERSION  VERSION_MINOR
+#define SVCBATCH_PATCH_VERSION  VERSION_PATCH
+#define SVCBATCH_MICRO_VERSION  VERSION_MICRO
+#define SVCBATCH_ISDEV_VERSION  VERSION_DEVEL
 
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
@@ -170,14 +162,10 @@
 #define SVCBATCH_BUILD_STAMP    "(" __DATE__ " " __TIME__ " " SVCBATCH_BUILD_CC ")"
 #endif
 
-#if defined(_VENDOR_SFX)
-# define SVCBATCH_VERSION_SFX   CPP_TOSTR(_VENDOR_SFX)
+#if defined(VERSION_SFX)
+# define SVCBATCH_VERSION_SFX   CPP_TOSTR(VERSION_SFX)
 #else
-# if defined(_VENDOR_NUM)
-#  define SVCBATCH_VERSION_SFX  "." CPP_TOSTR(_VENDOR_NUM)
-# else
-#  define SVCBATCH_VERSION_SFX  ""
-# endif
+# define SVCBATCH_VERSION_SFX   ""
 #endif
 #if SVCBATCH_ISDEV_VERSION
 # define SVCBATCH_VERSION_DEV   " (dev)"

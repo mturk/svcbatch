@@ -21,7 +21,7 @@
 #else
 #define SVCBATCH_PRERELEASE  0
 #endif
-#if defined(_VENDOR_NUM) || defined(_VENDOR_SFX)
+#if defined(VERSION_SFX)
 #define SVCBATCH_PATCHED     VS_FF_PATCHED
 #else
 #define SVCBATCH_PATCHED     0
