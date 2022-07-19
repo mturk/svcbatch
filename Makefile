@@ -87,7 +87,17 @@ $(WORKDIR):
 	@-md $(WORKDIR) 2>NUL
 
 $(WORKDIR)\$(PROJECT).manifest: $(PPREFIX).manifest.in
-	@simplesed.bat version $(BLDVER) $(PPREFIX).manifest.in $@
+	<<ssed.bat
+	@echo off
+	setlocal
+	(for /f "delims=" %%i in ($(PPREFIX).manifest.in) do (
+	set "line=%%i"
+	setlocal enabledelayedexpansion
+	set "line=!line:@@version@@=$(BLDVER)!"
+	echo(!line!
+	endlocal
+	))>$@
+<<
 
 $(WORKDIR)\$(PROJECT).obj: $(PPREFIX).h $(PPREFIX).c
 	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -Fo$(WORKDIR)\ $(PPREFIX).c
