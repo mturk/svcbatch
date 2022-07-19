@@ -1522,7 +1522,8 @@ static unsigned int __stdcall stopthread(void *unused)
 
 finished:
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
-    SetEvent(ssignalevent);
+    if (IS_VALID_HANDLE(ssignalevent))
+        SetEvent(ssignalevent);
     SetEvent(svcstopended);
     dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
@@ -2042,7 +2043,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     wh[0] = svcstopended;
     wh[1] = shutdowndone;
     ws = WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_HINT);
-    if (ws == WAIT_TIMEOUT) {
+    if (IS_VALID_HANDLE(ssignalevent) && (ws == WAIT_TIMEOUT)) {
         dbgprints(__FUNCTION__, "sending stop signal");
         SetEvent(ssignalevent);
         WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_CHECK);
