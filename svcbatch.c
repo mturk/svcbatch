@@ -418,20 +418,18 @@ static int setupeventlog(void)
     static int ssrv = 0;
     static volatile LONG eset   = 0;
     static const wchar_t emsg[] = L"%SystemRoot%\\System32\\netmsg.dll\0";
-    wchar_t *kname;
     DWORD c;
     HKEY  k;
 
     if (InterlockedIncrement(&eset) > 1)
         return ssrv;
-    kname = xwcsconcat( L"SYSTEM\\CurrentControlSet\\Services\\" \
-                        L"EventLog\\Application\\", cwsappname);
-    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE, kname,
+    if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
+                        L"SYSTEM\\CurrentControlSet\\Services\\" \
+                        L"EventLog\\Application\\" CPP_WIDEN(SVCBATCH_NAME),
                         0, NULL, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
                         NULL, &k, &c) != ERROR_SUCCESS)
         return 0;
-    xfree(kname);
     if (c == REG_CREATED_NEW_KEY) {
         DWORD dw = EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE |
                    EVENTLOG_INFORMATION_TYPE;
@@ -489,7 +487,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t 
         errarg[i++] = NULL;
     }
     if (setupeventlog()) {
-        HANDLE es = RegisterEventSourceW(NULL, cwsappname);
+        HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_NAME));
         if (es != NULL) {
             /**
              * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
