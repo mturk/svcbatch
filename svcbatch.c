@@ -58,6 +58,7 @@ static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
+static wchar_t  *ssignalname  = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -1326,6 +1327,16 @@ static unsigned int __stdcall shutdownthread(void *unused)
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
+    ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
+    if (IS_INVALID_HANDLE(ssignalevent)) {
+        rc = GetLastError();
+        svcsyserror(__LINE__, rc, ssignalname, NULL);
+        SetEvent(shutdowndone);
+        setsvcstatusexit(rc);
+        dbgprints(__FUNCTION__, "failed");
+        XENDTHREAD(0);
+    }
+    dbgprintf(__FUNCTION__, "using signal name: %S", ssignalname);
 
     cmdline = xappendarg(NULL, svcbatchexe);
     cmdline = xwcsappend(cmdline, L" -x ");
@@ -1467,7 +1478,7 @@ static unsigned int __stdcall stopthread(void *unused)
         dbgprints(__FUNCTION__, "creating shutdown process");
         xcreatethread(1, 0, &shutdownthread, NULL);
         WaitForSingleObject(shutdowndone, SVCBATCH_STOP_HINT);
-        dbgprints(__FUNCTION__, "shutdown done");
+        dbgprints(__FUNCTION__, "awaited shutdown done");
     }
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
@@ -2075,7 +2086,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t    *orgpath;
     wchar_t    *batchparam  = NULL;
     wchar_t    *shomeparam  = NULL;
-    wchar_t    *signalname  = NULL;
     int         envc        = 0;
     int         hasopts     = 1;
     HANDLE      h;
@@ -2336,17 +2346,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
-    signalname = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
-    if (servicemode) {
-        ssignalevent = CreateEventW(&sazero, TRUE, FALSE, signalname);
+    ssignalname = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
+    if (servicemode == 0) {
+        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, ssignalname);
+        if (IS_INVALID_HANDLE(ssignalevent))
+            return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
+        dbgprintf(__FUNCTION__, "using signal name: %S", ssignalname);
     }
-    else {
-        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, signalname);
-    }
-    if (IS_INVALID_HANDLE(ssignalevent))
-        return svcsyserror(__LINE__, GetLastError(), signalname, NULL);
-    dbgprintf(__FUNCTION__, "using signal name: %S", signalname);
-    xfree(signalname);
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
