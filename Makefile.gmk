@@ -20,6 +20,13 @@ LN = $(CC)
 RC = windres
 RL = strip --strip-unneeded
 
+VERSION_MAJOR = 1
+VERSION_MINOR = 2
+VERSION_PATCH = 1
+VERSION_MICRO = 0
+VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
+BLDVER  = $(VERSION).$(VERSION_MICRO)
+
 SRCDIR  = .
 PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
@@ -37,18 +44,22 @@ RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER) $(EXTRA_RFLAGS
 CLOPTS  = $(LNOPTS) -c
 LDLIBS  = -lkernel32 -ladvapi32 -luser32
 
-ifdef _VENDOR_SFX
-CFLAGS += -D_VENDOR_SFX=$(_VENDOR_SFX)
-RFLAGS += -D _VENDOR_SFX=$(_VENDOR_SFX)
-endif
 ifdef _VENDOR_NUM
 CFLAGS += -D_VENDOR_NUM=$(_VENDOR_NUM)
 RFLAGS += -D _VENDOR_NUM=$(_VENDOR_NUM)
+BLDVER = $(VERSION).$(_VENDOR_NUM)
+endif
+ifdef _VENDOR_SFX
+CFLAGS += -D_VENDOR_SFX=$(_VENDOR_SFX)
+RFLAGS += -D _VENDOR_SFX=$(_VENDOR_SFX)
+BLDVER = $(VERSION)$(_VENDOR_SFX)
 endif
 
 OBJECTS = \
 	$(WORKDIR)/$(PROJECT).obj \
 	$(WORKDIR)/$(PROJECT).res
+
+MANIFEST = $(WORKDIR)/$(PROJECT).manifest
 
 all : $(WORKDIR) $(OUTPUT)
 	@:
@@ -56,13 +67,16 @@ all : $(WORKDIR) $(OUTPUT)
 $(WORKDIR):
 	@mkdir -p $@
 
+$(MANIFEST): $(SRCDIR)/$(PROJECT).manifest.in
+	sed 's/@@version@@/$(BLDVER)/g' $< >$@
+
 $(WORKDIR)/%.obj: $(SRCDIR)/%.c $(SRCDIR)/%.h
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) $<
 
-$(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
-	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -D _BUILD_TIMESTAMP=$(TSTAMP) -I $(SRCDIR) $<
+$(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h $(MANIFEST)
+	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -D _BUILD_TIMESTAMP=$(TSTAMP) -I $(SRCDIR) -I $(WORKDIR) $<
 
-$(OUTPUT): $(WORKDIR) $(OBJECTS)
+$(OUTPUT): $(WORKDIR) $(MANIFEST) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
 	$(RL) $@
 
