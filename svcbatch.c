@@ -715,7 +715,7 @@ static int runningasservice(void)
     int     rv = 0;
     HWINSTA ws = GetProcessWindowStation();
 
-    if (ws != NULL) {
+    if (IS_VALID_HANDLE(ws)) {
         DWORD len;
         USEROBJECTFLAGS uf;
         wchar_t name[BBUFSIZ];
@@ -972,8 +972,8 @@ static DWORD openlogfile(BOOL firstopen)
         }
         xfree(pp);
         if (_wcsicmp(loglocation, servicehome) == 0) {
-            svcsyserror(__LINE__, 0,
-                        L"Loglocation cannot be the same as servicehome", NULL);
+            svcsyserror(__LINE__, 0, loglocation,
+                        L"Loglocation cannot be the same as servicehome");
             return ERROR_BAD_PATHNAME;
         }
         logfilename = xwcsconcat(loglocation, cwslogname);
@@ -1557,10 +1557,10 @@ static unsigned int __stdcall monitorthread(void *unused)
         wc = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
         switch (wc) {
             case WAIT_OBJECT_0:
-                dbgprints(__FUNCTION__, "processended signaled");
+                dbgprints(__FUNCTION__, "shutdown processended signaled");
             break;
             case WAIT_OBJECT_1:
-                dbgprints(__FUNCTION__, "monitorevent signaled");
+                dbgprints(__FUNCTION__, "shutdown monitorevent signaled");
             break;
             case WAIT_OBJECT_2:
                 dbgprints(__FUNCTION__, "stop signaled");
@@ -1599,7 +1599,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                     else if (cc == SVCBATCH_CTRL_BREAK) {
                         HANDLE h;
 
-                        dbgprints(__FUNCTION__, "break signaled");
+                        dbgprints(__FUNCTION__, "ctrl+break signaled");
                         EnterCriticalSection(&logfilelock);
                         h = InterlockedExchangePointer(&logfhandle, NULL);
 
@@ -1619,7 +1619,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                          */
                         InterlockedExchange(&vterminate, 2);
                         GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-                        dbgprints(__FUNCTION__, "break send");
+                        dbgprints(__FUNCTION__, "console ctrl+break send");
                     }
                     else if (cc == SVCBATCH_CTRL_ROTATE) {
                         dbgprints(__FUNCTION__, "log rotation signaled");
@@ -1689,7 +1689,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                     if (GetFileSizeEx(h, &fs)) {
                         InterlockedExchangePointer(&logfhandle, h);
                         if (fs.QuadPart >= rotatesiz.QuadPart) {
-                            dbgprintf(__FUNCTION__, "rotate by size");
+                            dbgprints(__FUNCTION__, "rotate by size");
                             rc = rotatelogs();
                             if (rc != 0) {
                                 setsvcstatusexit(rc);
@@ -2124,7 +2124,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             ++envc;
     }
     if (envc == 0)
-        return svcsyserror(__LINE__, 0, L"Missing environment", NULL);
+        return svcsyserror(__LINE__, 0, L"System", L"Missing environment");
     if (resolvesvcbatchexe(wargv[0]) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0], NULL);
     /**
@@ -2133,8 +2133,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     while (i < argc) {
         const wchar_t *p = wargv[i++];
-        if (p[0] == L'\0')
-            return svcsyserror(__LINE__, 0, L"Empty command line argument", NULL);
+
         if (hasopts) {
             if (shomeparam == zerostring) {
                 shomeparam = expandenvstrings(p, 1);
@@ -2207,7 +2206,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         serviceuuid  = zerostring;
                     break;
                     default:
-                        return svcsyserror(__LINE__, 0, L"Unknown cmdline option", p);
+                        return svcsyserror(__LINE__, 0, L"Unknown command line option", p);
                     break;
                 }
                 continue;
@@ -2220,10 +2219,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         else {
             /**
-             * We have extra parameters after batch file.
-             * This is user install error.
+             * Discard extra parameters
+             * In future they could be used as arguments
+             * for batch file
              */
-            return svcsyserror(__LINE__, 0, L"Extra parameters", p);
+            dbgprintf(__FUNCTION__, "Extra parameter argv[%d] %S", i - 1, p);
         }
     }
     if (servicemode && hasdebuginfo) {
@@ -2240,7 +2240,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (servicemode)
             serviceuuid = xuuidstring();
         else
-            return svcsyserror(__LINE__, 0, L"Missing -u <SVCBATCH_SERVICE_UUID> parameter", NULL);
+            return svcsyserror(__LINE__, 0, L"Runtime error",
+                               L"Missing -u <SVCBATCH_SERVICE_UUID> parameter");
     }
     if (IS_EMPTY_WCS(serviceuuid))
         return svcsyserror(__LINE__, GetLastError(), L"xuuidstring", NULL);
