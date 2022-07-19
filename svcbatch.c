@@ -81,7 +81,7 @@ static char         YYES[2]       = { 'Y', '\n'};
 
 static DWORD          lterminate  = 27;
 static const char    *cterminate  = "Terminate batch job (Y/N)? ";
-static const char    *cnamestamp  = SVCBATCH_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *cwslogname  = L"\\" SVCBATCH_LOGNAME;
 

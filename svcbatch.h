@@ -169,16 +169,20 @@
 #else
 #define SVCBATCH_BUILD_STAMP    "(" __DATE__ " " __TIME__ " " SVCBATCH_BUILD_CC ")"
 #endif
-#if defined(_VENDOR_SFX)
-# define SVCBATCH_VENDOR_SFX    CPP_TOSTR(_VENDOR_SFX)
-#else
-# define SVCBATCH_VENDOR_SFX    ""
-#endif
 
-#if SVCBATCH_ISDEV_VERSION
-# define SVCBATCH_VERSION_SFX   SVCBATCH_VENDOR_SFX "-dev"
+#if defined(_VENDOR_SFX)
+# define SVCBATCH_VERSION_SFX   CPP_TOSTR(_VENDOR_SFX)
 #else
-# define SVCBATCH_VERSION_SFX   SVCBATCH_VENDOR_SFX
+# if defined(_VENDOR_NUM)
+#  define SVCBATCH_VERSION_SFX  "." CPP_TOSTR(_VENDOR_NUM)
+# else
+#  define SVCBATCH_VERSION_SFX  ""
+# endif
+#endif
+#if SVCBATCH_ISDEV_VERSION
+# define SVCBATCH_VERSION_DEV   " (dev)"
+#else
+# define SVCBATCH_VERSION_DEV   ""
 #endif
 
 /**
@@ -194,6 +198,11 @@
                                 CPP_TOSTR(SVCBATCH_MINOR_VERSION) "."   \
                                 CPP_TOSTR(SVCBATCH_PATCH_VERSION)       \
                                 SVCBATCH_VERSION_SFX
+
+#define SVCBATCH_VERSION_TXT  \
+                                SVCBATCH_VERSION_STR                    \
+                                SVCBATCH_VERSION_DEV " "                \
+                                SVCBATCH_BUILD_STAMP
 
 #define SVCBATCH_PROJECT_URL \
     "https://github.com/mturk/svcbatch"
