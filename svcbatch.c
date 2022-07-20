@@ -27,7 +27,6 @@ static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG         logwritten  = 0;
-static volatile LONG         vterminate  = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -38,6 +37,7 @@ static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 static HANDLE                rotatedev   = NULL;
+static BYTE                  ioreadbuffer[HBUFSIZ];
 
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
@@ -79,7 +79,6 @@ static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
 static char         YYES[2]       = { 'Y', '\n'};
 
-static DWORD          lterminate  = 27;
 static const char    *cterminate  = "Terminate batch job (Y/N)? ";
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
@@ -1245,17 +1244,16 @@ static int resolverotate(const wchar_t *str)
     return 0;
 }
 
-static unsigned int __stdcall iopipethread(void *rdpipe)
+static unsigned int __stdcall iopipethread(void *unused)
 {
     DWORD  rc = 0;
 
     dbgprints(__FUNCTION__, "started");
     while (rc == 0) {
-        BYTE  rb[HBUFSIZ];
         DWORD rd = 0;
         HANDLE h = NULL;
 
-        if (ReadFile((HANDLE)rdpipe, rb, HBUFSIZ, &rd, NULL)) {
+        if (ReadFile(outputpiperd, ioreadbuffer, DSIZEOF(ioreadbuffer), &rd, NULL)) {
             if (rd == 0) {
                 /**
                  * Read zero bytes from child should
@@ -1265,31 +1263,16 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
                 rc = ERROR_NO_DATA;
             }
             else {
-                LONG v = InterlockedCompareExchange(&vterminate, 0, 0);
-                if ((v > 0) && (rd == lterminate)) {
-                    if (memcmp(rb, cterminate, lterminate) == 0) {
-                        DWORD wr;
-                        dbgprints(__FUNCTION__, cterminate);
-                        WriteFile(inputpipewrs, YYES, 2, &wr, NULL);
-                        rc = ERROR_NO_DATA;
-                    }
-                }
-                if (rc == 0) {
-                    EnterCriticalSection(&logfilelock);
-                    h = InterlockedExchangePointer(&logfhandle, NULL);
+                EnterCriticalSection(&logfilelock);
+                h = InterlockedExchangePointer(&logfhandle, NULL);
 
-                    if (h != NULL)
-                        rc = logappend(h, rb, rd);
-                    else
-                        rc = ERROR_NO_MORE_FILES;
+                if (h != NULL)
+                    rc = logappend(h, ioreadbuffer, rd);
+                else
+                    rc = ERROR_NO_MORE_FILES;
 
-                    InterlockedExchangePointer(&logfhandle, h);
-                    LeaveCriticalSection(&logfilelock);
-                    if ((v == 2) && (rd >= lterminate)) {
-                        dbgprints(__FUNCTION__, "reseting CTRL_BREAK terminate parser");
-                        InterlockedExchange(&vterminate, 0);
-                    }
-                }
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
             }
         }
         else {
@@ -1312,19 +1295,68 @@ static unsigned int __stdcall iopipethread(void *rdpipe)
     XENDTHREAD(0);
 }
 
+static DWORD wrterminatechar(DWORD iwait, DWORD wwait)
+{
+    DWORD wr, ws;
+    DWORD rc = 0;
+
+    if (iwait) {
+        ws = WaitForSingleObject(processended, iwait);
+        if (ws != WAIT_TIMEOUT) {
+            if (ws == WAIT_OBJECT_0)
+                dbgprints(__FUNCTION__, "processended signaled");
+            else
+                dbgprintf(__FUNCTION__, "processended: %lu", ws);
+            dbgprints(__FUNCTION__, "aborted");
+            return 0;
+        }
+        dbgprints(__FUNCTION__, "running");
+    }
+    dbgprints(__FUNCTION__, "sending Y to child");
+    if (WriteFile(inputpipewrs, YYES, 2, &wr, NULL) && (wr != 0)) {
+        if (wwait) {
+            ws = WaitForSingleObject(processended, wwait);
+            if (ws == WAIT_OBJECT_0)
+                rc = ERROR_PROCESS_ABORTED;
+        }
+        dbgprints(__FUNCTION__, "wrote Y to child");
+    }
+    else {
+        rc = GetLastError();
+    }
+    if (rc == ERROR_BROKEN_PIPE)
+        dbgprints(__FUNCTION__, "pipe closed");
+    else if (rc == ERROR_PROCESS_ABORTED)
+        dbgprints(__FUNCTION__, "processended by sending Y");
+    else if (rc)
+        dbgprintf(__FUNCTION__, "err=%lu", rc);
+
+    return rc;
+}
+
+static unsigned int __stdcall wrpipethread(void *param)
+{
+    DWORD ws = *((DWORD *)(param));
+
+    dbgprints(__FUNCTION__, "started");
+    wrterminatechar(ws, 0);
+    dbgprints(__FUNCTION__, "done");
+    XENDTHREAD(0);
+}
+
 static unsigned int __stdcall shutdownthread(void *unused)
 {
     wchar_t *cmdline;
-    HANDLE   wh[4];
+    HANDLE   wh[2];
     HANDLE   job = NULL;
-    HANDLE   wrs = NULL;
-    HANDLE   rds = NULL;
     DWORD    rc, ws;
+    DWORD    iw  = SVCBATCH_STOP_SYNC;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
+    dbgprintf(__FUNCTION__, "signal name: %S", ssignalname);
     ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
     if (IS_INVALID_HANDLE(ssignalevent)) {
         rc = GetLastError();
@@ -1334,7 +1366,6 @@ static unsigned int __stdcall shutdownthread(void *unused)
         dbgprints(__FUNCTION__, "failed");
         XENDTHREAD(0);
     }
-    dbgprintf(__FUNCTION__, "using signal name: %S", ssignalname);
 
     cmdline = xappendarg(NULL, svcbatchexe);
     cmdline = xwcsappend(cmdline, L" -x ");
@@ -1358,18 +1389,11 @@ static unsigned int __stdcall shutdownthread(void *unused)
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
+
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     memset(&si, 0, sizeof(STARTUPINFOW));
-
-    si.cb      = DSIZEOF(STARTUPINFOW);
-    si.dwFlags = STARTF_USESTDHANDLES;
-
-    rc = createiopipes(&si, &wrs, &rds);
-    if (rc != 0) {
-        setsvcstatusexit(rc);
-        goto finished;
-    }
+    si.cb = DSIZEOF(STARTUPINFOW);
 
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
@@ -1403,12 +1427,7 @@ static unsigned int __stdcall shutdownthread(void *unused)
         goto finished;
     }
 
-    dbgprintf(__FUNCTION__, "child pid: %lu", cp.dwProcessId);
-    /**
-     * Close our side of the pipes
-     */
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
+    dbgprintf(__FUNCTION__, "svcbatch child pid: %lu", cp.dwProcessId);
     if (!AssignProcessToJobObject(job, cp.hProcess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
@@ -1417,18 +1436,19 @@ static unsigned int __stdcall shutdownthread(void *unused)
         goto finished;
     }
 
-    InterlockedExchange(&vterminate, 1);
     wh[0] = cp.hProcess;
     wh[1] = processended;
-    wh[2] = xcreatethread(0, 0, &iopipethread, rds);
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
+    xcreatethread(1, 0, &wrpipethread, &iw);
 
-    ws = WaitForMultipleObjects(3, wh, FALSE, SVCBATCH_STOP_CHECK + SVCBATCH_STOP_STEP);
+    ws = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_STOP_CHECK + SVCBATCH_STOP_STEP);
     switch (ws) {
-        case WAIT_TIMEOUT:
+        case WAIT_OBJECT_0:
+            dbgprintf(__FUNCTION__, "child process: %lu done", cp.dwProcessId);
+        break;
         case WAIT_OBJECT_1:
-        case WAIT_OBJECT_2:
+        case WAIT_TIMEOUT:
             dbgprintf(__FUNCTION__, "sending signal event for: %lu",
                       cp.dwProcessId);
             SetEvent(ssignalevent);
@@ -1438,20 +1458,12 @@ static unsigned int __stdcall shutdownthread(void *unused)
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
         break;
-        case WAIT_OBJECT_0:
-            dbgprintf(__FUNCTION__, "child process: %lu done", cp.dwProcessId);
-        break;
         default:
         break;
     }
-    CloseHandle(wh[2]);
 
 finished:
     xfree(cmdline);
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
-    SAFE_CLOSE_HANDLE(rds);
-    SAFE_CLOSE_HANDLE(wrs);
     SAFE_CLOSE_HANDLE(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hProcess);
     SAFE_CLOSE_HANDLE(job);
@@ -1463,7 +1475,7 @@ finished:
 
 static unsigned int __stdcall stopthread(void *unused)
 {
-    DWORD wr, ws;
+    DWORD ws;
     int   i;
 
     if (servicemode)
@@ -1479,9 +1491,9 @@ static unsigned int __stdcall stopthread(void *unused)
         dbgprints(__FUNCTION__, "awaited shutdown done");
     }
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+    wrterminatechar(0, SVCBATCH_STOP_SYNC);
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
-        InterlockedExchange(&vterminate, 1);
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
         SetConsoleCtrlHandler(NULL, FALSE);
@@ -1501,15 +1513,7 @@ static unsigned int __stdcall stopthread(void *unused)
          * Write Y to stdin pipe in case cmd.exe waits for
          * user reply to "Terminate batch job (Y/N)?"
          */
-        if (WriteFile(inputpipewrs, YYES, 2, &wr, NULL) && (wr != 0)) {
-            ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
-            if (ws == WAIT_OBJECT_0) {
-                dbgprints(__FUNCTION__, "processended signaled");
-                goto finished;
-            }
-        }
-        else {
-            dbgprints(__FUNCTION__, "write to child failed");
+        if (wrterminatechar(0, SVCBATCH_STOP_SYNC)) {
             break;
         }
     }
@@ -1541,7 +1545,9 @@ static void createstopthread(void)
 static unsigned int __stdcall monitorthread(void *unused)
 {
     HANDLE wh[3];
-    DWORD  wc, rc = 0;
+    DWORD  ws, rc = 0;
+    DWORD  nw = SVCBATCH_MONITOR_STEP;
+    int    nc = 0;
 
     dbgprints(__FUNCTION__, "started");
 
@@ -1552,8 +1558,8 @@ static unsigned int __stdcall monitorthread(void *unused)
         HANDLE h = NULL;
 
         wh[2] = ssignalevent;
-        wc = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
-        switch (wc) {
+        ws = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
+        switch (ws) {
             case WAIT_OBJECT_0:
                 dbgprints(__FUNCTION__, "shutdown processended signaled");
             break;
@@ -1581,8 +1587,8 @@ static unsigned int __stdcall monitorthread(void *unused)
         do {
             DWORD cc;
 
-            wc = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
-            switch (wc) {
+            ws = WaitForMultipleObjects(2, wh, FALSE, nw);
+            switch (ws) {
                 case WAIT_OBJECT_0:
                     dbgprints(__FUNCTION__, "processended signaled");
                     rc = 1;
@@ -1615,7 +1621,6 @@ static unsigned int __stdcall monitorthread(void *unused)
                          * CTRL_BREAK signal tells JDK to dump thread stack
                          *
                          */
-                        InterlockedExchange(&vterminate, 2);
                         GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
                         dbgprints(__FUNCTION__, "console ctrl+break send");
                     }
@@ -1635,11 +1640,55 @@ static unsigned int __stdcall monitorthread(void *unused)
                         dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
                     }
                 break;
+                case WAIT_TIMEOUT:
+                    /**
+                     * Check every 10 minutes if the last read line
+                     * was 'Terminate batch job (Y/N)? '
+                     *
+                     * This could mean that cmd.exe is waiting for Y input
+                     * because batch file was terminated.
+                     * Verify after another 2 minutes if the
+                     * same message is still in the input buffer.
+                     *
+                     * If so, write Y to child's stdin so that process
+                     * can exit and svcbatch can terminates due to failed service.
+                     *
+                     * In case something else was in the last read line
+                     * it means child is probably still running.
+                     */
+                    EnterCriticalSection(&logfilelock);
+                    if (memcmp(ioreadbuffer, cterminate, strlen(cterminate)) == 0) {
+                        dbgprintf(__FUNCTION__, "found %s(%d)", cterminate, nc);
+                        if (nc++ > 1) {
+                            HANDLE h;
+                            dbgprints(__FUNCTION__, "calling terminate");
+
+                            LeaveCriticalSection(&logfilelock);
+                            wrterminatechar(0, SVCBATCH_PENDING_WAIT);
+                            EnterCriticalSection(&logfilelock);
+                            h = InterlockedExchangePointer(&logfhandle, NULL);
+                            if (h != NULL) {
+                                logfflush(h);
+                                logwrline(h, "Found 'Terminate batch job (Y/N)?'");
+                                logwrline(h, "Stopping service");
+                            }
+                            InterlockedExchangePointer(&logfhandle, h);
+                        }
+                        nw = MS_IN_MINUTE;
+                    }
+                    else {
+                        if (nc)
+                            dbgprints(__FUNCTION__, "resetting terminate");
+                        nc = 0;
+                        nw = SVCBATCH_MONITOR_STEP;
+                    }
+                    LeaveCriticalSection(&logfilelock);
+                break;
                 default:
                     rc = 1;
                 break;
             }
-            if (rc == 0) {
+            if (ws == WAIT_OBJECT_1) {
                 ResetEvent(monitorevent);
             }
         } while (rc == 0);
@@ -1840,7 +1889,7 @@ static unsigned int __stdcall workerthread(void *unused)
         goto finished;
     }
     wh[0] = childprocess;
-    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread, outputpiperd);
+    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
@@ -1854,8 +1903,9 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprintf(__FUNCTION__, "running child pid: %lu", cp.dwProcessId);
-    if (servicemode)
+    if (servicemode) {
         xcreatethread(1, 0, &rotatethread, NULL);
+    }
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
     dbgprintf(__FUNCTION__, "finished child pid: %lu", cp.dwProcessId);
