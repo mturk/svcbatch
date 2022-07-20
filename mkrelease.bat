@@ -17,8 +17,9 @@ rem
 rem --------------------------------------------------
 rem SvcBatch release helper script
 rem
-rem Usage: mkrelease.bat version [options]
-rem    eg: mkrelease 1.2.0_1 "_VENDOR_SFX=_1"
+rem Usage: mkrelease.bat version [make arguments]
+rem    eg: mkrelease 1.2.1
+rem        mkrelease 1.2.1.34 "VERSION_SFX=_1.acme" "VERSION_MICRO=34"
 rem        mkrelease c ...   compile only
 rem
 setlocal
@@ -33,23 +34,23 @@ shift
 rem
 rem Get timestamp using Powershell
 for /f "delims=" %%# in ('powershell get-date -format "{yyyyddMMHHmmss}"') do @set BuildTimestamp=%%#
-set "MakefileFlags=_BUILD_TIMESTAMP=%BuildTimestamp%"
+set "MakefileArgs=_BUILD_TIMESTAMP=%BuildTimestamp%"
 :setArgs
 if "x%~1" == "x" goto doneArgs
-set "MakefileFlags=%MakefileFlags% %~1"
+set "MakefileArgs=%MakefileArgs% %~1"
 shift
 goto setArgs
 rem
 :doneArgs
 rem
 if "%ReleaseVersion%" == "c" goto makeBuild
-set "MakefileFlags=%MakefileFlags% _STATIC_MSVCRT=1"
+set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=1"
 set "ReleaseName=%ProjectName%-%ReleaseVersion%-win-%ReleaseArch%"
 set "ReleaseLog=%ReleaseName%.txt
 rem
 :makeBuild
 rem Create builds
-nmake /nologo /A %MakefileFlags%
+nmake /nologo /A %MakefileArgs%
 if not %ERRORLEVEL% == 0 goto Failed
 rem
 if "%ReleaseVersion%" == "c" goto End
@@ -65,7 +66,7 @@ echo ## Binary release v%ReleaseVersion% > %ReleaseLog%
 echo. >> %ReleaseLog%
 echo ```no-highlight >> %ReleaseLog%
 echo Compiled using: >> %ReleaseLog%
-echo nmake %MakefileFlags% >> %ReleaseLog%
+echo nmake %MakefileArgs% >> %ReleaseLog%
 findstr /B /C:"Microsoft (R) " %ProjectName%.p >> %ReleaseLog%
 echo. >> %ReleaseLog%
 rem
