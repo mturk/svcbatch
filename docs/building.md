@@ -19,11 +19,13 @@ or any later version. Alternatively you use
 [MSYS2](https://www.msys2.org) mingw64 compiler toolchain.
 
 The official distributions are build using
-[Custom Microsoft Compiler Toolkit](https://github.com/mturk/cmsc)
-compiler bundle.
+[Build Tools for Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/)
 
 
 ### Build using CMSC
+
+CMSC stands for [Custom Microsoft Compiler Toolkit](https://github.com/mturk/cmsc)
+compiler bundle.
 
 Presuming that you have downloaded and unzipped
 [CMSC release](https://github.com/mturk/cmsc/releases)
@@ -51,12 +53,6 @@ inside **x64** subdirectory.
 To build the SvcBatch using an already installed Visual Studio,
 you will need to open the Visual Studio native x64 command
 line tool. The rest is almost the same as with CMSC toolkit.
-
-Here is the example for Visual Studio 2012
-
-Inside the Start menu select Microsoft Visual Studio 2012 then
-click on Visual Studio Tools and click on
-Open `VC2012 x64 Native Tools Command Prompt`.
 
 If using Visual Studio 2017 or later, open command prompt
 and call `vcvars64.bat` from Visual Studio install location
@@ -126,7 +122,7 @@ At compile time you can define vendor suffix and/or version
 by using the following:
 
 ```cmd
-> nmake _VENDOR_SFX="_1.acme"
+> nmake "VERSION_SFX=_1.acme"
 ```
 
 This will create build with version strings set to `x.y.z_1.acme` where
@@ -151,8 +147,8 @@ and extract the 7-zip standalone console version from
 [7-Zip Extra](https://www.7-zip.org/a/7z2107-extra.7z)
 and put **7za.exe** somewhere in the PATH.
 
-After compilation, run the [release](../mkrelease.bat) batch file
-to create required metadata and release assets.
+Run the [release](../mkrelease.bat) batch file
+to compile and create required metadata and release assets.
 
 Edit **svcbatch-x.y.z.txt** file and remove the directory
 part of svcbatch,exe. Also remove the scan time data
