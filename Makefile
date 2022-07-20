@@ -23,12 +23,7 @@ SRCDIR = .
 _CPU = x64
 
 PROJECT = svcbatch
-VERSION_MAJOR = 1
-VERSION_MINOR = 2
-VERSION_PATCH = 1
-VERSION_MICRO = 0
-# Set to zero for non dev versions
-VERSION_DEVEL = 1
+!INCLUDE <Version.mk>
 
 VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
 
