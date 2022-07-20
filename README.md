@@ -37,6 +37,7 @@ with your application.
   - [Custom Control Codes](#custom-control-codes)
   - [Stop and Shutdown](#stop-and-shutdown)
   - [Version Information](#version-information)
+  - [Error Logging](#error-logging)
 - [License](#license)
 
 # Getting Started
@@ -422,6 +423,12 @@ of the `SvcBatch.log` file.
 
 Make sure to use the correct information when filing
 bug reports.
+
+## Error Logging
+
+SvcBatch logs any runtime error to Windows Event Log.
+Use Windows **Event Viewer** and check `Windows Logs/Application/SvcBatch`
+events.
 
 # License
 
