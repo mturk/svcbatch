@@ -1673,6 +1673,8 @@ static unsigned int __stdcall monitorthread(void *unused)
                                 logwrline(h, "Stopping service");
                             }
                             InterlockedExchangePointer(&logfhandle, h);
+                            svcsyserror(__LINE__, 0, L"monitorthread",
+                                        L"Found 'Terminate batch job (Y/N)?'");
                         }
                         nw = MS_IN_MINUTE;
                     }
