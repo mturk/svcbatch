@@ -1461,6 +1461,20 @@ static unsigned int __stdcall shutdownthread(void *unused)
         default:
         break;
     }
+    if (hasdebuginfo) {
+        DWORD rv;
+
+        dbgprintf(__FUNCTION__, "finished svcbatch.exe: %lu", cp.dwProcessId);
+        if (GetExitCodeProcess(cp.hProcess, &rv)) {
+            if (rv == STILL_ACTIVE)
+                dbgprints(__FUNCTION__, "svcbatch.exe is STILL_ACTIVE");
+            else
+                dbgprintf(__FUNCTION__, "svcbatch.exe exited with: %lu", rv);
+        }
+        else {
+            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", GetLastError());
+        }
+    }
 
 finished:
     xfree(cmdline);
@@ -1910,7 +1924,21 @@ static unsigned int __stdcall workerthread(void *unused)
     }
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
-    dbgprintf(__FUNCTION__, "finished child pid: %lu", cp.dwProcessId);
+
+    if (hasdebuginfo) {
+        DWORD rv;
+
+        dbgprintf(__FUNCTION__, "finished cmd.exe: %lu", cp.dwProcessId);
+        if (GetExitCodeProcess(cp.hProcess, &rv)) {
+            if (rv == STILL_ACTIVE)
+                dbgprints(__FUNCTION__, "child cmd.exe is STILL_ACTIVE");
+            else
+                dbgprintf(__FUNCTION__, "child cmd.exe exited with: %lu", rv);
+        }
+        else {
+            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", GetLastError());
+        }
+    }
 
 finished:
     SAFE_CLOSE_HANDLE(cp.hThread);
