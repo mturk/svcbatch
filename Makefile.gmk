@@ -22,8 +22,7 @@ RL = strip --strip-unneeded
 
 include Version.mk
 
-VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
-BLDVER  = $(VERSION).$(VERSION_MICRO)
+VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_MICRO)
 
 SRCDIR  = .
 PROJECT = svcbatch
@@ -65,7 +64,7 @@ $(WORKDIR):
 	@mkdir -p $@
 
 $(MANIFEST): $(SRCDIR)/$(PROJECT).manifest.in
-	sed 's/@@version@@/$(BLDVER)/g' $< >$@
+	sed 's/@@version@@/$(VERSION)/g' $< >$@
 
 $(WORKDIR)/%.obj: $(SRCDIR)/%.c $(SRCDIR)/%.h
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) $<

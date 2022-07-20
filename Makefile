@@ -25,7 +25,7 @@ _CPU = x64
 PROJECT = svcbatch
 !INCLUDE <Version.mk>
 
-VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH)
+VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_MICRO)
 
 PPREFIX = $(SRCDIR)\$(PROJECT)
 WORKDIR = $(SRCDIR)\$(_CPU)
@@ -40,7 +40,6 @@ CRT_CFLAGS = -MD
 
 WINVER = 0x0601
 EXEVER = $(VERSION_MAJOR).$(VERSION_MINOR)
-BLDVER = $(VERSION).$(VERSION_MICRO)
 
 CFLAGS = -DNDEBUG -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN
 CFLAGS = $(CFLAGS) -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE
@@ -91,7 +90,7 @@ $(WORKDIR)\$(PROJECT).manifest: $(PPREFIX).manifest.in
 	(for /f "delims=" %%i in ($(PPREFIX).manifest.in) do (
 	set "line=%%i"
 	setlocal enabledelayedexpansion
-	set "line=!line:@@version@@=$(BLDVER)!"
+	set "line=!line:@@version@@=$(VERSION)!"
 	echo(!line!
 	endlocal
 	))>$@
