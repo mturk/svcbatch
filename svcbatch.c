@@ -1546,7 +1546,6 @@ static unsigned int __stdcall monitorthread(void *unused)
 {
     HANDLE wh[3];
     DWORD  ws, rc = 0;
-    DWORD  nw = SVCBATCH_MONITOR_STEP;
     int    nc = 0;
 
     dbgprints(__FUNCTION__, "started");
@@ -1587,7 +1586,7 @@ static unsigned int __stdcall monitorthread(void *unused)
         do {
             DWORD cc;
 
-            ws = WaitForMultipleObjects(2, wh, FALSE, nw);
+            ws = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_MONITOR_STEP * 1000);
             switch (ws) {
                 case WAIT_OBJECT_0:
                     dbgprints(__FUNCTION__, "processended signaled");
@@ -1642,12 +1641,12 @@ static unsigned int __stdcall monitorthread(void *unused)
                 break;
                 case WAIT_TIMEOUT:
                     /**
-                     * Check every 10 minutes if the last read line
+                     * Check every 2 minutes if the last read line
                      * was 'Terminate batch job (Y/N)? '
                      *
                      * This could mean that cmd.exe is waiting for Y input
                      * because batch file was terminated.
-                     * Verify after another 2 minutes if the
+                     * Verify two times in 2 minute interval if the
                      * same message is still in the input buffer.
                      *
                      * If so, write Y to child's stdin so that process
@@ -1658,8 +1657,7 @@ static unsigned int __stdcall monitorthread(void *unused)
                      */
                     EnterCriticalSection(&logfilelock);
                     if (memcmp(ioreadbuffer, cterminate, strlen(cterminate)) == 0) {
-                        dbgprintf(__FUNCTION__, "found %s(%d)", cterminate, nc);
-                        if (nc++ > 1) {
+                        if (nc > 1) {
                             HANDLE h;
                             dbgprints(__FUNCTION__, "calling terminate");
 
@@ -1676,13 +1674,15 @@ static unsigned int __stdcall monitorthread(void *unused)
                             svcsyserror(__LINE__, 0, L"monitorthread",
                                         L"Found 'Terminate batch job (Y/N)?'");
                         }
-                        nw = MS_IN_MINUTE;
+                        else {
+                            dbgprintf(__FUNCTION__, "found %s(%d)", cterminate, nc + 1);
+                        }
+                        nc++;
                     }
                     else {
                         if (nc)
                             dbgprints(__FUNCTION__, "resetting terminate");
                         nc = 0;
-                        nw = SVCBATCH_MONITOR_STEP;
                     }
                     LeaveCriticalSection(&logfilelock);
                 break;
