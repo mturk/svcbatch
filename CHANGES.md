@@ -6,7 +6,7 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
-## v1.2.1
+## v1.2.2
 
  * In development
 
