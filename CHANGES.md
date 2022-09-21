@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.2.2
 
  * In development
+ * Create svcbatch.h from svcbatch.h.in at build time
 
 ## v1.2.1
 

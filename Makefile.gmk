@@ -34,15 +34,10 @@ TSTAMP := $(shell date +%Y%m%d%H%M%S)
 WINVER  = 0x0601
 CFLAGS  = -DNDEBUG -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
 	-D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE \
-	-DVERSION_MAJOR=$(VERSION_MAJOR) -DVERSION_MINOR=$(VERSION_MINOR) \
-	-DVERSION_PATCH=$(VERSION_PATCH) -DVERSION_MICRO=$(VERSION_MICRO) \
-	-DVERSION_DEVEL=$(VERSION_DEVEL) -DUNICODE -D_UNICODE
+	-DUNICODE -D_UNICODE
 LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-implicit-fallthrough -municode -mconsole
 RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
-RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER) \
-	-D VERSION_MAJOR=$(VERSION_MAJOR) -D VERSION_MINOR=$(VERSION_MINOR) \
-	-D VERSION_PATCH=$(VERSION_PATCH) -D VERSION_MICRO=$(VERSION_MICRO) \
-	-D VERSION_DEVEL=$(VERSION_DEVEL)
+RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER)
 CLOPTS  = $(LNOPTS) -c
 LDLIBS  = -lkernel32 -ladvapi32 -luser32
 
@@ -56,6 +51,7 @@ OBJECTS = \
 	$(WORKDIR)/$(PROJECT).res
 
 MANIFEST = $(WORKDIR)/$(PROJECT).manifest
+FINCLUDE = $(WORKDIR)/$(PROJECT).h
 
 all : $(WORKDIR) $(OUTPUT)
 	@:
@@ -66,10 +62,17 @@ $(WORKDIR):
 $(MANIFEST): $(SRCDIR)/$(PROJECT).manifest.in
 	sed 's/@@version@@/$(VERSION)/g' $< >$@
 
-$(WORKDIR)/%.obj: $(SRCDIR)/%.c $(SRCDIR)/%.h
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) $<
+$(FINCLUDE): $(SRCDIR)/$(PROJECT).h.in
+	sed -e 's/@@version_major@@/$(VERSION_MAJOR)/g' \
+	-e 's/@@version_minor@@/$(VERSION_MINOR)/g' \
+	-e 's/@@version_patch@@/$(VERSION_PATCH)/g' \
+	-e 's/@@version_micro@@/$(VERSION_MICRO)/g' \
+	-e 's/@@version_devel@@/$(VERSION_DEVEL)/g' $< >$@
 
-$(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h $(MANIFEST)
+$(WORKDIR)/%.obj: $(SRCDIR)/%.c $(FINCLUDE)
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) -I$(WORKDIR) $<
+
+$(WORKDIR)/%.res: $(SRCDIR)/%.rc $(FINCLUDE) $(MANIFEST)
 	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -D _BUILD_TIMESTAMP=$(TSTAMP) -I $(SRCDIR) -I $(WORKDIR) $<
 
 $(OUTPUT): $(WORKDIR) $(MANIFEST) $(OBJECTS)

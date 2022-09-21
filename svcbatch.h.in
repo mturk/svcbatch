@@ -34,11 +34,11 @@
 /**
  * Version info
  */
-#define SVCBATCH_MAJOR_VERSION  VERSION_MAJOR
-#define SVCBATCH_MINOR_VERSION  VERSION_MINOR
-#define SVCBATCH_PATCH_VERSION  VERSION_PATCH
-#define SVCBATCH_MICRO_VERSION  VERSION_MICRO
-#define SVCBATCH_ISDEV_VERSION  VERSION_DEVEL
+#define SVCBATCH_MAJOR_VERSION  @@version_major@@
+#define SVCBATCH_MINOR_VERSION  @@version_minor@@
+#define SVCBATCH_PATCH_VERSION  @@version_patch@@
+#define SVCBATCH_MICRO_VERSION  @@version_micro@@
+#define SVCBATCH_ISDEV_VERSION  @@version_devel@@
 
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
