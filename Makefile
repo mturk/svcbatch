@@ -82,7 +82,8 @@ $(WORKDIR):
 
 $(WORKDIR)\$(PROJECT).manifest: $(PPREFIX).manifest.in
 	$(PS) -NoProfile -ExecutionPolicy Bypass \
-	"(Get-Content -path $(PPREFIX).manifest.in -Raw) -replace '@@version@@','$(VERSION)'" >$@
+	"((Get-Content -Path $(PPREFIX).manifest.in -Raw) -replace '@@version@@','$(VERSION)') |\
+	Set-Content -Path $@"
 
 $(WORKDIR)\$(PROJECT).obj: $(PPREFIX).h $(PPREFIX).c
 	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -Fo$(WORKDIR)\ $(PPREFIX).c
