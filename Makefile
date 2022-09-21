@@ -18,6 +18,7 @@
 CC = cl.exe
 LN = link.exe
 RC = rc.exe
+PS = powershell.exe
 SRCDIR = .
 
 _CPU = x64
@@ -80,17 +81,8 @@ $(WORKDIR):
 	@-md $(WORKDIR) 2>NUL
 
 $(WORKDIR)\$(PROJECT).manifest: $(PPREFIX).manifest.in
-	<<ssed.bat
-	@echo off
-	setlocal
-	(for /f "delims=" %%i in ($(PPREFIX).manifest.in) do (
-	set "line=%%i"
-	setlocal enabledelayedexpansion
-	set "line=!line:@@version@@=$(VERSION)!"
-	echo(!line!
-	endlocal
-	))>$@
-<<
+	$(PS) -NoProfile -ExecutionPolicy Bypass \
+	"(Get-Content -path $(PPREFIX).manifest.in -Raw) -replace '@@version@@','$(VERSION)'" >$@
 
 $(WORKDIR)\$(PROJECT).obj: $(PPREFIX).h $(PPREFIX).c
 	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -Fo$(WORKDIR)\ $(PPREFIX).c
