@@ -50,6 +50,9 @@ static int       servicemode      = 1;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
 static DWORD     preshutdown      = 0;
 
+static int       xwoptind         = 1;   /* Index into parent argv vector */
+static int       xwoption         = 0;   /* Character checked for validity */
+
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *shutdownfile     = NULL;
 static wchar_t  *svcbatchexe      = NULL;
@@ -83,6 +86,7 @@ static const char    *cterminate  = "Terminate batch job (Y/N)? ";
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *cwslogname  = L"\\" SVCBATCH_LOGNAME;
+static const wchar_t *xwoptarg    = NULL;
 
 static const wchar_t *removeenv[] = {
     L"COMSPEC",
@@ -289,6 +293,96 @@ static wchar_t *xappendarg(wchar_t *s1, const wchar_t *s2)
     }
     xfree(s1);
     return rv;
+}
+
+int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
+{
+    static const wchar_t *place = zerostring;
+    static int optsw   = 0;
+    const wchar_t *oli = NULL;
+
+    xwoptarg = NULL;
+    if (*place == L'\0') {
+
+        if (xwoptind >= nargc) {
+            /* No more arguments */
+            place = zerostring;
+            return EOF;
+        }
+        place = nargv[xwoptind];
+        optsw = *(place++);
+        if ((optsw != L'-') && (optsw != L'/')) {
+            /* Argument is not an option */
+            place = zerostring;
+            return EOF;
+        }
+        xwoption = *(place++);
+        if ((xwoption == L'\0') || (xwoption == L'-')) {
+            place = zerostring;
+            return L'!';
+        }
+    }
+    else {
+        xwoption = *(place++);
+    }
+    if (xwoption != L':') {
+        oli = wcschr(opts, (wchar_t)xwoption);
+    }
+    if (oli == NULL) {
+        if (*place == L'\0') {
+            ++xwoptind;
+            place = zerostring;
+        }
+        else if (optsw == L'/') {
+            /*
+             * For non matched option starting with '/'
+             * assume its EOF if followed by additional
+             * letter
+             */
+            place = zerostring;
+            return EOF;
+        }
+        return L'!';
+    }
+
+    /* Does this option need an argument? */
+    if (oli[1] == L':') {
+        /*
+         * Option-argument is either the rest of this argument
+         * or the entire next argument.
+         */
+        if (*place != L'\0') {
+            xwoptarg = place;
+        }
+        else if (oli[2] != L':') {
+            if (nargc > ++xwoptind) {
+                xwoptarg = nargv[xwoptind];
+            }
+        }
+        ++xwoptind;
+        place = zerostring;
+        if ((xwoptarg == NULL) || (*xwoptarg == L'\0')) {
+            /* Option-argument is absent or empty */
+            return L':';
+        }
+    }
+    else {
+        /* Don't need argument */
+        if (*place == L'\0') {
+            ++xwoptind;
+            place = zerostring;
+        }
+        else if (optsw == L'/') {
+            /*
+             * Matched '/' option that do not require
+             * argument but followed with additional letters.
+             * Assume this is EOF
+             */
+            place = zerostring;
+            return EOF;
+        }
+    }
+    return oli[0];
 }
 
 static void xcleanwinpath(wchar_t *s, int isdir)
@@ -2160,13 +2254,14 @@ static void __cdecl objectscleanup(void)
 
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
-    int         i  = 1;
+    int         i;
     int         rv = 0;
+    wchar_t     bb[2] = { L'\0', L'\0' };
     wchar_t    *orgpath;
     wchar_t    *batchparam  = NULL;
     wchar_t    *shomeparam  = NULL;
     int         envc        = 0;
-    int         hasopts     = 1;
+    int         opt;
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
     const wchar_t *rotateparam = NULL;
@@ -2192,8 +2287,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
             cwslogname = L"\\" SHUTDOWN_LOGNAME;
-            batchparam = xwcsdup(wargv[2]);
-            i = 3;
         }
     }
     dbgprints(__FUNCTION__, cnamestamp);
@@ -2205,95 +2298,71 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, 0, L"System", L"Missing environment");
     if (resolvesvcbatchexe(wargv[0]) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0], NULL);
-    /**
-     * Simple case insensitive argument parsing
-     * that allows both '-' and '/' as cmdswitches
-     */
-    while (i < argc) {
-        const wchar_t *p = wargv[i++];
 
-        if (hasopts) {
-            if (shomeparam == zerostring) {
-                shomeparam = expandenvstrings(p, 1);
-                if (shomeparam == NULL)
-                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p, NULL);
-                continue;
-            }
-            if (loglocation == zerostring) {
-                loglocation = expandenvstrings(p, 1);
+    while ((opt = xwgetopt(argc, wargv, L"bBdDpPo:O:r:R:s:S:w:W:n:u:x:")) != EOF) {
+        switch (opt) {
+            case L'b':
+            case L'B':
+                hasctrlbreak = 1;
+            break;
+            case L'd':
+            case L'D':
+                hasdebuginfo = 1;
+            break;
+            case L'o':
+            case L'O':
+                loglocation = expandenvstrings(xwoptarg, 1);
                 if (loglocation == NULL)
-                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, p, NULL);
-                continue;
-            }
-            if (svcendparam == zerostring) {
-                svcendparam = p;
-                continue;
-            }
-            if (rotateparam == zerostring) {
-                rotateparam = p;
-                continue;
-            }
-            if (serviceuuid == zerostring) {
-                serviceuuid = xwcsdup(p);
-                continue;
-            }
-            if (servicename == zerostring) {
-                servicename = xwcsdup(p);
-                continue;
-            }
-            hasopts = 0;
-            if ((p[0] == L'-') || (p[0] == L'/')) {
-                if (p[1] == L'\0')
-                    return svcsyserror(__LINE__, 0, L"Invalid command line option", p);
-                if (p[2] == L'\0')
-                    hasopts = 1;
-                else if (p[0] == L'-')
-                    return svcsyserror(__LINE__, 0, L"Invalid command line option", p);
-            }
-            if (hasopts) {
-                int pchar = towlower(p[1]);
-                switch (pchar) {
-                    case L'b':
-                        hasctrlbreak = 1;
-                    break;
-                    case L'd':
-                        hasdebuginfo = 1;
-                    break;
-                    case L'o':
-                        loglocation  = zerostring;
-                    break;
-                    case L'p':
-                        preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
-                    break;
-                    case L'r':
-                        rotateparam  = zerostring;
-                    break;
-                    case L's':
-                        svcendparam  = zerostring;
-                    break;
-                    case L'w':
-                        shomeparam   = zerostring;
-                    break;
-                    /**
-                     * Private options
-                     */
-                    case L'n':
-                        servicename  = zerostring;
-                    break;
-                    case L'u':
-                        serviceuuid  = zerostring;
-                    break;
-                    default:
-                        return svcsyserror(__LINE__, 0, L"Unknown command line option", p);
-                    break;
-                }
-                continue;
-            }
+                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
+            break;
+            case L'p':
+            case L'P':
+                preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
+            break;
+            case L'r':
+            case L'R':
+                rotateparam  = xwoptarg;
+            break;
+            case L's':
+            case L'S':
+                svcendparam  = xwoptarg;
+            break;
+            case L'w':
+            case L'W':
+                shomeparam   = expandenvstrings(xwoptarg, 1);
+                if (shomeparam == NULL)
+                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
+            break;
+            /**
+             * Private options
+             */
+            case L'n':
+                servicename  = xwcsdup(xwoptarg);
+            break;
+            case L'u':
+                serviceuuid  = xwcsdup(xwoptarg);
+            break;
+            case L'x':
+                batchparam   = xwcsdup(xwoptarg);
+            break;
+            case L':':
+                bb[0] = xwoption;
+                return svcsyserror(__LINE__, 0, L"Invalid command line option value", bb);
+            break;
+            default:
+                bb[0] = xwoption;
+                return svcsyserror(__LINE__, 0, L"Unknown command line option", bb);
+            break;
+
         }
+    }
+    argc  -= xwoptind;
+    wargv += xwoptind;
+    for (i = 0; i < argc; i++) {
         if (IS_EMPTY_WCS(batchparam)) {
-            batchparam = expandenvstrings(p, 0);
+            batchparam = expandenvstrings(wargv[i], 0);
             if (batchparam == NULL)
-                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, p, NULL);
+                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[i], NULL);
         }
         else {
             /**
@@ -2301,7 +2370,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              * In future they could be used as arguments
              * for batch file
              */
-            dbgprintf(__FUNCTION__, "Extra parameter argv[%d] %S", i - 1, p);
+            dbgprintf(__FUNCTION__, "Extra parameter argv[%d] %S", i, wargv[i]);
         }
     }
     if (servicemode && hasdebuginfo) {

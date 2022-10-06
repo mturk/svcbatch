@@ -10,6 +10,7 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
  * Create svcbatch.h from svcbatch.h.in at build time
+ * Add more advanced command line option parser
 
 ## v1.2.1
 
