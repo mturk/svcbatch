@@ -1423,7 +1423,8 @@ static unsigned int __stdcall wrpipethread(void *param)
 
 static unsigned int __stdcall shutdownthread(void *unused)
 {
-    wchar_t  rparam[8] = { L' ', L'-', L'r',  L' ', L'0', L' ', L'\0', L'\0' };
+    wchar_t  rparam[] = L" -r@ ";
+    wchar_t  xparam[] = L" -x\0";
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
@@ -1446,21 +1447,19 @@ static unsigned int __stdcall shutdownthread(void *unused)
     }
 
     cmdline = xappendarg(NULL, svcbatchexe);
-    cmdline = xwcsappend(cmdline, L" -x");
+    if (hasdebuginfo)
+        xparam[3] = L'd';
+    cmdline = xwcsappend(cmdline, xparam);
     cmdline = xwcsappend(cmdline, L" -n ");
     cmdline = xappendarg(cmdline, servicename);
     cmdline = xwcsappend(cmdline, L" -u ");
     cmdline = xwcsappend(cmdline, serviceuuid);
-    if (hasdebuginfo)
-        cmdline = xwcsappend(cmdline, L" -d");
     cmdline = xwcsappend(cmdline, L" -w ");
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
-    if (autorotate)
-        rparam[4] = L'@';
-    else
-        rparam[4] += svcmaxlogs;
+    if (autorotate == 0)
+        rparam[3] = L'0' + svcmaxlogs;
     cmdline = xwcsappend(cmdline, rparam);
     cmdline = xappendarg(cmdline, shutdownfile);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
@@ -2263,7 +2262,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     if (argc > 6) {
         const wchar_t *p = wargv[1];
-        if ((p[0] == L'-') && (p[1] == L'x') && (p[2] == L'\0')) {
+        if ((p[0] == L'-') && (p[1] == L'x')) {
             servicemode  = 0;
             cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
