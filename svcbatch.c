@@ -1022,7 +1022,6 @@ static DWORD openlogfile(BOOL firstopen)
     wchar_t *logpb = NULL;
     DWORD rc = 0;
     HANDLE h = NULL;
-    WIN32_FILE_ATTRIBUTE_DATA ad;
     int i;
 
     logtickcount = GetTickCount64();
@@ -1050,7 +1049,7 @@ static DWORD openlogfile(BOOL firstopen)
         logfilename = xwcsconcat(loglocation, cwslogname);
     }
     if (svcmaxlogs > 0) {
-        if (GetFileAttributesExW(logfilename, GetFileExInfoStandard, &ad)) {
+        if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
             DWORD mm = 0;
 
             if (firstopen)
@@ -1063,7 +1062,7 @@ static DWORD openlogfile(BOOL firstopen)
                 SYSTEMTIME st;
                 wchar_t wrb[24];
 
-                FileTimeToSystemTime(&ad.ftLastWriteTime, &st);
+                GetSystemTime(&st);
                 _snwprintf(wrb, 22, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
                            st.wYear, st.wMonth, st.wDay,
                            st.wHour, st.wMinute, st.wSecond);
@@ -1078,7 +1077,7 @@ static DWORD openlogfile(BOOL firstopen)
         else {
             rc = GetLastError();
             if (rc != ERROR_FILE_NOT_FOUND) {
-                return svcsyserror(__LINE__, rc, L"GetFileAttributesExW", logfilename);
+                return svcsyserror(__LINE__, rc, L"GetFileAttributesW", logfilename);
             }
         }
     }
@@ -1210,7 +1209,17 @@ static int resolverotate(const wchar_t *str)
     if (IS_EMPTY_WCS(str)) {
         return 0;
     }
-    autorotate = 1;
+    if ((str[0] ==  L'@') && (str[1] ==  L'\0')) {
+        /* Special case for shutdown autorotate */
+        autorotate = 1;
+        return 0;
+    }
+    if ((str[0] >=  L'0') && (str[0] <=  L'9') && (str[1] ==  L'\0')) {
+        /* Special case for shutdown rotate */
+        svcmaxlogs = str[0] - L'0';
+        dbgprintf(__FUNCTION__, "max rotate logs: %d", svcmaxlogs);
+        return 0;
+    }
     rp = sp = xwcsdup(str);
     if (*rp == L'@') {
         int      hh, mm, ss;
@@ -1278,7 +1287,7 @@ static int resolverotate(const wchar_t *str)
         wchar_t  mm  = 0;
 
         siz = _wcstoi64(rp, &ep, 10);
-        if ((ep == rp) || (siz < CPP_INT64_C(0)))
+        if ((siz <= CPP_INT64_C(0)) || (ep == rp))
             return __LINE__;
         if (*ep != '\0') {
             mm = towupper(ep[0]);
@@ -1298,23 +1307,17 @@ static int resolverotate(const wchar_t *str)
             }
         }
         len = siz * mux;
-        if (len < CPP_INT64_C(10)) {
-            svcmaxlogs = (int)siz;
-            autorotate = 0;
-            dbgprintf(__FUNCTION__, "max rotate logs: %d", svcmaxlogs);
-        }
-        else {
-            if (len < SVCBATCH_MIN_LOGSIZE)
-                return __LINE__;
-            if (mm)
-                dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
-            else
-                dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
+        if (len < SVCBATCH_MIN_LOGSIZE)
+            return __LINE__;
+        if (mm)
+            dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
+        else
+            dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
 
-            rotatesiz.QuadPart = len;
-        }
+        rotatesiz.QuadPart = len;
     }
     xfree(sp);
+    autorotate = 1;
     return 0;
 }
 
@@ -1420,6 +1423,7 @@ static unsigned int __stdcall wrpipethread(void *param)
 
 static unsigned int __stdcall shutdownthread(void *unused)
 {
+    wchar_t  rparam[8] = { L' ', L'-', L'r',  L' ', L'0', L' ', L'\0', L'\0' };
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
@@ -1453,14 +1457,11 @@ static unsigned int __stdcall shutdownthread(void *unused)
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
-    if (autorotate) {
-        cmdline = xwcsappend(cmdline, L" -r @0 ");
-    }
-    else {
-        wchar_t rb[16];
-        _snwprintf(rb, 12, L" -r %d ", svcmaxlogs);
-        cmdline = xwcsappend(cmdline, rb);
-    }
+    if (autorotate)
+        rparam[4] = L'@';
+    else
+        rparam[4] += svcmaxlogs;
+    cmdline = xwcsappend(cmdline, rparam);
     cmdline = xappendarg(cmdline, shutdownfile);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
