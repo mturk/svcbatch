@@ -169,10 +169,10 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     cp = rv = xwalloc(l1 + l2);
 
     if(l1 > 0)
-        wmemcpy(cp, s1, l1);
+        wmemcpy(cp, s1, l1 + 1);
     cp += l1;
     if(l2 > 0)
-        wmemcpy(cp, s2, l2);
+        wmemcpy(cp, s2, l2 + 1);
     return rv;
 }
 
@@ -182,16 +182,14 @@ static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
     size_t l1 = xwcslen(s1);
     size_t l2 = xwcslen(s2);
 
-    if ((l1 + l2) == 0)
-        return NULL;
+    if (l2 == 0)
+        return s1;
 
     cp = rv = xwalloc(l1 + l2);
 
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
-    cp += l1;
-    if(l2 > 0)
-        wmemcpy(cp, s2, l2);
+    wmemcpy(cp + l1, s2, l2 + 1);
     xfree(s1);
     return rv;
 }
@@ -237,6 +235,7 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
             break;
     }
     va_end(vap);
+    *cp = L'\0';
     return rp;
 }
 
@@ -267,60 +266,37 @@ static int wcshavespace(const wchar_t *s)
     return 0;
 }
 
-static wchar_t *xappendval(wchar_t *s1, const wchar_t *s2)
+static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
 {
     wchar_t *cp, *rv;
     size_t l1 = xwcslen(s1);
     size_t l2 = xwcslen(s2);
 
-    if ((l1 + l2) == 0)
-        return NULL;
+    if (l2 == 0)
+        return s1;
 
-    cp = rv = xwalloc(l1 + l2 + 3);
+    cp = rv = xwalloc(l1 + l2 + 4);
 
     if(l1 > 0) {
         wmemcpy(cp, s1, l1);
         cp += l1;
         *(cp++) = L' ';
     }
-    if(l2 > 0) {
-        if (wcshavespace(s2)) {
-            *(cp++) = L'"';
-            wmemcpy(cp, s2, l2);
-            cp += l2;
-            *(cp++) = L'"';
-        }
-        else
-            wmemcpy(cp, s2, l2);
+    if (q > 1)
+        *(cp++) = L'"';
+    if (q && wcshavespace(s2)) {
+        *(cp++) = L'"';
+        wmemcpy(cp, s2, l2);
+        cp += l2;
+        *(cp++) = L'"';
     }
-    xfree(s1);
-    return rv;
-}
-
-static wchar_t *xappendarg(wchar_t *s1, const wchar_t *s2)
-{
-    wchar_t *cp, *rv;
-    size_t l1 = xwcslen(s1);
-    size_t l2 = xwcslen(s2);
-
-    if ((l1 + l2) == 0)
-        return NULL;
-
-    cp = rv = xwalloc(l1 + l2 + 2);
-
-    if(l1 > 0)
-        wmemcpy(cp, s1, l1);
-    cp += l1;
-    if(l2 > 0) {
-        if (wcshavespace(s2)) {
-            *(cp++) = L'"';
-            wmemcpy(cp, s2, l2);
-            cp += l2;
-            *(cp++) = L'"';
-        }
-        else
-            wmemcpy(cp, s2, l2);
+    else {
+        wmemcpy(cp, s2, l2);
+        cp += l2;
     }
+    if (q > 1)
+        *(cp++) = L'"';
+    *cp = L'\0';
     xfree(s1);
     return rv;
 }
@@ -1428,7 +1404,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
 
 static unsigned int __stdcall shutdownthread(void *unused)
 {
-    wchar_t  rparam[] = L"-r@";
+    wchar_t  rparam[] = L"-r@ -n";
     wchar_t  xparam[] = L"-x\0";
     wchar_t *cmdline;
     HANDLE   wh[2];
@@ -1439,22 +1415,21 @@ static unsigned int __stdcall shutdownthread(void *unused)
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
-    cmdline = xappendval(NULL, svcbatchexe);
+    cmdline = xappendarg(1, NULL, svcbatchexe);
     if (hasdebuginfo)
         xparam[2] = L'd';
-    cmdline = xappendval(cmdline, xparam);
+    cmdline = xappendarg(0, cmdline, xparam);
     if (autorotate == 0)
         rparam[2] = L'0' + svcmaxlogs;
-    cmdline = xappendval(cmdline, rparam);
-    cmdline = xappendval(cmdline, L"-n");
-    cmdline = xappendval(cmdline, servicename);
-    cmdline = xappendval(cmdline, L"-u");
-    cmdline = xappendval(cmdline, serviceuuid);
-    cmdline = xappendval(cmdline, L"-w");
-    cmdline = xappendval(cmdline, servicehome);
-    cmdline = xappendval(cmdline, L"-o");
-    cmdline = xappendval(cmdline, loglocation);
-    cmdline = xappendval(cmdline, shutdownfile);
+    cmdline = xappendarg(0, cmdline, rparam);
+    cmdline = xappendarg(1, cmdline, servicename);
+    cmdline = xappendarg(0, cmdline, L"-u");
+    cmdline = xappendarg(0, cmdline, serviceuuid);
+    cmdline = xappendarg(0, cmdline, L"-w");
+    cmdline = xappendarg(1, cmdline, servicehome);
+    cmdline = xappendarg(0, cmdline, L"-o");
+    cmdline = xappendarg(1, cmdline, loglocation);
+    cmdline = xappendarg(1, cmdline, shutdownfile);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
@@ -1833,10 +1808,9 @@ static unsigned int __stdcall workerthread(void *unused)
     dbgprints(__FUNCTION__, "started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-    cmdline = xappendarg(NULL, comspec);
-    cmdline = xwcsappend(cmdline, L" /D /C \"");
-    cmdline = xappendarg(cmdline, svcbatchfile);
-    cmdline = xwcsappend(cmdline, L"\"");
+    cmdline = xappendarg(1, NULL, comspec);
+    cmdline = xappendarg(0, cmdline, L"/D /C");
+    cmdline = xappendarg(2, cmdline, svcbatchfile);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
