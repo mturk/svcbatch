@@ -267,6 +267,36 @@ static int wcshavespace(const wchar_t *s)
     return 0;
 }
 
+static wchar_t *xappendval(wchar_t *s1, const wchar_t *s2)
+{
+    wchar_t *cp, *rv;
+    size_t l1 = xwcslen(s1);
+    size_t l2 = xwcslen(s2);
+
+    if ((l1 + l2) == 0)
+        return NULL;
+
+    cp = rv = xwalloc(l1 + l2 + 3);
+
+    if(l1 > 0) {
+        wmemcpy(cp, s1, l1);
+        cp += l1;
+        *(cp++) = L' ';
+    }
+    if(l2 > 0) {
+        if (wcshavespace(s2)) {
+            *(cp++) = L'"';
+            wmemcpy(cp, s2, l2);
+            cp += l2;
+            *(cp++) = L'"';
+        }
+        else
+            wmemcpy(cp, s2, l2);
+    }
+    xfree(s1);
+    return rv;
+}
+
 static wchar_t *xappendarg(wchar_t *s1, const wchar_t *s2)
 {
     wchar_t *cp, *rv;
@@ -1374,18 +1404,9 @@ static unsigned int __stdcall rdpipethread(void *unused)
 
 static unsigned int __stdcall wrpipethread(void *unused)
 {
-    DWORD  wc, wr, rc = 0;
+    DWORD  wr, rc = 0;
 
     dbgprintf(__FUNCTION__, "started");
-    wc = WaitForSingleObject(processended, SVCBATCH_STOP_SYNC);
-    if (wc != WAIT_TIMEOUT) {
-        if (wc == WAIT_OBJECT_0)
-            dbgprints(__FUNCTION__, "processended signaled");
-        else
-            dbgprintf(__FUNCTION__, "processended: %lu", wc);
-        goto finished;
-    }
-    dbgprints(__FUNCTION__, "sending Y to child");
     if (WriteFile(inputpipewrs, YYES, 2, &wr, NULL) && (wr != 0)) {
         if (FlushFileBuffers(inputpipewrs))
             dbgprints(__FUNCTION__, "wrote Y to child");
@@ -1400,7 +1421,6 @@ static unsigned int __stdcall wrpipethread(void *unused)
     else if (rc)
         dbgprintf(__FUNCTION__, "err=%lu", rc);
 
-finished:
     dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
 }
@@ -1408,8 +1428,8 @@ finished:
 
 static unsigned int __stdcall shutdownthread(void *unused)
 {
-    wchar_t  rparam[] = L" -r@ ";
-    wchar_t  xparam[] = L" -x\0";
+    wchar_t  rparam[] = L"-r@";
+    wchar_t  xparam[] = L"-x\0";
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
@@ -1419,22 +1439,22 @@ static unsigned int __stdcall shutdownthread(void *unused)
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
-    cmdline = xappendarg(NULL, svcbatchexe);
+    cmdline = xappendval(NULL, svcbatchexe);
     if (hasdebuginfo)
-        xparam[3] = L'd';
-    cmdline = xwcsappend(cmdline, xparam);
-    cmdline = xwcsappend(cmdline, L" -n ");
-    cmdline = xappendarg(cmdline, servicename);
-    cmdline = xwcsappend(cmdline, L" -u ");
-    cmdline = xwcsappend(cmdline, serviceuuid);
-    cmdline = xwcsappend(cmdline, L" -w ");
-    cmdline = xappendarg(cmdline, servicehome);
-    cmdline = xwcsappend(cmdline, L" -o ");
-    cmdline = xappendarg(cmdline, loglocation);
+        xparam[2] = L'd';
+    cmdline = xappendval(cmdline, xparam);
     if (autorotate == 0)
-        rparam[3] = L'0' + svcmaxlogs;
-    cmdline = xwcsappend(cmdline, rparam);
-    cmdline = xappendarg(cmdline, shutdownfile);
+        rparam[2] = L'0' + svcmaxlogs;
+    cmdline = xappendval(cmdline, rparam);
+    cmdline = xappendval(cmdline, L"-n");
+    cmdline = xappendval(cmdline, servicename);
+    cmdline = xappendval(cmdline, L"-u");
+    cmdline = xappendval(cmdline, serviceuuid);
+    cmdline = xappendval(cmdline, L"-w");
+    cmdline = xappendval(cmdline, servicehome);
+    cmdline = xappendval(cmdline, L"-o");
+    cmdline = xappendval(cmdline, loglocation);
+    cmdline = xappendval(cmdline, shutdownfile);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
