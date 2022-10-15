@@ -1321,7 +1321,7 @@ static int resolverotate(const wchar_t *str)
     return 0;
 }
 
-static unsigned int __stdcall iopipethread(void *unused)
+static unsigned int __stdcall rdpipethread(void *unused)
 {
     DWORD  rc = 0;
 
@@ -1372,54 +1372,39 @@ static unsigned int __stdcall iopipethread(void *unused)
     XENDTHREAD(0);
 }
 
-static DWORD wrterminatechar(DWORD iwait, DWORD wwait)
+static unsigned int __stdcall wrpipethread(void *unused)
 {
-    DWORD wr, ws;
-    DWORD rc = 0;
+    DWORD  wc, wr, rc = 0;
 
-    if (iwait) {
-        ws = WaitForSingleObject(processended, iwait);
-        if (ws != WAIT_TIMEOUT) {
-            if (ws == WAIT_OBJECT_0)
-                dbgprints(__FUNCTION__, "processended signaled");
-            else
-                dbgprintf(__FUNCTION__, "processended: %lu", ws);
-            dbgprints(__FUNCTION__, "aborted");
-            return 0;
-        }
-        dbgprints(__FUNCTION__, "running");
+    dbgprintf(__FUNCTION__, "started");
+    wc = WaitForSingleObject(processended, SVCBATCH_STOP_SYNC);
+    if (wc != WAIT_TIMEOUT) {
+        if (wc == WAIT_OBJECT_0)
+            dbgprints(__FUNCTION__, "processended signaled");
+        else
+            dbgprintf(__FUNCTION__, "processended: %lu", wc);
+        goto finished;
     }
     dbgprints(__FUNCTION__, "sending Y to child");
     if (WriteFile(inputpipewrs, YYES, 2, &wr, NULL) && (wr != 0)) {
-        if (wwait) {
-            ws = WaitForSingleObject(processended, wwait);
-            if (ws == WAIT_OBJECT_0)
-                rc = ERROR_PROCESS_ABORTED;
-        }
-        dbgprints(__FUNCTION__, "wrote Y to child");
+        if (FlushFileBuffers(inputpipewrs))
+            dbgprints(__FUNCTION__, "wrote Y to child");
+        else
+            rc = GetLastError();
     }
     else {
         rc = GetLastError();
     }
     if (rc == ERROR_BROKEN_PIPE)
         dbgprints(__FUNCTION__, "pipe closed");
-    else if (rc == ERROR_PROCESS_ABORTED)
-        dbgprints(__FUNCTION__, "processended by sending Y");
     else if (rc)
         dbgprintf(__FUNCTION__, "err=%lu", rc);
 
-    return rc;
-}
-
-static unsigned int __stdcall wrpipethread(void *param)
-{
-    DWORD ws = *((DWORD *)(param));
-
-    dbgprints(__FUNCTION__, "started");
-    wrterminatechar(ws, 0);
+finished:
     dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
 }
+
 
 static unsigned int __stdcall shutdownthread(void *unused)
 {
@@ -1429,23 +1414,11 @@ static unsigned int __stdcall shutdownthread(void *unused)
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc, ws;
-    DWORD    iw  = SVCBATCH_STOP_SYNC;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
-    dbgprintf(__FUNCTION__, "signal name: %S", ssignalname);
-    ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
-    if (IS_INVALID_HANDLE(ssignalevent)) {
-        rc = GetLastError();
-        svcsyserror(__LINE__, rc, ssignalname, NULL);
-        SetEvent(shutdowndone);
-        setsvcstatusexit(rc);
-        dbgprints(__FUNCTION__, "failed");
-        XENDTHREAD(0);
-    }
-
     cmdline = xappendarg(NULL, svcbatchexe);
     if (hasdebuginfo)
         xparam[3] = L'd';
@@ -1514,7 +1487,6 @@ static unsigned int __stdcall shutdownthread(void *unused)
     wh[1] = processended;
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
-    xcreatethread(1, 0, &wrpipethread, &iw);
 
     ws = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_STOP_CHECK + SVCBATCH_STOP_STEP);
     switch (ws) {
@@ -1564,7 +1536,6 @@ finished:
 static unsigned int __stdcall stopthread(void *unused)
 {
     DWORD ws;
-    int   i;
 
     if (servicemode)
         dbgprints(__FUNCTION__, "service stop");
@@ -1575,11 +1546,14 @@ static unsigned int __stdcall stopthread(void *unused)
         ResetEvent(shutdowndone);
         dbgprints(__FUNCTION__, "creating shutdown process");
         xcreatethread(1, 0, &shutdownthread, NULL);
-        WaitForSingleObject(shutdowndone, SVCBATCH_STOP_HINT);
-        dbgprints(__FUNCTION__, "awaited shutdown done");
+        ws = WaitForSingleObject(shutdowndone, SVCBATCH_STOP_HINT);
+        dbgprintf(__FUNCTION__, "awaited shutdown done %lu", ws);
+        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+        if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+            dbgprints(__FUNCTION__, "process ended by shutdown");
+            goto finished;
+        }
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-    wrterminatechar(0, SVCBATCH_STOP_SYNC);
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
@@ -1594,17 +1568,6 @@ static unsigned int __stdcall stopthread(void *unused)
         dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %lu", GetLastError());
     }
     dbgprints(__FUNCTION__, "process still running");
-    for (i = 0; i < 2; i++) {
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        dbgprintf(__FUNCTION__, "sending Y to child (attempt=%d)", i + 1);
-        /**
-         * Write Y to stdin pipe in case cmd.exe waits for
-         * user reply to "Terminate batch job (Y/N)?"
-         */
-        if (wrterminatechar(0, SVCBATCH_STOP_SYNC)) {
-            break;
-        }
-    }
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
     dbgprints(__FUNCTION__, "Child is still active ... terminating");
     SAFE_CLOSE_HANDLE(childprocess);
@@ -1634,7 +1597,6 @@ static unsigned int __stdcall monitorthread(void *unused)
 {
     HANDLE wh[3];
     DWORD  ws, rc = 0;
-    int    nc = 0;
 
     dbgprints(__FUNCTION__, "started");
 
@@ -1674,7 +1636,7 @@ static unsigned int __stdcall monitorthread(void *unused)
         do {
             DWORD cc;
 
-            ws = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_MONITOR_STEP * 1000);
+            ws = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
             switch (ws) {
                 case WAIT_OBJECT_0:
                     dbgprints(__FUNCTION__, "processended signaled");
@@ -1726,53 +1688,6 @@ static unsigned int __stdcall monitorthread(void *unused)
                     else {
                         dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
                     }
-                break;
-                case WAIT_TIMEOUT:
-                    /**
-                     * Check every 2 minutes if the last read line
-                     * was 'Terminate batch job (Y/N)? '
-                     *
-                     * This could mean that cmd.exe is waiting for Y input
-                     * because batch file was terminated.
-                     * Verify two times in 2 minute interval if the
-                     * same message is still in the input buffer.
-                     *
-                     * If so, write Y to child's stdin so that process
-                     * can exit and svcbatch can terminates due to failed service.
-                     *
-                     * In case something else was in the last read line
-                     * it means child is probably still running.
-                     */
-                    EnterCriticalSection(&logfilelock);
-                    if (memcmp(ioreadbuffer, cterminate, strlen(cterminate)) == 0) {
-                        if (nc > 1) {
-                            HANDLE h;
-                            dbgprints(__FUNCTION__, "calling terminate");
-
-                            LeaveCriticalSection(&logfilelock);
-                            wrterminatechar(0, SVCBATCH_PENDING_WAIT);
-                            EnterCriticalSection(&logfilelock);
-                            h = InterlockedExchangePointer(&logfhandle, NULL);
-                            if (h != NULL) {
-                                logfflush(h);
-                                logwrline(h, "Found 'Terminate batch job (Y/N)?'");
-                                logwrline(h, "Stopping service");
-                            }
-                            InterlockedExchangePointer(&logfhandle, h);
-                            svcsyserror(__LINE__, 0, L"monitorthread",
-                                        L"Found 'Terminate batch job (Y/N)?'");
-                        }
-                        else {
-                            dbgprintf(__FUNCTION__, "found %s(%d)", cterminate, nc + 1);
-                        }
-                        nc++;
-                    }
-                    else {
-                        if (nc)
-                            dbgprints(__FUNCTION__, "resetting terminate");
-                        nc = 0;
-                    }
-                    LeaveCriticalSection(&logfilelock);
                 break;
                 default:
                     rc = 1;
@@ -1979,11 +1894,11 @@ static unsigned int __stdcall workerthread(void *unused)
         goto finished;
     }
     wh[0] = childprocess;
-    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &iopipethread, NULL);
+    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &rdpipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"iopipethread", NULL);
+        svcsyserror(__LINE__, rc, L"rdpipethread", NULL);
         TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
         goto finished;
     }
@@ -1996,6 +1911,7 @@ static unsigned int __stdcall workerthread(void *unused)
     if (servicemode) {
         xcreatethread(1, 0, &rotatethread, NULL);
     }
+    xcreatethread(1, 0, &wrpipethread, NULL);
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
 
@@ -2481,6 +2397,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (IS_INVALID_HANDLE(ssignalevent))
             return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
         dbgprintf(__FUNCTION__, "using signal name: %S", ssignalname);
+    }
+    else if (shutdownfile != NULL) {
+        dbgprintf(__FUNCTION__, "creating signal name: %S", ssignalname);
+        ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
+        if (IS_INVALID_HANDLE(ssignalevent))
+            return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
     }
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
