@@ -298,7 +298,6 @@ static wchar_t *xappendarg(wchar_t *s1, const wchar_t *s2)
 int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
 {
     static const wchar_t *place = zerostring;
-    static int optsw   = 0;
     const wchar_t *oli = NULL;
 
     xwoptarg = NULL;
@@ -310,37 +309,27 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
             return EOF;
         }
         place = nargv[xwoptind];
-        optsw = *(place++);
-        if ((optsw != L'-') && (optsw != L'/')) {
+        xwoption = *(place++);
+        if ((xwoption != L'-') && (xwoption != L'/')) {
             /* Argument is not an option */
             place = zerostring;
             return EOF;
         }
-        xwoption = *(place++);
-        if ((xwoption == L'\0') || (xwoption == L'-')) {
+        if (*place == L'\0') {
+            ++xwoptind;
             place = zerostring;
             return L'!';
         }
     }
-    else {
-        xwoption = *(place++);
-    }
+    xwoption = *(place++);
+
     if (xwoption != L':') {
-        oli = wcschr(opts, (wchar_t)xwoption);
+        oli = wcschr(opts, towlower((wchar_t)xwoption));
     }
     if (oli == NULL) {
         if (*place == L'\0') {
             ++xwoptind;
             place = zerostring;
-        }
-        else if (optsw == L'/') {
-            /*
-             * For non matched option starting with '/'
-             * assume its EOF if followed by additional
-             * letter
-             */
-            place = zerostring;
-            return EOF;
         }
         return L'!';
     }
@@ -361,7 +350,7 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
         }
         ++xwoptind;
         place = zerostring;
-        if ((xwoptarg == NULL) || (*xwoptarg == L'\0')) {
+        if (IS_EMPTY_WCS(xwoptarg)) {
             /* Option-argument is absent or empty */
             return L':';
         }
@@ -371,15 +360,6 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
         if (*place == L'\0') {
             ++xwoptind;
             place = zerostring;
-        }
-        else if (optsw == L'/') {
-            /*
-             * Matched '/' option that do not require
-             * argument but followed with additional letters.
-             * Assume this is EOF
-             */
-            place = zerostring;
-            return EOF;
         }
     }
     return oli[0];
@@ -1462,26 +1442,26 @@ static unsigned int __stdcall shutdownthread(void *unused)
     }
 
     cmdline = xappendarg(NULL, svcbatchexe);
-    cmdline = xwcsappend(cmdline, L" -x ");
-    cmdline = xappendarg(cmdline, shutdownfile);
+    cmdline = xwcsappend(cmdline, L" -x");
     cmdline = xwcsappend(cmdline, L" -n ");
     cmdline = xappendarg(cmdline, servicename);
     cmdline = xwcsappend(cmdline, L" -u ");
     cmdline = xwcsappend(cmdline, serviceuuid);
-    if (autorotate) {
-        cmdline = xwcsappend(cmdline, L" -r @0");
-    }
-    else {
-        wchar_t rb[8];
-        _snwprintf(rb, 6, L" -r %d", svcmaxlogs);
-        cmdline = xwcsappend(cmdline, rb);
-    }
     if (hasdebuginfo)
         cmdline = xwcsappend(cmdline, L" -d");
     cmdline = xwcsappend(cmdline, L" -w ");
     cmdline = xappendarg(cmdline, servicehome);
     cmdline = xwcsappend(cmdline, L" -o ");
     cmdline = xappendarg(cmdline, loglocation);
+    if (autorotate) {
+        cmdline = xwcsappend(cmdline, L" -r @0 ");
+    }
+    else {
+        wchar_t rb[16];
+        _snwprintf(rb, 12, L" -r %d ", svcmaxlogs);
+        cmdline = xwcsappend(cmdline, rb);
+    }
+    cmdline = xappendarg(cmdline, shutdownfile);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
@@ -2299,37 +2279,34 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvesvcbatchexe(wargv[0]) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0], NULL);
 
-    while ((opt = xwgetopt(argc, wargv, L"bBdDpPo:O:r:R:s:S:w:W:n:u:x:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bdpo:r:s:w:n:u:x")) != EOF) {
         switch (opt) {
             case L'b':
-            case L'B':
                 hasctrlbreak = 1;
             break;
             case L'd':
-            case L'D':
                 hasdebuginfo = 1;
             break;
             case L'o':
-            case L'O':
                 loglocation = expandenvstrings(xwoptarg, 1);
                 if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
             break;
             case L'p':
-            case L'P':
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             case L'r':
-            case L'R':
                 rotateparam  = xwoptarg;
             break;
             case L's':
-            case L'S':
                 svcendparam  = xwoptarg;
             break;
             case L'w':
-            case L'W':
-                shomeparam   = expandenvstrings(xwoptarg, 1);
+                if (servicemode)
+                    shomeparam = expandenvstrings(xwoptarg, 1);
+                else
+                    shomeparam = xwcsdup(xwoptarg);
+
                 if (shomeparam == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
             break;
@@ -2343,7 +2320,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 serviceuuid  = xwcsdup(xwoptarg);
             break;
             case L'x':
-                batchparam   = xwcsdup(xwoptarg);
+                servicemode  = 0;
             break;
             case L':':
                 bb[0] = xwoption;
@@ -2360,7 +2337,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wargv += xwoptind;
     for (i = 0; i < argc; i++) {
         if (IS_EMPTY_WCS(batchparam)) {
-            batchparam = expandenvstrings(wargv[i], 0);
+            if (servicemode)
+                batchparam = expandenvstrings(wargv[i], 0);
+            else
+                batchparam = xwcsdup(wargv[i]);
             if (batchparam == NULL)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[i], NULL);
         }
