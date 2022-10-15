@@ -169,10 +169,10 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     cp = rv = xwalloc(l1 + l2);
 
     if(l1 > 0)
-        wmemcpy(cp, s1, l1 + 1);
+        wmemcpy(cp, s1, l1);
     cp += l1;
     if(l2 > 0)
-        wmemcpy(cp, s2, l2 + 1);
+        wmemcpy(cp, s2, l2);
     return rv;
 }
 
@@ -189,7 +189,7 @@ static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
 
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
-    wmemcpy(cp + l1, s2, l2 + 1);
+    wmemcpy(cp + l1, s2, l2);
     xfree(s1);
     return rv;
 }
@@ -235,7 +235,6 @@ static wchar_t *xwcsvarcat(const wchar_t *p, ...)
             break;
     }
     va_end(vap);
-    *cp = L'\0';
     return rp;
 }
 
@@ -275,7 +274,7 @@ static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
     if (l2 == 0)
         return s1;
 
-    cp = rv = xwalloc(l1 + l2 + 4);
+    cp = rv = xwalloc(l1 + l2 + 6);
 
     if(l1 > 0) {
         wmemcpy(cp, s1, l1);
@@ -296,7 +295,6 @@ static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
     }
     if (q > 1)
         *(cp++) = L'"';
-    *cp = L'\0';
     xfree(s1);
     return rv;
 }
@@ -1489,6 +1487,8 @@ static unsigned int __stdcall shutdownthread(void *unused)
             dbgprintf(__FUNCTION__, "child process: %lu done", cp.dwProcessId);
         break;
         case WAIT_OBJECT_1:
+            dbgprintf(__FUNCTION__, "processended for: %lu",
+                      cp.dwProcessId);
         case WAIT_TIMEOUT:
             dbgprintf(__FUNCTION__, "sending signal event for: %lu",
                       cp.dwProcessId);
@@ -1570,7 +1570,7 @@ static unsigned int __stdcall stopthread(void *unused)
 
 finished:
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
-    if (IS_VALID_HANDLE(ssignalevent))
+    if (shutdownfile != NULL)
         SetEvent(ssignalevent);
     SetEvent(svcstopended);
     dbgprints(__FUNCTION__, "done");
@@ -2060,8 +2060,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             exit(ERROR_INVALID_HANDLE);
             return;
         }
+        dbgprintf(__FUNCTION__, "started %S", servicename);
     }
-    dbgprintf(__FUNCTION__, "started %S", servicename);
+    else {
+        dbgprintf(__FUNCTION__, "shutting down %S", servicename);
+    }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     rv = openlogfile(TRUE);
     if (rv != 0) {
@@ -2350,7 +2353,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     xfree(shomeparam);
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
-    if (svcendparam != NULL) {
+    if (servicemode && svcendparam) {
         shutdownfile = getrealpathname(svcendparam, 0);
         if (IS_EMPTY_WCS(shutdownfile))
             return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
