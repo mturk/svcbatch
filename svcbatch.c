@@ -1804,7 +1804,7 @@ finished:
 static unsigned int __stdcall workerthread(void *unused)
 {
     wchar_t *cmdline;
-    HANDLE   wh[2];
+    HANDLE   wh[4];
     DWORD    rc;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
     PROCESS_INFORMATION cp;
@@ -1902,18 +1902,27 @@ static unsigned int __stdcall workerthread(void *unused)
         TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
         goto finished;
     }
+    wh[2] = xcreatethread(0, CREATE_SUSPENDED, &wrpipethread, NULL);
+    if (IS_INVALID_HANDLE(wh[2])) {
+        rc = ERROR_TOO_MANY_TCBS;
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"wrpipethread", NULL);
+        TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
+        goto finished;
+    }
 
     ResumeThread(cp.hThread);
     ResumeThread(wh[1]);
+    ResumeThread(wh[2]);
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprintf(__FUNCTION__, "running child pid: %lu", cp.dwProcessId);
     if (servicemode) {
         xcreatethread(1, 0, &rotatethread, NULL);
     }
-    xcreatethread(1, 0, &wrpipethread, NULL);
-    WaitForMultipleObjects(2, wh, TRUE, INFINITE);
+    WaitForMultipleObjects(3, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
+    CloseHandle(wh[2]);
 
     if (hasdebuginfo) {
         DWORD rv;
