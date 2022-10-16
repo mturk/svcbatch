@@ -54,6 +54,7 @@ static int       xwoptind         = 1;   /* Index into parent argv vector */
 static int       xwoption         = 0;   /* Character checked for validity */
 
 static wchar_t  *svcbatchfile     = NULL;
+static wchar_t  *svcbatchname     = NULL;
 static wchar_t  *shutdownfile     = NULL;
 static wchar_t  *svcbatchexe      = NULL;
 static wchar_t  *exelocation      = NULL;
@@ -776,7 +777,8 @@ static int resolvebatchname(const wchar_t *a)
     while (--i > 0) {
         if (svcbatchfile[i] == L'\\') {
             svcbatchfile[i] = L'\0';
-            servicebase = xwcsdup(svcbatchfile);
+            svcbatchname = svcbatchfile + i + 1;
+            servicebase  = xwcsdup(svcbatchfile);
             svcbatchfile[i] = L'\\';
             return 1;
         }
@@ -1339,7 +1341,7 @@ static unsigned int __stdcall rdpipethread(void *unused)
                  * Read zero bytes from child should
                  * not happen.
                  */
-                dbgprintf(__FUNCTION__, "Read 0 bytes err=%lu", GetLastError());
+                dbgprintf(__FUNCTION__, "read 0 bytes err=%lu", GetLastError());
                 rc = ERROR_NO_DATA;
             }
             else {
@@ -1541,12 +1543,15 @@ static unsigned int __stdcall stopthread(void *unused)
         ws = runshutdown(SVCBATCH_STOP_CHECK);
         dbgprintf(__FUNCTION__, "shutdown done: %lu", ws);
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
-            dbgprints(__FUNCTION__, "process ended by shutdown");
-            goto finished;
+        if (WaitForSingleObject(ssignalevent, 0) != WAIT_OBJECT_0) {
+            dbgprints(__FUNCTION__, "wait for clean shutdown");
+            if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+                dbgprints(__FUNCTION__, "process ended by shutdown");
+                goto finished;
+            }
         }
     }
-    dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
+    dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT for: %S", svcbatchname);
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
@@ -1567,8 +1572,6 @@ static unsigned int __stdcall stopthread(void *unused)
 
 finished:
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
-    if (shutdownfile != NULL)
-        SetEvent(ssignalevent);
     SetEvent(svcstopended);
     dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
@@ -1607,12 +1610,12 @@ static void monitorshutdown(void)
             dbgprints(__FUNCTION__, "monitorevent signaled");
         break;
         case WAIT_OBJECT_2:
-            dbgprints(__FUNCTION__, "stop signaled");
+            dbgprints(__FUNCTION__, "shutdown stop signaled");
             EnterCriticalSection(&logfilelock);
             h = InterlockedExchangePointer(&logfhandle, NULL);
             if (h != NULL) {
                 logfflush(h);
-                logwrline(h, "Received service stop signal");
+                logwrline(h, "Received shutdown stop signal");
             }
             InterlockedExchangePointer(&logfhandle, h);
             LeaveCriticalSection(&logfilelock);
@@ -1660,7 +1663,7 @@ static void monitorservice(void)
 
                     if (h != NULL) {
                         logfflush(h);
-                        logwrline(h, "signaled CTRL_BREAK_EVENT");
+                        logwrline(h, "Signaled CTRL_BREAK_EVENT");
                     }
                     InterlockedExchangePointer(&logfhandle, h);
                     LeaveCriticalSection(&logfilelock);
@@ -1940,15 +1943,19 @@ static unsigned int __stdcall workerthread(void *unused)
     if (hasdebuginfo) {
         DWORD rv;
 
-        dbgprintf(__FUNCTION__, "finished cmd.exe: %lu", cp.dwProcessId);
+        dbgprintf(__FUNCTION__, "finished %S pid: %lu",
+                  svcbatchname, cp.dwProcessId);
         if (GetExitCodeProcess(cp.hProcess, &rv)) {
             if (rv == STILL_ACTIVE)
-                dbgprints(__FUNCTION__, "child cmd.exe is STILL_ACTIVE");
+                dbgprintf(__FUNCTION__, "%S pid: %lu is STILL_ACTIVE",
+                          svcbatchname, cp.dwProcessId);
             else
-                dbgprintf(__FUNCTION__, "child cmd.exe exited with: %lu", rv);
+                dbgprintf(__FUNCTION__, "%S exited with: %lu",
+                          svcbatchname, rv);
         }
         else {
-            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", GetLastError());
+            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu",
+                      GetLastError());
         }
     }
 
@@ -2135,7 +2142,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dbgprints(__FUNCTION__, "waiting for stop");
     ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
     if (IS_VALID_HANDLE(ssignalevent) && (ws == WAIT_TIMEOUT)) {
-        dbgprints(__FUNCTION__, "sending stop signal");
+        dbgprints(__FUNCTION__, "sending shutdown stop signal");
         SetEvent(ssignalevent);
         WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_CHECK);
     }
@@ -2415,10 +2422,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, ssignalname);
         if (IS_INVALID_HANDLE(ssignalevent))
             return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
-        dbgprintf(__FUNCTION__, "using signal name: %S", ssignalname);
     }
     else if (shutdownfile != NULL) {
-        dbgprintf(__FUNCTION__, "creating signal name: %S", ssignalname);
         ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
         if (IS_INVALID_HANDLE(ssignalevent))
             return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
