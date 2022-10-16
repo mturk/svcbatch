@@ -9,7 +9,10 @@ For a full list of changes, see the [git commit log][log]
 ## v1.2.2
 
  * In development
+ * Create rotated log names using current system time instead last write time
+ * Fix service stop when shutdown script is unresponsive
  * Create svcbatch.h from svcbatch.h.in at build time
+ * Create svcbatch.manifest from svcbatch.manifest.in at build time
  * Add more advanced command line option parser
 
 ## v1.2.1
