@@ -71,7 +71,6 @@ static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
-static HANDLE    shutdowndone     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    outputpiperd     = NULL;
@@ -1400,14 +1399,14 @@ static unsigned int __stdcall wrpipethread(void *unused)
 }
 
 
-static unsigned int __stdcall shutdownthread(void *unused)
+static int runshutdown(DWORD rt)
 {
     wchar_t  rparam[] = L"-r@ -n";
     wchar_t  xparam[] = L"-x\0";
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
-    DWORD    rc, ws;
+    DWORD    rc = 0;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
@@ -1467,7 +1466,6 @@ static unsigned int __stdcall shutdownthread(void *unused)
         goto finished;
     }
 
-    dbgprintf(__FUNCTION__, "svcbatch child pid: %lu", cp.dwProcessId);
     if (!AssignProcessToJobObject(job, cp.hProcess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
@@ -1481,10 +1479,12 @@ static unsigned int __stdcall shutdownthread(void *unused)
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
 
-    ws = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_STOP_CHECK + SVCBATCH_STOP_STEP);
-    switch (ws) {
+    dbgprintf(__FUNCTION__, "waiting for svcbatch child: %lu to finish", cp.dwProcessId);
+    rc = WaitForMultipleObjects(2, wh, FALSE, rt + SVCBATCH_STOP_STEP);
+    switch (rc) {
         case WAIT_OBJECT_0:
-            dbgprintf(__FUNCTION__, "child process: %lu done", cp.dwProcessId);
+            dbgprintf(__FUNCTION__, "child process: %lu done",
+                      cp.dwProcessId);
         break;
         case WAIT_OBJECT_1:
             dbgprintf(__FUNCTION__, "processended for: %lu",
@@ -1493,9 +1493,9 @@ static unsigned int __stdcall shutdownthread(void *unused)
             dbgprintf(__FUNCTION__, "sending signal event for: %lu",
                       cp.dwProcessId);
             SetEvent(ssignalevent);
-            rc = WaitForSingleObject(cp.hProcess, SVCBATCH_STOP_CHECK);
-            if (rc != WAIT_OBJECT_0) {
-                dbgprintf(__FUNCTION__, "calling TerminateProcess for child: %lu", cp.dwProcessId);
+            if (WaitForSingleObject(cp.hProcess, rt) != WAIT_OBJECT_0) {
+                dbgprintf(__FUNCTION__, "calling TerminateProcess for child: %lu",
+                           cp.dwProcessId);
                 TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
             }
         break;
@@ -1524,8 +1524,7 @@ finished:
     SAFE_CLOSE_HANDLE(job);
 
     dbgprints(__FUNCTION__, "done");
-    SetEvent(shutdowndone);
-    XENDTHREAD(0);
+    return rc;
 }
 
 static unsigned int __stdcall stopthread(void *unused)
@@ -1538,19 +1537,17 @@ static unsigned int __stdcall stopthread(void *unused)
         dbgprints(__FUNCTION__, "shutdown stop ");
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
     if (shutdownfile != NULL) {
-        ResetEvent(shutdowndone);
         dbgprints(__FUNCTION__, "creating shutdown process");
-        xcreatethread(1, 0, &shutdownthread, NULL);
-        ws = WaitForSingleObject(shutdowndone, SVCBATCH_STOP_HINT);
-        dbgprintf(__FUNCTION__, "awaited shutdown done %lu", ws);
+        ws = runshutdown(SVCBATCH_STOP_CHECK);
+        dbgprintf(__FUNCTION__, "shutdown done: %lu", ws);
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
             dbgprints(__FUNCTION__, "process ended by shutdown");
             goto finished;
         }
     }
+    dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
-        dbgprints(__FUNCTION__, "raising CTRL_C_EVENT");
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
         SetConsoleCtrlHandler(NULL, FALSE);
@@ -1588,9 +1585,49 @@ static void createstopthread(void)
     }
 }
 
-static unsigned int __stdcall monitorthread(void *unused)
+static void monitorshutdown(void)
 {
     HANDLE wh[3];
+    HANDLE h = NULL;
+    DWORD  ws;
+
+    dbgprints(__FUNCTION__, "started");
+
+    wh[0] = processended;
+    wh[1] = monitorevent;
+    wh[2] = ssignalevent;
+
+
+    ws = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
+    switch (ws) {
+        case WAIT_OBJECT_0:
+            dbgprints(__FUNCTION__, "processended signaled");
+        break;
+        case WAIT_OBJECT_1:
+            dbgprints(__FUNCTION__, "monitorevent signaled");
+        break;
+        case WAIT_OBJECT_2:
+            dbgprints(__FUNCTION__, "stop signaled");
+            EnterCriticalSection(&logfilelock);
+            h = InterlockedExchangePointer(&logfhandle, NULL);
+            if (h != NULL) {
+                logfflush(h);
+                logwrline(h, "Received service stop signal");
+            }
+            InterlockedExchangePointer(&logfhandle, h);
+            LeaveCriticalSection(&logfilelock);
+            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+            createstopthread();
+        break;
+        default:
+        break;
+    }
+    dbgprints(__FUNCTION__, "done");
+}
+
+static void monitorservice(void)
+{
+    HANDLE wh[2];
     DWORD  ws, rc = 0;
 
     dbgprints(__FUNCTION__, "started");
@@ -1598,105 +1635,87 @@ static unsigned int __stdcall monitorthread(void *unused)
     wh[0] = processended;
     wh[1] = monitorevent;
 
-    if (servicemode == 0) {
-        HANDLE h = NULL;
+    do {
+        DWORD cc;
 
-        wh[2] = ssignalevent;
-        ws = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
+        ws = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
         switch (ws) {
             case WAIT_OBJECT_0:
-                dbgprints(__FUNCTION__, "shutdown processended signaled");
+                dbgprints(__FUNCTION__, "processended signaled");
+                rc = 1;
             break;
             case WAIT_OBJECT_1:
-                dbgprints(__FUNCTION__, "shutdown monitorevent signaled");
-            break;
-            case WAIT_OBJECT_2:
-                dbgprints(__FUNCTION__, "stop signaled");
-                EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
-                if (h != NULL) {
-                    logfflush(h);
-                    logwrline(h, "Received service stop signal");
-                }
-                InterlockedExchangePointer(&logfhandle, h);
-                LeaveCriticalSection(&logfilelock);
-                reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-                createstopthread();
-            break;
-            default:
-            break;
-        }
-    }
-    else {
-        do {
-            DWORD cc;
-
-            ws = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
-            switch (ws) {
-                case WAIT_OBJECT_0:
-                    dbgprints(__FUNCTION__, "processended signaled");
+                cc = (DWORD)InterlockedExchange(&monitorsig, 0);
+                if (cc == 0) {
+                    dbgprints(__FUNCTION__, "quit signaled");
                     rc = 1;
-                break;
-                case WAIT_OBJECT_1:
-                    cc = (DWORD)InterlockedExchange(&monitorsig, 0);
-                    if (cc == 0) {
-                        dbgprints(__FUNCTION__, "quit signaled");
-                        rc = 1;
+                    break;
+                }
+                else if (cc == SVCBATCH_CTRL_BREAK) {
+                    HANDLE h;
+
+                    dbgprints(__FUNCTION__, "ctrl+break signaled");
+                    EnterCriticalSection(&logfilelock);
+                    h = InterlockedExchangePointer(&logfhandle, NULL);
+
+                    if (h != NULL) {
+                        logfflush(h);
+                        logwrline(h, "signaled CTRL_BREAK_EVENT");
+                    }
+                    InterlockedExchangePointer(&logfhandle, h);
+                    LeaveCriticalSection(&logfilelock);
+                    /**
+                     * Danger Zone!!!
+                     *
+                     * Send CTRL_BREAK_EVENT to the child process.
+                     * This is useful if batch file is running java
+                     * CTRL_BREAK signal tells JDK to dump thread stack
+                     *
+                     */
+                    GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+                    dbgprints(__FUNCTION__, "console ctrl+break send");
+                }
+                else if (cc == SVCBATCH_CTRL_ROTATE) {
+                    dbgprints(__FUNCTION__, "log rotation signaled");
+                    rc = rotatelogs();
+                    if (rc != 0) {
+                        dbgprintf(__FUNCTION__, "log rotation failed: %lu", rc);
+                        setsvcstatusexit(rc);
+                        createstopthread();
                         break;
                     }
-                    else if (cc == SVCBATCH_CTRL_BREAK) {
-                        HANDLE h;
+                    rotatesynctime();
+                    dbgprints(__FUNCTION__, "log rotation done");
+                }
+                else {
+                    dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
+                }
+            break;
+            default:
+                rc = 1;
+            break;
+        }
+        if (ws == WAIT_OBJECT_1) {
+            ResetEvent(monitorevent);
+        }
+    } while (rc == 0);
 
-                        dbgprints(__FUNCTION__, "ctrl+break signaled");
-                        EnterCriticalSection(&logfilelock);
-                        h = InterlockedExchangePointer(&logfhandle, NULL);
+    dbgprints(__FUNCTION__, "done");
+}
 
-                        if (h != NULL) {
-                            logfflush(h);
-                            logwrline(h, "signaled CTRL_BREAK_EVENT");
-                        }
-                        InterlockedExchangePointer(&logfhandle, h);
-                        LeaveCriticalSection(&logfilelock);
-                        /**
-                         * Danger Zone!!!
-                         *
-                         * Send CTRL_BREAK_EVENT to the child process.
-                         * This is useful if batch file is running java
-                         * CTRL_BREAK signal tells JDK to dump thread stack
-                         *
-                         */
-                        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-                        dbgprints(__FUNCTION__, "console ctrl+break send");
-                    }
-                    else if (cc == SVCBATCH_CTRL_ROTATE) {
-                        dbgprints(__FUNCTION__, "log rotation signaled");
-                        rc = rotatelogs();
-                        if (rc != 0) {
-                            dbgprintf(__FUNCTION__, "log rotation failed: %lu", rc);
-                            setsvcstatusexit(rc);
-                            createstopthread();
-                            break;
-                        }
-                        rotatesynctime();
-                        dbgprints(__FUNCTION__, "log rotation done");
-                    }
-                    else {
-                        dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
-                    }
-                break;
-                default:
-                    rc = 1;
-                break;
-            }
-            if (ws == WAIT_OBJECT_1) {
-                ResetEvent(monitorevent);
-            }
-        } while (rc == 0);
-    }
+static unsigned int __stdcall monitorthread(void *unused)
+{
+    dbgprints(__FUNCTION__, "started");
+
+    if (servicemode)
+        monitorservice();
+    else
+        monitorshutdown();
 
     dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
 }
+
 
 static unsigned int __stdcall rotatethread(void *unused)
 {
@@ -2114,9 +2133,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SAFE_CLOSE_HANDLE(wh[1]);
 
     dbgprints(__FUNCTION__, "waiting for stop");
-    wh[0] = svcstopended;
-    wh[1] = shutdowndone;
-    ws = WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_HINT);
+    ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
     if (IS_VALID_HANDLE(ssignalevent) && (ws == WAIT_TIMEOUT)) {
         dbgprints(__FUNCTION__, "sending stop signal");
         SetEvent(ssignalevent);
@@ -2145,7 +2162,6 @@ static void __cdecl objectscleanup(void)
 {
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
-    SAFE_CLOSE_HANDLE(shutdowndone);
     SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(childprocjob);
@@ -2390,9 +2406,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     svcstopended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
-    shutdowndone = CreateEventW(&sazero, TRUE, TRUE,  NULL);
-    if (IS_INVALID_HANDLE(shutdowndone))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
