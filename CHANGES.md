@@ -6,6 +6,10 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v1.2.3
+
+ * In development
+
 ## v1.2.2
 
  * Disable log rotation if `-r 0` is defined at install time
