@@ -36,7 +36,6 @@ static SECURITY_ATTRIBUTES   sazero;
 static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
-static HANDLE                rotatedev   = NULL;
 static BYTE                  ioreadbuffer[HBUFSIZ];
 
 static wchar_t  *comspec          = NULL;
@@ -74,6 +73,7 @@ static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
+static HANDLE    logrotatesig     = NULL;
 static HANDLE    outputpiperd     = NULL;
 static HANDLE    inputpipewrs     = NULL;
 
@@ -1198,14 +1198,6 @@ static void closelogfile(void)
     LeaveCriticalSection(&logfilelock);
 }
 
-static void rotatesynctime(void)
-{
-    if ((rotatedev != NULL) && (rotateint != ONE_DAY)) {
-        CancelWaitableTimer(rotatedev);
-        SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0);
-    }
-}
-
 static int resolverotate(const wchar_t *str)
 {
     wchar_t   *rp, *sp;
@@ -1220,7 +1212,6 @@ static int resolverotate(const wchar_t *str)
         return 0;
     }
     if ((str[0] >=  L'0') && (str[0] <=  L'9') && (str[1] ==  L'\0')) {
-        /* Special case for shutdown rotate */
         svcmaxlogs = str[0] - L'0';
         dbgprintf(__FUNCTION__, "max rotate logs: %d", svcmaxlogs);
         return 0;
@@ -1678,18 +1669,6 @@ static void monitorservice(void)
                     GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
                     dbgprints(__FUNCTION__, "console ctrl+break send");
                 }
-                else if (cc == SVCBATCH_CTRL_ROTATE) {
-                    dbgprints(__FUNCTION__, "log rotation signaled");
-                    rc = rotatelogs();
-                    if (rc != 0) {
-                        dbgprintf(__FUNCTION__, "log rotation failed: %lu", rc);
-                        setsvcstatusexit(rc);
-                        createstopthread();
-                        break;
-                    }
-                    rotatesynctime();
-                    dbgprints(__FUNCTION__, "log rotation done");
-                }
                 else {
                     dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
                 }
@@ -1722,11 +1701,25 @@ static unsigned int __stdcall monitorthread(void *unused)
 
 static unsigned int __stdcall rotatethread(void *unused)
 {
-    HANDLE wh[2];
+    HANDLE wh[3];
     HANDLE h = NULL;
     DWORD  wc, ms, rc = 0;
 
     dbgprintf(__FUNCTION__, "started");
+    wh[0] = CreateWaitableTimerW(NULL, TRUE, NULL);
+    if (IS_INVALID_HANDLE(wh[0])) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"CreateWaitableTimer", NULL);
+        goto finished;
+    }
+    if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
+        rc = GetLastError();
+        setsvcstatusexit(rc);
+        svcsyserror(__LINE__, rc, L"SetWaitableTimer", NULL);
+        goto finished;
+    }
+
     wc = WaitForSingleObject(processended, SVCBATCH_LOGROTATE_INIT);
     if (wc != WAIT_TIMEOUT) {
         if (wc == WAIT_OBJECT_0)
@@ -1742,10 +1735,10 @@ static unsigned int __stdcall rotatethread(void *unused)
     else
         ms = INFINITE;
 
-    wh[0] = rotatedev;
-    wh[1] = processended;
+    wh[1] = logrotatesig;
+    wh[2] = processended;
     while (rc == 0) {
-        wc = WaitForMultipleObjects(2, wh, FALSE, ms);
+        wc = WaitForMultipleObjects(3, wh, FALSE, ms);
         switch (wc) {
             case WAIT_TIMEOUT:
                 EnterCriticalSection(&logfilelock);
@@ -1765,7 +1758,10 @@ static unsigned int __stdcall rotatethread(void *unused)
                                 createstopthread();
                             }
                             else {
-                                rotatesynctime();
+                                if (rotateint != ONE_DAY) {
+                                    CancelWaitableTimer(wh[0]);
+                                    SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
+                                }
                             }
                         }
                         else {
@@ -1792,12 +1788,27 @@ static unsigned int __stdcall rotatethread(void *unused)
                         rotatetmo.QuadPart += rotateint;
                     SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
                 }
-                if (rc != 0) {
+                else {
                     setsvcstatusexit(rc);
                     createstopthread();
                 }
             break;
             case WAIT_OBJECT_1:
+                dbgprints(__FUNCTION__, "rotate by signal");
+                rc = rotatelogs();
+                if (rc == 0) {
+                    if (rotateint != ONE_DAY) {
+                        CancelWaitableTimer(wh[0]);
+                        SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
+                    }
+                    ResetEvent(logrotatesig);
+                }
+                else {
+                    setsvcstatusexit(rc);
+                    createstopthread();
+                }
+            break;
+            case WAIT_OBJECT_2:
                 rc = ERROR_PROCESS_ABORTED;
                 dbgprints(__FUNCTION__, "processended signaled");
             break;
@@ -1814,7 +1825,7 @@ static unsigned int __stdcall rotatethread(void *unused)
 
 finished:
     dbgprints(__FUNCTION__, "done");
-    SAFE_CLOSE_HANDLE(rotatedev);
+    SAFE_CLOSE_HANDLE(wh[0]);
     XENDTHREAD(0);
 }
 
@@ -1841,21 +1852,6 @@ static unsigned int __stdcall workerthread(void *unused)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    if (servicemode) {
-        rotatedev = CreateWaitableTimerW(NULL, TRUE, NULL);
-        if (IS_INVALID_HANDLE(rotatedev)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            svcsyserror(__LINE__, rc, L"CreateWaitableTimer", NULL);
-            goto finished;
-        }
-        if (!SetWaitableTimer(rotatedev, &rotatetmo, 0, NULL, NULL, 0)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            svcsyserror(__LINE__, rc, L"SetWaitableTimer", NULL);
-            goto finished;
-        }
-    }
     rc = createiopipes(&si, &inputpipewrs, &outputpiperd);
     if (rc != 0) {
         setsvcstatusexit(rc);
@@ -1933,7 +1929,7 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprintf(__FUNCTION__, "running child pid: %lu", cp.dwProcessId);
-    if (servicemode) {
+    if (servicemode && svcmaxlogs) {
         xcreatethread(1, 0, &rotatethread, NULL);
     }
     WaitForMultipleObjects(3, wh, TRUE, INFINITE);
@@ -2042,12 +2038,15 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
         case SVCBATCH_CTRL_ROTATE:
             /**
-             * Signal to monitorthread that
+             * Signal to rotatethread that
              * user send custom service control
              */
             dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_ROTATE");
-            InterlockedExchange(&monitorsig, ctrl);
-            SetEvent(monitorevent);
+            if (svcmaxlogs == 0) {
+                dbgprints(__FUNCTION__, "log rotation is disabled");
+                return ERROR_CALL_NOT_IMPLEMENTED;
+            }
+            SetEvent(logrotatesig);
         break;
         case SERVICE_CONTROL_INTERROGATE:
             dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_INTERROGATE");
@@ -2171,6 +2170,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
+    SAFE_CLOSE_HANDLE(logrotatesig);
     SAFE_CLOSE_HANDLE(childprocjob);
 
     DeleteCriticalSection(&logfilelock);
@@ -2430,6 +2430,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
+        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
+    logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
+    if (IS_INVALID_HANDLE(logrotatesig))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
 
     InitializeCriticalSection(&servicelock);

@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.2.2
 
  * In development
+ * Disable log rotation if `-r 0` is defined at install time
  * Create rotated log names using current system time instead last write time
  * Fix service stop when shutdown script is unresponsive
  * Create svcbatch.h from svcbatch.h.in at build time
