@@ -1220,14 +1220,14 @@ static int resolverotate(const wchar_t *str)
             if ((p = wcschr(rp, L'~')) != NULL)
                 *(p++) = L'\0';
             mm = _wtoi(rp);
-            rp = p;
-            if (mm != 0 ) {
-                if (mm < SVCBATCH_MIN_LOGRTIME)
-                    return __LINE__;
-                rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
-                dbgprintf(__FUNCTION__, "rotate in %d minutes", mm);
-                rotatetmo.QuadPart = rotateint;
+            if ((mm < SVCBATCH_MIN_LOGRTIME) || (errno == ERANGE)) {
+                dbgprintf(__FUNCTION__, "invalid rotate timeout %S", rp);
+                return __LINE__;
             }
+            rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
+            dbgprintf(__FUNCTION__, "rotate each %d minutes", mm);
+            rotatetmo.QuadPart = rotateint;
+            rp = p;
         }
         else {
             SYSTEMTIME     st;
@@ -1236,19 +1236,24 @@ static int resolverotate(const wchar_t *str)
 
             *(p++) = L'\0';
             hh = _wtoi(rp);
+            if ((hh < 0) || (hh > 23) || (errno == ERANGE))
+                return __LINE__;
             rp = p;
             if ((p = wcschr(rp, L':')) == NULL)
                 return __LINE__;
             *(p++) = L'\0';
             mm = _wtoi(rp);
+            if ((mm < 0) || (mm > 59) || (errno == ERANGE))
+                return __LINE__;
             rp = p;
             if ((p = wcschr(rp, L'~')) != NULL)
                 *(p++) = L'\0';
             ss = _wtoi(rp);
-            rp = p;
-            if ((hh > 23) || (mm > 59) || (ss > 59))
+            if (((ss < 0) || ss > 59) || (errno == ERANGE))
                 return __LINE__;
-            rotateint    = ONE_DAY;
+
+            rp = p;
+            rotateint = ONE_DAY;
             GetSystemTime(&st);
             SystemTimeToFileTime(&st, &ft);
             ui.HighPart = ft.dwHighDateTime;
@@ -1273,14 +1278,16 @@ static int resolverotate(const wchar_t *str)
         LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(1);
         wchar_t *ep  = zerostring;
-        wchar_t  mm  = 0;
+        wchar_t  mm  = L'B';
 
         siz = _wcstoi64(rp, &ep, 10);
-        if ((siz <= CPP_INT64_C(0)) || (ep == rp))
+        if ((siz <= CPP_INT64_C(0)) || (ep == rp) || (errno == ERANGE))
             return __LINE__;
         if (*ep != '\0') {
             mm = towupper(ep[0]);
             switch (mm) {
+                case L'B':
+                break;
                 case L'K':
                     mux = KILOBYTES(1);
                 break;
@@ -1298,11 +1305,12 @@ static int resolverotate(const wchar_t *str)
         len = siz * mux;
         if (len < SVCBATCH_MIN_LOGSIZE)
             return __LINE__;
-        if (mm)
-            dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
-        else
-            dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
-
+        if (hasdebuginfo) {
+            if (mm != 'B')
+                dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
+            else
+                dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
+        }
         rotatesiz.QuadPart = len;
     }
     xfree(sp);

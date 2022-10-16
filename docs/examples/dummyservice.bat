@@ -61,11 +61,9 @@ rem
 :doCreate
 rem
 rem Rotate Log files each 30 minutes or when larger then 100Kbytes
-rem set "ROTATE_RULE=-r @30~100K"
+set "ROTATE_RULE=-r @30~100K"
 rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-r 0"
-rem Uncomment to enable rotation by timestamp
-set "ROTATE_RULE=-r @0~200k"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
