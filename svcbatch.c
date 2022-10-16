@@ -1158,13 +1158,6 @@ static DWORD rotatelogs(void)
         return ERROR_FILE_NOT_FOUND;
     }
     logfflush(h);
-    if (svcmaxlogs == 0) {
-        logwrline(h, "Log rotatation disabled");
-        logfflush(h);
-        InterlockedExchangePointer(&logfhandle, h);
-        LeaveCriticalSection(&logfilelock);
-        return 0;
-    }
     logwrtime(h, "Log rotatation initialized");
     FlushFileBuffers(h);
     CloseHandle(h);
