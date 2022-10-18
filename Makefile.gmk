@@ -88,7 +88,7 @@ $(FINCLUDE): $(SRCDIR)/$(PROJECT).h.in
 	-e 's/@@version_micro@@/$(VERSION_MICRO)/g' \
 	-e 's/@@version_devel@@/$(VERSION_DEVEL)/g' $< >$@
 
-$(WORKDIR)/%.obj: $(SRCDIR)/%.c $(FINCLUDE)
+$(WORKDIR)/%.o: $(SRCDIR)/%.c $(FINCLUDE)
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) -I$(WORKDIR) $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(FINCLUDE) $(MANIFEST)
