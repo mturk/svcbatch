@@ -9,7 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.2.3
 
  * In development
- * Send additional arguments to batch file is defined at install time
+ * Send additional arguments to batch file if defined at install time
 
 ## v1.2.2
 
