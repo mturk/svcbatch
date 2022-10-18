@@ -61,7 +61,8 @@ static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
-static wchar_t  *ssignalname  = NULL;
+static wchar_t  *ssignalname      = NULL;
+static wchar_t  *svcbatchargs     = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -281,8 +282,6 @@ static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
         cp += l1;
         *(cp++) = L' ';
     }
-    if (q > 1)
-        *(cp++) = L'"';
     if (q && wcshavespace(s2)) {
         *(cp++) = L'"';
         wmemcpy(cp, s2, l2);
@@ -293,8 +292,6 @@ static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
         wmemcpy(cp, s2, l2);
         cp += l2;
     }
-    if (q > 1)
-        *(cp++) = L'"';
     xfree(s1);
     return rv;
 }
@@ -1844,7 +1841,17 @@ static unsigned int __stdcall workerthread(void *unused)
 
     cmdline = xappendarg(1, NULL, comspec);
     cmdline = xappendarg(0, cmdline, L"/D /C");
-    cmdline = xappendarg(2, cmdline, svcbatchfile);
+    if (svcbatchargs != NULL) {
+        wchar_t *b = xappendarg(1, NULL, svcbatchfile);
+        cmdline = xwcsappend(cmdline, L" \"");
+        cmdline = xwcsappend(cmdline, b);
+        cmdline = xappendarg(0, cmdline, svcbatchargs);
+        cmdline = xwcsappend(cmdline, L"\"");
+        xfree(b);
+    }
+    else {
+        cmdline = xappendarg(1, cmdline, svcbatchfile);
+    }
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
@@ -2292,11 +2299,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         else {
             /**
-             * Discard extra parameters
-             * In future they could be used as arguments
-             * for batch file
+             * Add arguments for batch file
              */
-            dbgprintf(__FUNCTION__, "Extra parameter argv[%d] %S", i, wargv[i]);
+            svcbatchargs = xappendarg(1, svcbatchargs,  wargv[i]);
         }
     }
     if (servicemode && hasdebuginfo) {

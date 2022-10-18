@@ -32,6 +32,7 @@ rem
 set "SERVICE_NAME="
 if "x%SVCBATCH_SERVICE_NAME%" == "x" goto noService
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Arguments %*
 echo.
 rem Dump environment variables to log file
 set
@@ -67,7 +68,7 @@ rem set "ROTATE_RULE=-r 0"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
-set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -pDbw \"%cd%\" -o \"Logs\%SERVICE_NAME%\" %ROTATE_RULE% -s dummyshutdown.bat %~nx0"
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -pDbw \"%cd%\" -o \"Logs\%SERVICE_NAME%\" %ROTATE_RULE% -s dummyshutdown.bat %~nx0 test run"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
