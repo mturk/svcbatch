@@ -13,12 +13,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+# Compile native Windows binary using mingw64
+# make -f Makefile.gmk
+#
+# To compile from Cygwin environment
+# make -f Makefile.gmk USE_MINGW_PACKAGE_PREFIX=1
+#
+# the following packages need to be installed:
+#
+# mingw64-x86_64-binutils,
+# mingw64-x86_64-gcc-core,
+# mingw64-x86_64-headers,
+# mingw64-x86_64-runtime
 #
 
+ifdef USE_MINGW_PACKAGE_PREFIX
+CC = x86_64-w64-mingw32-gcc
+RC = x86_64-w64-mingw32-windres
+RL = x86_64-w64-mingw32-strip
+else
 CC = gcc
-LN = $(CC)
 RC = windres
-RL = strip --strip-unneeded
+RL = strip
+endif
+LN = $(CC)
 
 include Version.mk
 
@@ -40,6 +58,7 @@ RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
 RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER)
 CLOPTS  = $(LNOPTS) -c
 LDLIBS  = -lkernel32 -ladvapi32 -luser32
+RLOPTS  = --strip-unneeded
 
 ifdef VERSION_SFX
 CFLAGS += -DVERSION_SFX=$(VERSION_SFX)
@@ -47,7 +66,7 @@ RFLAGS += -D VERSION_SFX=$(VERSION_SFX)
 endif
 
 OBJECTS = \
-	$(WORKDIR)/$(PROJECT).obj \
+	$(WORKDIR)/$(PROJECT).o \
 	$(WORKDIR)/$(PROJECT).res
 
 MANIFEST = $(WORKDIR)/$(PROJECT).manifest
@@ -77,7 +96,7 @@ $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(FINCLUDE) $(MANIFEST)
 
 $(OUTPUT): $(WORKDIR) $(MANIFEST) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
-	$(RL) $@
+	$(RL) $(RLOPTS) $@
 
 clean:
 	@rm -rf $(WORKDIR)
