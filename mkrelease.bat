@@ -25,7 +25,8 @@ rem
 setlocal
 rem
 set "ProjectName=svcbatch"
-set "ReleaseArch=x64"
+set "ReleaseArch=win64"
+set "BuildDir=x64"
 rem
 if "x%~1" == "x" goto Einval
 rem
@@ -44,17 +45,18 @@ rem
 :doneArgs
 rem
 if "%ReleaseVersion%" == "c" goto makeBuild
+nmake /nologo clean
 set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=1"
-set "ReleaseName=%ProjectName%-%ReleaseVersion%-win-%ReleaseArch%"
+set "ReleaseName=%ProjectName%-%ReleaseVersion%-%ReleaseArch%"
 set "ReleaseLog=%ReleaseName%.txt
 rem
 :makeBuild
 rem Create builds
-nmake /nologo /A %MakefileArgs%
+nmake /nologo %MakefileArgs%
 if not %ERRORLEVEL% == 0 goto Failed
 rem
 if "%ReleaseVersion%" == "c" goto End
-pushd "%ReleaseArch%"
+pushd "%BuildDir%"
 rem
 rem Get nmake and cl versions
 rem
@@ -69,21 +71,12 @@ echo Compiled using: >> %ReleaseLog%
 echo nmake %MakefileArgs% >> %ReleaseLog%
 findstr /B /C:"Microsoft (R) " %ProjectName%.p >> %ReleaseLog%
 echo. >> %ReleaseLog%
+echo ``` >> %ReleaseLog%
 rem
 del /F /Q %ProjectName%.i 2>NUL
 del /F /Q %ProjectName%.p 2>NUL
-rem
-rem Set path for ClamAV and 7za if needed
-rem
-rem set "PATH=C:\Tools\clamav;C:\Utils;%PATH%"
-rem
-freshclam.exe --quiet
-clamscan.exe --version >> %ReleaseLog%
-clamscan.exe --bytecode=no %ProjectName%.exe >> %ReleaseLog%
-echo ``` >> %ReleaseLog%
 del /F /Q %ReleaseName%.zip 2>NUL
 7za.exe a -bd %ReleaseName%.zip %ProjectName%.exe
-sigtool.exe --sha256 %ReleaseName%.zip > %ReleaseName%-sha256.txt
 popd
 goto End
 rem
