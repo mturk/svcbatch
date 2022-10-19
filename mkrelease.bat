@@ -70,13 +70,15 @@ echo ```no-highlight >> %ReleaseLog%
 echo Compiled using: >> %ReleaseLog%
 echo nmake %MakefileArgs% >> %ReleaseLog%
 findstr /B /C:"Microsoft (R) " %ProjectName%.p >> %ReleaseLog%
-echo. >> %ReleaseLog%
-echo ``` >> %ReleaseLog%
 rem
 del /F /Q %ProjectName%.i 2>NUL
 del /F /Q %ProjectName%.p 2>NUL
-del /F /Q %ReleaseName%.zip 2>NUL
+echo. >> %ReleaseLog%
+echo. >> %ReleaseLog%
 7za.exe a -bd %ReleaseName%.zip %ProjectName%.exe
+certutil -hashfile %ReleaseName%.zip SHA256 | findstr /v "CertUtil" >> %ReleaseLog%
+echo. >> %ReleaseLog%
+echo ``` >> %ReleaseLog%
 popd
 goto End
 rem
