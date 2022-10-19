@@ -163,8 +163,9 @@ SvcBatch command line options allow users to customize
 service deployments. Options are case insensitive and both `-` and `/` can be
 used as switches. This means that `/b /B -b and -B` can be used for the same option..
 
-After handling switches SvcBatch will use the last argument
+After handling switches SvcBatch will use the next argument
 as the batch file to execute.
+Any additional arguments will be passed as arguments to batch file.
 
 Command line options are defined at service install time, so
 make sure to get familiar with `sc.exe` utility.

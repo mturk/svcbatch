@@ -135,25 +135,16 @@ eg **v0.9.1-dev**, **v1.0.37.alpha.1** or similar.
 Check [Semantic Versioning 2.0](https://semver.org/spec/v2.0.0.html)
 for more guidelines.
 
-Before publishing new SvcBatch version run the anti virus scan on produced binaries.
-Download latest version of [ClamAV](https://www.clamav.net/downloads)
-and run the installer or unzip the portable version to some directory of
-choice and do the required setup. Check
-[Installing](https://www.clamav.net/documents/installing-clamav-on-windows)
-section for more info about ClamAV installation and setup.
-
 To create a .zip distribution archive download
 and extract the 7-zip standalone console version from
 [7-Zip Extra](https://www.7-zip.org/a/7z2107-extra.7z)
 and put **7za.exe** somewhere in the PATH.
 
-Run the [release](../mkrelease.bat) batch file
+Run the [mkrelease.bat](../mkrelease.bat) or [mkrelease.sh](../mkrelease.sh) script file
 to compile and create required metadata and release assets.
 
-Edit **svcbatch-x.y.z.txt** file and remove the directory
-part of svcbatch,exe. Also remove the scan time data
-(*those are usually last three lines*)
-The content of this file has to be put in GitHub release description box.
+Edit **svcbatch-x.y.z.txt** and put it's content
+in GitHub release description box.
 
-Finally add the **svcbatch-x.y.z-win-x64.zip** and **svcbatch-x.y.z-sha256.txt**
-files to the release assets.
+Finally add the **svcbatch-x.y.z-winx64.zip** or **svcbatch-x.y.z-win64-mingw.zip**
+file to the release assets.
