@@ -992,7 +992,7 @@ static void logconfig(HANDLE h)
     logprintf(h, "Service uuid     : %S", serviceuuid);
     logprintf(h, "Batch file       : %S", svcbatchfile);
     if (svcbatchargs != NULL)
-        logprintf(h, "Batch arguments  : %S", svcbatchargs);
+        logprintf(h, "      arguments  : %S", svcbatchargs);
     logprintf(h, "Base directory   : %S", servicebase);
     logprintf(h, "Working directory: %S", servicehome);
     logprintf(h, "Log directory    : %S", loglocation);
