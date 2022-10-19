@@ -25,7 +25,7 @@ rem
 setlocal
 rem
 set "ProjectName=svcbatch"
-set "ReleaseArch=win64"
+set "ReleaseArch=win-x64"
 set "BuildDir=x64"
 rem
 if "x%~1" == "x" goto Einval

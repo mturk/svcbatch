@@ -54,7 +54,7 @@ test "x$ReleaseVersion" = "x" && eexit 1 "Missing version argument"
 shift
 BuildDir=x64
 ProjectName=svcbatch
-ReleaseArch=win64-mingw
+ReleaseArch=win-x64
 ReleaseName=$ProjectName-$ReleaseVersion-$ReleaseArch
 ReleaseLog=$ReleaseName.txt
 #
