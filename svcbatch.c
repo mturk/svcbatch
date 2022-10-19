@@ -265,16 +265,30 @@ static int wcshavespace(const wchar_t *s)
     return 0;
 }
 
+static const wchar_t *xwcsltrim(const wchar_t *s)
+{
+    if (s != NULL) {
+        while (*s != L'\0') {
+            if (iswspace(*s) == 0)
+                break;
+            s++;
+        }
+    }
+    return s;
+}
+
 static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
 {
     wchar_t *cp, *rv;
-    size_t l1 = xwcslen(s1);
-    size_t l2 = xwcslen(s2);
+    size_t l1, l2;
 
+    s2 = xwcsltrim(s2);
+    l2 = xwcslen(s2);
     if (l2 == 0)
         return s1;
 
-    cp = rv = xwalloc(l1 + l2 + 6);
+    l1 = xwcslen(s1);
+    cp = rv = xwalloc(l1 + l2 + 4);
 
     if(l1 > 0) {
         wmemcpy(cp, s1, l1);
@@ -376,8 +390,15 @@ static void xcleanwinpath(wchar_t *s, int isdir)
         if (s[i] == L'/')
             s[i] =  L'\\';
     }
+    --i;
+    while (i > 1) {
+        if (iswspace(s[i]))
+            s[i--] = L'\0';
+        else
+            break;
+
+    }
     if (isdir) {
-        --i;
         while (i > 1) {
             if ((s[i] == L';') || (s[i] == L' ') || (s[i] == L'.'))
                 s[i--] = L'\0';
