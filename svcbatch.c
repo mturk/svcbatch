@@ -1455,6 +1455,7 @@ static int runshutdown(DWORD rt)
         case WAIT_OBJECT_1:
             dbgprintf(__FUNCTION__, "processended for: %lu",
                       cp.dwProcessId);
+            /* fall through */
         case WAIT_TIMEOUT:
             dbgprintf(__FUNCTION__, "sending signal event for: %lu",
                       cp.dwProcessId);
@@ -1996,7 +1997,9 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 
     switch (ctrl) {
         case SERVICE_CONTROL_PRESHUTDOWN:
+            /* fall through */
         case SERVICE_CONTROL_SHUTDOWN:
+            /* fall through */
         case SERVICE_CONTROL_STOP:
             dbgprints(__FUNCTION__, msg);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
