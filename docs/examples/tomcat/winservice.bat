@@ -22,6 +22,12 @@ setlocal
 rem
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo.
+rem Set here any environment variables
+rem that are missing from LOCAL_SERVICE account
+rem
+rem eg. set "JAVA_HOME=C:\Your\JDK\location"
+rem     set "JRE_HOME=C:\Your\JRE\location"
+rem
 rem Run Apache Tomcat
 call "%SVCBATCH_SERVICE_HOME%\bin\catalina.bat" run
 rem

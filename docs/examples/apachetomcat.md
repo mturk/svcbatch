@@ -25,14 +25,16 @@ provide the complete solution to run and manage Apache Tomcat as
 windows service.
 
 
-Put [winservice](tomcat/winservice.bat) and [servicemgr](tomcat/servicemgr.bat)
-batch files into your `tomcat/bin` directory.
+Put [servicemgr](tomcat/servicemgr.bat) and optionally
+[winservice](tomcat/winservice.bat) batch files into your
+`tomcat/bin` directory.
+
 [servicemgr](tomcat/servicemgr.bat) is a simple batch file
-that can be used instead typing multiple commands.
+that can be used to manage service instead typing multiple commands.
 
 Before executing `servicemgr.bat`, edit `servicemgr.bat` and modify
-`DisplayName` and `description` parameters to match the Tomcat
-version you are using.
+default `SERVICE_NAME`, `DisplayName` and `description`
+parameters to match the Tomcat version you are using.
 
 ```cmd
 
@@ -48,6 +50,8 @@ System Environment.
 That's it! Now, just type ...
 ```cmd
 
+> servicemgr.bat start Tomcat10
+  or ...
 > sc start Tomcat10
   or ...
 > net start Tomcat10
@@ -57,29 +61,15 @@ That's it! Now, just type ...
 ### Step by step
 
 Instead above example, you can create your own
-service batch file by following the next few steps.
+service by following the next few steps.
 
 #### Step 1:
-Create a batch file named `tomcatsvc.bat` inside `tomcat/bin`
-with the following content
-
-```cmd
-@echo off
-setlocal
-rem Set any environment variables here missing from LOCAL_SERVICE account
-rem Eg. set "JAVA_HOME=C:\Your\JDK\or\JRE\location"
-rem
-catalina.bat run
-
-```
-
-#### Step 2:
 Create a service by opening command prompt with Administrator
 privileges inside your `tomcat/bin` directory
 
 ```cmd
 
-> sc.exe create Tomcat DisplayName= "Apache Tomcat" binPath= ""%CD%\svcbatch.exe" /b tomcatsvc.bat"
+> sc.exe create Tomcat DisplayName= "Apache Tomcat" binPath= "\"%cd%\svcbatch.exe\" /b /w ..\ bin\catalina.bat run"
   Optionally you can add ...
 > sc.exe description Tomcat "Apache Tomcat Service"
   And/Or ...
@@ -103,7 +93,7 @@ blanks are not typos :D
 Check the [SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create)
 for detailed description how to use the SC utility to create a service
 
-#### Step 3:
+#### Step 2:
 Start the service by entering
 
 ```cmd
@@ -111,7 +101,7 @@ Start the service by entering
 
 ```
 
-#### Step 4:
+#### Step 3:
 Get the full java thread dump
 
 ```cmd
@@ -125,7 +115,7 @@ The output is written to SvcBatch.log file.
 This feature is enabled only if `/b` command line switch was
 defined at service's install.
 
-#### Step 5:
+#### Step 4:
 Rotate log files
 This will move Logs/SvcBatch.log to Logs/SvcBatch.log.1
 and create a new Logs/SvcBatch.log file
@@ -136,7 +126,7 @@ Read the Log Rotation section for more details.
 
 ```
 
-#### Step 6:
+#### Step 5:
 Stop the service by entering
 
 ```cmd
@@ -144,7 +134,7 @@ Stop the service by entering
 
 ```
 
-#### Step 7:
+#### Step 6:
 Delete the service by entering
 
 ```cmd
