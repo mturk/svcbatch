@@ -6,7 +6,7 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
-## v1.2.3
+## v1.3.0
 
  * In development
  * Send additional arguments to batch file if defined at install time
