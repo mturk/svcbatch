@@ -697,9 +697,7 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     DWORD       fa   = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
     es = expandenvstrings(path, isdir);
-    if (es == NULL)
-        return NULL;
-    if (servicemode == 0)
+    if ((es == NULL) || (servicemode == 0))
         return es;
 
     fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, NULL,
@@ -2193,11 +2191,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t     bb[2] = { L'\0', L'\0' };
     wchar_t    *orgpath;
     wchar_t    *batchparam  = NULL;
-    wchar_t    *shomeparam  = NULL;
     int         envc        = 0;
     int         opt;
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
+    const wchar_t *shomeparam  = NULL;
     const wchar_t *rotateparam = NULL;
     const wchar_t *svcendparam = NULL;
 
@@ -2256,11 +2254,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 svcendparam  = xwoptarg;
             break;
             case L'w':
-                if (servicemode)
-                    shomeparam = expandenvstrings(xwoptarg, 1);
-                else
-                    shomeparam = xwcsdup(xwoptarg);
-
+                shomeparam   = xwoptarg;
                 if (shomeparam == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
             break;
@@ -2291,10 +2285,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wargv += xwoptind;
     for (i = 0; i < argc; i++) {
         if (IS_EMPTY_WCS(batchparam)) {
-            if (servicemode)
-                batchparam = expandenvstrings(wargv[i], 0);
-            else
-                batchparam = xwcsdup(wargv[i]);
+            batchparam = expandenvstrings(wargv[i], 0);
             if (batchparam == NULL)
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[i], NULL);
         }
@@ -2380,7 +2371,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
     xfree(batchparam);
-    xfree(shomeparam);
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
     if (servicemode && svcendparam) {
