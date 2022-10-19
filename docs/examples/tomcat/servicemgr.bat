@@ -21,17 +21,24 @@ rem Usage: servicemgr.bat create/delete/rotate/dump [service_name]
 rem
 setlocal
 rem
-if "x%~2" == "x" goto Einval
+rem Set default service name
+set "SERVICE_NAME=tomcat10"
+rem
+if "x%~2" == "x" goto doMain
 set "SERVICE_NAME=%~2"
+rem
+:doMain
 rem
 if /i "x%~1" == "xcreate" goto doCreate
 if /i "x%~1" == "xdelete" goto doDelete
 if /i "x%~1" == "xrotate" goto doRotate
 if /i "x%~1" == "xdump"   goto doDumpStacks
+if /i "x%~1" == "xstart"  goto doStart
+if /i "x%~1" == "xstop"   goto doStop
 rem Unknown option
 echo %~nx0: Unknown option '%~1'
 goto Einval
-
+rem
 rem
 rem Create service
 :doCreate
@@ -41,7 +48,14 @@ pushd ..
 set "SERVICE_HOME=%cd%"
 popd
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /w \"%SERVICE_HOME%\" /b /s .\bin\shutdown.bat .\bin\winservice.bat"
+rem
+rem Run catalina.bat directly
+set "SVCBATCH_FILE=.\bin\catalina.bat run"
+rem Use simple wrapper script if you need
+rem to customize environment before running catalina.bat
+rem set "SVCBATCH_FILE=.\bin\winservice.bat"
+rem
+sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /w \"%SERVICE_HOME%\" /b /s .\bin\shutdown.bat %SVCBATCH_FILE%"
 sc config "%SERVICE_NAME%" DisplayName= "Apache Tomcat 10.0 %SERVICE_NAME% Service"
 sc description "%SERVICE_NAME%" "Apache Tomcat 10.0.0 Server - https://tomcat.apache.org/"
 
@@ -78,9 +92,23 @@ rem
 sc control "%SERVICE_NAME%" 233
 goto End
 
+:doStart
+rem
+rem
+sc start "%SERVICE_NAME%"
+goto End
+
+rem
+:doStop
+rem
+rem
+sc stop "%SERVICE_NAME%"
+goto End
+
 :Einval
 echo Usage: %~nx0 create/delete/rotate/dump [service_name]
 echo.
 exit /b 1
 
 :End
+exit /b 0
