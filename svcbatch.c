@@ -2044,9 +2044,10 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
-    int          i;
+    int          i, n, x;
     DWORD        rv = 0;
     int          eblen = 0;
+    int          ebsiz[64];
     wchar_t     *ep;
     HANDLE       wh[4] = { NULL, NULL, NULL, NULL };
     DWORD        ws;
@@ -2092,15 +2093,22 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
+
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
-    for (i = 0; i < dupwenvc; i++) {
-        eblen += xwcslen(dupwenvp[i]) + 1;
+    for (i = 0, x = 0; i < dupwenvc; i++, x++) {
+        n = xwcslen(dupwenvp[i]);
+        if (x < 64)
+            ebsiz[x] = n;
+        eblen += (n + 1);
     }
     wenvblock = xwcalloc(eblen);
-    for (i = 0, ep = wenvblock; i < dupwenvc; i++) {
-        int nn = xwcslen(dupwenvp[i]);
-        wmemcpy(ep, dupwenvp[i], nn);
-        ep += nn + 1;
+    for (i = 0, x = 0, ep = wenvblock; i < dupwenvc; i++, x++) {
+        if (x < 64)
+            n = ebsiz[x];
+        else
+            n = xwcslen(dupwenvp[i]);
+        wmemcpy(ep, dupwenvp[i], n);
+        ep += (n + 1);
     }
     wh[1] = xcreatethread(0, 0, &monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
