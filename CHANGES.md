@@ -10,6 +10,7 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
  * Send additional arguments to batch file if defined at install time
+ * Add full support for building with msys2 or cygwin environment
 
 ## v1.2.2
 
