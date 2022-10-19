@@ -146,5 +146,5 @@ to compile and create required metadata and release assets.
 Edit **svcbatch-x.y.z.txt** and put it's content
 in GitHub release description box.
 
-Finally add the **svcbatch-x.y.z-winx64.zip** or **svcbatch-x.y.z-win64-mingw.zip**
+Finally add the **svcbatch-x.y.z-win64.zip** or **svcbatch-x.y.z-win64-mingw.zip**
 file to the release assets.
