@@ -99,7 +99,18 @@ static const wchar_t *removeenv[] = {
     NULL
 };
 
-static wchar_t *xwalloc(size_t size)
+static wchar_t *xwmalloc(size_t size)
+{
+    wchar_t *p = (wchar_t *)malloc((size + 2) * sizeof(wchar_t));
+    if (p == NULL) {
+        _wperror(L"xwmalloc");
+        _exit(1);
+    }
+    p[size] = L'\0';
+    return p;
+}
+
+static wchar_t *xwcalloc(size_t size)
 {
     wchar_t *p = (wchar_t *)calloc(size + 2, sizeof(wchar_t));
     if (p == NULL)
@@ -131,7 +142,7 @@ static wchar_t *xwcsdup(const wchar_t *s)
     if (IS_EMPTY_WCS(s))
         return NULL;
     n = wcslen(s);
-    p = xwalloc(n);
+    p = xwmalloc(n);
     wmemcpy(p, s, n);
     return p;
 }
@@ -143,7 +154,7 @@ static wchar_t *xgetenv(const wchar_t *s)
     wchar_t *d = NULL;
 
     if ((n = GetEnvironmentVariableW(s, e, 1)) != 0) {
-        d = xwalloc(n);
+        d = xwmalloc(n);
         GetEnvironmentVariableW(s, d, n);
     }
     return d;
@@ -166,7 +177,7 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     if ((l1 + l2) == 0)
         return NULL;
 
-    cp = rv = xwalloc(l1 + l2);
+    cp = rv = xwmalloc(l1 + l2);
 
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
@@ -185,57 +196,13 @@ static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
     if (l2 == 0)
         return s1;
 
-    cp = rv = xwalloc(l1 + l2);
+    cp = rv = xwmalloc(l1 + l2);
 
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
     wmemcpy(cp + l1, s2, l2);
     xfree(s1);
     return rv;
-}
-
-static wchar_t *xwcsvarcat(const wchar_t *p, ...)
-{
-    const wchar_t *ap;
-    wchar_t *cp, *rp;
-    int  sls[32];
-    int  len = 0;
-    int  cnt = 1;
-    va_list vap;
-
-    sls[0] = xwcslen(p);
-
-    va_start(vap, p);
-    while ((ap = va_arg(vap, const wchar_t *)) != NULL) {
-        sls[cnt] = xwcslen(ap);
-        len += sls[cnt];
-        if (cnt++ > 30)
-            break;
-    }
-    va_end(vap);
-    len += sls[0];
-
-    if (len == 0)
-        return NULL;
-    cp = rp = xwalloc(len);
-    if (sls[0] != 0) {
-        wmemcpy(cp, p, sls[0]);
-        cp += sls[0];
-    }
-
-    cnt = 1;
-
-    va_start(vap, p);
-    while ((ap = va_arg(vap, const wchar_t *)) != NULL) {
-        if ((len = sls[cnt]) != 0) {
-            wmemcpy(cp, ap, len);
-            cp += len;
-        }
-        if (cnt++ > 30)
-            break;
-    }
-    va_end(vap);
-    return rp;
 }
 
 static int xwcsisenvvar(const wchar_t *str, const wchar_t *var)
@@ -275,7 +242,7 @@ static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
         return s1;
 
     l1 = xwcslen(s1);
-    cp = rv = xwalloc(l1 + l2 + 4);
+    cp = rv = xwmalloc(l1 + l2 + 4);
 
     if(l1 > 0) {
         wmemcpy(cp, s1, l1);
@@ -292,6 +259,7 @@ static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
         wmemcpy(cp, s2, l2);
         cp += l2;
     }
+    *cp = L'\0';
     xfree(s1);
     return rv;
 }
@@ -429,14 +397,14 @@ static wchar_t *xuuidstring(void)
     if (!CryptGenRandom(h, 16, d))
         return NULL;
     CryptReleaseContext(h, 0);
-    b = xwalloc(38);
+    b = xwmalloc(38);
     for (i = 0, x = 0; i < 16; i++) {
         if (i == 4 || i == 6 || i == 8 || i == 10)
             b[x++] = '-';
         b[x++] = xb16[d[i] >> 4];
         b[x++] = xb16[d[i] & 0x0F];
     }
-
+    b[x] = L'\0';
     return b;
 }
 
@@ -674,11 +642,11 @@ static wchar_t *expandenvstrings(const wchar_t *str, int isdir)
     if (siz == 0)
         return NULL;
     if (len == 0) {
-        buf = xwalloc(siz);
+        buf = xwmalloc(siz);
         wmemcpy(buf, str, siz);
     }
     while (buf == NULL) {
-        buf = xwalloc(++siz);
+        buf = xwmalloc(siz);
         len = ExpandEnvironmentStringsW(str, buf, siz);
         if (len == 0) {
             xfree(buf);
@@ -715,7 +683,7 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
         return NULL;
 
     while (buf == NULL) {
-        buf = xwalloc(siz);
+        buf = xwmalloc(siz);
         len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
         if (len == 0) {
             CloseHandle(fh);
@@ -2128,7 +2096,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     for (i = 0; i < dupwenvc; i++) {
         eblen += xwcslen(dupwenvp[i]) + 1;
     }
-    wenvblock = xwalloc(eblen);
+    wenvblock = xwcalloc(eblen);
     for (i = 0, ep = wenvblock; i < dupwenvc; i++) {
         int nn = xwcslen(dupwenvp[i]);
         wmemcpy(ep, dupwenvp[i], nn);
