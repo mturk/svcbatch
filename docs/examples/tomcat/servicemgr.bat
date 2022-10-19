@@ -50,12 +50,16 @@ popd
 rem
 rem
 rem Run catalina.bat directly
-set "SVCBATCH_FILE=.\bin\catalina.bat run"
+set "SVCBATCH_FILE=bin\catalina.bat"
+set "SVCBATCH_ARGS=run"
 rem Use simple wrapper script if you need
 rem to customize environment before running catalina.bat
-rem set "SVCBATCH_FILE=.\bin\winservice.bat"
+rem set "SVCBATCH_FILE=bin\winservice.bat"
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /w \"%SERVICE_HOME%\" /b /s .\bin\shutdown.bat %SVCBATCH_FILE%"
+rem Set shutdown file
+set "SHUTDOWN_FILE=bin\shutdown.bat"
+rem
+sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /b /w \"%SERVICE_HOME%\" /s %SHUTDOWN_FILE% %SVCBATCH_FILE% %SVCBATCH_ARGS%"
 sc config "%SERVICE_NAME%" DisplayName= "Apache Tomcat 10.0 %SERVICE_NAME% Service"
 sc description "%SERVICE_NAME%" "Apache Tomcat 10.0.0 Server - https://tomcat.apache.org/"
 rem
