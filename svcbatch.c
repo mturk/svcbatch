@@ -1336,9 +1336,18 @@ static unsigned int __stdcall rdpipethread(void *unused)
 
 static unsigned int __stdcall wrpipethread(void *unused)
 {
-    DWORD  wr, rc = 0;
+    DWORD  wr, rc;
 
     dbgprintf(__FUNCTION__, "started");
+    rc = WaitForSingleObject(processended, SVCBATCH_PENDING_WAIT);
+    if (rc != WAIT_TIMEOUT) {
+        if (rc == WAIT_OBJECT_0)
+            dbgprints(__FUNCTION__, "processended signaled");
+        goto finished;
+    }
+
+    dbgprintf(__FUNCTION__, "running");
+    rc = 0;
     if (WriteFile(inputpipewrs, YYES, 2, &wr, NULL) && (wr != 0)) {
         if (FlushFileBuffers(inputpipewrs))
             dbgprints(__FUNCTION__, "wrote Y to child");
@@ -1348,6 +1357,8 @@ static unsigned int __stdcall wrpipethread(void *unused)
     else {
         rc = GetLastError();
     }
+
+finished:
     if (rc == ERROR_BROKEN_PIPE)
         dbgprints(__FUNCTION__, "pipe closed");
     else if (rc)
