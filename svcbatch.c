@@ -171,8 +171,8 @@ static int xwcslen(const wchar_t *s)
 static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
 {
     wchar_t *cp, *rv;
-    size_t l1 = xwcslen(s1);
-    size_t l2 = xwcslen(s2);
+    int l1 = xwcslen(s1);
+    int l2 = xwcslen(s2);
 
     if ((l1 + l2) == 0)
         return NULL;
@@ -190,8 +190,8 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
 static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
 {
     wchar_t *cp, *rv;
-    size_t l1 = xwcslen(s1);
-    size_t l2 = xwcslen(s2);
+    int l1 = xwcslen(s1);
+    int l2 = xwcslen(s2);
 
     if (l2 == 0)
         return s1;
@@ -235,7 +235,7 @@ static int wcshavespace(const wchar_t *s)
 static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
 {
     wchar_t *cp, *rv;
-    size_t l1, l2;
+    int l1, l2;
 
     l2 = xwcslen(s2);
     if (l2 == 0)
