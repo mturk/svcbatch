@@ -344,28 +344,19 @@ static void xcleanwinpath(wchar_t *s, int isdir)
             s[i] =  L'\\';
     }
     --i;
-    if (isdir) {
-        while (i > 1) {
-            if ((s[i] == L';') || (iswspace(s[i])) || (s[i] == L'.'))
-                s[i--] = L'\0';
-            else
-                break;
+    while (i > 1) {
+        if (iswspace(s[i]))
+            s[i--] = L'\0';
+        else
+            break;
 
-        }
+    }
+    if (isdir) {
         while (i > 1) {
             if ((s[i] ==  L'\\') && (s[i - 1] != L'.'))
                 s[i--] = L'\0';
             else
                 break;
-        }
-    }
-    else {
-        while (i > 1) {
-            if (iswspace(s[i]))
-                s[i--] = L'\0';
-            else
-                break;
-
         }
     }
 }
