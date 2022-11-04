@@ -636,7 +636,7 @@ static wchar_t *expandenvstrings(const wchar_t *str, int isdir)
         str += 2;
     }
     if (*str == L'\0')
-        return MULL;
+        return NULL;
     for (siz = 0; str[siz] != L'\0'; siz++) {
         if (str[siz] == L'%')
             len++;
@@ -2176,11 +2176,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         i;
     int         rv = 0;
     wchar_t     bb[2] = { L'\0', L'\0' };
-    wchar_t    *batchparam  = NULL;
     int         envc        = 0;
     int         opt;
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
+    const wchar_t *batchparam  = NULL;
     const wchar_t *shomeparam  = NULL;
     const wchar_t *rotateparam = NULL;
     const wchar_t *svcendparam = NULL;
@@ -2269,13 +2269,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     argc  -= xwoptind;
     wargv += xwoptind;
-    for (i = 0; i < argc; i++) {
-        if (IS_EMPTY_WCS(batchparam)) {
-            batchparam = expandenvstrings(wargv[i], 0);
-            if (batchparam == NULL)
-                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[i], NULL);
-        }
-        else {
+    if (argc > 0) {
+        batchparam = wargv[0];
+        for (i = 1; i < argc; i++) {
             /**
              * Add arguments for batch file
              */
@@ -2352,7 +2348,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(batchparam) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
-    xfree(batchparam);
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
     if (servicemode && svcendparam) {
