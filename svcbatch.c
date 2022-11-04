@@ -89,8 +89,6 @@ static const wchar_t *cwslogname  = L"\\" SVCBATCH_LOGNAME;
 static const wchar_t *xwoptarg    = NULL;
 
 static const wchar_t *removeenv[] = {
-    L"COMSPEC",
-    L"PATH",
     L"SVCBATCH_SERVICE_BASE",
     L"SVCBATCH_SERVICE_HOME",
     L"SVCBATCH_SERVICE_LOGDIR",
@@ -2178,7 +2176,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         i;
     int         rv = 0;
     wchar_t     bb[2] = { L'\0', L'\0' };
-    wchar_t    *orgpath;
     wchar_t    *batchparam  = NULL;
     int         envc        = 0;
     int         opt;
@@ -2306,11 +2303,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, GetLastError(), L"xuuidstring", NULL);
     if ((comspec = xgetenv(L"COMSPEC")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC", NULL);
-    if ((orgpath = xgetenv(L"PATH")) == NULL)
-        return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"PATH", NULL);
-
     xcleanwinpath(comspec, 0);
-    xcleanwinpath(orgpath, 1);
 
     if (isrelativepath(batchparam)) {
         if (IS_EMPTY_WCS(shomeparam)) {
@@ -2368,7 +2361,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
     }
 
-    dupwenvp = waalloc(envc + 10);
+    dupwenvp = waalloc(envc + 6);
     for (i = 0; i < envc; i++) {
         const wchar_t **e = removeenv;
         const wchar_t  *p = wenv[i];
@@ -2383,10 +2376,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (p != NULL)
             dupwenvp[dupwenvc++] = xwcsdup(p);
     }
-
-    dupwenvp[dupwenvc++] = xwcsconcat(L"COMSPEC=", comspec);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"PATH=",    orgpath);
-    xfree(orgpath);
 
     rv = resolverotate(rotateparam);
     if (rv != 0)
