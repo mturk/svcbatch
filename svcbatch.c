@@ -2310,7 +2310,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, GetLastError(), L"xuuidstring", NULL);
     if ((comspec = xgetenv(L"COMSPEC")) == NULL)
         return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC", NULL);
-    xcleanwinpath(comspec, 0);
 
     if (isrelativepath(batchparam)) {
         if (IS_EMPTY_WCS(shomeparam)) {
