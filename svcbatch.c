@@ -995,24 +995,26 @@ static DWORD openlogfile(BOOL firstopen)
     logtickcount = GetTickCount64();
 
     if (logfilename == NULL) {
-        wchar_t *pp = loglocation;
+        if (servicemode) {
+            wchar_t *pp = loglocation;
 
-        loglocation = getrealpathname(pp, 1);
-        if (loglocation == NULL) {
-            rc = xcreatepath(pp);
-            if (rc != 0) {
-                svcsyserror(__LINE__, 0, L"xcreatepath", pp);
-                return rc;
-            }
             loglocation = getrealpathname(pp, 1);
-            if (loglocation == NULL)
-                return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
-        }
-        xfree(pp);
-        if (_wcsicmp(loglocation, servicehome) == 0) {
-            svcsyserror(__LINE__, 0, loglocation,
-                        L"Loglocation cannot be the same as servicehome");
-            return ERROR_BAD_PATHNAME;
+            if (loglocation == NULL) {
+                rc = xcreatepath(pp);
+                if (rc != 0) {
+                    svcsyserror(__LINE__, 0, L"xcreatepath", pp);
+                    return rc;
+                }
+                loglocation = getrealpathname(pp, 1);
+                if (loglocation == NULL)
+                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
+            }
+            xfree(pp);
+            if (_wcsicmp(loglocation, servicehome) == 0) {
+                svcsyserror(__LINE__, 0, loglocation,
+                            L"Loglocation cannot be the same as servicehome");
+                return ERROR_BAD_PATHNAME;
+            }
         }
         logfilename = xwcsconcat(loglocation, cwslogname);
     }
