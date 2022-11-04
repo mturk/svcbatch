@@ -81,7 +81,7 @@ static HANDLE    inputpipewrs     = NULL;
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
 static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
-static char         YYES[2]       = { 'Y', '\n'};
+static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
@@ -1348,14 +1348,21 @@ static unsigned int __stdcall wrpipethread(void *unused)
 
     dbgprintf(__FUNCTION__, "running");
     rc = 0;
-    if (WriteFile(inputpipewrs, YYES, 2, &wr, NULL) && (wr != 0)) {
-        if (FlushFileBuffers(inputpipewrs))
+    if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
+        dbgprintf(__FUNCTION__, "send %lu chars to child", wr);
+        if (FlushFileBuffers(inputpipewrs)) {
             dbgprints(__FUNCTION__, "wrote Y to child");
-        else
+        }
+        else {
             rc = GetLastError();
+            dbgprintf(__FUNCTION__, "flush failed with err=%lu", rc);
+            rc = 0;
+        }
     }
     else {
         rc = GetLastError();
+        dbgprintf(__FUNCTION__, "write to child failed with err=%lu", rc);
+        rc = 0;
     }
 
 finished:
