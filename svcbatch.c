@@ -635,13 +635,13 @@ static wchar_t *expandenvstrings(const wchar_t *str, int isdir)
          */
         str += 2;
     }
+    if (*str == L'\0')
+        return MULL;
     for (siz = 0; str[siz] != L'\0'; siz++) {
         if (str[siz] == L'%')
             len++;
     }
-    if (siz == 0)
-        return NULL;
-    if (len == 0) {
+    if (len < 2) {
         buf = xwmalloc(siz);
         wmemcpy(buf, str, siz);
     }
