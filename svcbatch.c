@@ -2150,7 +2150,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     if (IS_VALID_HANDLE(ssignalevent) && (ws == WAIT_TIMEOUT)) {
         dbgprints(__FUNCTION__, "sending shutdown stop signal");
         SetEvent(ssignalevent);
-        WaitForMultipleObjects(2, wh, TRUE, SVCBATCH_STOP_CHECK);
+        ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
+        dbgprintf(__FUNCTION__, "wait for stop returned %lu", ws);
     }
 
 finished:
