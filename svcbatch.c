@@ -50,6 +50,7 @@ static int       autorotate       = 0;
 static int       servicemode      = 1;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
 static DWORD     preshutdown      = 0;
+static DWORD     childprocpid     = 0;
 
 static int       xwoptind         = 1;   /* Index into parent argv vector */
 static int       xwoption         = 0;   /* Character checked for validity */
@@ -1388,7 +1389,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
     dbgprintf(__FUNCTION__, "started");
 
     if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
-        dbgprintf(__FUNCTION__, "send %lu chars to child", wr);
+        dbgprintf(__FUNCTION__, "send %lu chars to: %lu", wr, childprocpid);
         if (!FlushFileBuffers(inputpipewrs))
             rc = GetLastError();
     }
@@ -1491,11 +1492,11 @@ static int runshutdown(DWORD rt)
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
 
-    dbgprintf(__FUNCTION__, "waiting for svcbatch child: %lu to finish", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "waiting for shutdown process: %lu to finish", cp.dwProcessId);
     rc = WaitForMultipleObjects(2, wh, FALSE, rt + SVCBATCH_STOP_STEP);
     switch (rc) {
         case WAIT_OBJECT_0:
-            dbgprintf(__FUNCTION__, "child process: %lu done",
+            dbgprintf(__FUNCTION__, "shutdown process: %lu done",
                       cp.dwProcessId);
         break;
         case WAIT_OBJECT_1:
@@ -1503,7 +1504,7 @@ static int runshutdown(DWORD rt)
                       cp.dwProcessId);
         break;
         case WAIT_TIMEOUT:
-            dbgprintf(__FUNCTION__, "sending signal event for: %lu",
+            dbgprintf(__FUNCTION__, "sending signal event to: %lu",
                       cp.dwProcessId);
             SetEvent(ssignalevent);
         break;
@@ -1512,26 +1513,15 @@ static int runshutdown(DWORD rt)
     }
     if (rc != WAIT_OBJECT_0) {
         if (WaitForSingleObject(cp.hProcess, rt) != WAIT_OBJECT_0) {
-            dbgprintf(__FUNCTION__, "calling TerminateProcess for child: %lu",
+            dbgprintf(__FUNCTION__, "calling TerminateProcess for: %lu",
                        cp.dwProcessId);
             TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
         }
     }
-    if (hasdebuginfo) {
-        DWORD rv;
-
-        dbgprintf(__FUNCTION__, "finished svcbatch.exe: %lu", cp.dwProcessId);
-        if (GetExitCodeProcess(cp.hProcess, &rv)) {
-            if (rv == STILL_ACTIVE)
-                dbgprints(__FUNCTION__, "svcbatch.exe is STILL_ACTIVE");
-            else
-                dbgprintf(__FUNCTION__, "svcbatch.exe exited with: %lu", rv);
-        }
-        else {
-            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", GetLastError());
-        }
+    if (!GetExitCodeProcess(cp.hProcess, &rc)) {
+        rc = GetLastError();
+        dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", rc);
     }
-
 finished:
     xfree(cmdline);
     SAFE_CLOSE_HANDLE(cp.hThread);
@@ -1544,32 +1534,36 @@ finished:
 
 static unsigned int __stdcall stopthread(void *unused)
 {
-    DWORD ws;
-
     if (servicemode)
         dbgprints(__FUNCTION__, "service stop");
     else
         dbgprints(__FUNCTION__, "shutdown stop ");
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
     if (shutdownfile != NULL) {
+        DWORD rc;
+
         dbgprints(__FUNCTION__, "creating shutdown process");
-        ws = runshutdown(SVCBATCH_STOP_CHECK);
-        dbgprintf(__FUNCTION__, "runshutdown returned: %lu", ws);
-        if (ws == WAIT_OBJECT_1) {
+        rc = runshutdown(SVCBATCH_STOP_CHECK);
+        dbgprintf(__FUNCTION__, "runshutdown returned: %lu", rc);
+        if (WaitForSingleObject(processended, 0) == WAIT_OBJECT_0) {
             dbgprints(__FUNCTION__, "processended by shutdown");
             goto finished;
         }
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-        if (WaitForSingleObject(ssignalevent, 0) != WAIT_OBJECT_0) {
-            dbgprints(__FUNCTION__, "wait for processended");
-            if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
-                dbgprints(__FUNCTION__, "processended");
-                goto finished;
+        if (rc == 0) {
+            if (WaitForSingleObject(ssignalevent, 0) != WAIT_OBJECT_0) {
+                dbgprints(__FUNCTION__, "wait for processended");
+                if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+                    dbgprints(__FUNCTION__, "processended");
+                    goto finished;
+                }
             }
         }
     }
     dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT for: %S", svcbatchname);
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
+        DWORD ws;
+
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
         SetConsoleCtrlHandler(NULL, FALSE);
@@ -1940,6 +1934,7 @@ static unsigned int __stdcall workerthread(void *unused)
         goto finished;
     }
     childprocess = cp.hProcess;
+    childprocpid = cp.dwProcessId;
     /**
      * Close our side of the pipes
      */
@@ -1975,7 +1970,7 @@ static unsigned int __stdcall workerthread(void *unused)
     ResumeThread(wh[2]);
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    dbgprintf(__FUNCTION__, "running child pid: %lu", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "running child pid: %lu", childprocpid);
     if (servicemode && svcmaxlogs) {
         xcreatethread(1, 0, &rotatethread, NULL);
     }
@@ -1983,22 +1978,24 @@ static unsigned int __stdcall workerthread(void *unused)
     CloseHandle(wh[1]);
     CloseHandle(wh[2]);
 
-    if (hasdebuginfo) {
-        DWORD rv;
-
-        dbgprintf(__FUNCTION__, "finished %S pid: %lu",
-                  svcbatchname, cp.dwProcessId);
-        if (GetExitCodeProcess(cp.hProcess, &rv)) {
-            if (rv == STILL_ACTIVE)
-                dbgprintf(__FUNCTION__, "%S pid: %lu is STILL_ACTIVE",
-                          svcbatchname, cp.dwProcessId);
-            else
+    dbgprintf(__FUNCTION__, "finished %S pid: %lu",
+              svcbatchname, childprocpid);
+    if (!GetExitCodeProcess(childprocess, &rc)) {
+        rc = GetLastError();
+        dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", rc);
+    }
+    if (rc != 0) {
+        if (servicemode) {
+            if (rc != ERROR_EA_LIST_INCONSISTENT) {
+                setsvcstatusexit(rc);
                 dbgprintf(__FUNCTION__, "%S exited with: %lu",
-                          svcbatchname, rv);
+                          svcbatchname, rc);
+            }
         }
         else {
-            dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu",
-                      GetLastError());
+            setsvcstatusexit(rc);
+            dbgprintf(__FUNCTION__, "%S exited with: %lu",
+                      svcbatchname, rc);
         }
     }
 
@@ -2008,9 +2005,6 @@ finished:
     SAFE_CLOSE_HANDLE(si.hStdError);
     SetEvent(processended);
 
-    if (ssvcstatus.dwServiceSpecificExitCode)
-        dbgprintf(__FUNCTION__, "ServiceSpecificExitCode=%lu",
-                  ssvcstatus.dwServiceSpecificExitCode);
     dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
 }
