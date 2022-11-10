@@ -1352,19 +1352,14 @@ static unsigned int __stdcall wrpipethread(void *unused)
     rc = 0;
     if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
         dbgprintf(__FUNCTION__, "send %lu chars to child", wr);
-        if (FlushFileBuffers(inputpipewrs)) {
-            dbgprints(__FUNCTION__, "wrote Y to child");
-        }
-        else {
+        if (!FlushFileBuffers(inputpipewrs)) {
             rc = GetLastError();
-            dbgprintf(__FUNCTION__, "flush failed with err=%lu", rc);
-            rc = 0;
+            dbgprints(__FUNCTION__, "flush failed");
         }
     }
     else {
         rc = GetLastError();
-        dbgprintf(__FUNCTION__, "write to child failed with err=%lu", rc);
-        rc = 0;
+        dbgprints(__FUNCTION__, "write to child failed");
     }
 
 finished:
