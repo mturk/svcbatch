@@ -1554,16 +1554,16 @@ static unsigned int __stdcall stopthread(void *unused)
     if (shutdownfile != NULL) {
         dbgprints(__FUNCTION__, "creating shutdown process");
         ws = runshutdown(SVCBATCH_STOP_CHECK);
-        dbgprintf(__FUNCTION__, "runshutdown done: %lu", ws);
+        dbgprintf(__FUNCTION__, "runshutdown returned: %lu", ws);
         if (ws == WAIT_OBJECT_1) {
-            dbgprints(__FUNCTION__, "process ended by shutdown");
+            dbgprints(__FUNCTION__, "processended by shutdown");
             goto finished;
         }
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         if (WaitForSingleObject(ssignalevent, 0) != WAIT_OBJECT_0) {
-            dbgprints(__FUNCTION__, "wait for shutdown process to end");
+            dbgprints(__FUNCTION__, "wait for processended");
             if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
-                dbgprints(__FUNCTION__, "process ended");
+                dbgprints(__FUNCTION__, "processended");
                 goto finished;
             }
         }
@@ -1583,7 +1583,7 @@ static unsigned int __stdcall stopthread(void *unused)
     }
     dbgprints(__FUNCTION__, "process still running");
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
-    dbgprints(__FUNCTION__, "Child is still active ... terminating");
+    dbgprints(__FUNCTION__, "child is still active ... terminating");
     SAFE_CLOSE_HANDLE(childprocess);
     SAFE_CLOSE_HANDLE(childprocjob);
 
