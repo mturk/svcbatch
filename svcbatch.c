@@ -1122,6 +1122,7 @@ static DWORD openlogfile(BOOL firstopen)
         goto failed;
     }
     if (rc == ERROR_ALREADY_EXISTS) {
+        dbgprintf(__FUNCTION__, "reusing: %S", logfilename);
         logfflush(h);
     }
     else {
