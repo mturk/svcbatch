@@ -1984,21 +1984,22 @@ static unsigned int __stdcall workerthread(void *unused)
         rc = GetLastError();
         dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", rc);
     }
-    if (servicemode && rc) {
-        if (rc != ERROR_EA_LIST_INCONSISTENT) {
-            /**
-              * 255 is exit code when CTRL_C is send to cmd.exe
-              */
+    if (rc) {
+        if (servicemode) {
+            if (rc != ERROR_EA_LIST_INCONSISTENT) {
+                /**
+                  * 255 is exit code when CTRL_C is send to cmd.exe
+                  */
+                dbgprintf(__FUNCTION__, "%S exited with: %lu",
+                          svcbatchname, rc);
+                setsvcstatusexit(ERROR_PROCESS_ABORTED);
+            }
+        }
+        else {
+            setsvcstatusexit(rc);
             dbgprintf(__FUNCTION__, "%S exited with: %lu",
                       svcbatchname, rc);
-            setsvcstatusexit(ERROR_PROCESS_ABORTED);
         }
-        rc = 0;
-    }
-    if (rc != 0) {
-        setsvcstatusexit(rc);
-        dbgprintf(__FUNCTION__, "%S exited with: %lu",
-                  svcbatchname, rc);
     }
 
 finished:
