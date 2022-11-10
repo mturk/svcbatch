@@ -1019,10 +1019,13 @@ static DWORD openlogfile(BOOL firstopen)
     wchar_t *logpb = NULL;
     DWORD rc;
     HANDLE h = NULL;
-    int i;
+    int i, rotateold;
 
     logtickcount = GetTickCount64();
-
+    if (autorotate)
+        rotateold = 0;
+    else
+        rotateold = svcmaxlogs;
     if (logfilename == NULL) {
         if (servicemode) {
             wchar_t *pp = loglocation;
@@ -1052,11 +1055,7 @@ static DWORD openlogfile(BOOL firstopen)
 
             if (firstopen)
                 reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-            if (autorotate == 0) {
-                mm = MOVEFILE_REPLACE_EXISTING;
-                logpb = xwcsconcat(logfilename, sfx);
-            }
-            else {
+            if (autorotate) {
                 SYSTEMTIME st;
                 wchar_t wrb[24];
 
@@ -1065,6 +1064,10 @@ static DWORD openlogfile(BOOL firstopen)
                            st.wYear, st.wMonth, st.wDay,
                            st.wHour, st.wMinute, st.wSecond);
                 logpb = xwcsconcat(logfilename, wrb);
+            }
+            else {
+                mm = MOVEFILE_REPLACE_EXISTING;
+                logpb = xwcsconcat(logfilename, sfx);
             }
             if (!MoveFileExW(logfilename, logpb, mm)) {
                 rc = GetLastError();
@@ -1081,7 +1084,7 @@ static DWORD openlogfile(BOOL firstopen)
     }
     if (firstopen)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    if ((autorotate == 0) && (svcmaxlogs > 0)) {
+    if (rotateold) {
         /**
          * Rotate previous log files
          */
