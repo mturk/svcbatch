@@ -8,7 +8,6 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.3.0
 
- * In development
  * Fix SvcBatch.log flushing
  * Correctly report exit codes from child processes
 
