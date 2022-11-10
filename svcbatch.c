@@ -2409,10 +2409,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
-    logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
-    if (IS_INVALID_HANDLE(logrotatesig))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
-
+    if (servicemode) {
+        logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
+        if (IS_INVALID_HANDLE(logrotatesig))
+            return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
+    }
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
