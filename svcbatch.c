@@ -27,6 +27,7 @@ static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG         logwritten  = 0;
+static volatile LONG64       loglastwr   = CPP_INT64_C(0);
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -900,6 +901,7 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
             FlushFileBuffers(h);
             InterlockedExchange(&logwritten, 0);
         }
+        InterlockedExchange64(&loglastwr, GetTickCount64());
     }
     else {
         rc = GetLastError();
@@ -920,6 +922,8 @@ static void logfflush(HANDLE h)
         WriteFile(h, CRLFA, 2, &wr, NULL);
         FlushFileBuffers(h);
         InterlockedExchange(&logwritten, 0);
+        InterlockedExchange64(&loglastwr, GetTickCount64());
+
     }
 }
 
@@ -950,6 +954,7 @@ static void logwrline(HANDLE h, const char *str)
     InterlockedAdd(&logwritten, w);
     WriteFile(h, CRLFA, 2, &w, NULL);
     InterlockedAdd(&logwritten, w);
+
 }
 
 static void logprintf(HANDLE h, const char *format, ...)
@@ -1125,6 +1130,7 @@ static DWORD openlogfile(BOOL firstopen)
         if (firstopen)
             logwrtime(h, "Log opened");
     }
+    InterlockedExchange64(&loglastwr, GetTickCount64());
     InterlockedExchangePointer(&logfhandle, h);
     xfree(logpb);
     return 0;
@@ -1602,7 +1608,7 @@ static void createstopthread(void)
 static void monitorshutdown(void)
 {
     HANDLE wh[3];
-    HANDLE h = NULL;
+    HANDLE h;
     DWORD  ws;
 
     dbgprints(__FUNCTION__, "started");
@@ -1610,7 +1616,6 @@ static void monitorshutdown(void)
     wh[0] = processended;
     wh[1] = monitorevent;
     wh[2] = ssignalevent;
-
 
     ws = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
     switch (ws) {
@@ -1644,6 +1649,7 @@ static void monitorshutdown(void)
 static void monitorservice(void)
 {
     HANDLE wh[2];
+    HANDLE h;
     DWORD  ws, rc = 0;
 
     dbgprints(__FUNCTION__, "started");
@@ -1652,10 +1658,28 @@ static void monitorservice(void)
     wh[1] = monitorevent;
 
     do {
-        DWORD cc;
+        DWORD  cc;
+        LONG64 ct;
 
-        ws = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
+        ws = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_MONITOR_STEP);
         switch (ws) {
+            case WAIT_TIMEOUT:
+                EnterCriticalSection(&logfilelock);
+                ct = GetTickCount64() - InterlockedAdd64(&loglastwr, 0);
+                if (ct >= SVCBATCH_LOGFLUSH_HINT) {
+                    if (InterlockedAdd(&logwritten, 0) > 0) {
+                        h = InterlockedExchangePointer(&logfhandle, NULL);
+                        if (h != NULL) {
+                            FlushFileBuffers(h);
+                            dbgprints(__FUNCTION__, "logfile flushed");
+                        }
+                        InterlockedExchangePointer(&logfhandle, h);
+                        InterlockedExchange(&logwritten, 0);
+                    }
+                    InterlockedExchange64(&loglastwr, GetTickCount64());
+                }
+                LeaveCriticalSection(&logfilelock);
+            break;
             case WAIT_OBJECT_0:
                 dbgprints(__FUNCTION__, "processended signaled");
                 rc = 1;
@@ -1667,8 +1691,6 @@ static void monitorservice(void)
                     rc = 1;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
-                    HANDLE h;
-
                     dbgprints(__FUNCTION__, "ctrl+break signaled");
                     if (haslogstatus) {
 
@@ -1696,12 +1718,12 @@ static void monitorservice(void)
                 else {
                     dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
                 }
+                ResetEvent(monitorevent);
             break;
             default:
                 rc = 1;
             break;
         }
-        ResetEvent(monitorevent);
     } while (rc == 0);
 
     dbgprints(__FUNCTION__, "done");
