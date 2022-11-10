@@ -1174,7 +1174,7 @@ static DWORD rotatelogs(void)
     }
     else {
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"rotatelogs", NULL);
+        svcsyserror(__LINE__, 0, L"rotatelogs failed", NULL);
     }
     LeaveCriticalSection(&logfilelock);
     return rc;
