@@ -8,10 +8,15 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.3.0
 
+ * In development
+ * Fix SvcBatch.log flushing
+ * Correctly report exit codes from child processes
+
+### New Features
+
  * Send additional arguments to batch file if defined at install time
  * Add full support for building with msys2 or cygwin environment
  * Add -q command option for disabling internal status logging
- * Fix SvcBatch.log flushing
 
 ## v1.2.2
 
