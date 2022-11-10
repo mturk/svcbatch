@@ -1725,7 +1725,7 @@ static unsigned int __stdcall rotatethread(void *unused)
 {
     HANDLE wh[3];
     HANDLE h = NULL;
-    DWORD  wc, ms, rc = 0;
+    DWORD  wc, ms, rc = 0, sc = 0;
 
     dbgprintf(__FUNCTION__, "started");
     wh[0] = CreateWaitableTimerW(NULL, TRUE, NULL);
@@ -1787,8 +1787,14 @@ static unsigned int __stdcall rotatethread(void *unused)
                             }
                         }
                         else {
-                            FlushFileBuffers(logfhandle);
-                            InterlockedExchange(&logwritten, 0);
+                            sc += ms;
+                            if (sc >= SVCBATCH_LOGROTATE_SYNC) {
+                                if (InterlockedAdd(&logwritten, 0) >= SVCBATCH_LOGFLUSH_HINT) {
+                                    FlushFileBuffers(logfhandle);
+                                    InterlockedExchange(&logwritten, 0);
+                                }
+                                sc = 0;
+                            }
                         }
                     }
                     else {
