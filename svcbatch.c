@@ -150,12 +150,18 @@ static wchar_t *xwcsdup(const wchar_t *s)
 static wchar_t *xgetenv(const wchar_t *s)
 {
     DWORD    n;
-    wchar_t  e[2];
+    wchar_t  e[BBUFSIZ];
     wchar_t *d = NULL;
 
-    if ((n = GetEnvironmentVariableW(s, e, 1)) != 0) {
+    n = GetEnvironmentVariableW(s, e, BBUFSIZ);
+    if (n != 0) {
         d = xwmalloc(n);
-        GetEnvironmentVariableW(s, d, n);
+        if (n > BBUFSIZ) {
+            GetEnvironmentVariableW(s, d, n);
+        }
+        else {
+            wmemcpy(d, e, n);
+        }
     }
     return d;
 }
