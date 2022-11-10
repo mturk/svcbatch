@@ -2257,8 +2257,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
             case L'w':
                 shomeparam   = xwoptarg;
-                if (shomeparam == NULL)
-                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
             break;
             /**
              * Private options
