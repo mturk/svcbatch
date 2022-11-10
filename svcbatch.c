@@ -1200,7 +1200,10 @@ static int resolverotate(const wchar_t *str)
     if ((str[0] ==  L'@') && (str[1] ==  L'\0')) {
         /* Special case for shutdown autorotate */
         autorotate = 1;
-        return 0;
+        if (servicemode)
+            return __LINE__;
+        else
+            return 0;
     }
     if ((str[0] >=  L'0') && (str[0] <=  L'9') && (str[1] ==  L'\0')) {
         svcmaxlogs = str[0] - L'0';
