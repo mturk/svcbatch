@@ -1962,28 +1962,32 @@ finished:
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
-    switch (ctrl) {
-        case CTRL_CLOSE_EVENT:
-            dbgprints(__FUNCTION__, "signaled CTRL_CLOSE_EVENT");
-        break;
-        case CTRL_SHUTDOWN_EVENT:
-            dbgprints(__FUNCTION__, "signaled CTRL_SHUTDOWN_EVENT");
-        break;
-        case CTRL_C_EVENT:
-            dbgprints(__FUNCTION__, "signaled CTRL_C_EVENT");
-        break;
-        case CTRL_BREAK_EVENT:
-            dbgprints(__FUNCTION__, "signaled CTRL_BREAK_EVENT");
-        break;
-        case CTRL_LOGOFF_EVENT:
-            dbgprints(__FUNCTION__, "signaled CTRL_LOGOFF_EVENT");
-        break;
-        default:
-            dbgprintf(__FUNCTION__, "unknown ctrl: %lu", ctrl);
-            return FALSE;
-        break;
+    BOOL rv = TRUE;
+
+    if (hasdebuginfo) {
+        switch (ctrl) {
+            case CTRL_CLOSE_EVENT:
+                dbgprints(__FUNCTION__, "signaled CTRL_CLOSE_EVENT");
+            break;
+            case CTRL_SHUTDOWN_EVENT:
+                dbgprints(__FUNCTION__, "signaled CTRL_SHUTDOWN_EVENT");
+            break;
+            case CTRL_C_EVENT:
+                dbgprints(__FUNCTION__, "signaled CTRL_C_EVENT");
+            break;
+            case CTRL_BREAK_EVENT:
+                dbgprints(__FUNCTION__, "signaled CTRL_BREAK_EVENT");
+            break;
+            case CTRL_LOGOFF_EVENT:
+                dbgprints(__FUNCTION__, "signaled CTRL_LOGOFF_EVENT");
+            break;
+            default:
+                dbgprintf(__FUNCTION__, "unknown ctrl: %lu", ctrl);
+                rv = FALSE;
+            break;
+        }
     }
-    return TRUE;
+    return rv;
 }
 
 static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
