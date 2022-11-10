@@ -1368,12 +1368,14 @@ static unsigned int __stdcall rdpipethread(void *unused)
             rc = GetLastError();
         }
     }
-    if (rc == ERROR_BROKEN_PIPE)
-        dbgprints(__FUNCTION__, "pipe closed");
-    else if (rc == ERROR_NO_MORE_FILES)
-        dbgprints(__FUNCTION__, "logfile closed");
-    else if (rc != ERROR_NO_DATA)
-        dbgprintf(__FUNCTION__, "err=%lu", rc);
+    if (rc) {
+        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+            dbgprints(__FUNCTION__, "pipe closed");
+        else if (rc == ERROR_NO_MORE_FILES)
+            dbgprints(__FUNCTION__, "logfile closed");
+        else
+            dbgprintf(__FUNCTION__, "err=%lu", rc);
+    }
     dbgprints(__FUNCTION__, "done");
 
     XENDTHREAD(0);
@@ -1381,36 +1383,25 @@ static unsigned int __stdcall rdpipethread(void *unused)
 
 static unsigned int __stdcall wrpipethread(void *unused)
 {
-    DWORD  wr, rc;
+    DWORD  wr, rc = 0;
 
     dbgprintf(__FUNCTION__, "started");
-    rc = WaitForSingleObject(processended, SVCBATCH_PENDING_WAIT);
-    if (rc != WAIT_TIMEOUT) {
-        if (rc == WAIT_OBJECT_0)
-            dbgprints(__FUNCTION__, "processended signaled");
-        goto finished;
-    }
 
-    dbgprintf(__FUNCTION__, "running");
-    rc = 0;
     if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
         dbgprintf(__FUNCTION__, "send %lu chars to child", wr);
-        if (!FlushFileBuffers(inputpipewrs)) {
+        if (!FlushFileBuffers(inputpipewrs))
             rc = GetLastError();
-            dbgprints(__FUNCTION__, "flush failed");
-        }
     }
     else {
         rc = GetLastError();
-        dbgprints(__FUNCTION__, "write to child failed");
     }
 
-finished:
-    if (rc == ERROR_BROKEN_PIPE)
-        dbgprints(__FUNCTION__, "pipe closed");
-    else if (rc)
-        dbgprintf(__FUNCTION__, "err=%lu", rc);
-
+    if (rc) {
+        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+            dbgprints(__FUNCTION__, "pipe closed");
+        else
+            dbgprintf(__FUNCTION__, "err=%lu", rc);
+    }
     dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
 }
@@ -1510,19 +1501,21 @@ static int runshutdown(DWORD rt)
         case WAIT_OBJECT_1:
             dbgprintf(__FUNCTION__, "processended for: %lu",
                       cp.dwProcessId);
-            /* fall through */
+        break;
         case WAIT_TIMEOUT:
             dbgprintf(__FUNCTION__, "sending signal event for: %lu",
                       cp.dwProcessId);
             SetEvent(ssignalevent);
-            if (WaitForSingleObject(cp.hProcess, rt) != WAIT_OBJECT_0) {
-                dbgprintf(__FUNCTION__, "calling TerminateProcess for child: %lu",
-                           cp.dwProcessId);
-                TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
-            }
         break;
         default:
         break;
+    }
+    if (rc != WAIT_OBJECT_0) {
+        if (WaitForSingleObject(cp.hProcess, rt) != WAIT_OBJECT_0) {
+            dbgprintf(__FUNCTION__, "calling TerminateProcess for child: %lu",
+                       cp.dwProcessId);
+            TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
+        }
     }
     if (hasdebuginfo) {
         DWORD rv;
@@ -1561,12 +1554,16 @@ static unsigned int __stdcall stopthread(void *unused)
     if (shutdownfile != NULL) {
         dbgprints(__FUNCTION__, "creating shutdown process");
         ws = runshutdown(SVCBATCH_STOP_CHECK);
-        dbgprintf(__FUNCTION__, "shutdown done: %lu", ws);
+        dbgprintf(__FUNCTION__, "runshutdown done: %lu", ws);
+        if (ws == WAIT_OBJECT_1) {
+            dbgprints(__FUNCTION__, "process ended by shutdown");
+            goto finished;
+        }
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         if (WaitForSingleObject(ssignalevent, 0) != WAIT_OBJECT_0) {
-            dbgprints(__FUNCTION__, "wait for clean shutdown");
+            dbgprints(__FUNCTION__, "wait for shutdown process to end");
             if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
-                dbgprints(__FUNCTION__, "process ended by shutdown");
+                dbgprints(__FUNCTION__, "process ended");
                 goto finished;
             }
         }
