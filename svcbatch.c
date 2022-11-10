@@ -516,14 +516,12 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t 
     if (ern) {
         memset(erb, 0, sizeof(erb));
         xwinapierror(erb, MBUFSIZ - 1, ern);
-        errarg[i++] = L":";
         errarg[i++] = erb;
     }
     else {
         ern = ERROR_INVALID_PARAMETER;
     }
     if (eds != NULL) {
-        errarg[i++] = L":";
         errarg[i++] = eds;
         dbgprintf(__FUNCTION__, "%S %S : %S",  buf, err, eds);
     }
@@ -532,7 +530,7 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t 
     }
     errarg[i++] = CRLFW;
     while (i < 10) {
-        errarg[i++] = NULL;
+        errarg[i++] = L"";
     }
     if (setupeventlog()) {
         HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_NAME));
@@ -1019,8 +1017,9 @@ static DWORD openlogfile(BOOL firstopen)
             }
             xfree(pp);
             if (_wcsicmp(loglocation, servicehome) == 0) {
-                svcsyserror(__LINE__, 0, loglocation,
-                            L"Loglocation cannot be the same as servicehome");
+                svcsyserror(__LINE__, 0,
+                            L"Loglocation cannot be the same as servicehome",
+                            loglocation);
                 return ERROR_BAD_PATHNAME;
             }
         }
@@ -2098,7 +2097,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     rv = openlogfile(TRUE);
     if (rv != 0) {
-        svcsyserror(__LINE__, 0, L"servicemain", L"openlogfile failed");
+        svcsyserror(__LINE__, 0, L"openlogfile failed", NULL);
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
@@ -2411,7 +2410,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (shutdownfile != NULL) {
             ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
             if (IS_INVALID_HANDLE(ssignalevent))
-                return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
+                return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", ssignalname);
         }
         logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
         if (IS_INVALID_HANDLE(logrotatesig))
@@ -2420,7 +2419,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     else {
         ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, ssignalname);
         if (IS_INVALID_HANDLE(ssignalevent))
-            return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
+            return svcsyserror(__LINE__, GetLastError(), L"OpenEvent", ssignalname);
     }
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
