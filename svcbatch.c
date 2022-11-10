@@ -1132,9 +1132,10 @@ static DWORD rotatelogs(void)
         LeaveCriticalSection(&logfilelock);
         return ERROR_FILE_NOT_FOUND;
     }
-    logfflush(h);
-    if (haslogstatus)
+    if (haslogstatus) {
+        logfflush(h);
         logwrtime(h, "Log rotatation initialized");
+    }
     FlushFileBuffers(h);
     CloseHandle(h);
     rc = openlogfile(FALSE);
@@ -1161,9 +1162,10 @@ static void closelogfile(void)
     EnterCriticalSection(&logfilelock);
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h != NULL) {
-        logfflush(h);
-        if (haslogstatus)
+        if (haslogstatus) {
+            logfflush(h);
             logwrtime(h, "Log closed");
+        }
         FlushFileBuffers(h);
         CloseHandle(h);
     }
