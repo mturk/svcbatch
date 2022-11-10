@@ -311,6 +311,14 @@ make sure to get familiar with `sc.exe` utility.
   This is particularly useful for services that do not handle
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
+* **-q**
+
+  **Do not log internal messages**
+
+  This option disables logging of various internal
+  SvcBatch messages.
+
+
 ## Private Environment Variables
 
 SvcBatch sets a few private environment variables that

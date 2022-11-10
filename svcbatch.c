@@ -44,6 +44,7 @@ static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
 static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
 static int       hasctrlbreak     = 0;
+static int       haslogstatus     = 1;
 static int       autorotate       = 0;
 static int       servicemode      = 1;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
@@ -1102,9 +1103,11 @@ static DWORD openlogfile(BOOL firstopen)
     else {
         InterlockedExchange(&logwritten, 0);
     }
-    logwrline(h, cnamestamp);
-    if (firstopen)
-        logwrtime(h, "Log opened");
+    if (haslogstatus) {
+        logwrline(h, cnamestamp);
+        if (firstopen)
+            logwrtime(h, "Log opened");
+    }
     InterlockedExchangePointer(&logfhandle, h);
     xfree(logpb);
     return 0;
@@ -1130,15 +1133,18 @@ static DWORD rotatelogs(void)
         return ERROR_FILE_NOT_FOUND;
     }
     logfflush(h);
-    logwrtime(h, "Log rotatation initialized");
+    if (haslogstatus)
+        logwrtime(h, "Log rotatation initialized");
     FlushFileBuffers(h);
     CloseHandle(h);
     rc = openlogfile(FALSE);
     if (rc == 0) {
-        logwrtime(logfhandle, "Log rotated");
-        logprintf(logfhandle, "Log generation   : %lu",
-                  InterlockedIncrement(&rotatecount));
-        logconfig(logfhandle);
+        if (haslogstatus) {
+            logwrtime(logfhandle, "Log rotated");
+            logprintf(logfhandle, "Log generation   : %lu",
+                      InterlockedIncrement(&rotatecount));
+            logconfig(logfhandle);
+        }
     }
     else {
         setsvcstatusexit(rc);
@@ -1156,7 +1162,8 @@ static void closelogfile(void)
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h != NULL) {
         logfflush(h);
-        logwrtime(h, "Log closed");
+        if (haslogstatus)
+            logwrtime(h, "Log closed");
         FlushFileBuffers(h);
         CloseHandle(h);
     }
@@ -1381,11 +1388,12 @@ finished:
 static int runshutdown(DWORD rt)
 {
     wchar_t  rparam[] = L"-r@ -n";
-    wchar_t  xparam[] = L"-x\0";
+    wchar_t  xparam[] = L"-x    ";
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc = 0;
+    int      ip = 2;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
@@ -1393,7 +1401,10 @@ static int runshutdown(DWORD rt)
     dbgprints(__FUNCTION__, "started");
     cmdline = xappendarg(1, NULL, svcbatchexe);
     if (hasdebuginfo)
-        xparam[2] = L'd';
+        xparam[ip++] = L'd';
+    if (haslogstatus == 0)
+        xparam[ip++] = L'q';
+    xparam[ip] = L'\0';
     cmdline = xappendarg(0, cmdline, xparam);
     if (autorotate == 0)
         rparam[2] = L'0' + svcmaxlogs;
@@ -1589,14 +1600,16 @@ static void monitorshutdown(void)
         break;
         case WAIT_OBJECT_2:
             dbgprints(__FUNCTION__, "shutdown stop signaled");
-            EnterCriticalSection(&logfilelock);
-            h = InterlockedExchangePointer(&logfhandle, NULL);
-            if (h != NULL) {
-                logfflush(h);
-                logwrline(h, "Received shutdown stop signal");
+            if (haslogstatus) {
+                EnterCriticalSection(&logfilelock);
+                h = InterlockedExchangePointer(&logfhandle, NULL);
+                if (h != NULL) {
+                    logfflush(h);
+                    logwrline(h, "Received shutdown stop signal");
+                }
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
             }
-            InterlockedExchangePointer(&logfhandle, h);
-            LeaveCriticalSection(&logfilelock);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
             createstopthread();
         break;
@@ -1636,15 +1649,18 @@ static void monitorservice(void)
                     HANDLE h;
 
                     dbgprints(__FUNCTION__, "ctrl+break signaled");
-                    EnterCriticalSection(&logfilelock);
-                    h = InterlockedExchangePointer(&logfhandle, NULL);
+                    if (haslogstatus) {
 
-                    if (h != NULL) {
-                        logfflush(h);
-                        logwrline(h, "Signaled CTRL_BREAK_EVENT");
+                        EnterCriticalSection(&logfilelock);
+                        h = InterlockedExchangePointer(&logfhandle, NULL);
+
+                        if (h != NULL) {
+                            logfflush(h);
+                            logwrline(h, "Signaled CTRL_BREAK_EVENT");
+                        }
+                        InterlockedExchangePointer(&logfhandle, h);
+                        LeaveCriticalSection(&logfilelock);
                     }
-                    InterlockedExchangePointer(&logfhandle, h);
-                    LeaveCriticalSection(&logfilelock);
                     /**
                      * Danger Zone!!!
                      *
@@ -2020,14 +2036,16 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_STOP:
             dbgprints(__FUNCTION__, msg);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-            EnterCriticalSection(&logfilelock);
-            h = InterlockedExchangePointer(&logfhandle, NULL);
-            if (h != NULL) {
-                logfflush(h);
-                logwrline(h, msg);
+            if (haslogstatus) {
+                EnterCriticalSection(&logfilelock);
+                h = InterlockedExchangePointer(&logfhandle, NULL);
+                if (h != NULL) {
+                    logfflush(h);
+                    logwrline(h, msg);
+                }
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
             }
-            InterlockedExchangePointer(&logfhandle, h);
-            LeaveCriticalSection(&logfilelock);
             createstopthread();
         break;
         case SVCBATCH_CTRL_BREAK:
@@ -2101,7 +2119,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
-    logconfig(logfhandle);
+    if (haslogstatus)
+        logconfig(logfhandle);
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     /**
@@ -2238,13 +2257,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvesvcbatchexe(wargv[0]) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0], NULL);
 
-    while ((opt = xwgetopt(argc, wargv, L"bdpo:r:s:w:n:u:x")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bdqpo:r:s:w:n:u:x")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
             break;
             case L'd':
                 hasdebuginfo = 1;
+            break;
+            case L'q':
+                haslogstatus = 0;
             break;
             case L'o':
                 loglocation = expandenvstrings(xwoptarg, 1);
