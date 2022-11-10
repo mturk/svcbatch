@@ -2196,16 +2196,20 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SAFE_CLOSE_HANDLE(wh[0]);
     SAFE_CLOSE_HANDLE(wh[1]);
 
-    dbgprints(__FUNCTION__, "waiting for stop");
-    ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
-    if (ws == WAIT_TIMEOUT) {
-        dbgprints(__FUNCTION__, "wait for stop timed out");
-        if (servicemode && IS_VALID_HANDLE(ssignalevent)) {
-            dbgprints(__FUNCTION__, "sending shutdown stop signal");
-            SetEvent(ssignalevent);
-            ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
-            dbgprintf(__FUNCTION__, "wait for stop returned %lu", ws);
+    if (WaitForSingleObject(svcstopended, 0) == WAIT_OBJECT_0) {
+        dbgprints(__FUNCTION__, "stopped");
+    }
+    else {
+        dbgprints(__FUNCTION__, "waiting for stopthread to finish");
+        ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
+        if (ws == WAIT_TIMEOUT) {
+            if (shutdownfile != NULL) {
+                dbgprints(__FUNCTION__, "sending shutdown stop signal");
+                SetEvent(ssignalevent);
+                ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
+            }
         }
+        dbgprintf(__FUNCTION__, "stopthread status: %lu", ws);
     }
 
 finished:
