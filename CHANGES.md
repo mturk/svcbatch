@@ -6,6 +6,10 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v1.3.1
+
+ * In development
+
 ## v1.3.0
 
  * Fix SvcBatch.log flushing
