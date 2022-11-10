@@ -1731,14 +1731,11 @@ static void monitorservice(void)
 
 static unsigned int __stdcall monitorthread(void *unused)
 {
-    dbgprints(__FUNCTION__, "started");
-
     if (servicemode)
         monitorservice();
     else
         monitorshutdown();
 
-    dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
 }
 
