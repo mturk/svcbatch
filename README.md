@@ -403,14 +403,14 @@ Again, as with log rotate, the **233** is our custom control code.
 When you type `sc.exe stop myservice` or when your machine gets into the
 shutdown state, SvcBatch running as a service will receive
 stop or shutdown event. SvcBatch will send `CTRL_C_EVENT` to its
-child processes.
+child processes or run shutdown batch file in case
+**-s [batchfile]** was defined at install time.
 
 It is up to the application started from batch file to
 handle this event and do any cleanup needed and then exit.
-After sending `CTRL_C_EVENT` service will wait for few seconds
-and write 'Y' to `cmd.exe` stdin, to handle that obnoxious
-`Terminate batch job (Y/N)?` prompt. If batch file or any of
-downstream processes do not exit within that timeout,
+On startup service  writes 'Y' to `cmd.exe` stdin,
+to handle that obnoxious `Terminate batch job (Y/N)?` prompt.
+If batch file or any of downstream processes do not exit within that timeout,
 SvcBatch will give another 20 seconds for all processes to exit.
 After that timeout it will simply kill each descendant process
 that originated from svcbatch.exe.
@@ -422,7 +422,7 @@ is to open command prompt and type
 
 ```cmd
 > svcbatch.exe
-SvcBatch Service 1.2.1-dev (Jul 18 2022 10:00:00 msc 192930146.0)
+SvcBatch 1.3.0 (dev) (20221110175032 gcc 12.2.0)
 
 >
 ```
