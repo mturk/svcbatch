@@ -1645,7 +1645,6 @@ static void monitorservice(void)
                 if (cc == 0) {
                     dbgprints(__FUNCTION__, "quit signaled");
                     rc = 1;
-                    break;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
                     HANDLE h;
@@ -1682,9 +1681,7 @@ static void monitorservice(void)
                 rc = 1;
             break;
         }
-        if (ws == WAIT_OBJECT_1) {
-            ResetEvent(monitorevent);
-        }
+        ResetEvent(monitorevent);
     } while (rc == 0);
 
     dbgprints(__FUNCTION__, "done");
