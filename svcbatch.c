@@ -2190,10 +2190,10 @@ static void __cdecl objectscleanup(void)
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int         i;
-    int         rv = 0;
-    wchar_t     bb[2] = { L'\0', L'\0' };
-    int         envc        = 0;
+    int         rv;
     int         opt;
+    int         envc  = 0;
+    wchar_t     bb[2] = { L'\0', L'\0' };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
     const wchar_t *batchparam  = NULL;
