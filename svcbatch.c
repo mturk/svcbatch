@@ -2142,11 +2142,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     dbgprints(__FUNCTION__, "waiting for stop");
     ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
-    if (IS_VALID_HANDLE(ssignalevent) && (ws == WAIT_TIMEOUT)) {
-        dbgprints(__FUNCTION__, "sending shutdown stop signal");
-        SetEvent(ssignalevent);
-        ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
-        dbgprintf(__FUNCTION__, "wait for stop returned %lu", ws);
+    if (ws == WAIT_TIMEOUT) {
+        dbgprints(__FUNCTION__, "wait for stop timed out");
+        if (servicemode && IS_VALID_HANDLE(ssignalevent)) {
+            dbgprints(__FUNCTION__, "sending shutdown stop signal");
+            SetEvent(ssignalevent);
+            ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
+            dbgprintf(__FUNCTION__, "wait for stop returned %lu", ws);
+        }
     }
 
 finished:
