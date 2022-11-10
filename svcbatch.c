@@ -923,7 +923,7 @@ static void logfflush(HANDLE h)
         FlushFileBuffers(h);
         InterlockedExchange(&logwritten, 0);
         InterlockedExchange64(&loglastwr, GetTickCount64());
-
+        SetFilePointerEx(h, ee, NULL, FILE_END);
     }
 }
 
@@ -1124,13 +1124,13 @@ static DWORD openlogfile(BOOL firstopen)
     }
     else {
         InterlockedExchange(&logwritten, 0);
+        InterlockedExchange64(&loglastwr, GetTickCount64());
     }
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (firstopen)
             logwrtime(h, "Log opened");
     }
-    InterlockedExchange64(&loglastwr, GetTickCount64());
     InterlockedExchangePointer(&logfhandle, h);
     xfree(logpb);
     return 0;
