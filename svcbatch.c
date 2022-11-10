@@ -86,7 +86,7 @@ static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
-static const wchar_t *cwslogname  = L"\\" SVCBATCH_LOGNAME;
+static const wchar_t *cwslogname  = SVCBATCH_LOGNAME;
 static const wchar_t *xwoptarg    = NULL;
 
 static const wchar_t *removeenv[] = {
@@ -192,6 +192,23 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     if(l2 > 0)
         wmemcpy(cp, s2, l2);
     return rv;
+}
+
+static wchar_t *xwcsmkpath(const wchar_t *s1, const wchar_t *s2)
+{
+    wchar_t *cp;
+    int l1 = xwcslen(s1);
+    int l2 = xwcslen(s2);
+
+    if ((l1 == 0) || (l2 == 0))
+        return NULL;
+
+    cp = xwmalloc(l1 + l2 + 1);
+
+    wmemcpy(cp, s1, l1);
+    cp[l1] = L'\\';
+    wmemcpy(cp + l1 + 1, s2, l2);
+    return cp;
 }
 
 static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
@@ -1024,7 +1041,7 @@ static DWORD openlogfile(BOOL firstopen)
                 return ERROR_BAD_PATHNAME;
             }
         }
-        logfilename = xwcsconcat(loglocation, cwslogname);
+        logfilename = xwcsmkpath(loglocation, cwslogname);
     }
     if (svcmaxlogs > 0) {
         if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
@@ -2243,7 +2260,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             servicemode  = 0;
             cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
-            cwslogname = L"\\" SHUTDOWN_LOGNAME;
+            cwslogname = SHUTDOWN_LOGNAME;
         }
     }
     dbgprints(__FUNCTION__, cnamestamp);
@@ -2388,7 +2405,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
     if (IS_EMPTY_WCS(loglocation))
-        loglocation = xwcsconcat(servicehome, L"\\" SVCBATCH_LOG_BASE);
+        loglocation = xwcsmkpath(servicehome, SVCBATCH_LOG_BASE);
     if (servicemode && svcendparam) {
         shutdownfile = getrealpathname(svcendparam, 0);
         if (IS_EMPTY_WCS(shutdownfile))
