@@ -2396,24 +2396,24 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (IS_INVALID_HANDLE(processended))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
     ssignalname = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
-    if (servicemode == 0) {
-        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, ssignalname);
-        if (IS_INVALID_HANDLE(ssignalevent))
-            return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
+    if (servicemode) {
+        if (shutdownfile != NULL) {
+            ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
+            if (IS_INVALID_HANDLE(ssignalevent))
+                return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
+        }
+        logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
+        if (IS_INVALID_HANDLE(logrotatesig))
+            return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
     }
-    else if (shutdownfile != NULL) {
-        ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
+    else {
+        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, ssignalname);
         if (IS_INVALID_HANDLE(ssignalevent))
             return svcsyserror(__LINE__, GetLastError(), ssignalname, NULL);
     }
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
-    if (servicemode) {
-        logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
-        if (IS_INVALID_HANDLE(logrotatesig))
-            return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
-    }
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
