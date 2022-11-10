@@ -1017,7 +1017,7 @@ static DWORD openlogfile(BOOL firstopen)
 {
     wchar_t sfx[4] = { L'.', L'0', L'\0', L'\0' };
     wchar_t *logpb = NULL;
-    DWORD rc = 0;
+    DWORD rc;
     HANDLE h = NULL;
     int i;
 
@@ -1030,10 +1030,8 @@ static DWORD openlogfile(BOOL firstopen)
             loglocation = getrealpathname(pp, 1);
             if (loglocation == NULL) {
                 rc = xcreatepath(pp);
-                if (rc != 0) {
-                    svcsyserror(__LINE__, 0, L"xcreatepath", pp);
-                    return rc;
-                }
+                if (rc != 0)
+                    return svcsyserror(__LINE__, rc, L"xcreatepath", pp);
                 loglocation = getrealpathname(pp, 1);
                 if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
@@ -1117,6 +1115,7 @@ static DWORD openlogfile(BOOL firstopen)
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
+        svcsyserror(__LINE__, rc, L"CreateFileW", logfilename);
         goto failed;
     }
     if (rc == ERROR_ALREADY_EXISTS) {
@@ -1141,7 +1140,7 @@ failed:
         MoveFileExW(logpb, logfilename, MOVEFILE_REPLACE_EXISTING);
         xfree(logpb);
     }
-    return svcsyserror(__LINE__, rc, L"openlogfile", logfilename);
+    return rc;
 }
 
 static DWORD rotatelogs(void)
