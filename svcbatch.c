@@ -20,6 +20,7 @@
 #include <string.h>
 #include <wchar.h>
 #include <process.h>
+#include <errno.h>
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
