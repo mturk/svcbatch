@@ -222,6 +222,19 @@ make sure to get familiar with `sc.exe` utility.
 
   **SVCBATCH_SERVICE_LOGDIR** will be set to **path**.
 
+* **-n [prefix]**
+
+  **Set log file name prefix**
+
+  This option allows a user to set the log file prefix.
+
+  By default SvcBatch will use `SvacBatch` as log file
+  prefix creating `SvacBatch.log` or `SvacBatch.shutdown.log` file.
+
+  When set SvcBatch will append `.log` or `.shudown.log` file name extension
+  to the provided **prefix**
+
+
 * **-w [path]**
 
   **Set service working directory**

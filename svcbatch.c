@@ -70,6 +70,7 @@ static wchar_t  *svcbatchargs     = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
+static wchar_t  *logfilepart      = NULL;
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 
 static HANDLE    childprocjob     = NULL;
@@ -90,6 +91,7 @@ static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *cwslogname  = SVCBATCH_LOGNAME;
+
 static const wchar_t *xwoptarg    = NULL;
 
 static const wchar_t *removeenv[] = {
@@ -1049,7 +1051,7 @@ static DWORD openlogfile(BOOL firstopen)
                 return ERROR_BAD_PATHNAME;
             }
         }
-        logfilename = xwcsmkpath(loglocation, cwslogname);
+        logfilename = xwcsmkpath(loglocation, logfilepart);
     }
     if (svcmaxlogs > 0) {
         if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
@@ -1411,7 +1413,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
 
 static int runshutdown(DWORD rt)
 {
-    wchar_t  rparam[] = L"-r@ -n";
+    wchar_t  rparam[] = L"-r@ -z";
     wchar_t  xparam[] = L"-x    ";
     wchar_t *cmdline;
     HANDLE   wh[2];
@@ -1440,6 +1442,8 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(1, cmdline, servicehome);
     cmdline = xappendarg(0, cmdline, L"-o");
     cmdline = xappendarg(1, cmdline, loglocation);
+    cmdline = xappendarg(0, cmdline, L"-n");
+    cmdline = xappendarg(1, cmdline, cwslogname);
     cmdline = xappendarg(1, cmdline, shutdownfile);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
@@ -2280,7 +2284,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             servicemode  = 0;
             cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
-            cwslogname = SHUTDOWN_LOGNAME;
         }
     }
     dbgprints(__FUNCTION__, cnamestamp);
@@ -2293,7 +2296,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvesvcbatchexe(wargv[0]) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0], NULL);
 
-    while ((opt = xwgetopt(argc, wargv, L"bdqpo:r:s:w:n:u:x")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bdqpo:r:s:w:n:u:xz:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
@@ -2308,6 +2311,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 loglocation = expandenvstrings(xwoptarg, 1);
                 if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
+            break;
+            case L'n':
+                cwslogname   = xwoptarg;
             break;
             case L'p':
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
@@ -2324,7 +2330,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             /**
              * Private options
              */
-            case L'n':
+            case L'z':
                 servicename  = xwcsdup(xwoptarg);
             break;
             case L'u':
@@ -2426,6 +2432,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsmkpath(servicehome, SVCBATCH_LOG_BASE);
+    if (servicemode)
+        logfilepart = xwcsconcat(cwslogname, SVCBATCH_LOGFEXT);
+    else
+        logfilepart = xwcsconcat(cwslogname, SHUTDOWN_LOGFEXT);
     if (servicemode && svcendparam) {
         shutdownfile = getrealpathname(svcendparam, 0);
         if (IS_EMPTY_WCS(shutdownfile))

@@ -10,6 +10,10 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
 
+### New Features
+
+ * Add -n command option that enables to change default log file name prefix
+
 ## v1.3.0
 
  * Fix SvcBatch.log flushing
