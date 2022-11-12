@@ -21,22 +21,24 @@ provide the complete solution to run and manage JBoss EAP as
 windows service.
 
 
-Put [winservice](jbosseap/winservice.bat) and [servicemgr](jbosseap/servicemgr.bat)
-batch files into your `jboes-eap-x.x/bin` directory.
+Put [servicemgr](jbosseap/servicemgr.bat)
+batch file into your `jboes-eap-x.x/bin` directory.
 [servicemgr](jbosseap/servicemgr.bat) is a batch file
 used to manage the services.
 
 Before executing [servicemgr](jbosseap/servicemgr.bat) edit `servicemgr.bat` and modify
-`JBOSSEAP_DISPLAY` variable to match the exact version you are using. You can put any string
-for `DisplayName=` and `sc description ...` directly as fits.
+`SERVICE_NAME`, `SERVICE_DISPLAY`, `SERVICE_DESCIPTION` and `JBOSSEAP_SERVER_MODE` variablea
+to match the exact version you are using.
 
 ```cmd
 
-> servicemgr.bat create JBossEap7
+> servicemgr.bat create
 
-... Optionaly you can use
-
-> servicemgr.bat create JBossEap7 domain
+[SC] CreateService SUCCESS
+[SC] ChangeServiceConfig SUCCESS
+[SC] ChangeServiceConfig SUCCESS
+[SC] ChangeServiceConfig2 SUCCESS
+[SC] ChangeServiceConfig2 SUCCESS
 
 ```
 
@@ -47,6 +49,8 @@ System Environment.
 That's it! Now, just type ...
 ```cmd
 
+> servicemgr.bat create
+  or ...
 > sc start JBossEap7
   or ...
 > net start JBossEap7
