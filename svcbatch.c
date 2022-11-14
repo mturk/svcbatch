@@ -111,6 +111,7 @@ static const wchar_t *removeenv[] = {
     NULL
 };
 
+
 static wchar_t *xwmalloc(size_t size)
 {
     wchar_t *p = (wchar_t *)malloc((size + 2) * sizeof(wchar_t));
@@ -1480,84 +1481,6 @@ static int resolverotate(const wchar_t *str)
     return 0;
 }
 
-static unsigned int __stdcall rdpipethread(void *unused)
-{
-    DWORD  rc = 0;
-
-    dbgprints(__FUNCTION__, "started");
-    while (rc == 0) {
-        DWORD rd = 0;
-        HANDLE h = NULL;
-
-        if (ReadFile(outputpiperd, ioreadbuffer, DSIZEOF(ioreadbuffer), &rd, NULL)) {
-            if (rd == 0) {
-                /**
-                 * Read zero bytes from child should
-                 * not happen.
-                 */
-                dbgprintf(__FUNCTION__, "read 0 bytes err=%lu", GetLastError());
-                rc = ERROR_NO_DATA;
-            }
-            else {
-                EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
-
-                if (h != NULL)
-                    rc = logappend(h, ioreadbuffer, rd);
-                else
-                    rc = ERROR_NO_MORE_FILES;
-
-                InterlockedExchangePointer(&logfhandle, h);
-                LeaveCriticalSection(&logfilelock);
-            }
-        }
-        else {
-            /**
-             * Read from child failed.
-             * ERROR_BROKEN_PIPE means that
-             * child process closed its side of the pipe.
-             */
-            rc = GetLastError();
-        }
-    }
-    if (rc) {
-        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
-            dbgprints(__FUNCTION__, "pipe closed");
-        else if (rc == ERROR_NO_MORE_FILES)
-            dbgprints(__FUNCTION__, "logfile closed");
-        else
-            dbgprintf(__FUNCTION__, "err=%lu", rc);
-    }
-    dbgprints(__FUNCTION__, "done");
-
-    XENDTHREAD(0);
-}
-
-static unsigned int __stdcall wrpipethread(void *unused)
-{
-    DWORD  wr, rc = 0;
-
-    dbgprintf(__FUNCTION__, "started");
-
-    if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
-        dbgprintf(__FUNCTION__, "send %lu chars to: %lu", wr, childprocpid);
-        if (!FlushFileBuffers(inputpipewrs))
-            rc = GetLastError();
-    }
-    else {
-        rc = GetLastError();
-    }
-
-    if (rc) {
-        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
-            dbgprints(__FUNCTION__, "pipe closed");
-        else
-            dbgprintf(__FUNCTION__, "err=%lu", rc);
-    }
-    dbgprints(__FUNCTION__, "done");
-    XENDTHREAD(0);
-}
-
 
 static int runshutdown(DWORD rt)
 {
@@ -1766,6 +1689,87 @@ static void createstopthread(void)
     else {
         dbgprints(__FUNCTION__, "already started");
     }
+}
+
+static unsigned int __stdcall rdpipethread(void *unused)
+{
+    DWORD rc = 0;
+
+    dbgprints(__FUNCTION__, "started");
+    while (rc == 0) {
+        DWORD rd = 0;
+        HANDLE h = NULL;
+
+        if (ReadFile(outputpiperd, ioreadbuffer, DSIZEOF(ioreadbuffer), &rd, NULL)) {
+            if (rd == 0) {
+                rc = GetLastError();
+            }
+            else {
+                EnterCriticalSection(&logfilelock);
+                h = InterlockedExchangePointer(&logfhandle, NULL);
+
+                if (h != NULL)
+                    rc = logappend(h, ioreadbuffer, rd);
+                else
+                    rc = ERROR_NO_MORE_FILES;
+
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
+            }
+        }
+        else {
+            rc = GetLastError();
+        }
+    }
+    if (rc) {
+        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+            dbgprints(__FUNCTION__, "pipe closed");
+        else if (rc == ERROR_NO_MORE_FILES)
+            dbgprints(__FUNCTION__, "logfile closed");
+        else
+            dbgprintf(__FUNCTION__, "err=%lu", rc);
+        if (WaitForSingleObject(childprocess, SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT) {
+            if (InterlockedAdd(&sstarted, 0) == 0) {
+                dbgprints(__FUNCTION__, "terminating child process");
+                TerminateProcess(childprocess, ERROR_PROCESS_ABORTED);
+                dbgprints(__FUNCTION__, "terminated");
+            }
+            else {
+                dbgprints(__FUNCTION__, "stop already started");
+            }
+        }
+        else {
+            dbgprints(__FUNCTION__, "done with childprocess");
+        }
+    }
+    dbgprints(__FUNCTION__, "done");
+
+    XENDTHREAD(0);
+}
+
+static unsigned int __stdcall wrpipethread(void *unused)
+{
+    DWORD  wr, rc = 0;
+
+    dbgprintf(__FUNCTION__, "started");
+
+    if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
+        dbgprintf(__FUNCTION__, "send %lu chars to: %lu", wr, childprocpid);
+        if (!FlushFileBuffers(inputpipewrs))
+            rc = GetLastError();
+    }
+    else {
+        rc = GetLastError();
+    }
+
+    if (rc) {
+        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+            dbgprints(__FUNCTION__, "pipe closed");
+        else
+            dbgprintf(__FUNCTION__, "err=%lu", rc);
+    }
+    dbgprints(__FUNCTION__, "done");
+    XENDTHREAD(0);
 }
 
 static void monitorshutdown(void)

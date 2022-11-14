@@ -52,6 +52,7 @@ int wmain(int argc, const wchar_t **wargv)
 {
     int i;
     DWORD    e = 0;
+    DWORD    c = 0;
     HANDLE   w, r;
     BYTE     b[RDBUFSIZE];
     SECURITY_ATTRIBUTES sa;
@@ -126,6 +127,20 @@ int wmain(int argc, const wchar_t **wargv)
                     if (wr == 0) {
                         e = GetLastError();
                         dbgprints(progname, "wrote 0 bytes");
+                    }
+                    else {
+                        c += wr;
+#if 0
+                        if (c > 2800) {
+                            dbgprints(progname, "simulating failure");
+                            CloseHandle(w);
+                            return ERROR_NO_DATA;
+                        }
+#endif
+                        if (c > 16384) {
+                            FlushFileBuffers(w);
+                            c = 0;
+                        }
                     }
                 }
                 else {
