@@ -74,7 +74,6 @@ static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static wchar_t  *logfilepart      = NULL;
 static wchar_t  *logredirect      = NULL;
-static wchar_t  *rotateparam      = NULL;
 
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 
@@ -99,7 +98,7 @@ static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
-
+static const wchar_t *rotateparam = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
 static const wchar_t *removeenv[] = {
@@ -2477,7 +2476,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
             break;
             case L'e':
-                lredirparam = xwoptarg;
+                lredirparam  = xwoptarg;
             break;
             case L'n':
                 svclogfname  = xwoptarg;
@@ -2486,7 +2485,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             case L'r':
-                rotateparam  = xwcsdup(xwoptarg);
+                rotateparam  = xwoptarg;
             break;
             case L's':
                 svcendparam  = xwoptarg;
