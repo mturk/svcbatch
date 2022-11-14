@@ -106,10 +106,10 @@ $(OUTPUT): $(WORKDIR) $(MANIFEST) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
 	$(RL) $(RLOPTS) $@
 
-$(PIPELOG): $(WORKDIR) $(PIPEOBJ)
+$(PIPELOG): $(OUTPUT) $(PIPEOBJ)
 	$(LN) $(LNOPTS) -o $@ $(PIPEOBJ) $(LDLIBS)
 
-examples: all $(PIPELOG)
+examples: $(PIPELOG)
 	@:
 
 clean:

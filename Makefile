@@ -111,10 +111,10 @@ $(WORKDIR)\$(PROJECT).h: $(PPREFIX).h.in
 $(OUTPUT): $(WORKDIR) $(WORKDIR)\$(PROJECT).h $(WORKDIR)\$(PROJECT).manifest $(OBJECTS)
 	$(LN) $(LFLAGS) $(OBJECTS) $(LDLIBS) /out:$(OUTPUT)
 
-$(PIPELOG): $(WORKDIR) $(PIPEOBJ)
+$(PIPELOG): $(OUTPUT) $(PIPEOBJ)
 	$(LN) $(LFLAGS) $(PIPEOBJ) $(LDLIBS) /out:$(PIPELOG)
 
-examples: all $(PIPELOG)
+examples: $(PIPELOG)
 
 clean:
 	@-rd /S /Q $(WORKDIR) 2>NUL
