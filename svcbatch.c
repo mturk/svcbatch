@@ -899,8 +899,9 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
     DWORD wr, rc = 0;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
-    if (!SetFilePointerEx(h, ee, NULL, FILE_END)) {
-        return GetLastError();
+    if (haspipedlogs == 0) {
+        if (!SetFilePointerEx(h, ee, NULL, FILE_END))
+            return GetLastError();
     }
     if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0)) {
         if (InterlockedAdd(&logwritten, wr) >= SVCBATCH_LOGFLUSH_SIZE) {
@@ -918,39 +919,43 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
     return rc;
 }
 
-static void logfflush(HANDLE h)
+static DWORD logfflush(HANDLE h)
 {
+    DWORD wr, rc = 0;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
-    if (SetFilePointerEx(h, ee, NULL, FILE_END)) {
-        DWORD wr;
-
-        WriteFile(h, CRLFA, 2, &wr, NULL);
-        FlushFileBuffers(h);
-        InterlockedExchange(&logwritten, 0);
-        InterlockedExchange64(&loglastwr, GetTickCount64());
+    if (haspipedlogs == 0) {
+        if (!SetFilePointerEx(h, ee, NULL, FILE_END)) {
+            rc = GetLastError();
+            dbgprintf(__FUNCTION__, "SetFilePointerEx failed (0x%08x)", rc);
+            return rc;
+        }
+    }
+    WriteFile(h, CRLFA, 2, &wr, NULL);
+    FlushFileBuffers(h);
+    InterlockedExchange(&logwritten, 0);
+    InterlockedExchange64(&loglastwr, GetTickCount64());
+    if (haspipedlogs == 0) {
         SetFilePointerEx(h, ee, NULL, FILE_END);
     }
+    return rc;
 }
 
 static void logwrline(HANDLE h, const char *str)
 {
     char    buf[BBUFSIZ];
     ULONGLONG ct;
-    int     dd, hh, mm, ss, ms;
+    DWORD   ss, ms;
     DWORD   w;
 
     ct = GetTickCount64() - logtickcount;
-    ms = (int)((ct % MS_IN_SECOND));
-    ss = (int)((ct / MS_IN_SECOND) % 60);
-    mm = (int)((ct / MS_IN_MINUTE) % 60);
-    hh = (int)((ct / MS_IN_HOUR)   % 24);
-    dd = (int)((ct / MS_IN_DAY));
+    ms = (DWORD)((ct % MS_IN_SECOND));
+    ss = (DWORD)((ct / MS_IN_SECOND));
 
     memset(buf, 0, sizeof(buf));
     sprintf(buf,
-            "[%.2d:%.2d:%.2d:%.2d.%.3d] [%.4lu:%.4lu] ",
-            dd, hh, mm, ss, ms,
+            "[%.8lu.%.3lu] [%.4lu:%.4lu] ",
+            ss, ms,
             GetCurrentProcessId(),
             GetCurrentThreadId());
     buf[BBUFSIZ - 1] = '\0';
@@ -995,7 +1000,10 @@ static void logconfig(HANDLE h)
         logprintf(h, "      arguments  : %S", svcbatchargs);
     logprintf(h, "Base directory   : %S", servicebase);
     logprintf(h, "Working directory: %S", servicehome);
-    logprintf(h, "Log directory    : %S", loglocation);
+    if (haspipedlogs)
+        logprintf(h, "Log redirected to: %S", loglocation + 1);
+    else
+        logprintf(h, "Log directory    : %S", loglocation);
 
     if (servicemode) {
         wchar_t *fs = NULL;
@@ -1021,6 +1029,7 @@ static void logconfig(HANDLE h)
 
 static DWORD openlogpipe(void)
 {
+    logtickcount = GetTickCount64();
     return 0;
 }
 
@@ -2162,9 +2171,10 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      */
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=",   servicebase);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=",   servicehome);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
+    if (haspipedlogs == 0)
+        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
     for (i = 0, x = 0; i < dupwenvc; i++, x++) {
