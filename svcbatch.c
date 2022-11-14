@@ -48,6 +48,7 @@ static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
 static int       hasctrlbreak     = 0;
 static int       haslogstatus     = 1;
 static int       haslogrotate     = 0;
+static int       haspipedlogs     = 0;
 static int       autorotate       = 0;
 static int       servicemode      = 1;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
@@ -1016,6 +1017,11 @@ static void logconfig(HANDLE h)
         }
     }
     logfflush(h);
+}
+
+static DWORD openlogpipe(void)
+{
+    return 0;
 }
 
 static DWORD openlogfile(BOOL firstopen)
@@ -2151,9 +2157,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         dbgprintf(__FUNCTION__, "shutting down %S", servicename);
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    rv = openlogfile(TRUE);
+    if (haspipedlogs) {
+        rv = openlogpipe();
+    }
+    else {
+        rv = openlogfile(TRUE);
+    }
     if (rv != 0) {
-        svcsyserror(__LINE__, 0, L"openlogfile failed", NULL);
+        svcsyserror(__LINE__, 0, L"openlog failed", NULL);
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
@@ -2434,6 +2445,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsmkpath(servicehome, SVCBATCH_LOG_BASE);
+
+    if (*loglocation == L'|') {
+        haspipedlogs = 1;
+    }
+    else {
+        rv = resolverotate(rotateparam);
+        if (rv != 0)
+            return svcsyserror(rv, 0, L"Cannot resolve", rotateparam);
+    }
+
     if (servicemode) {
         logfilepart = xwcsconcat(svclogfname, SVCBATCH_LOGFEXT);
         if (svcendparam) {
@@ -2462,9 +2483,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             dupwenvp[dupwenvc++] = xwcsdup(p);
     }
 
-    rv = resolverotate(rotateparam);
-    if (rv != 0)
-        return svcsyserror(rv, 0, L"Cannot resolve", rotateparam);
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
