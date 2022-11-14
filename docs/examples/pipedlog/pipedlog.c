@@ -18,8 +18,35 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define SDBUFSIZE 2048
 #define RDBUFSIZE 8192
+
+static const char *progname = "pipedlog";
 static char CRLFA[2] = { '\r', '\n'};
+
+static void dbgprints(const char *funcname, const char *string)
+{
+    char buf[SDBUFSIZE];
+    _snprintf(buf, SDBUFSIZE - 1,
+              "[%.4lu] x %-16s %s",
+              GetCurrentThreadId(),
+              funcname, string);
+     buf[SDBUFSIZE - 1] = '\0';
+     OutputDebugStringA(buf);
+}
+
+static void dbgprintf(const char *funcname, const char *format, ...)
+{
+    char    buf[SDBUFSIZE];
+    va_list ap;
+
+    va_start(ap, format);
+    _vsnprintf(buf, SDBUFSIZE - 1, format, ap);
+    va_end(ap);
+    buf[SDBUFSIZE - 1] = '\0';
+    dbgprints(funcname, buf);
+}
+
 int wmain(int argc, const wchar_t **wargv)
 {
     int i;
@@ -28,23 +55,23 @@ int wmain(int argc, const wchar_t **wargv)
     BYTE     b[RDBUFSIZE];
     SECURITY_ATTRIBUTES sa;
 
+    dbgprints(progname, "started");
     r = GetStdHandle(STD_INPUT_HANDLE);
     if (r == INVALID_HANDLE_VALUE) {
         e = GetLastError();
-        OutputDebugStringA("GetStdHandle failed");
+        dbgprints(progname, "Missing stdin handle");
         return e;
     }
-    OutputDebugStringW(wargv[0]);
     if (argc < 2) {
-        OutputDebugStringA("Missing logfile argument");
+        dbgprints(progname, "Missing logfile argument");
         return ERROR_INVALID_PARAMETER;
     }
     if (argc > 2) {
-        OutputDebugStringA(">>> extra arguments");
+        dbgprints(progname, "extra arguments [[");
         for (i = 2; i < argc; i++) {
-            OutputDebugStringW(wargv[i]);
+            dbgprintf(progname, "  %S", wargv[i]);
         }
-        OutputDebugStringA("<<<");
+        dbgprints(progname, "]]");
     }
 
     memset(&sa, 0, sizeof(SECURITY_ATTRIBUTES));
@@ -53,34 +80,36 @@ int wmain(int argc, const wchar_t **wargv)
     w = CreateFileW(wargv[1], GENERIC_WRITE,
                     FILE_SHARE_READ, &sa, OPEN_ALWAYS,
                     FILE_ATTRIBUTE_NORMAL, NULL);
+    e = GetLastError();
     if (w == INVALID_HANDLE_VALUE) {
-        e = GetLastError();
-        OutputDebugStringA("CreateFileW failed");
+        dbgprintf(progname, "cannot create %S", wargv[1]);
         return e;
     }
-    if (GetLastError() == ERROR_ALREADY_EXISTS) {
+    if (e == ERROR_ALREADY_EXISTS) {
         DWORD wr = 0;
         LARGE_INTEGER ee = {{ 0, 0 }};
 
         if (!SetFilePointerEx(w, ee, NULL, FILE_END)) {
             e = GetLastError();
-            OutputDebugStringA("SetFilePointerEx failed");
+            dbgprintf(progname, "cannot set file pointer for: %S", wargv[1]);
+            CloseHandle(w);
             return e;
         }
         if (WriteFile(w, CRLFA, 2, &wr, NULL) && (wr != 0)) {
-            OutputDebugStringA("reusing");
+            dbgprintf(progname, "reusing %S", wargv[1]);
         }
         else {
             e = GetLastError();
-            OutputDebugStringA("cannot write to existing file");
+            dbgprintf(progname, "cannot write to: %S", wargv[1]);
+            CloseHandle(w);
             return e;
         }
     }
     else {
-        OutputDebugStringA("created");
+        dbgprintf(progname, "created %S", wargv[1]);
     }
-    OutputDebugStringW(wargv[1]);
 
+    e = 0;
     while (e == 0) {
         DWORD rd = 0;
         DWORD wr = 0;
@@ -88,18 +117,18 @@ int wmain(int argc, const wchar_t **wargv)
         if (ReadFile(r, b, RDBUFSIZE, &rd, NULL)) {
             if (rd == 0) {
                 e = GetLastError();
-                OutputDebugStringA("read 0 bytes");
+                dbgprints(progname, "read 0 bytes");
             }
             else {
                 if (WriteFile(w, b, rd, &wr, NULL)) {
                     if (wr == 0) {
                         e = GetLastError();
-                        OutputDebugStringA("wrote 0 bytes");
+                        dbgprints(progname, "wrote 0 bytes");
                     }
                 }
                 else {
                     e = GetLastError();
-                    OutputDebugStringA("WriteFile failed");
+                    dbgprints(progname, "WriteFile failed");
                 }
             }
         }
@@ -110,12 +139,12 @@ int wmain(int argc, const wchar_t **wargv)
     CloseHandle(w);
     if (e) {
         if ((e == ERROR_BROKEN_PIPE) || (e == ERROR_NO_DATA))
-            OutputDebugStringA("iopipe closed");
+            dbgprints(progname, "iopipe closed");
         else
-            OutputDebugStringA("iopipe error");
+            dbgprintf(progname, "iopipe error: %lu", e);
     }
     else {
-        OutputDebugStringA("done");
+        dbgprints(progname, "done");
     }
     return e;
 }
