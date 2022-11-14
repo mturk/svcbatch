@@ -31,6 +31,7 @@ VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_MICRO)
 PPREFIX = $(SRCDIR)\$(PROJECT)
 WORKDIR = $(SRCDIR)\$(_CPU)
 OUTPUT  = $(WORKDIR)\$(PROJECT).exe
+PIPELOG = $(WORKDIR)\pipedlog.exe
 
 !IF DEFINED(_STATIC_MSVCRT)
 CRT_CFLAGS = -MT
@@ -71,6 +72,11 @@ OBJECTS = \
 	$(WORKDIR)\$(PROJECT).obj \
 	$(WORKDIR)\$(PROJECT).res
 
+PIPEOBJ = \
+	$(WORKDIR)\pipedlog.obj
+
+PIPESRC = $(SRCDIR)\docs\examples\pipedlog\pipedlog.c
+
 all : $(WORKDIR) $(OUTPUT)
 
 $(WORKDIR):
@@ -97,11 +103,19 @@ $(WORKDIR)\$(PROJECT).h: $(PPREFIX).h.in
 $(WORKDIR)\$(PROJECT).obj: $(WORKDIR)\$(PROJECT).h $(PPREFIX).c
 	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $(PPREFIX).c
 
+$(WORKDIR)\pipedlog.obj: $(PIPESRC)
+	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $(PIPESRC)
+
 $(WORKDIR)\$(PROJECT).res: $(WORKDIR)\$(PROJECT).h $(WORKDIR)\$(PROJECT).manifest $(PPREFIX).rc
 	$(RC) $(RCOPTS) $(RFLAGS) /i $(SRCDIR) /i $(WORKDIR) /fo $@ $(PPREFIX).rc
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LFLAGS) $(OBJECTS) $(LDLIBS) /out:$(OUTPUT)
+
+$(PIPELOG): $(WORKDIR) $(PIPEOBJ)
+	$(LN) $(LFLAGS) $(PIPEOBJ) $(LDLIBS) /out:$(PIPELOG)
+
+examples: all $(PIPELOG)
 
 clean:
 	@-rd /S /Q $(WORKDIR) 2>NUL

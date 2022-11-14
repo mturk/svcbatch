@@ -73,6 +73,9 @@ static wchar_t  *svcbatchargs     = NULL;
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static wchar_t  *logfilepart      = NULL;
+static wchar_t  *logredirect      = NULL;
+static wchar_t  *rotateparam      = NULL;
+
 static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 
 static HANDLE    childprocjob     = NULL;
@@ -84,6 +87,9 @@ static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
 static HANDLE    outputpiperd     = NULL;
 static HANDLE    inputpipewrs     = NULL;
+static HANDLE    pipedprocjob     = NULL;
+static HANDLE    pipedprocess     = NULL;
+static HANDLE    logrhandle       = NULL;
 
 static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
@@ -253,37 +259,39 @@ static int envsort(const void *arg1, const void *arg2)
     return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
 }
 
-static int wcshavespace(const wchar_t *s)
-{
-    while (*s != L'\0') {
-        if (iswspace(*s))
-            return 1;
-        s++;
-    }
-    return 0;
-}
-
 static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
 {
     wchar_t *cp, *rv;
-    int l1, l2;
+    int i, l1, l2;
+    int nq = 0, lx = 4;
 
     l2 = xwcslen(s2);
     if (l2 == 0)
         return s1;
 
     l1 = xwcslen(s1);
-    cp = rv = xwmalloc(l1 + l2 + 4);
+    if (q) {
+        for (i = 0; i < l2; i++) {
+            if (s2[i] == L'"')
+                lx++;
+            else if (iswspace(s2[i]))
+                nq = 1;
+        }
+    }
+    cp = rv = xwmalloc(l1 + l2 + lx);
 
     if(l1 > 0) {
         wmemcpy(cp, s1, l1);
         cp += l1;
         *(cp++) = L' ';
     }
-    if (q && wcshavespace(s2)) {
+    if (nq) {
         *(cp++) = L'"';
-        wmemcpy(cp, s2, l2);
-        cp += l2;
+        for (i = 0; i < l2; i++) {
+            if (s2[i] == L'"')
+                *(cp++) = L'\\';
+            *(cp++) = s2[i];
+        }
         *(cp++) = L'"';
     }
     else {
@@ -1000,10 +1008,9 @@ static void logconfig(HANDLE h)
         logprintf(h, "      arguments  : %S", svcbatchargs);
     logprintf(h, "Base directory   : %S", servicebase);
     logprintf(h, "Working directory: %S", servicehome);
+    logprintf(h, "Log directory    : %S", loglocation);
     if (haspipedlogs)
-        logprintf(h, "Log redirected to: %S", loglocation + 1);
-    else
-        logprintf(h, "Log directory    : %S", loglocation);
+        logprintf(h, "Log redirected to: %S", logredirect);
 
     if (servicemode) {
         wchar_t *fs = NULL;
@@ -1029,8 +1036,110 @@ static void logconfig(HANDLE h)
 
 static DWORD openlogpipe(void)
 {
+    DWORD    rc;
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
+    PROCESS_INFORMATION cp;
+    STARTUPINFOW si;
+    HANDLE wr = NULL;
+    wchar_t *cmdline = NULL;
+
     logtickcount = GetTickCount64();
+    if (servicemode) {
+        wchar_t *pp = loglocation;
+
+        loglocation = getrealpathname(pp, 1);
+        if (loglocation == NULL) {
+            rc = xcreatepath(pp);
+            if (rc != 0)
+                return svcsyserror(__LINE__, rc, L"xcreatepath", pp);
+            loglocation = getrealpathname(pp, 1);
+            if (loglocation == NULL)
+                return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
+        }
+        xfree(pp);
+        if (_wcsicmp(loglocation, servicehome) == 0) {
+            svcsyserror(__LINE__, 0,
+                        L"Loglocation cannot be the same as servicehome",
+                        loglocation);
+            return ERROR_BAD_PATHNAME;
+        }
+    }
+    memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
+    memset(&si, 0, sizeof(STARTUPINFOW));
+
+    si.cb      = DSIZEOF(STARTUPINFOW);
+    si.dwFlags = STARTF_USESTDHANDLES;
+
+    rc = createiopipes(&si, &wr, &logrhandle);
+    if (rc != 0) {
+        return rc;
+    }
+    pipedprocjob = CreateJobObjectW(&sazero, NULL);
+    if (IS_INVALID_HANDLE(pipedprocjob)) {
+        rc = GetLastError();
+        svcsyserror(__LINE__, rc, L"CreateJobObjectW", NULL);
+        goto failed;
+    }
+
+    ji.BasicLimitInformation.LimitFlags =
+        JOB_OBJECT_LIMIT_BREAKAWAY_OK |
+        JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
+        JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
+        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+    if (!SetInformationJobObject(pipedprocjob,
+                                 JobObjectExtendedLimitInformation,
+                                &ji,
+                                 DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
+        rc = GetLastError();
+        svcsyserror(__LINE__, rc, L"SetInformationJobObject", NULL);
+        goto failed;
+    }
+
+    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    cmdline = xappendarg(1, NULL,    logredirect);
+    cmdline = xappendarg(1, cmdline, logfilepart);
+    cmdline = xappendarg(0, cmdline, rotateparam);
+
+    if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
+                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
+                        wenvblock,
+                        loglocation,
+                       &si, &cp)) {
+        rc = GetLastError();
+        svcsyserror(__LINE__, rc, L"CreateProcess", logredirect);
+        goto failed;
+    }
+    pipedprocess = cp.hProcess;
+    /**
+     * Close our side of the pipes
+     */
+    SAFE_CLOSE_HANDLE(si.hStdInput);
+    SAFE_CLOSE_HANDLE(si.hStdError);
+    if (!AssignProcessToJobObject(pipedprocjob, pipedprocess)) {
+        rc = GetLastError();
+        svcsyserror(__LINE__, rc, L"AssignProcessToJobObject", NULL);
+        TerminateProcess(pipedprocess, rc);
+        goto failed;
+    }
+    ResumeThread(cp.hThread);
+    SAFE_CLOSE_HANDLE(cp.hThread);
+
+    if (haslogstatus) {
+        logwrline(wr, cnamestamp);
+    }
+    InterlockedExchangePointer(&logfhandle, wr);
+    dbgprintf(__FUNCTION__, "running pipe log process: %lu", cp.dwProcessId);
+    xfree(cmdline);
+
     return 0;
+
+failed:
+    SAFE_CLOSE_HANDLE(pipedprocess);
+    SAFE_CLOSE_HANDLE(pipedprocjob);
+
+    return rc;
 }
 
 static DWORD openlogfile(BOOL firstopen)
@@ -1216,6 +1325,17 @@ static void closelogfile(void)
         CloseHandle(h);
     }
     LeaveCriticalSection(&logfilelock);
+    if (IS_VALID_HANDLE(pipedprocess)) {
+        DWORD ws;
+
+        SAFE_CLOSE_HANDLE(logrhandle);
+        ws = WaitForSingleObject(pipedprocess, SVCBATCH_STOP_HINT);
+        if (ws != WAIT_OBJECT_0)
+            dbgprintf(__FUNCTION__, "wait for piped log returned: %lu", ws);
+        SAFE_CLOSE_HANDLE(pipedprocess);
+        SAFE_CLOSE_HANDLE(pipedprocjob);
+    }
+
 }
 
 static int resolverotate(const wchar_t *str)
@@ -1430,28 +1550,34 @@ static unsigned int __stdcall wrpipethread(void *unused)
 
 static int runshutdown(DWORD rt)
 {
-    wchar_t  rparam[] = L"-r@ -z";
-    wchar_t  xparam[] = L"-x    ";
+    wchar_t  xparam[8];
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc = 0;
-    int      ip = 2;
+    int      ip = 0;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
     cmdline = xappendarg(1, NULL, svcbatchexe);
+    xparam[ip++] = L'-';
+    xparam[ip++] = L'x';
     if (hasdebuginfo)
         xparam[ip++] = L'd';
     if (haslogstatus == 0)
         xparam[ip++] = L'q';
+    if (haspipedlogs == 0) {
+        xparam[ip++] = L'r';
+        if (autorotate)
+            xparam[ip++] = L'@';
+        else
+            xparam[ip++] = L'0' + svcmaxlogs;
+    }
     xparam[ip] = L'\0';
     cmdline = xappendarg(0, cmdline, xparam);
-    if (autorotate == 0)
-        rparam[2] = L'0' + svcmaxlogs;
-    cmdline = xappendarg(0, cmdline, rparam);
+    cmdline = xappendarg(0, cmdline, L"-z");
     cmdline = xappendarg(1, cmdline, servicename);
     cmdline = xappendarg(0, cmdline, L"-u");
     cmdline = xappendarg(0, cmdline, serviceuuid);
@@ -1459,6 +1585,14 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(1, cmdline, servicehome);
     cmdline = xappendarg(0, cmdline, L"-o");
     cmdline = xappendarg(1, cmdline, loglocation);
+    if (haspipedlogs) {
+        cmdline = xappendarg(0, cmdline, L"-e");
+        cmdline = xappendarg(1, cmdline, logredirect);
+        if (rotateparam) {
+            cmdline = xappendarg(0, cmdline, L"-r");
+            cmdline = xappendarg(1, cmdline, rotateparam);
+        }
+    }
     cmdline = xappendarg(0, cmdline, L"-n");
     cmdline = xappendarg(1, cmdline, svclogfname);
     cmdline = xappendarg(1, cmdline, shutdownfile);
@@ -2169,12 +2303,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * Add additional environment variables
      * They are unique to this service instance
      */
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=",   servicebase);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=",   servicehome);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
-    if (haspipedlogs == 0)
-        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=",    servicebase);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=",    servicehome);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",    servicename);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",    serviceuuid);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=",  loglocation);
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
     for (i = 0, x = 0; i < dupwenvc; i++, x++) {
@@ -2270,6 +2403,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(logrotatesig);
     SAFE_CLOSE_HANDLE(childprocjob);
+    SAFE_CLOSE_HANDLE(pipedprocjob);
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
@@ -2278,16 +2412,16 @@ static void __cdecl objectscleanup(void)
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int         i;
-    int         rv;
     int         opt;
     int         envc  = 0;
+    int         rv    = 0;
     wchar_t     bb[2] = { L'\0', L'\0' };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
     const wchar_t *batchparam  = NULL;
     const wchar_t *shomeparam  = NULL;
-    const wchar_t *rotateparam = NULL;
     const wchar_t *svcendparam = NULL;
+    const wchar_t *lredirparam = NULL;
 
     /**
      * Make sure children (cmd.exe) are kept quiet.
@@ -2320,7 +2454,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvesvcbatchexe(wargv[0]) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0], NULL);
 
-    while ((opt = xwgetopt(argc, wargv, L"bdqpo:r:s:w:n:u:xz:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bdqpe:o:r:s:w:n:u:xz:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
@@ -2336,6 +2470,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 if (loglocation == NULL)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
             break;
+            case L'e':
+                lredirparam = xwoptarg;
+            break;
             case L'n':
                 svclogfname  = xwoptarg;
             break;
@@ -2343,7 +2480,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             case L'r':
-                rotateparam  = xwoptarg;
+                rotateparam  = xwcsdup(xwoptarg);
             break;
             case L's':
                 svcendparam  = xwoptarg;
@@ -2457,13 +2594,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsmkpath(servicehome, SVCBATCH_LOG_BASE);
 
-    if (*loglocation == L'|') {
-        haspipedlogs = 1;
-    }
-    else {
+    if (IS_EMPTY_WCS(lredirparam)) {
         rv = resolverotate(rotateparam);
         if (rv != 0)
             return svcsyserror(rv, 0, L"Cannot resolve", rotateparam);
+    }
+    else {
+        logredirect = getrealpathname(lredirparam, 0);
+        if (IS_EMPTY_WCS(logredirect))
+            return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
+        haspipedlogs = 1;
     }
 
     if (servicemode) {
@@ -2478,7 +2618,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         logfilepart = xwcsconcat(svclogfname, SHUTDOWN_LOGFEXT);
     }
 
-    dupwenvp = waalloc(envc + 6);
+    dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
         const wchar_t **e = removeenv;
         const wchar_t  *p = wenv[i];

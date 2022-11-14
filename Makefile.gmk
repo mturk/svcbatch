@@ -49,6 +49,8 @@ WORKDIR = $(SRCDIR)/x64
 OUTPUT  = $(WORKDIR)/$(TARGET)
 TSTAMP := $(shell date +%Y%m%d%H%M%S)
 
+PIPELOG = $(WORKDIR)/pipedlog.exe
+
 WINVER  = 0x0601
 CFLAGS  = -DNDEBUG -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
 	-D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE \
@@ -68,6 +70,9 @@ endif
 OBJECTS = \
 	$(WORKDIR)/$(PROJECT).o \
 	$(WORKDIR)/$(PROJECT).res
+
+PIPEOBJ = \
+	$(WORKDIR)/pipedlog.o
 
 MANIFEST = $(WORKDIR)/$(PROJECT).manifest
 FINCLUDE = $(WORKDIR)/$(PROJECT).h
@@ -91,12 +96,21 @@ $(FINCLUDE): $(SRCDIR)/$(PROJECT).h.in
 $(WORKDIR)/%.o: $(SRCDIR)/%.c $(FINCLUDE)
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) -I$(WORKDIR) $<
 
+$(WORKDIR)/%.o: $(SRCDIR)/docs/examples/pipedlog/%.c $(FINCLUDE)
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) -I$(WORKDIR) $<
+
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(FINCLUDE) $(MANIFEST)
 	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -D _BUILD_TIMESTAMP=$(TSTAMP) -I $(SRCDIR) -I $(WORKDIR) $<
 
 $(OUTPUT): $(WORKDIR) $(MANIFEST) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
 	$(RL) $(RLOPTS) $@
+
+$(PIPELOG): $(WORKDIR) $(PIPEOBJ)
+	$(LN) $(LNOPTS) -o $@ $(PIPEOBJ) $(LDLIBS)
+
+examples: all $(PIPELOG)
+	@:
 
 clean:
 	@rm -rf $(WORKDIR)

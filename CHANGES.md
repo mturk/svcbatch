@@ -13,6 +13,7 @@ For a full list of changes, see the [git commit log][log]
 
 ### New Features
 
+ * Add -e command option that enables to start external log application
  * Add -n command option that enables to change default log file name prefix
 
 ## v1.3.0
