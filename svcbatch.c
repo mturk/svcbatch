@@ -2156,22 +2156,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     else {
         dbgprintf(__FUNCTION__, "shutting down %S", servicename);
     }
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    if (haspipedlogs) {
-        rv = openlogpipe();
-    }
-    else {
-        rv = openlogfile(TRUE);
-    }
-    if (rv != 0) {
-        svcsyserror(__LINE__, 0, L"openlog failed", NULL);
-        reportsvcstatus(SERVICE_STOPPED, rv);
-        return;
-    }
-    if (haslogstatus)
-        logconfig(logfhandle);
-    SetConsoleCtrlHandler(consolehandler, TRUE);
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     /**
      * Add additional environment variables
      * They are unique to this service instance
@@ -2198,6 +2182,23 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         wmemcpy(ep, dupwenvp[i], n);
         ep += (n + 1);
     }
+    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    if (haspipedlogs) {
+        rv = openlogpipe();
+    }
+    else {
+        rv = openlogfile(TRUE);
+    }
+    if (rv != 0) {
+        svcsyserror(__LINE__, 0, L"openlog failed", NULL);
+        reportsvcstatus(SERVICE_STOPPED, rv);
+        return;
+    }
+    if (haslogstatus)
+        logconfig(logfhandle);
+    SetConsoleCtrlHandler(consolehandler, TRUE);
+    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+
     wh[1] = xcreatethread(0, 0, &monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         rv = ERROR_TOO_MANY_TCBS;
