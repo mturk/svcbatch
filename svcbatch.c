@@ -904,7 +904,7 @@ finished:
 
 static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 {
-    DWORD wr, rc = 0;
+    DWORD wr;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
     if (haspipedlogs == 0) {
@@ -917,44 +917,41 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
             InterlockedExchange(&logwritten, 0);
         }
         InterlockedExchange64(&loglastwr, GetTickCount64());
+        return 0;
     }
     else {
-        rc = GetLastError();
+        return GetLastError();
     }
-    if (rc != 0) {
-        dbgprintf(__FUNCTION__, "wrote zero bytes (0x%08x)", rc);
-    }
-    return rc;
 }
 
 static DWORD logfflush(HANDLE h)
 {
-    DWORD wr, rc = 0;
+    DWORD wr;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
     if (haspipedlogs == 0) {
-        if (!SetFilePointerEx(h, ee, NULL, FILE_END)) {
-            rc = GetLastError();
-            dbgprintf(__FUNCTION__, "SetFilePointerEx failed (0x%08x)", rc);
-            return rc;
-        }
+        if (!SetFilePointerEx(h, ee, NULL, FILE_END))
+            return GetLastError();
     }
-    WriteFile(h, CRLFA, 2, &wr, NULL);
-    FlushFileBuffers(h);
+    if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0))
+        FlushFileBuffers(h);
+    else
+        return GetLastError();
     InterlockedExchange(&logwritten, 0);
     InterlockedExchange64(&loglastwr, GetTickCount64());
     if (haspipedlogs == 0) {
-        SetFilePointerEx(h, ee, NULL, FILE_END);
+        if (!SetFilePointerEx(h, ee, NULL, FILE_END))
+            return GetLastError();
     }
-    return rc;
+    return 0;
 }
 
-static void logwrline(HANDLE h, const char *str)
+static DWORD logwrline(HANDLE h, const char *str)
 {
     char    buf[BBUFSIZ];
     ULONGLONG ct;
     DWORD   ss, ms;
-    DWORD   w;
+    DWORD   wr;
 
     ct = GetTickCount64() - logtickcount;
     ms = (DWORD)((ct % MS_IN_SECOND));
@@ -967,16 +964,23 @@ static void logwrline(HANDLE h, const char *str)
             GetCurrentProcessId(),
             GetCurrentThreadId());
     buf[BBUFSIZ - 1] = '\0';
-    WriteFile(h, buf, (DWORD)strlen(buf), &w, NULL);
-    InterlockedAdd(&logwritten, w);
-    WriteFile(h, str, (DWORD)strlen(str), &w, NULL);
-    InterlockedAdd(&logwritten, w);
-    WriteFile(h, CRLFA, 2, &w, NULL);
-    InterlockedAdd(&logwritten, w);
+    if (WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL) && (wr != 0))
+        InterlockedAdd(&logwritten, wr);
+    else
+        return GetLastError();
+    if (WriteFile(h, str, (DWORD)strlen(str), &wr, NULL) && (wr != 0))
+        InterlockedAdd(&logwritten, wr);
+    else
+        return GetLastError();
+    if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0))
+        InterlockedAdd(&logwritten, wr);
+    else
+        return GetLastError();
 
+    return 0;
 }
 
-static void logprintf(HANDLE h, const char *format, ...)
+static DWORD logprintf(HANDLE h, const char *format, ...)
 {
     char    buf[MBUFSIZ];
     va_list ap;
@@ -985,18 +989,17 @@ static void logprintf(HANDLE h, const char *format, ...)
     va_start(ap, format);
     _vsnprintf(buf, MBUFSIZ - 1, format, ap);
     va_end(ap);
-    logwrline(h, buf);
+    return logwrline(h, buf);
 }
 
-static void logwrtime(HANDLE h, const char *hdr)
+static DWORD logwrtime(HANDLE h, const char *hdr)
 {
     SYSTEMTIME tt;
 
     GetSystemTime(&tt);
-    logprintf(h, "%-16s : %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
-              hdr,
-              tt.wYear, tt.wMonth, tt.wDay,
-              tt.wHour, tt.wMinute, tt.wSecond);
+    return logprintf(h, "%-16s : %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+                     hdr, tt.wYear, tt.wMonth, tt.wDay,
+                     tt.wHour, tt.wMinute, tt.wSecond);
 }
 
 static void logconfig(HANDLE h)
