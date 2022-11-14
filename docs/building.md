@@ -116,6 +116,13 @@ for SvcBatch development and maintenance
 This will remove all produced binaries and object files
 by deleting **x64** subdirectory.
 
+```cmd
+> nmake examples
+```
+
+This will compile various example programs
+and put them inside **x64** subdirectory.
+
 ### Vendor version support
 
 At compile time you can define vendor suffix and/or version
