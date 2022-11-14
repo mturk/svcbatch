@@ -47,6 +47,7 @@ static wchar_t  *wenvblock        = NULL;
 static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
 static int       hasctrlbreak     = 0;
 static int       haslogstatus     = 1;
+static int       haslogrotate     = 0;
 static int       autorotate       = 0;
 static int       servicemode      = 1;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
@@ -1206,7 +1207,6 @@ static int resolverotate(const wchar_t *str)
 {
     wchar_t   *rp, *sp;
 
-    rotatetmo.QuadPart = rotateint;
     if (IS_EMPTY_WCS(str)) {
         return 0;
     }
@@ -1223,6 +1223,7 @@ static int resolverotate(const wchar_t *str)
         dbgprintf(__FUNCTION__, "max rotate logs: %d", svcmaxlogs);
         return 0;
     }
+    rotatetmo.QuadPart = rotateint;
     rp = sp = xwcsdup(str);
     if (*rp == L'@') {
         int      hh, mm, ss;
@@ -1328,7 +1329,8 @@ static int resolverotate(const wchar_t *str)
         rotatesiz.QuadPart = len;
     }
     xfree(sp);
-    autorotate = 1;
+    autorotate   = 1;
+    haslogrotate = 1;
     return 0;
 }
 
@@ -1976,7 +1978,7 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     dbgprintf(__FUNCTION__, "running child pid: %lu", childprocpid);
-    if (servicemode && svcmaxlogs) {
+    if (haslogrotate) {
         xcreatethread(1, 0, &rotatethread, NULL);
     }
     WaitForMultipleObjects(3, wh, TRUE, INFINITE);
@@ -2098,11 +2100,11 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
              * Signal to rotatethread that
              * user send custom service control
              */
-            dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_ROTATE");
-            if (svcmaxlogs == 0) {
+            if (haslogrotate == 0) {
                 dbgprints(__FUNCTION__, "log rotation is disabled");
                 return ERROR_CALL_NOT_IMPLEMENTED;
             }
+            dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_ROTATE");
             SetEvent(logrotatesig);
         break;
         case SERVICE_CONTROL_INTERROGATE:
@@ -2480,14 +2482,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             if (IS_INVALID_HANDLE(ssignalevent))
                 return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", ssignalname);
         }
-        logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
-        if (IS_INVALID_HANDLE(logrotatesig))
-            return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
     }
     else {
         ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, ssignalname);
         if (IS_INVALID_HANDLE(ssignalevent))
             return svcsyserror(__LINE__, GetLastError(), L"OpenEvent", ssignalname);
+    }
+    if (haslogrotate) {
+        logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
+        if (IS_INVALID_HANDLE(logrotatesig))
+            return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
     }
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
