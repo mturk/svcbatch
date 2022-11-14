@@ -84,7 +84,7 @@ int wmain(int argc, const wchar_t **wargv)
                     FILE_ATTRIBUTE_NORMAL, NULL);
     e = GetLastError();
     if (w == INVALID_HANDLE_VALUE) {
-        dbgprintf(progname, "cannot create %S", wargv[1]);
+        dbgprintf(progname, "cannot create: %S", wargv[1]);
         return e;
     }
     if (e == ERROR_ALREADY_EXISTS) {
@@ -98,7 +98,7 @@ int wmain(int argc, const wchar_t **wargv)
             return e;
         }
         if (WriteFile(w, CRLFA, 2, &wr, NULL) && (wr != 0)) {
-            dbgprintf(progname, "reusing %S", wargv[1]);
+            dbgprintf(progname, "reusing: %S", wargv[1]);
         }
         else {
             e = GetLastError();
@@ -108,7 +108,7 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     else {
-        dbgprintf(progname, "created %S", wargv[1]);
+        dbgprintf(progname, "created: %S", wargv[1]);
     }
 
     e = 0;
