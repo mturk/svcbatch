@@ -2615,17 +2615,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         rv = resolverotate(rotateparam);
         if (rv != 0)
             return svcsyserror(rv, 0, L"Cannot resolve", rotateparam);
-        if (servicemode)
-            haslogrotate = svcmaxlogs;
-        else
-            haslogrotate = 0;
     }
     else {
         logredirect = getrealpathname(lredirparam, 0);
         if (IS_EMPTY_WCS(logredirect))
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
         haspipedlogs = 1;
-        haslogrotate = 0;
+        svcmaxlogs   = 0;
     }
 
     if (servicemode) {
@@ -2635,9 +2631,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             if (IS_EMPTY_WCS(shutdownfile))
                 return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
         }
+        haslogrotate = svcmaxlogs;
     }
     else {
-        logfilepart = xwcsconcat(svclogfname, SHUTDOWN_LOGFEXT);
+        logfilepart  = xwcsconcat(svclogfname, SHUTDOWN_LOGFEXT);
+        haslogrotate = 0;
     }
 
     dupwenvp = waalloc(envc + 8);
