@@ -8,8 +8,8 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.3.1
 
- * In development
  * Do not start rotate thread if log rotation is disabled
+ * Kill service if log file is closed at runtime
 
 ### New Features
 
