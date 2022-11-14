@@ -68,9 +68,10 @@ pushd $BuildDir >/dev/null
 echo "## Binary release v$ReleaseVersion" > $ReleaseLog
 echo >> $ReleaseLog
 echo '```no-highlight' >> $ReleaseLog
-echo "Compiled on $BuildHost host:" >> $ReleaseLog
+echo "Compiled on $BuildHost host using:" >> $ReleaseLog
 echo "make -f Makefile.gmk $MakefileFlags" >> $ReleaseLog
-echo "using: `gcc --version | head -1`" >> $ReleaseLog
+echo "`make --version | head -1`" >> $ReleaseLog
+echo "`gcc --version | head -1`" >> $ReleaseLog
 echo >> $ReleaseLog
 echo >> $ReleaseLog
 #
