@@ -75,7 +75,6 @@ OBJECTS = \
 PIPEOBJ = \
 	$(WORKDIR)\pipedlog.obj
 
-PIPESRC = $(SRCDIR)\docs\examples\pipedlog\pipedlog.c
 
 all : $(WORKDIR) $(OUTPUT)
 
@@ -100,16 +99,16 @@ $(WORKDIR)\$(PROJECT).h: $(PPREFIX).h.in
 	}) |\
 	Set-Content -Path $@"
 
-$(WORKDIR)\$(PROJECT).obj: $(WORKDIR)\$(PROJECT).h $(PPREFIX).c
-	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $(PPREFIX).c
+{$(SRCDIR)}.c{$(WORKDIR)}.obj:
+	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
 
-$(WORKDIR)\pipedlog.obj: $(PIPESRC)
-	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $(PIPESRC)
+{$(SRCDIR)\docs\examples\pipedlog}.c{$(WORKDIR)}.obj:
+	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
 
-$(WORKDIR)\$(PROJECT).res: $(WORKDIR)\$(PROJECT).h $(WORKDIR)\$(PROJECT).manifest $(PPREFIX).rc
-	$(RC) $(RCOPTS) $(RFLAGS) /i $(SRCDIR) /i $(WORKDIR) /fo $@ $(PPREFIX).rc
+{$(SRCDIR)}.rc{$(WORKDIR)}.res:
+	$(RC) $(RCOPTS) $(RFLAGS) /i $(SRCDIR) /i $(WORKDIR) /fo $@ $<
 
-$(OUTPUT): $(WORKDIR) $(OBJECTS)
+$(OUTPUT): $(WORKDIR) $(WORKDIR)\$(PROJECT).h $(WORKDIR)\$(PROJECT).manifest $(OBJECTS)
 	$(LN) $(LFLAGS) $(OBJECTS) $(LDLIBS) /out:$(OUTPUT)
 
 $(PIPELOG): $(WORKDIR) $(PIPEOBJ)
