@@ -91,7 +91,7 @@ static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
-static const wchar_t *cwslogname  = SVCBATCH_LOGNAME;
+static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 
 static const wchar_t *xwoptarg    = NULL;
 
@@ -1445,7 +1445,7 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(0, cmdline, L"-o");
     cmdline = xappendarg(1, cmdline, loglocation);
     cmdline = xappendarg(0, cmdline, L"-n");
-    cmdline = xappendarg(1, cmdline, cwslogname);
+    cmdline = xappendarg(1, cmdline, svclogfname);
     cmdline = xappendarg(1, cmdline, shutdownfile);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
@@ -2315,7 +2315,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
             break;
             case L'n':
-                cwslogname   = xwoptarg;
+                svclogfname  = xwoptarg;
             break;
             case L'p':
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
@@ -2434,14 +2434,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     if (IS_EMPTY_WCS(loglocation))
         loglocation = xwcsmkpath(servicehome, SVCBATCH_LOG_BASE);
-    if (servicemode)
-        logfilepart = xwcsconcat(cwslogname, SVCBATCH_LOGFEXT);
-    else
-        logfilepart = xwcsconcat(cwslogname, SHUTDOWN_LOGFEXT);
-    if (servicemode && svcendparam) {
-        shutdownfile = getrealpathname(svcendparam, 0);
-        if (IS_EMPTY_WCS(shutdownfile))
-            return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
+    if (servicemode) {
+        logfilepart = xwcsconcat(svclogfname, SVCBATCH_LOGFEXT);
+        if (svcendparam) {
+            shutdownfile = getrealpathname(svcendparam, 0);
+            if (IS_EMPTY_WCS(shutdownfile))
+                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
+        }
+    }
+    else {
+        logfilepart = xwcsconcat(svclogfname, SHUTDOWN_LOGFEXT);
     }
 
     dupwenvp = waalloc(envc + 6);
