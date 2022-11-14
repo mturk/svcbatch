@@ -47,7 +47,7 @@ static wchar_t  *wenvblock        = NULL;
 static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
 static int       hasctrlbreak     = 0;
 static int       haslogstatus     = 1;
-static int       haslogrotate     = 0;
+static int       haslogrotate     = 1;
 static int       haspipedlogs     = 0;
 static int       autorotate       = 0;
 static int       servicemode      = 1;
@@ -1473,8 +1473,7 @@ static int resolverotate(const wchar_t *str)
         rotatesiz.QuadPart = len;
     }
     xfree(sp);
-    autorotate   = 1;
-    haslogrotate = 1;
+    autorotate = 1;
     return 0;
 }
 
@@ -2260,12 +2259,14 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
              * Signal to rotatethread that
              * user send custom service control
              */
-            if (haslogrotate == 0) {
+            if (haslogrotate) {
+                dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_ROTATE");
+                SetEvent(logrotatesig);
+            }
+            else {
                 dbgprints(__FUNCTION__, "log rotation is disabled");
                 return ERROR_CALL_NOT_IMPLEMENTED;
             }
-            dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_ROTATE");
-            SetEvent(logrotatesig);
         break;
         case SERVICE_CONTROL_INTERROGATE:
             dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_INTERROGATE");
@@ -2614,12 +2615,17 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         rv = resolverotate(rotateparam);
         if (rv != 0)
             return svcsyserror(rv, 0, L"Cannot resolve", rotateparam);
+        if (servicemode)
+            haslogrotate = svcmaxlogs;
+        else
+            haslogrotate = 0;
     }
     else {
         logredirect = getrealpathname(lredirparam, 0);
         if (IS_EMPTY_WCS(logredirect))
             return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
         haspipedlogs = 1;
+        haslogrotate = 0;
     }
 
     if (servicemode) {
