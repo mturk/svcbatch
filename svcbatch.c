@@ -1043,27 +1043,32 @@ static DWORD openlogpipe(void)
     STARTUPINFOW si;
     HANDLE wr = NULL;
     wchar_t *cmdline = NULL;
-    wchar_t *workdir = servicehome;
+    wchar_t *workdir = NULL;
 
     logtickcount = GetTickCount64();
-    if (servicemode && (loglocation != NULL)) {
-        wchar_t *pp = loglocation;
+    if (IS_EMPTY_WCS(loglocation)) {
+        workdir = servicehome;
+    }
+    else  {
+        if (servicemode) {
+            wchar_t *pp = loglocation;
 
-        loglocation = getrealpathname(pp, 1);
-        if (loglocation == NULL) {
-            rc = xcreatepath(pp);
-            if (rc != 0)
-                return svcsyserror(__LINE__, rc, L"xcreatepath", pp);
             loglocation = getrealpathname(pp, 1);
-            if (loglocation == NULL)
-                return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
-        }
-        xfree(pp);
-        if (_wcsicmp(loglocation, servicehome) == 0) {
-            svcsyserror(__LINE__, 0,
-                        L"Loglocation cannot be the same as servicehome",
-                        loglocation);
-            return ERROR_BAD_PATHNAME;
+            if (loglocation == NULL) {
+                rc = xcreatepath(pp);
+                if (rc != 0)
+                    return svcsyserror(__LINE__, rc, L"xcreatepath", pp);
+                loglocation = getrealpathname(pp, 1);
+                if (loglocation == NULL)
+                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
+            }
+            xfree(pp);
+            if (_wcsicmp(loglocation, servicehome) == 0) {
+                svcsyserror(__LINE__, 0,
+                            L"Loglocation cannot be the same as servicehome",
+                            loglocation);
+                return ERROR_BAD_PATHNAME;
+            }
         }
         workdir = loglocation;
     }
