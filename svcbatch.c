@@ -1008,7 +1008,8 @@ static void logconfig(HANDLE h)
         logprintf(h, "      arguments  : %S", svcbatchargs);
     logprintf(h, "Base directory   : %S", servicebase);
     logprintf(h, "Working directory: %S", servicehome);
-    logprintf(h, "Log directory    : %S", loglocation);
+    if (loglocation != NULL)
+        logprintf(h, "Log directory    : %S", loglocation);
     if (haspipedlogs)
         logprintf(h, "Log redirected to: %S", logredirect);
 
@@ -1042,9 +1043,10 @@ static DWORD openlogpipe(void)
     STARTUPINFOW si;
     HANDLE wr = NULL;
     wchar_t *cmdline = NULL;
+    wchar_t *workdir = servicehome;
 
     logtickcount = GetTickCount64();
-    if (servicemode) {
+    if (servicemode && (loglocation != NULL)) {
         wchar_t *pp = loglocation;
 
         loglocation = getrealpathname(pp, 1);
@@ -1063,6 +1065,7 @@ static DWORD openlogpipe(void)
                         loglocation);
             return ERROR_BAD_PATHNAME;
         }
+        workdir = loglocation;
     }
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
@@ -1105,7 +1108,7 @@ static DWORD openlogpipe(void)
     if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
                         wenvblock,
-                        loglocation,
+                        workdir,
                        &si, &cp)) {
         rc = GetLastError();
         svcsyserror(__LINE__, rc, L"CreateProcess", logredirect);
@@ -1583,8 +1586,10 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(0, cmdline, serviceuuid);
     cmdline = xappendarg(0, cmdline, L"-w");
     cmdline = xappendarg(1, cmdline, servicehome);
-    cmdline = xappendarg(0, cmdline, L"-o");
-    cmdline = xappendarg(1, cmdline, loglocation);
+    if (loglocation != NULL) {
+        cmdline = xappendarg(0, cmdline, L"-o");
+        cmdline = xappendarg(1, cmdline, loglocation);
+    }
     if (haspipedlogs) {
         cmdline = xappendarg(0, cmdline, L"-e");
         cmdline = xappendarg(1, cmdline, logredirect);
@@ -2303,11 +2308,12 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * Add additional environment variables
      * They are unique to this service instance
      */
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=",    servicebase);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=",    servicehome);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",    servicename);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",    serviceuuid);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=",  loglocation);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
+    if (loglocation != NULL)
+        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
     for (i = 0, x = 0; i < dupwenvc; i++, x++) {
@@ -2591,10 +2597,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(batchparam) == 0)
         return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
-    if (IS_EMPTY_WCS(loglocation))
-        loglocation = xwcsmkpath(servicehome, SVCBATCH_LOG_BASE);
-
     if (IS_EMPTY_WCS(lredirparam)) {
+        if (IS_EMPTY_WCS(loglocation))
+            loglocation = xwcsmkpath(servicehome, SVCBATCH_LOG_BASE);
+
         rv = resolverotate(rotateparam);
         if (rv != 0)
             return svcsyserror(rv, 0, L"Cannot resolve", rotateparam);

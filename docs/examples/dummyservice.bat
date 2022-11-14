@@ -61,18 +61,19 @@ rem
 rem
 :doCreate
 rem
+set "SERVICE_LOG_DIR=-o \"Logs\%SERVICE_NAME%\""
 rem Rotate Log files each 30 minutes or when larger then 100Kbytes
-rem set "ROTATE_RULE=-r @30~100K"
+set "ROTATE_RULE=-r @30~100K"
 rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-r 0"
 rem
 rem Write log to external program instead to log file
-set "SERVICE_LOG_REDIR=-e \"%cd%\..\..\x64\pipedlog.exe\""
-set "ROTATE_RULE=-r \"one %SERVICE_NAME% \\\"some argument\\\"\""
+rem set "SERVICE_LOG_REDIR=-e \"%cd%\..\..\x64\pipedlog.exe\""
+rem set "ROTATE_RULE=-r \"one %SERVICE_NAME% \\\"some argument\\\"\""
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
-set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -pDbw \"%cd%\" -o \"Logs\%SERVICE_NAME%\" %SERVICE_LOG_REDIR% -n %SERVICE_NAME% %ROTATE_RULE% -s dummyshutdown.bat %~nx0 test run"
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -pDbw \"%cd%\" %SERVICE_LOG_DIR% %SERVICE_LOG_REDIR% -n %SERVICE_NAME% %ROTATE_RULE% -s dummyshutdown.bat %~nx0 test run"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
