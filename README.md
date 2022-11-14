@@ -236,7 +236,8 @@ make sure to get familiar with `sc.exe` utility.
   The first argument to the **program** is always
   log file name, either `SvcBatch.log` or `SvcBatch.shutdown.log`.
 
-
+  If **-r** command line option is defined its parameter will
+  be used as additional arguments send to the **program**.
 
 * **-n [prefix]**
 
