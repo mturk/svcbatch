@@ -1110,6 +1110,7 @@ static DWORD openlogpipe(void)
     cmdline = xappendarg(1, cmdline, logfilepart);
     cmdline = xappendarg(0, cmdline, rotateparam);
 
+    dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
     if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
                         wenvblock,
