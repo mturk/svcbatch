@@ -23,14 +23,15 @@
 
 static const char *progname = "pipedlog";
 static char CRLFA[2] = { '\r', '\n'};
+static char SMODE[2] = { 'x',  '\0'};
 
 static void dbgprints(const char *funcname, const char *string)
 {
     char buf[SDBUFSIZE];
     _snprintf(buf, SDBUFSIZE - 1,
-              "[%.4lu] x %-16s %s",
+              "[%.4lu] %s %-16s %s",
               GetCurrentThreadId(),
-              funcname, string);
+              SMODE, funcname, string);
      buf[SDBUFSIZE - 1] = '\0';
      OutputDebugStringA(buf);
 }
@@ -55,6 +56,7 @@ int wmain(int argc, const wchar_t **wargv)
     BYTE     b[RDBUFSIZE];
     SECURITY_ATTRIBUTES sa;
 
+    GetEnvironmentVariableA("SVCBATCH_SERVICE_MODE", SMODE, 2);
     dbgprints(progname, "started");
     r = GetStdHandle(STD_INPUT_HANDLE);
     if (r == INVALID_HANDLE_VALUE) {

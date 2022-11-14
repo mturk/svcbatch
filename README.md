@@ -371,6 +371,12 @@ SvcBatch sets for each instance.
 
   This variable is set to the service runtime directory.
 
+* **SVCBATCH_SERVICE_MODE**
+
+  If svcbatch.exe is running as service, this variable
+  is set to `1`. In case svcbatch.exe is
+  executing shutdown batch file, this variable is set to `0`.
+
 * **SVCBATCH_SERVICE_NAME**
 
   This variable is set to the actual service name

@@ -15,6 +15,7 @@ For a full list of changes, see the [git commit log][log]
 
  * Add -e command option that enables to start external log application
  * Add -n command option that enables to change default log file name prefix
+ * Add SVCBATCH_SERVICE_MODE environment variable
 
 ## v1.3.0
 
