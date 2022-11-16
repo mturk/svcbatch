@@ -2625,10 +2625,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
-        const wchar_t *p = wenv[i];
-
-        if (_wcsnicmp(p, L"SVCBATCH_SERVICE_", 17) < 0)
-            dupwenvp[dupwenvc++] = xwcsdup(p);
+        /**
+         * Remove all environment variables
+         * starting with SVCBATCH_SERVICE_
+         */
+        if (_wcsnicmp(wenv[i], L"SVCBATCH_SERVICE_", 17) < 0)
+            dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
     }
 
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
