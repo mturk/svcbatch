@@ -42,7 +42,7 @@ rem
 rem
 echo [%TIME%] ... running
 rem Simulate work by sleeping for 5 seconds
-ping -n 6 localhost >NUL
+ping -n 6 127.0.0.1 >NUL
 rem Uncomment to write more data to SvcBatch.log
 rem echo.
 rem set
@@ -53,7 +53,7 @@ rem sc stop %SVCBATCH_SERVICE_NAME%
 goto doRepeat
 rem Comment above goto to simulate failure
 echo Simulating failure
-ping -n 6 localhost >NUL
+ping -n 6 127.0.0.1 >NUL
 rem SvcBatch will report error if we end without
 rem explicit call to sc stop [service name]
 goto End

@@ -30,7 +30,7 @@ rem
 rem
 echo %~nx0: [%TIME%] ... running
 rem Simulate some work by sleeping for 5 seconds
-ping -n 6 localhost >NUL
+ping -n 6 127.0.0.1 >NUL
 rem Stalled Shutdown simulation
 goto doRepeat
 rem
