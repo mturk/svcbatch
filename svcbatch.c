@@ -58,10 +58,10 @@ static DWORD     childprocpid     = 0;
 static int       xwoptind         = 1;   /* Index into parent argv vector */
 static int       xwoption         = 0;   /* Character checked for validity */
 
+static wchar_t   svcbatchexe[HBUFSIZ];
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *svcbatchname     = NULL;
 static wchar_t  *shutdownfile     = NULL;
-static wchar_t  *svcbatchexe      = NULL;
 static wchar_t  *exelocation      = NULL;
 static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
@@ -742,26 +742,6 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
         }
     }
     return buf;
-}
-
-static int resolvesvcbatchexe(const wchar_t *a)
-{
-    int i;
-
-    svcbatchexe = getrealpathname(a, 0);
-    if (IS_EMPTY_WCS(svcbatchexe))
-        return 0;
-
-    i = xwcslen(svcbatchexe);
-    while (--i > 0) {
-        if (svcbatchexe[i] == L'\\') {
-            svcbatchexe[i] = L'\0';
-            exelocation = xwcsdup(svcbatchexe);
-            svcbatchexe[i] = L'\\';
-            return 1;
-        }
-    }
-    return 0;
 }
 
 static int resolvebatchname(const wchar_t *a)
@@ -2451,6 +2431,22 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
+    i = GetModuleFileNameW(NULL, svcbatchexe, HBUFSIZ);
+    if ((i == 0) || (i > (HBUFSIZ - 4))) {
+        /**
+         * Guard against installations with large paths
+         */
+        return ERROR_INSUFFICIENT_BUFFER;
+    }
+    else {
+        while (--i > 0) {
+            if (svcbatchexe[i] == L'\\') {
+                svcbatchexe[i] = L'\0';
+                exelocation = xwcsdup(svcbatchexe);
+                svcbatchexe[i] = L'\\';
+            }
+        }
+    }
     if (argc == 1) {
         fputs(cnamestamp, stdout);
         fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details", stdout);
@@ -2475,8 +2471,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (envc == 0)
         return svcsyserror(__LINE__, 0, L"System", L"Missing environment");
-    if (resolvesvcbatchexe(wargv[0]) == 0)
-        return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, wargv[0], NULL);
 
     while ((opt = xwgetopt(argc, wargv, L"bdqpe:o:r:s:w:n:u:xz:")) != EOF) {
         switch (opt) {
