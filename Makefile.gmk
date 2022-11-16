@@ -47,8 +47,6 @@ PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
 WORKDIR = $(SRCDIR)/x64
 OUTPUT  = $(WORKDIR)/$(TARGET)
-TSTAMP := $(shell date +%Y%m%d%H%M%S)
-
 PIPELOG = $(WORKDIR)/pipedlog.exe
 
 WINVER  = 0x0601
@@ -65,6 +63,11 @@ RLOPTS  = --strip-unneeded
 ifdef VERSION_SFX
 CFLAGS += -DVERSION_SFX=$(VERSION_SFX)
 RFLAGS += -D VERSION_SFX=$(VERSION_SFX)
+endif
+
+ifdef _BUILD_TIMESTAMP
+CFLAGS += -D_BUILD_TIMESTAMP=$(_BUILD_TIMESTAMP)
+RFLAGS += -D _BUILD_TIMESTAMP=$(_BUILD_TIMESTAMP)
 endif
 
 OBJECTS = \
@@ -94,13 +97,13 @@ $(FINCLUDE): $(SRCDIR)/$(PROJECT).h.in
 	-e 's/@@version_devel@@/$(VERSION_DEVEL)/g' $< >$@
 
 $(WORKDIR)/%.o: $(SRCDIR)/%.c $(FINCLUDE)
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) -I$(WORKDIR) $<
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) $<
 
 $(WORKDIR)/%.o: $(SRCDIR)/docs/examples/pipedlog/%.c $(FINCLUDE)
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -D_BUILD_TIMESTAMP=$(TSTAMP) -I$(SRCDIR) -I$(WORKDIR) $<
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(FINCLUDE) $(MANIFEST)
-	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -D _BUILD_TIMESTAMP=$(TSTAMP) -I $(SRCDIR) -I $(WORKDIR) $<
+	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -I $(SRCDIR) -I $(WORKDIR) $<
 
 $(OUTPUT): $(WORKDIR) $(MANIFEST) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)

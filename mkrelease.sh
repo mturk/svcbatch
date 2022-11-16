@@ -59,7 +59,7 @@ ReleaseName=$ProjectName-$ReleaseVersion-$ReleaseArch
 ReleaseLog=$ReleaseName.txt
 #
 #
-MakefileFlags="$*"
+MakefileFlags="_BUILD_TIMESTAMP=`date +%Y%m%d%H%M%S` $*"
 make -f Makefile.gmk clean
 test "x$BuildHost" = "xcygwin" && MakefileFlags="USE_MINGW_PACKAGE_PREFIX=1 $MakefileFlags"
 make -f Makefile.gmk $MakefileFlags
