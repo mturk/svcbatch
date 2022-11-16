@@ -96,7 +96,7 @@ static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
 static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
-static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_APPNAME) L" " CPP_WIDEN(SVCBATCH_VERSION_TXT);
+static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " CPP_WIDEN(SVCBATCH_VERSION_TXT);
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 static const wchar_t *rotateparam = NULL;
