@@ -117,6 +117,23 @@
 #define MEGABYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1048576))
 
 /**
+ * Event log messages
+ */
+#define LOG_MSG_EMERG           0xC0000001L
+#define LOG_MSG_ERROR           0xC0000002L
+#define LOG_MSG_NOTICE          0x80000003L
+#define LOG_MSG_WARN            0x80000004L
+#define LOG_MSG_INFO            0x40000005L
+#define LOG_MSG_DEBUG           0x00000006L
+
+#define SVCBATCH_LOG_EMERG  	1
+#define SVCBATCH_LOG_ERROR  	2
+#define SVCBATCH_LOG_NOTICE 	3
+#define SVCBATCH_LOG_WARN   	4
+#define SVCBATCH_LOG_INFO   	5
+#define SVCBATCH_LOG_DEBUG  	6
+
+/**
  * Helper macros
  */
 #define IS_INVALID_HANDLE(_h)   (((_h) == NULL) || ((_h) == INVALID_HANDLE_VALUE))
