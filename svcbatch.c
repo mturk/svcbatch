@@ -96,6 +96,7 @@ static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
 static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
+static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_APPNAME) L" " CPP_WIDEN(SVCBATCH_VERSION_TXT);
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 static const wchar_t *rotateparam = NULL;
@@ -528,7 +529,7 @@ finished:
     return ssrv;
 }
 
-static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t *eds)
+static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err, const wchar_t *eds)
 {
     wchar_t        buf[BBUFSIZ];
     wchar_t        erb[MBUFSIZ];
@@ -536,12 +537,10 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t 
     int            i = 0;
 
     memset(buf, 0, sizeof(buf));
-    _snwprintf(buf, BBUFSIZ - 1, L"svcbatch.c(%d)", line);
+    _snwprintf(buf, BBUFSIZ - 1, L"svcbatch.c(%d, %S)", line, fn);
 
-    errarg[i++] = cwsappname;
-    if (IS_EMPTY_WCS(servicename))
-        errarg[i++] = L"(undefined)";
-    else
+    errarg[i++] = wnamestamp;
+    if (servicename)
         errarg[i++] = servicename;
     errarg[i++] = L"reported the following error:\r\n";
     errarg[i++] = buf;
@@ -557,10 +556,10 @@ static DWORD svcsyserror(int line, DWORD ern, const wchar_t *err, const wchar_t 
     }
     if (eds != NULL) {
         errarg[i++] = eds;
-        dbgprintf(__FUNCTION__, "%S %S : %S",  buf, err, eds);
+        dbgprintf(fn, "%S %S err=%lu: %S",  buf, err, ern, eds);
     }
     else {
-        dbgprintf(__FUNCTION__, "%S %S : %lu", buf, err, ern);
+        dbgprintf(fn, "%S %S err=%lu", buf, err, ern);
     }
     errarg[i++] = CRLFW;
     while (i < 10) {
@@ -809,7 +808,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
     ssvcstatus.dwCurrentState = status;
     InterlockedExchange(&sscstate, status);
     if (!SetServiceStatus(hsvcstatus, &ssvcstatus)) {
-        svcsyserror(__LINE__, GetLastError(), L"SetServiceStatus", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"SetServiceStatus", NULL);
         InterlockedExchange(&sscstate, SERVICE_STOPPED);
     }
 finished:
@@ -831,11 +830,11 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
      * of the pipe as non inheritable.
      */
     if (!CreatePipe(&(si->hStdInput), &sh, &sa, 0))
-        return svcsyserror(__LINE__, GetLastError(), L"CreatePipe", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreatePipe", NULL);
     if (!DuplicateHandle(cp, sh, cp,
                          iwrs, FALSE, 0,
                          DUPLICATE_SAME_ACCESS)) {
-        rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle", NULL);
+        rc = svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"DuplicateHandle", NULL);
         goto finished;
     }
     SAFE_CLOSE_HANDLE(sh);
@@ -845,11 +844,11 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
      * of the pipe as non inheritable
      */
     if (!CreatePipe(&sh, &(si->hStdError), &sa, 0))
-        return svcsyserror(__LINE__, GetLastError(), L"CreatePipe", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreatePipe", NULL);
     if (!DuplicateHandle(cp, sh, cp,
                          ords, FALSE, 0,
                          DUPLICATE_SAME_ACCESS))
-        rc = svcsyserror(__LINE__, GetLastError(), L"DuplicateHandle", NULL);
+        rc = svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"DuplicateHandle", NULL);
     si->hStdOutput = si->hStdError;
 
 finished:
@@ -1015,14 +1014,14 @@ static DWORD openlogpipe(void)
             if (loglocation == NULL) {
                 rc = xcreatepath(pp);
                 if (rc != 0)
-                    return svcsyserror(__LINE__, rc, L"xcreatepath", pp);
+                    return svcsyserror(__FUNCTION__, __LINE__, rc, L"xcreatepath", pp);
                 loglocation = getrealpathname(pp, 1);
                 if (loglocation == NULL)
-                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
+                    return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
             }
             xfree(pp);
             if (_wcsicmp(loglocation, servicehome) == 0) {
-                svcsyserror(__LINE__, 0,
+                svcsyserror(__FUNCTION__, __LINE__, 0,
                             L"Loglocation cannot be the same as servicehome",
                             loglocation);
                 return ERROR_BAD_PATHNAME;
@@ -1044,7 +1043,7 @@ static DWORD openlogpipe(void)
     pipedprocjob = CreateJobObjectW(&sazero, NULL);
     if (IS_INVALID_HANDLE(pipedprocjob)) {
         rc = GetLastError();
-        svcsyserror(__LINE__, rc, L"CreateJobObjectW", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObjectW", NULL);
         goto failed;
     }
 
@@ -1059,7 +1058,7 @@ static DWORD openlogpipe(void)
                                 &ji,
                                  DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
         rc = GetLastError();
-        svcsyserror(__LINE__, rc, L"SetInformationJobObject", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"SetInformationJobObject", NULL);
         goto failed;
     }
 
@@ -1075,7 +1074,7 @@ static DWORD openlogpipe(void)
                         workdir,
                        &si, &cp)) {
         rc = GetLastError();
-        svcsyserror(__LINE__, rc, L"CreateProcess", logredirect);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", logredirect);
         goto failed;
     }
     pipedprocess = cp.hProcess;
@@ -1086,7 +1085,7 @@ static DWORD openlogpipe(void)
     SAFE_CLOSE_HANDLE(si.hStdError);
     if (!AssignProcessToJobObject(pipedprocjob, pipedprocess)) {
         rc = GetLastError();
-        svcsyserror(__LINE__, rc, L"AssignProcessToJobObject", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"AssignProcessToJobObject", NULL);
         TerminateProcess(pipedprocess, rc);
         goto failed;
     }
@@ -1130,14 +1129,14 @@ static DWORD openlogfile(BOOL firstopen)
             if (loglocation == NULL) {
                 rc = xcreatepath(pp);
                 if (rc != 0)
-                    return svcsyserror(__LINE__, rc, L"xcreatepath", pp);
+                    return svcsyserror(__FUNCTION__, __LINE__, rc, L"xcreatepath", pp);
                 loglocation = getrealpathname(pp, 1);
                 if (loglocation == NULL)
-                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
+                    return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", pp);
             }
             xfree(pp);
             if (_wcsicmp(loglocation, servicehome) == 0) {
-                svcsyserror(__LINE__, 0,
+                svcsyserror(__FUNCTION__, __LINE__, 0,
                             L"Loglocation cannot be the same as servicehome",
                             loglocation);
                 return ERROR_BAD_PATHNAME;
@@ -1168,13 +1167,13 @@ static DWORD openlogfile(BOOL firstopen)
             if (!MoveFileExW(logfilename, logpb, mm)) {
                 rc = GetLastError();
                 xfree(logpb);
-                return svcsyserror(__LINE__, rc, L"MoveFileExW", logfilename);
+                return svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileExW", logfilename);
             }
         }
         else {
             rc = GetLastError();
             if (rc != ERROR_FILE_NOT_FOUND) {
-                return svcsyserror(__LINE__, rc, L"GetFileAttributesW", logfilename);
+                return svcsyserror(__FUNCTION__, __LINE__, rc, L"GetFileAttributesW", logfilename);
             }
         }
     }
@@ -1197,7 +1196,7 @@ static DWORD openlogfile(BOOL firstopen)
                 lognn = xwcsconcat(logfilename, sfx);
                 if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
                     rc = GetLastError();
-                    svcsyserror(__LINE__, rc, L"MoveFileExW", lognn);
+                    svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileExW", lognn);
                     xfree(logpn);
                     xfree(lognn);
                     goto failed;
@@ -1214,7 +1213,7 @@ static DWORD openlogfile(BOOL firstopen)
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
-        svcsyserror(__LINE__, rc, L"CreateFileW", logfilename);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateFileW", logfilename);
         goto failed;
     }
     if (rc == ERROR_ALREADY_EXISTS) {
@@ -1271,7 +1270,7 @@ static DWORD rotatelogs(void)
     }
     else {
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, 0, L"rotatelogs failed", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, 0, L"rotatelogs failed", NULL);
     }
     LeaveCriticalSection(&logfilelock);
     return rc;
@@ -1503,7 +1502,7 @@ static int runshutdown(DWORD rt)
     if (IS_INVALID_HANDLE(job)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"CreateJobObjectW", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObjectW", NULL);
         goto finished;
     }
     if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation,
@@ -1511,7 +1510,7 @@ static int runshutdown(DWORD rt)
                                  DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"SetInformationJobObject", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"SetInformationJobObject", NULL);
         goto finished;
     }
 
@@ -1521,14 +1520,14 @@ static int runshutdown(DWORD rt)
                         servicehome,
                        &si, &cp)) {
         rc = GetLastError();
-        svcsyserror(__LINE__, rc, L"CreateProcess", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", NULL);
         goto finished;
     }
 
     if (!AssignProcessToJobObject(job, cp.hProcess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"AssignProcessToJobObject", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"AssignProcessToJobObject", NULL);
         TerminateProcess(cp.hProcess, rc);
         goto finished;
     }
@@ -1872,13 +1871,13 @@ static unsigned int __stdcall rotatethread(void *unused)
     if (IS_INVALID_HANDLE(wh[0])) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"CreateWaitableTimer", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateWaitableTimer", NULL);
         goto finished;
     }
     if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"SetWaitableTimer", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"SetWaitableTimer", NULL);
         goto finished;
     }
 
@@ -1931,7 +1930,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                         rc = GetLastError();
                         CloseHandle(h);
                         setsvcstatusexit(rc);
-                        svcsyserror(__LINE__, rc, L"GetFileSizeEx", NULL);
+                        svcsyserror(__FUNCTION__, __LINE__, rc, L"GetFileSizeEx", NULL);
                         createstopthread();
                     }
                 }
@@ -2029,7 +2028,7 @@ static unsigned int __stdcall workerthread(void *unused)
     if (IS_INVALID_HANDLE(childprocjob)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"CreateJobObjectW", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObjectW", NULL);
         goto finished;
     }
 
@@ -2045,7 +2044,7 @@ static unsigned int __stdcall workerthread(void *unused)
                                  DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"SetInformationJobObject", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"SetInformationJobObject", NULL);
         goto finished;
     }
 
@@ -2057,7 +2056,7 @@ static unsigned int __stdcall workerthread(void *unused)
                        &si, &cp)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"CreateProcess", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", NULL);
         goto finished;
     }
     childprocess = cp.hProcess;
@@ -2070,7 +2069,7 @@ static unsigned int __stdcall workerthread(void *unused)
     if (!AssignProcessToJobObject(childprocjob, childprocess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"AssignProcessToJobObject", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"AssignProcessToJobObject", NULL);
         TerminateProcess(childprocess, rc);
         goto finished;
     }
@@ -2079,7 +2078,7 @@ static unsigned int __stdcall workerthread(void *unused)
     if (IS_INVALID_HANDLE(wh[1])) {
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"rdpipethread", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"rdpipethread", NULL);
         TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
         goto finished;
     }
@@ -2087,7 +2086,7 @@ static unsigned int __stdcall workerthread(void *unused)
     if (IS_INVALID_HANDLE(wh[2])) {
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
-        svcsyserror(__LINE__, rc, L"wrpipethread", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"wrpipethread", NULL);
         TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
         goto finished;
     }
@@ -2256,14 +2255,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     if (IS_EMPTY_WCS(servicename) && (argc > 0))
         servicename = xwcsdup(argv[0]);
     if (IS_EMPTY_WCS(servicename)) {
-        svcsyserror(__LINE__, ERROR_INVALID_PARAMETER, L"Missing servicename", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, ERROR_INVALID_PARAMETER, L"Missing servicename", NULL);
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
     if (servicemode) {
         hsvcstatus = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
         if (IS_INVALID_HANDLE(hsvcstatus)) {
-            svcsyserror(__LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx", NULL);
+            svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx", NULL);
             exit(ERROR_INVALID_HANDLE);
             return;
         }
@@ -2311,7 +2310,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         rv = openlogfile(TRUE);
     }
     if (rv != 0) {
-        svcsyserror(__LINE__, 0, L"openlog failed", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
@@ -2323,7 +2322,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     wh[1] = xcreatethread(0, 0, &monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         rv = ERROR_TOO_MANY_TCBS;
-        svcsyserror(__LINE__, rv, L"monitorthread", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rv, L"monitorthread", NULL);
         goto finished;
     }
     wh[0] = xcreatethread(0, 0, &workerthread, NULL);
@@ -2331,7 +2330,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         SetEvent(monitorevent);
         CloseHandle(wh[1]);
         rv = ERROR_TOO_MANY_TCBS;
-        svcsyserror(__LINE__, rv, L"workerthread", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rv, L"workerthread", NULL);
         goto finished;
     }
     dbgprints(__FUNCTION__, "running");
@@ -2434,8 +2433,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         const wchar_t *p = wargv[1];
         if ((p[0] == L'-') && (p[1] == L'x')) {
             servicemode  = 0;
-            cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_STR " " SVCBATCH_BUILD_STAMP;
+            cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
+            wnamestamp = CPP_WIDEN(SHUTDOWN_APPNAME) L" " CPP_WIDEN(SVCBATCH_VERSION_TXT);
         }
     }
     dbgprints(__FUNCTION__, cnamestamp);
@@ -2444,7 +2444,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             ++envc;
     }
     if (envc == 0)
-        return svcsyserror(__LINE__, 0, L"System", L"Missing environment");
+        return svcsyserror(__FUNCTION__, __LINE__, 0, L"System", L"Missing environment");
 
     while ((opt = xwgetopt(argc, wargv, L"bdqpe:o:r:s:w:n:u:xz:")) != EOF) {
         switch (opt) {
@@ -2460,7 +2460,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             case L'o':
                 loglocation = expandenvstrings(xwoptarg, 1);
                 if (loglocation == NULL)
-                    return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
+                    return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, xwoptarg, NULL);
             break;
             case L'e':
                 lredirparam  = xwoptarg;
@@ -2494,11 +2494,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
             case L':':
                 bb[0] = xwoption;
-                return svcsyserror(__LINE__, 0, L"Invalid command line option value", bb);
+                return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid command line option value", bb);
             break;
             default:
                 bb[0] = xwoption;
-                return svcsyserror(__LINE__, 0, L"Unknown command line option", bb);
+                return svcsyserror(__FUNCTION__, __LINE__, 0, L"Unknown command line option", bb);
             break;
 
         }
@@ -2515,18 +2515,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     if (IS_EMPTY_WCS(batchparam))
-        return svcsyserror(__LINE__, 0, L"Missing batch file", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, 0, L"Missing batch file", NULL);
     if (IS_EMPTY_WCS(serviceuuid)) {
         if (servicemode)
             serviceuuid = xuuidstring();
         else
-            return svcsyserror(__LINE__, 0, L"Runtime error",
+            return svcsyserror(__FUNCTION__, __LINE__, 0, L"Runtime error",
                                L"Missing -u <SVCBATCH_SERVICE_UUID> parameter");
     }
     if (IS_EMPTY_WCS(serviceuuid))
-        return svcsyserror(__LINE__, GetLastError(), L"xuuidstring", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"xuuidstring", NULL);
     if ((comspec = xgetenv(L"COMSPEC")) == NULL)
-        return svcsyserror(__LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC", NULL);
 
     if (isrelativepath(batchparam)) {
         if (IS_EMPTY_WCS(shomeparam)) {
@@ -2540,16 +2540,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         else {
             if (isrelativepath(shomeparam)) {
                 if (!SetCurrentDirectoryW(exelocation))
-                    return svcsyserror(__LINE__, GetLastError(), exelocation, NULL);
+                    return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), exelocation, NULL);
             }
             servicehome = getrealpathname(shomeparam, 1);
             if (IS_EMPTY_WCS(servicehome))
-                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, shomeparam, NULL);
+                return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, shomeparam, NULL);
         }
     }
     else {
         if (resolvebatchname(batchparam) == 0)
-            return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
+            return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
         if (IS_EMPTY_WCS(shomeparam)) {
             /**
@@ -2562,18 +2562,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         else {
             if (isrelativepath(shomeparam)) {
                 if (!SetCurrentDirectoryW(servicebase))
-                    return svcsyserror(__LINE__, GetLastError(), servicebase, NULL);
+                    return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), servicebase, NULL);
             }
             servicehome = getrealpathname(shomeparam, 1);
             if (IS_EMPTY_WCS(servicehome))
-                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, shomeparam, NULL);
+                return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, shomeparam, NULL);
         }
     }
     if (!SetCurrentDirectoryW(servicehome))
-        return svcsyserror(__LINE__, GetLastError(), servicehome, NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), servicehome, NULL);
 
     if (resolvebatchname(batchparam) == 0)
-        return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
     if (IS_EMPTY_WCS(lredirparam)) {
         if (IS_EMPTY_WCS(loglocation))
@@ -2581,12 +2581,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
         rv = resolverotate(rotateparam);
         if (rv != 0)
-            return svcsyserror(rv, 0, L"Cannot resolve", rotateparam);
+            return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", rotateparam);
     }
     else {
         logredirect = getrealpathname(lredirparam, 0);
         if (IS_EMPTY_WCS(logredirect))
-            return svcsyserror(__LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
+            return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
         haspipedlogs = 1;
         svcmaxlogs   = 0;
     }
@@ -2596,7 +2596,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (svcendparam) {
             shutdownfile = getrealpathname(svcendparam, 0);
             if (IS_EMPTY_WCS(shutdownfile))
-                return svcsyserror(__LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
+                return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
         }
         haslogrotate = svcmaxlogs;
     }
@@ -2629,31 +2629,31 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     svcstopended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
     ssignalname = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
     if (servicemode) {
         if (shutdownfile != NULL) {
             ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
             if (IS_INVALID_HANDLE(ssignalevent))
-                return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", ssignalname);
+                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", ssignalname);
         }
     }
     else {
         ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, ssignalname);
         if (IS_INVALID_HANDLE(ssignalevent))
-            return svcsyserror(__LINE__, GetLastError(), L"OpenEvent", ssignalname);
+            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"OpenEvent", ssignalname);
     }
     if (haslogrotate) {
         logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
         if (IS_INVALID_HANDLE(logrotatesig))
-            return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
+            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
     }
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
-        return svcsyserror(__LINE__, GetLastError(), L"CreateEvent", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
@@ -2668,11 +2668,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             atexit(cconsolecleanup);
             h = GetStdHandle(STD_INPUT_HANDLE);
             if (IS_INVALID_HANDLE(h))
-                return svcsyserror(__LINE__, GetLastError(), L"GetStdHandle", NULL);
+                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"GetStdHandle", NULL);
             dbgprints(__FUNCTION__, "allocated new console");
         }
         else {
-            return svcsyserror(__LINE__, GetLastError(), L"AllocConsole", NULL);
+            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"AllocConsole", NULL);
         }
     }
     se[0].lpServiceName = zerostring;
@@ -2682,7 +2682,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (servicemode) {
         dbgprints(__FUNCTION__, "starting service");
         if (!StartServiceCtrlDispatcherW(se))
-            rv = svcsyserror(__LINE__, GetLastError(), L"StartServiceCtrlDispatcher", NULL);
+            rv = svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"StartServiceCtrlDispatcher", NULL);
     }
     else {
         dbgprints(__FUNCTION__, "starting shutdown");
