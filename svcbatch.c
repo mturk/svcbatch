@@ -2627,7 +2627,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     for (i = 0; i < envc; i++) {
         const wchar_t *p = wenv[i];
 
-        if (wcsstr(p, L"SVCBATCH_SERVICE_") != p)
+        if (_wcsnicmp(p, L"SVCBATCH_SERVICE_", 17) < 0)
             dupwenvp[dupwenvc++] = xwcsdup(p);
     }
 
