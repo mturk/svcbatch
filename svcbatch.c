@@ -492,7 +492,6 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
     }
     else {
         _snwprintf(buf, bufsize, L"Unknown Win32 error code: %lu", statcode);
-        buf[bufsize - 1] = L'\0';
     }
 }
 
@@ -531,35 +530,35 @@ finished:
 
 static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err, const wchar_t *eds)
 {
-    wchar_t        buf[BBUFSIZ];
+    wchar_t        hdr[BBUFSIZ];
     wchar_t        erb[MBUFSIZ];
     const wchar_t *errarg[10];
     int            i = 0;
-
-    memset(buf, 0, sizeof(buf));
-    _snwprintf(buf, BBUFSIZ - 1, L"svcbatch.c(%d, %S)", line, fn);
 
     errarg[i++] = wnamestamp;
     if (servicename)
         errarg[i++] = servicename;
     errarg[i++] = L"reported the following error:\r\n";
-    errarg[i++] = buf;
+    _snwprintf(hdr, BBUFSIZ, L"svcbatch.c(%d, %S)", line, fn);
+    errarg[i++] = hdr;
     errarg[i++] = err;
 
     if (ern) {
-        memset(erb, 0, sizeof(erb));
-        xwinapierror(erb, MBUFSIZ - 1, ern);
+        int c = _snwprintf(erb, BBUFSIZ, L"(err=%lu) ", ern);
+        xwinapierror(erb + c, MBUFSIZ - c, ern);
         errarg[i++] = erb;
     }
     else {
+        erb[0] = L'\0';
+        erb[1] = L'\0';
         ern = ERROR_INVALID_PARAMETER;
     }
     if (eds != NULL) {
         errarg[i++] = eds;
-        dbgprintf(fn, "%S %S err=%lu: %S",  buf, err, ern, eds);
+        dbgprintf(fn, "%S %S %S: %S",  hdr, err, erb, eds);
     }
     else {
-        dbgprintf(fn, "%S %S err=%lu", buf, err, ern);
+        dbgprintf(fn, "%S %S %S", hdr, err, erb);
     }
     errarg[i++] = CRLFW;
     while (i < 10) {
