@@ -19,4 +19,4 @@ VERSION_MINOR = 3
 VERSION_PATCH = 2
 VERSION_MICRO = 0
 # Set to zero for non dev versions
-VERSION_DEVEL = 1
+VERSION_DEVEL = 0

@@ -8,7 +8,7 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.3.2
 
- * In development
+ * Report to system Event Log if external log application fails at run time
 
 ### New Features
 
