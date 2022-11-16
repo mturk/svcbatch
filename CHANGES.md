@@ -6,6 +6,11 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v1.3.3
+
+ * In development
+
+
 ## v1.3.2
 
  * Report to system Event Log if external log application fails at run time
