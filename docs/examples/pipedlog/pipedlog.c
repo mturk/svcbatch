@@ -18,12 +18,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined(_MSC_VER)
+# pragma warning(disable: 4100 4244 4702)
+#endif
 #define SDBUFSIZE 2048
 #define RDBUFSIZE 8192
 
 static const char *progname = "pipedlog";
 static char CRLFA[2] = { '\r', '\n'};
 static char SMODE[2] = { 'x',  '\0'};
+static HANDLE revents[2];
 
 static void dbgprints(const char *funcname, const char *string)
 {
@@ -48,12 +52,45 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     dbgprints(funcname, buf);
 }
 
+DWORD WINAPI rotatemonitor(void *unused)
+{
+    DWORD  r = 0;
+    char sig[64];
+
+    dbgprints(progname, __FUNCTION__ " started");
+    strcpy(sig, "Local\\SvcBatch-Dorotate-");
+    GetEnvironmentVariableA("SVCBATCH_SERVICE_UUID", sig + strlen(sig), 40);
+
+    revents[0] = OpenEventA(SYNCHRONIZE, FALSE, sig);
+    if (revents[0] == NULL) {
+        r = GetLastError();
+        dbgprintf(progname, "failed to open %s", sig);
+        return r;
+    }
+    dbgprintf(progname, "waiting for rotate event: %s", sig);
+    while (r == 0) {
+        r = WaitForMultipleObjects(2, revents, FALSE, INFINITE);
+        if (r == WAIT_OBJECT_0) {
+            dbgprints(progname, "rotate signaled");
+            /**
+             * Actual log rotation code should go here.
+             */
+            Sleep(1000);
+            dbgprints(progname, "rotated");
+        }
+    }
+    CloseHandle(revents[0]);
+    dbgprints(progname, __FUNCTION__ " done");
+    return 0;
+}
+
 int wmain(int argc, const wchar_t **wargv)
 {
     int i;
     DWORD    e = 0;
     DWORD    c = 0;
     HANDLE   w, r;
+    HANDLE   rh = NULL;
     BYTE     b[RDBUFSIZE];
     SECURITY_ATTRIBUTES sa;
 
@@ -111,7 +148,10 @@ int wmain(int argc, const wchar_t **wargv)
     else {
         dbgprintf(progname, "created: %S", wargv[1]);
     }
-
+    if (SMODE[0] == '1') {
+        revents[1] = CreateEvent(NULL, TRUE, FALSE, NULL);
+        rh = CreateThread(NULL, 0, rotatemonitor, NULL, 0, &e);
+    }
     e = 0;
     while (e == 0) {
         DWORD rd = 0;
@@ -152,6 +192,13 @@ int wmain(int argc, const wchar_t **wargv)
         else {
             e = GetLastError();
         }
+    }
+    if (rh != NULL) {
+        dbgprints(progname, "closing rotatemonitor");
+        SetEvent(revents[1]);
+        WaitForSingleObject(rh, 2000);
+        CloseHandle(rh);
+        CloseHandle(revents[1]);
     }
     CloseHandle(w);
     if (e) {

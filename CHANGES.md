@@ -10,6 +10,10 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
 
+### New Features
+
+ * Enable external log applications to handle user rotate service control
+
 
 ## v1.3.1
 

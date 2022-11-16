@@ -54,6 +54,7 @@ static int       servicemode      = 1;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
 static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
+static DWORD     pipedprocpid     = 0;
 
 static int       xwoptind         = 1;   /* Index into parent argv vector */
 static int       xwoption         = 0;   /* Character checked for validity */
@@ -81,6 +82,7 @@ static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
+static HANDLE    rsignalevent     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
@@ -1077,6 +1079,7 @@ static DWORD openlogpipe(void)
         goto failed;
     }
     pipedprocess = cp.hProcess;
+    pipedprocpid = cp.dwProcessId;
     /**
      * Close our side of the pipes
      */
@@ -1095,7 +1098,7 @@ static DWORD openlogpipe(void)
         logwrline(wr, cnamestamp);
     }
     InterlockedExchangePointer(&logfhandle, wr);
-    dbgprintf(__FUNCTION__, "running pipe log process: %lu", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "running pipe log process: %lu", pipedprocpid);
     xfree(cmdline);
 
     return 0;
@@ -2214,18 +2217,22 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             SetEvent(monitorevent);
         break;
         case SVCBATCH_CTRL_ROTATE:
-            /**
-             * Signal to rotatethread that
-             * user send custom service control
-             */
-            if (haslogrotate) {
+            if (IS_VALID_HANDLE(rsignalevent)) {
+                dbgprintf(__FUNCTION__, "signaled rotate to: %lu", pipedprocpid);
+                SetEvent(rsignalevent);
+                return 0;
+            }
+            if (IS_VALID_HANDLE(logrotatesig)) {
+                /**
+                 * Signal to rotatethread that
+                 * user send custom service control
+                 */
                 dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_ROTATE");
                 SetEvent(logrotatesig);
+                return 0;
             }
-            else {
-                dbgprints(__FUNCTION__, "log rotation is disabled");
-                return ERROR_CALL_NOT_IMPLEMENTED;
-            }
+            dbgprints(__FUNCTION__, "log rotation is disabled");
+            return ERROR_CALL_NOT_IMPLEMENTED;
         break;
         case SERVICE_CONTROL_INTERROGATE:
             dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_INTERROGATE");
@@ -2376,6 +2383,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(ssignalevent);
+    SAFE_CLOSE_HANDLE(rsignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(logrotatesig);
     SAFE_CLOSE_HANDLE(childprocjob);
@@ -2638,6 +2646,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
             if (IS_INVALID_HANDLE(ssignalevent))
                 return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", ssignalname);
+        }
+        if (haspipedlogs) {
+            wchar_t *psn = xwcsconcat(DOROTATE_IPCNAME, serviceuuid);
+
+            rsignalevent = CreateEventW(&sazero, FALSE, FALSE, psn);
+            if (IS_INVALID_HANDLE(rsignalevent))
+                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
+            xfree(psn);
         }
     }
     else {
