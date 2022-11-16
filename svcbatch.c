@@ -1696,7 +1696,15 @@ static unsigned int __stdcall rdpipethread(void *unused)
         else
             dbgprintf(__FUNCTION__, "err=%lu", rc);
         if (WaitForSingleObject(childprocess, SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT) {
+            if (GetExitCodeProcess(pipedprocess, &rc)) {
+                dbgprintf(__FUNCTION__, "piped process exited with: %lu", rc);
+            }
+            else {
+                rc = GetLastError();
+                dbgprintf(__FUNCTION__, "piped GetExitCodeProcess failed with: %lu", rc);
+            }
             if (InterlockedAdd(&sstarted, 0) == 0) {
+                svcsyserror(__FUNCTION__, __LINE__, rc, L"log redirection process failed", NULL);
                 dbgprints(__FUNCTION__, "terminating child process");
                 TerminateProcess(childprocess, ERROR_PROCESS_ABORTED);
                 dbgprints(__FUNCTION__, "terminated");
@@ -1718,7 +1726,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
 {
     DWORD  wr, rc = 0;
 
-    dbgprintf(__FUNCTION__, "started");
+    dbgprints(__FUNCTION__, "started");
 
     if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
         dbgprintf(__FUNCTION__, "send %lu chars to: %lu", wr, childprocpid);

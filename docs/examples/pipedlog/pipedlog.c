@@ -24,6 +24,11 @@
 #define SDBUFSIZE 2048
 #define RDBUFSIZE 8192
 
+/**
+ * Set to 1 to simulate failure
+ */
+#define SIMULATE_FAILURE 0
+
 static const char *progname = "pipedlog";
 static char CRLFA[2] = { '\r', '\n'};
 static char SMODE[2] = { 'x',  '\0'};
@@ -51,6 +56,16 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     buf[SDBUFSIZE - 1] = '\0';
     dbgprints(funcname, buf);
 }
+
+#if SIMULATE_FAILURE
+DWORD WINAPI failurethread(void *unused)
+{
+    dbgprints(progname, "simulating failure");
+    Sleep(10000);
+    dbgprints(progname, "calling ExitProcess(ERROR_WRITE_FAULT)");
+    ExitProcess(ERROR_WRITE_FAULT);
+}
+#endif
 
 DWORD WINAPI rotatemonitor(void *unused)
 {
@@ -152,6 +167,9 @@ int wmain(int argc, const wchar_t **wargv)
         revents[1] = CreateEvent(NULL, TRUE, FALSE, NULL);
         rh = CreateThread(NULL, 0, rotatemonitor, NULL, 0, &e);
     }
+#if SIMULATE_FAILURE
+    CloseHandle(CreateThread(NULL, 0, failurethread, NULL, 0, &e));
+#endif
     e = 0;
     while (e == 0) {
         DWORD rd = 0;
@@ -170,13 +188,6 @@ int wmain(int argc, const wchar_t **wargv)
                     }
                     else {
                         c += wr;
-#if 0
-                        if (c > 2800) {
-                            dbgprints(progname, "simulating failure");
-                            CloseHandle(w);
-                            return ERROR_NO_DATA;
-                        }
-#endif
                         if (c > 16384) {
                             FlushFileBuffers(w);
                             c = 0;
