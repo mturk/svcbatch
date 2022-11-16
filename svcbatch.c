@@ -767,32 +767,6 @@ static int resolvebatchname(const wchar_t *a)
     return 0;
 }
 
-static int runningasservice(void)
-{
-    int     rv = 0;
-    HWINSTA ws = GetProcessWindowStation();
-
-    if (IS_VALID_HANDLE(ws)) {
-        DWORD len;
-        USEROBJECTFLAGS uf;
-        wchar_t name[BBUFSIZ];
-
-        if (GetUserObjectInformationW(ws, UOI_NAME, name,
-                                      BBUFSIZ, &len)) {
-            if (_wcsnicmp(name, L"Service-", 8) == 0) {
-                if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
-                                              DSIZEOF(uf), &len)) {
-                    if (uf.dwFlags != WSF_VISIBLE)
-                        rv = 1;
-                    else
-                        OutputDebugStringW(name);
-                }
-            }
-        }
-    }
-    return rv;
-}
-
 static void setsvcstatusexit(DWORD e)
 {
     EnterCriticalSection(&servicelock);
@@ -2538,14 +2512,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              * Add arguments for batch file
              */
             svcbatchargs = xappendarg(1, svcbatchargs,  wargv[i]);
-        }
-    }
-    if (servicemode && hasdebuginfo) {
-        if (runningasservice() == 0) {
-            fputs(cnamestamp, stderr);
-            fputs("\n" SVCBATCH_COPYRIGHT "\n\n", stderr);
-            fputs("This program can only run as Windows Service\n", stderr);
-            return ERROR_INVALID_PARAMETER;
         }
     }
     if (IS_EMPTY_WCS(batchparam))
