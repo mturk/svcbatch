@@ -69,7 +69,6 @@ static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
-static wchar_t  *ssignalname      = NULL;
 static wchar_t  *svcbatchargs     = NULL;
 
 static wchar_t  *loglocation      = NULL;
@@ -2663,12 +2662,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
-    ssignalname = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
     if (servicemode) {
         if (shutdownfile != NULL) {
-            ssignalevent = CreateEventW(&sazero, TRUE, FALSE, ssignalname);
+            wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
+            ssignalevent = CreateEventW(&sazero, TRUE, FALSE, psn);
             if (IS_INVALID_HANDLE(ssignalevent))
-                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", ssignalname);
+                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
+            xfree(psn);
         }
         if (haspipedlogs) {
             wchar_t *psn = xwcsconcat(DOROTATE_IPCNAME, serviceuuid);
@@ -2680,9 +2680,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     else {
-        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, ssignalname);
+        wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
+        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, psn);
         if (IS_INVALID_HANDLE(ssignalevent))
-            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"OpenEvent", ssignalname);
+            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"OpenEvent", psn);
+        xfree(psn);
     }
     if (haslogrotate) {
         logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
