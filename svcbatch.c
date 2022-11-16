@@ -104,17 +104,6 @@ static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 static const wchar_t *rotateparam = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
-static const wchar_t *removeenv[] = {
-    L"SVCBATCH_SERVICE_BASE",
-    L"SVCBATCH_SERVICE_HOME",
-    L"SVCBATCH_SERVICE_LOGDIR",
-    L"SVCBATCH_SERVICE_MODE",
-    L"SVCBATCH_SERVICE_NAME",
-    L"SVCBATCH_SERVICE_UUID",
-    NULL
-};
-
-
 static wchar_t *xwmalloc(size_t size)
 {
     wchar_t *p = (wchar_t *)malloc((size + 2) * sizeof(wchar_t));
@@ -2636,17 +2625,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     dupwenvp = waalloc(envc + 8);
     for (i = 0; i < envc; i++) {
-        const wchar_t **e = removeenv;
-        const wchar_t  *p = wenv[i];
+        const wchar_t *p = wenv[i];
 
-        while (*e != NULL) {
-            if (xwcsisenvvar(p, *e)) {
-                p = NULL;
-                break;
-            }
-            e++;
-        }
-        if (p != NULL)
+        if (wcsstr(p, L"SVCBATCH_SERVICE_") != p)
             dupwenvp[dupwenvc++] = xwcsdup(p);
     }
 
