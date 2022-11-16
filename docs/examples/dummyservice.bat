@@ -73,7 +73,7 @@ rem set "ROTATE_RULE=-r \"one %SERVICE_NAME% \\\"some argument\\\"\""
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
-set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -pDb /w \"%cd%\" %SERVICE_LOG_DIR% %SERVICE_LOG_REDIR% -n %SERVICE_NAME% %ROTATE_RULE% -s dummyshutdown.bat %~nx0 test run"
+set "SERVICE_CMDLINE=\"%cd%\..\..\x64\svcbatch.exe\" -pDbL /w \"%cd%\" %SERVICE_LOG_DIR% %SERVICE_LOG_REDIR% -n %SERVICE_NAME% %ROTATE_RULE% -s dummyshutdown.bat %~nx0 test run"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"

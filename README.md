@@ -348,6 +348,13 @@ make sure to get familiar with `sc.exe` utility.
   This option disables logging of various internal
   SvcBatch messages.
 
+* **-l**
+
+  **Use local time**
+
+  This option causes all logging and rotation
+  to use local instead system time.
+
 
 ## Private Environment Variables
 

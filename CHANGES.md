@@ -13,6 +13,7 @@ For a full list of changes, see the [git commit log][log]
 ### New Features
 
  * Enable external log applications to handle user rotate service control
+ * Add -l command option to use local instead system time for log rotation and messages
 
 
 ## v1.3.1

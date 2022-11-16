@@ -50,6 +50,7 @@ static int       haslogstatus     = 1;
 static int       haslogrotate     = 1;
 static int       haspipedlogs     = 0;
 static int       autorotate       = 0;
+static int       uselocaltime     = 0;
 static int       servicemode      = 1;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
 static DWORD     preshutdown      = 0;
@@ -951,7 +952,10 @@ static DWORD logwrtime(HANDLE h, const char *hdr)
 {
     SYSTEMTIME tt;
 
-    GetSystemTime(&tt);
+    if (uselocaltime)
+        GetLocalTime(&tt);
+    else
+        GetSystemTime(&tt);
     return logprintf(h, "%-16s : %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
                      hdr, tt.wYear, tt.wMonth, tt.wDay,
                      tt.wHour, tt.wMinute, tt.wSecond);
@@ -1156,7 +1160,10 @@ static DWORD openlogfile(BOOL firstopen)
                 SYSTEMTIME st;
                 wchar_t wrb[24];
 
-                GetSystemTime(&st);
+                if (uselocaltime)
+                    GetLocalTime(&st);
+                else
+                    GetSystemTime(&st);
                 _snwprintf(wrb, 22, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
                            st.wYear, st.wMonth, st.wDay,
                            st.wHour, st.wMinute, st.wSecond);
@@ -1372,7 +1379,10 @@ static int resolverotate(const wchar_t *str)
 
             rp = p;
             rotateint = ONE_DAY;
-            GetSystemTime(&st);
+            if (uselocaltime)
+                GetLocalTime(&st);
+            else
+                GetSystemTime(&st);
             SystemTimeToFileTime(&st, &ft);
             ui.HighPart = ft.dwHighDateTime;
             ui.LowPart  = ft.dwLowDateTime;
@@ -1439,7 +1449,7 @@ static int resolverotate(const wchar_t *str)
 
 static int runshutdown(DWORD rt)
 {
-    wchar_t  xparam[8];
+    wchar_t  xparam[10];
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
@@ -1455,6 +1465,8 @@ static int runshutdown(DWORD rt)
     xparam[ip++] = L'x';
     if (hasdebuginfo)
         xparam[ip++] = L'd';
+    if (uselocaltime)
+        xparam[ip++] = L'l';
     if (haslogstatus == 0)
         xparam[ip++] = L'q';
     if (haspipedlogs == 0) {
@@ -2453,13 +2465,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (envc == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"System", L"Missing environment");
 
-    while ((opt = xwgetopt(argc, wargv, L"bdqpe:o:r:s:w:n:u:xz:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bdlqpe:o:r:s:w:n:u:xz:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
             break;
             case L'd':
                 hasdebuginfo = 1;
+            break;
+            case L'l':
+                uselocaltime = 1;
             break;
             case L'q':
                 haslogstatus = 0;
