@@ -57,7 +57,7 @@ DWORD WINAPI rotatemonitor(void *unused)
     DWORD  r = 0;
     char sig[64];
 
-    dbgprints(progname, __FUNCTION__ " started");
+    dbgprints(progname, "rotatemonitor started");
     strcpy(sig, "Local\\SvcBatch-Dorotate-");
     GetEnvironmentVariableA("SVCBATCH_SERVICE_UUID", sig + strlen(sig), 40);
 
@@ -80,7 +80,7 @@ DWORD WINAPI rotatemonitor(void *unused)
         }
     }
     CloseHandle(revents[0]);
-    dbgprints(progname, __FUNCTION__ " done");
+    dbgprints(progname, "rotatemonitor done");
     return 0;
 }
 
