@@ -2656,13 +2656,21 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
             xfree(psn);
         }
-        if (haspipedlogs && rotateparam) {
+        if (haspipedlogs) {
             wchar_t *psn = xwcsconcat(DOROTATE_IPCNAME, serviceuuid);
-
-            rsignalevent = CreateEventW(&sazero, FALSE, FALSE, psn);
-            if (IS_INVALID_HANDLE(rsignalevent))
-                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
-            xfree(psn);
+            if (rotateparam != NULL) {
+                if ((rotateparam[0] ==  L'0') && (rotateparam[1] ==  WNUL)) {
+                    xfree(psn);
+                    psn = NULL;
+                    rotateparam = NULL;
+                }
+            }
+            if (psn != NULL) {
+                rsignalevent = CreateEventW(&sazero, FALSE, FALSE, psn);
+                if (IS_INVALID_HANDLE(rsignalevent))
+                    return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
+                xfree(psn);
+            }
         }
     }
     else {
