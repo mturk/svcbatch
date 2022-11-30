@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.3.3
 
  * In development
+ * Remove automatic log flush
 
 
 ## v1.3.2

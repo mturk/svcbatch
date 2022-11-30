@@ -28,7 +28,6 @@ static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG         logwritten  = 0;
-static volatile LONG64       loglastwr   = CPP_INT64_C(0);
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -851,7 +850,6 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
             FlushFileBuffers(h);
             InterlockedExchange(&logwritten, 0);
         }
-        InterlockedExchange64(&loglastwr, GetTickCount64());
         return 0;
     }
     else {
@@ -873,7 +871,6 @@ static DWORD logfflush(HANDLE h)
     else
         return GetLastError();
     InterlockedExchange(&logwritten, 0);
-    InterlockedExchange64(&loglastwr, GetTickCount64());
     if (haspipedlogs == 0) {
         if (!SetFilePointerEx(h, ee, NULL, FILE_END))
             return GetLastError();
@@ -1191,7 +1188,6 @@ static DWORD openlogfile(BOOL firstopen)
     }
     else {
         InterlockedExchange(&logwritten, 0);
-        InterlockedExchange64(&loglastwr, GetTickCount64());
     }
     if (haslogstatus) {
         logwrline(h, cnamestamp);
@@ -1761,27 +1757,9 @@ static void monitorservice(void)
 
     do {
         DWORD  cc;
-        LONG64 ct;
 
-        ws = WaitForMultipleObjects(2, wh, FALSE, SVCBATCH_MONITOR_STEP);
+        ws = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
         switch (ws) {
-            case WAIT_TIMEOUT:
-                EnterCriticalSection(&logfilelock);
-                ct = GetTickCount64() - InterlockedAdd64(&loglastwr, 0);
-                if (ct >= SVCBATCH_LOGFLUSH_HINT) {
-                    if (InterlockedAdd(&logwritten, 0) > 0) {
-                        h = InterlockedExchangePointer(&logfhandle, NULL);
-                        if (h != NULL) {
-                            FlushFileBuffers(h);
-                            dbgprints(__FUNCTION__, "logfile flushed");
-                        }
-                        InterlockedExchangePointer(&logfhandle, h);
-                        InterlockedExchange(&logwritten, 0);
-                    }
-                    InterlockedExchange64(&loglastwr, GetTickCount64());
-                }
-                LeaveCriticalSection(&logfilelock);
-            break;
             case WAIT_OBJECT_0:
                 dbgprints(__FUNCTION__, "processended signaled");
                 rc = 1;
