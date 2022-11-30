@@ -2475,6 +2475,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     wnamestamp = xcwiden(cnamestamp);
+    dbgprintf(__FUNCTION__, "%S", wnamestamp);
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
             ++envc;
@@ -2540,10 +2541,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
         }
     }
-    if (hasdebuginfo) {
-        dbgprints(__FUNCTION__, cnamestamp);
-        dbgprints(__FUNCTION__, GetCommandLineA());
-    }
+
     argc  -= xwoptind;
     wargv += xwoptind;
     if (argc > 0) {
