@@ -426,32 +426,42 @@ static wchar_t *xuuidstring(void)
 static void dbgprints(const char *funcname, const char *string)
 {
     if (hasdebuginfo) {
-        char buf[SBUFSIZ];
-        _snprintf(buf, SBUFSIZ - 1,
-                  "[%.4lu] %d %-16s %s",
-                  GetCurrentThreadId(),
-                  servicemode,
-                  funcname, string);
-         buf[SBUFSIZ - 1] = '\0';
-         OutputDebugStringA(buf);
+        int  n;
+        char buf[MBUFSIZ];
+
+        n = _snprintf(buf, MBUFSIZ - 1,
+                     "[%.4lu] %d %-16s %s",
+                     GetCurrentThreadId(),
+                     servicemode,
+                     funcname, string);
+         if (n > 0) {
+            buf[n] = '\0';
+            OutputDebugStringA(buf);
+         }
+         else
+            OutputDebugStringA(funcname);
+
     }
 }
 
 static void dbgprintf(const char *funcname, const char *format, ...)
 {
     if (hasdebuginfo) {
+        int     n;
         char    buf[SBUFSIZ];
         va_list ap;
 
         va_start(ap, format);
-        _vsnprintf(buf, SBUFSIZ - 1, format, ap);
+        n = _vsnprintf(buf, SBUFSIZ - 1, format, ap);
         va_end(ap);
-        buf[SBUFSIZ - 1] = '\0';
-        dbgprints(funcname, buf);
+        if (n > 0) {
+            buf[n] = '\0';
+            dbgprints(funcname, buf);
+        }
     }
 }
 
-static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
+static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
 {
     DWORD len;
     len = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
@@ -472,7 +482,10 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
         }
     }
     else {
-        _snwprintf(buf, bufsize, L"Unknown Win32 error code: %lu", statcode);
+        int n = _snwprintf(buf, bufsize - 1, L"Unknown Win32 error code: %lu", statcode);
+        if (n < 0)
+            n = 0;
+        buf[n] = WNUL;
     }
 }
 
@@ -514,24 +527,29 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     wchar_t        hdr[BBUFSIZ];
     wchar_t        erb[MBUFSIZ];
     const wchar_t *errarg[10];
-    int            i = 0;
+    int            c, i = 0;
 
     errarg[i++] = wnamestamp;
     if (servicename)
         errarg[i++] = servicename;
     errarg[i++] = L"reported the following error:\r\n";
-    _snwprintf(hdr, BBUFSIZ, L"svcbatch.c(%d, %S)", line, fn);
+    c = _snwprintf(hdr, BBUFSIZ - 1, L"svcbatch.c(%d, %S)", line, fn);
+    if (c < 0)
+        c = 0;
+    hdr[c] = WNUL;
     errarg[i++] = hdr;
     errarg[i++] = err;
 
     if (ern) {
-        int c = _snwprintf(erb, BBUFSIZ, L"(err=%lu) ", ern);
+        c = _snwprintf(erb, BBUFSIZ - 1, L"(err=%lu) ", ern);
+        if (c < 0)
+            c = 0;
+        erb[c] = WNUL;
         xwinapierror(erb + c, MBUFSIZ - c, ern);
         errarg[i++] = erb;
     }
     else {
         erb[0] = WNUL;
-        erb[1] = WNUL;
         ern = ERROR_INVALID_PARAMETER;
     }
     if (eds != NULL) {
@@ -882,24 +900,28 @@ static DWORD logwrline(HANDLE h, const char *str)
 {
     char    buf[BBUFSIZ];
     ULONGLONG ct;
-    DWORD   ss, ms;
+    DWORD   ss, ms, mm, hh;
     DWORD   wr;
+    int     nc;
 
     ct = GetTickCount64() - logtickcount;
     ms = (DWORD)((ct % MS_IN_SECOND));
-    ss = (DWORD)((ct / MS_IN_SECOND));
+    ss = (DWORD)((ct / MS_IN_SECOND) % 60);
+    mm = (DWORD)((ct / MS_IN_MINUTE) % 60);
+    hh = (DWORD)((ct / MS_IN_HOUR)   % 24);
 
-    memset(buf, 0, sizeof(buf));
-    sprintf(buf,
-            "[%.8lu.%.3lu] [%.4lu:%.4lu] ",
-            ss, ms,
-            GetCurrentProcessId(),
-            GetCurrentThreadId());
-    buf[BBUFSIZ - 1] = '\0';
-    if (WriteFile(h, buf, (DWORD)strlen(buf), &wr, NULL) && (wr != 0))
-        InterlockedAdd(&logwritten, wr);
-    else
-        return GetLastError();
+    nc = _snprintf(buf, BBUFSIZ - 1,
+                   "[%.2lu:%.2lu:%.2lu.%.3lu] [%.4lu:%.4lu] ",
+                   hh, mm, ss, ms,
+                   GetCurrentProcessId(),
+                   GetCurrentThreadId());
+    if (nc > 0) {
+        buf[nc] = '\0';
+        if (WriteFile(h, buf, nc, &wr, NULL) && (wr != 0))
+            InterlockedAdd(&logwritten, wr);
+        else
+            return GetLastError();
+    }
     if (WriteFile(h, str, (DWORD)strlen(str), &wr, NULL) && (wr != 0))
         InterlockedAdd(&logwritten, wr);
     else
@@ -1098,8 +1120,6 @@ static DWORD openlogfile(BOOL firstopen)
     HANDLE h = NULL;
     int i, rotateold;
 
-    if (!firstopen)
-        logtickcount = GetTickCount64();
     if (autorotate)
         rotateold = 0;
     else
@@ -1222,6 +1242,7 @@ static DWORD rotatelogs(void)
         logfflush(h);
         logwrtime(h, "Log rotatation initialized");
     }
+    logtickcount = GetTickCount64();
     FlushFileBuffers(h);
     CloseHandle(h);
     rc = openlogfile(FALSE);
@@ -1266,7 +1287,6 @@ static void closelogfile(void)
         SAFE_CLOSE_HANDLE(pipedprocess);
         SAFE_CLOSE_HANDLE(pipedprocjob);
     }
-
 }
 
 static int resolverotate(const wchar_t *str)
