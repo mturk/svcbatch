@@ -1136,6 +1136,9 @@ static DWORD openlogfile(BOOL firstopen)
         rotateold = svcmaxlogs;
     if (logfilename == NULL)
         logfilename = xwcsmkpath(loglocation, logfilepart);
+    if (logfilename == NULL)
+        return svcsyserror(__FUNCTION__, __LINE__,
+                           ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
 
     if (svcmaxlogs > 0) {
         if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
