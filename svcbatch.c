@@ -38,7 +38,7 @@ static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 static LARGE_INTEGER         pcfrequency;
-static LARGE_INTEGER         pcappstarted;
+static LARGE_INTEGER         pcstarttime;
 
 static BYTE                  ioreadbuffer[HBUFSIZ];
 
@@ -907,7 +907,7 @@ static DWORD logwrline(HANDLE h, const char *str)
     int     nc;
 
     QueryPerformanceCounter(&ct);
-    et.QuadPart = ct.QuadPart - pcappstarted.QuadPart;
+    et.QuadPart = ct.QuadPart - pcstarttime.QuadPart;
     /**
      * Convert to microseconds
      */
@@ -1255,7 +1255,7 @@ static DWORD rotatelogs(void)
         logfflush(h);
         logwrtime(h, "Log rotating");
     }
-    QueryPerformanceCounter(&pcappstarted);
+    QueryPerformanceCounter(&pcstarttime);
     FlushFileBuffers(h);
     CloseHandle(h);
     rc = openlogfile(FALSE);
@@ -2217,7 +2217,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                         logfflush(h);
                         logwrtime(h, "Signaling rotate");
                     }
-                    QueryPerformanceCounter(&pcappstarted);
+                    QueryPerformanceCounter(&pcstarttime);
                     FlushFileBuffers(h);
                 }
                 SetEvent(rsignalevent);
@@ -2445,7 +2445,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return 0;
     }
     QueryPerformanceFrequency(&pcfrequency);
-    QueryPerformanceCounter(&pcappstarted);
+    QueryPerformanceCounter(&pcstarttime);
     /**
      * Check if running as service or as a child process.
      */
