@@ -37,6 +37,9 @@ static SECURITY_ATTRIBUTES   sazero;
 static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
+static LARGE_INTEGER         pcfrequency;
+static LARGE_INTEGER         pcappstarted;
+
 static BYTE                  ioreadbuffer[HBUFSIZ];
 
 static wchar_t  *comspec          = NULL;
@@ -74,8 +77,6 @@ static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static wchar_t  *logfilepart      = NULL;
 static wchar_t  *logredirect      = NULL;
-
-static ULONGLONG logtickcount     = CPP_UINT64_C(0);
 
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
@@ -899,20 +900,29 @@ static DWORD logfflush(HANDLE h)
 static DWORD logwrline(HANDLE h, const char *str)
 {
     char    buf[BBUFSIZ];
-    ULONGLONG ct;
-    DWORD   ss, ms, mm, hh;
+    LARGE_INTEGER ct;
+    LARGE_INTEGER et;
+    DWORD   ss, us, mm, hh;
     DWORD   wr;
     int     nc;
 
-    ct = GetTickCount64() - logtickcount;
-    ms = (DWORD)((ct % MS_IN_SECOND));
-    ss = (DWORD)((ct / MS_IN_SECOND) % 60);
-    mm = (DWORD)((ct / MS_IN_MINUTE) % 60);
-    hh = (DWORD)((ct / MS_IN_HOUR)   % 24);
+    QueryPerformanceCounter(&ct);
+    et.QuadPart = ct.QuadPart - pcappstarted.QuadPart;
+    /**
+     * Convert to microseconds
+     */
+    et.QuadPart *= CPP_INT64_C(1000000);
+    et.QuadPart /= pcfrequency.QuadPart;
+    ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
+
+    us = (DWORD)((et.QuadPart % CPP_INT64_C(1000000)));
+    ss = (DWORD)((ct.QuadPart / MS_IN_SECOND) % 60);
+    mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % 60);
+    hh = (DWORD)((ct.QuadPart / MS_IN_HOUR));
 
     nc = _snprintf(buf, BBUFSIZ - 1,
-                   "[%.2lu:%.2lu:%.2lu.%.3lu] [%.4lu:%.4lu] ",
-                   hh, mm, ss, ms,
+                   "[%.2lu:%.2lu:%.2lu.%.6lu] [%.4lu:%.4lu] ",
+                   hh, mm, ss, us,
                    GetCurrentProcessId(),
                    GetCurrentThreadId());
     if (nc > 0) {
@@ -1240,9 +1250,9 @@ static DWORD rotatelogs(void)
     }
     if (haslogstatus) {
         logfflush(h);
-        logwrtime(h, "Log rotatation initialized");
+        logwrtime(h, "Log rotating");
     }
-    logtickcount = GetTickCount64();
+    QueryPerformanceCounter(&pcappstarted);
     FlushFileBuffers(h);
     CloseHandle(h);
     rc = openlogfile(FALSE);
@@ -2197,7 +2207,19 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SVCBATCH_CTRL_ROTATE:
             if (IS_VALID_HANDLE(rsignalevent)) {
                 dbgprintf(__FUNCTION__, "signaled rotate to: %lu", pipedprocpid);
+                EnterCriticalSection(&logfilelock);
+                h = InterlockedExchangePointer(&logfhandle, NULL);
+                if (h != NULL) {
+                    if (haslogstatus) {
+                        logfflush(h);
+                        logwrtime(h, "Signaling rotate");
+                    }
+                    QueryPerformanceCounter(&pcappstarted);
+                    FlushFileBuffers(h);
+                }
                 SetEvent(rsignalevent);
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
                 return 0;
             }
             if (IS_VALID_HANDLE(logrotatesig)) {
@@ -2419,6 +2441,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
         return 0;
     }
+    QueryPerformanceFrequency(&pcfrequency);
+    QueryPerformanceCounter(&pcappstarted);
     /**
      * Check if running as service or as a child process.
      */
@@ -2431,7 +2455,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             wnamestamp = CPP_WIDEN(SHUTDOWN_APPNAME) L" " CPP_WIDEN(SVCBATCH_VERSION_TXT);
         }
     }
-    logtickcount = GetTickCount64();
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
             ++envc;
@@ -2633,7 +2656,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
             xfree(psn);
         }
-        if (haspipedlogs) {
+        if (haspipedlogs && rotateparam) {
             wchar_t *psn = xwcsconcat(DOROTATE_IPCNAME, serviceuuid);
 
             rsignalevent = CreateEventW(&sazero, FALSE, FALSE, psn);

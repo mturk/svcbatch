@@ -10,6 +10,7 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
  * Remove automatic log flush
+ * Use high-resolution timer for internal logging
 
 
 ## v1.3.2
