@@ -91,8 +91,8 @@ static HANDLE    pipedprocjob     = NULL;
 static HANDLE    pipedprocess     = NULL;
 static HANDLE    logrhandle       = NULL;
 
-static wchar_t      zerostring[4] = { L'\0', L'\0', L'\0', L'\0' };
-static wchar_t      CRLFW[4]      = { L'\r', L'\n', L'\0', L'\0' };
+static wchar_t      zerostring[4] = { WNUL,  WNUL,  WNUL, WNUL };
+static wchar_t      CRLFW[4]      = { L'\r', L'\n', WNUL, WNUL };
 static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
 static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 
@@ -111,7 +111,7 @@ static wchar_t *xwmalloc(size_t size)
         _wperror(L"xwmalloc");
         _exit(1);
     }
-    p[size] = L'\0';
+    p[size] = WNUL;
     return p;
 }
 
@@ -237,12 +237,12 @@ static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
 
 static int xwcsisenvvar(const wchar_t *str, const wchar_t *var)
 {
-    while (*str != L'\0') {
+    while (*str != WNUL) {
         if (towlower(*str) != towlower(*var))
             break;
         str++;
         var++;
-        if (*var == L'\0')
+        if (*var == WNUL)
             return *str == L'=';
     }
     return 0;
@@ -291,7 +291,7 @@ static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
         wmemcpy(cp, s2, l2);
         cp += l2;
     }
-    *cp = L'\0';
+    *cp = WNUL;
     xfree(s1);
     return rv;
 }
@@ -302,7 +302,7 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     const wchar_t *oli = NULL;
 
     xwoptarg = NULL;
-    if (*place == L'\0') {
+    if (*place == WNUL) {
 
         if (xwoptind >= nargc) {
             /* No more arguments */
@@ -333,7 +333,7 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
          * Option-argument is either the rest of this argument
          * or the entire next argument.
          */
-        if (*place != L'\0') {
+        if (*place != WNUL) {
             xwoptarg = place;
         }
         else if (nargc > ++xwoptind) {
@@ -348,7 +348,7 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     }
     else {
         /* Don't need argument */
-        if (*place == L'\0') {
+        if (*place == WNUL) {
             ++xwoptind;
             place = zerostring;
         }
@@ -363,14 +363,14 @@ static void xcleanwinpath(wchar_t *s, int isdir)
     if (IS_EMPTY_WCS(s))
         return;
 
-    for (i = 0; s[i] != L'\0'; i++) {
+    for (i = 0; s[i] != WNUL; i++) {
         if (s[i] == L'/')
             s[i] =  L'\\';
     }
     --i;
     while (i > 1) {
         if (iswspace(s[i]))
-            s[i--] = L'\0';
+            s[i--] = WNUL;
         else
             break;
 
@@ -378,7 +378,7 @@ static void xcleanwinpath(wchar_t *s, int isdir)
     if (isdir) {
         while (i > 1) {
             if ((s[i] ==  L'\\') && (s[i - 1] != L'.'))
-                s[i--] = L'\0';
+                s[i--] = WNUL;
             else
                 break;
         }
@@ -419,7 +419,7 @@ static wchar_t *xuuidstring(void)
         b[x++] = xb16[d[i] >> 4];
         b[x++] = xb16[d[i] & 0x0F];
     }
-    b[x] = L'\0';
+    b[x] = WNUL;
     return b;
 }
 
@@ -464,7 +464,7 @@ static void xwinapierror(wchar_t *buf, DWORD bufsize, DWORD statcode)
                          NULL);
     if (len) {
         do {
-            buf[len--] = L'\0';
+            buf[len--] = WNUL;
         } while ((len > 0) && ((buf[len] == L'.') || (buf[len] <= L' ')));
         while (len-- > 0) {
             if (iswspace(buf[len]))
@@ -530,8 +530,8 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
         errarg[i++] = erb;
     }
     else {
-        erb[0] = L'\0';
-        erb[1] = L'\0';
+        erb[0] = WNUL;
+        erb[1] = WNUL;
         ern = ERROR_INVALID_PARAMETER;
     }
     if (eds != NULL) {
@@ -580,7 +580,7 @@ static DWORD xmdparent(wchar_t *path)
     s = wcsrchr(path, L'\\');
     if (s == NULL)
         return ERROR_BAD_PATHNAME;
-    *s = L'\0';
+    *s = WNUL;
     rc = xcreatedir(path);
     if (rc == ERROR_PATH_NOT_FOUND) {
         /**
@@ -645,9 +645,9 @@ static wchar_t *expandenvstrings(const wchar_t *str, int isdir)
          */
         str += 2;
     }
-    if (*str == L'\0')
+    if (*str == WNUL)
         return NULL;
-    for (siz = 0; str[siz] != L'\0'; siz++) {
+    for (siz = 0; str[siz] != WNUL; siz++) {
         if (str[siz] == L'%')
             len++;
     }
@@ -736,7 +736,7 @@ static int resolvebatchname(const wchar_t *a)
     i = xwcslen(svcbatchfile);
     while (--i > 0) {
         if (svcbatchfile[i] == L'\\') {
-            svcbatchfile[i] = L'\0';
+            svcbatchfile[i] = WNUL;
             svcbatchname = svcbatchfile + i + 1;
             servicebase  = xwcsdup(svcbatchfile);
             svcbatchfile[i] = L'\\';
@@ -965,7 +965,7 @@ static void logconfig(HANDLE h)
 
         if (fs != NULL) {
             int i = xwcslen(fs);
-            fs[i - 2] = L'\0';
+            fs[i - 2] = WNUL;
             logprintf(h, "Features         : %S", fs);
             xfree(fs);
         }
@@ -1092,7 +1092,7 @@ failed:
 
 static DWORD openlogfile(BOOL firstopen)
 {
-    wchar_t sfx[4] = { L'.', L'0', L'\0', L'\0' };
+    wchar_t sfx[4] = { L'.', L'0', WNUL, WNUL };
     wchar_t *logpb = NULL;
     DWORD rc;
     HANDLE h = NULL;
@@ -1276,7 +1276,7 @@ static int resolverotate(const wchar_t *str)
     if (IS_EMPTY_WCS(str)) {
         return 0;
     }
-    if ((str[0] ==  L'@') && (str[1] ==  L'\0')) {
+    if ((str[0] ==  L'@') && (str[1] ==  WNUL)) {
         /* Special case for shutdown autorotate */
         autorotate = 1;
         if (servicemode)
@@ -1284,7 +1284,7 @@ static int resolverotate(const wchar_t *str)
         else
             return 0;
     }
-    if ((str[0] >=  L'0') && (str[0] <=  L'9') && (str[1] ==  L'\0')) {
+    if ((str[0] >=  L'0') && (str[0] <=  L'9') && (str[1] ==  WNUL)) {
         svcmaxlogs = str[0] - L'0';
         dbgprintf(__FUNCTION__, "max rotate logs: %d", svcmaxlogs);
         return 0;
@@ -1299,7 +1299,7 @@ static int resolverotate(const wchar_t *str)
         p = wcschr(rp, L':');
         if (p == NULL) {
             if ((p = wcschr(rp, L'~')) != NULL)
-                *(p++) = L'\0';
+                *(p++) = WNUL;
             mm = _wtoi(rp);
             if ((mm < SVCBATCH_MIN_LOGRTIME) || (errno == ERANGE)) {
                 dbgprintf(__FUNCTION__, "invalid rotate timeout %S", rp);
@@ -1315,20 +1315,20 @@ static int resolverotate(const wchar_t *str)
             FILETIME       ft;
             ULARGE_INTEGER ui;
 
-            *(p++) = L'\0';
+            *(p++) = WNUL;
             hh = _wtoi(rp);
             if ((hh < 0) || (hh > 23) || (errno == ERANGE))
                 return __LINE__;
             rp = p;
             if ((p = wcschr(rp, L':')) == NULL)
                 return __LINE__;
-            *(p++) = L'\0';
+            *(p++) = WNUL;
             mm = _wtoi(rp);
             if ((mm < 0) || (mm > 59) || (errno == ERANGE))
                 return __LINE__;
             rp = p;
             if ((p = wcschr(rp, L'~')) != NULL)
-                *(p++) = L'\0';
+                *(p++) = WNUL;
             ss = _wtoi(rp);
             if (((ss < 0) || ss > 59) || (errno == ERANGE))
                 return __LINE__;
@@ -1432,7 +1432,7 @@ static int runshutdown(DWORD rt)
         else
             xparam[ip++] = L'0' + svcmaxlogs;
     }
-    xparam[ip] = L'\0';
+    xparam[ip] = WNUL;
     cmdline = xappendarg(0, cmdline, xparam);
     cmdline = xappendarg(0, cmdline, L"-z");
     cmdline = xappendarg(1, cmdline, servicename);
@@ -2365,7 +2365,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         opt;
     int         envc  = 0;
     int         rv    = 0;
-    wchar_t     bb[2] = { L'\0', L'\0' };
+    wchar_t     bb[2] = { WNUL, WNUL };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
     const wchar_t *batchparam  = NULL;
@@ -2387,7 +2387,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     else {
         while (--i > 0) {
             if (svcbatchexe[i] == L'\\') {
-                svcbatchexe[i] = L'\0';
+                svcbatchexe[i] = WNUL;
                 exelocation = xwcsdup(svcbatchexe);
                 svcbatchexe[i] = L'\\';
             }
