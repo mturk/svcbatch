@@ -98,7 +98,7 @@ static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
 static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
-static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " CPP_WIDEN(SVCBATCH_VERSION_TXT);
+static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME " " SVCBATCH_VERSION_TXT);
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 static const wchar_t *rotateparam = NULL;
@@ -453,10 +453,9 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         va_list ap;
 
         va_start(ap, format);
-        n = _vsnprintf(buf, SBUFSIZ - 1, format, ap);
+        n = vsnprintf(buf, SBUFSIZ, format, ap);
         va_end(ap);
         if (n > 0) {
-            buf[n] = '\0';
             dbgprints(funcname, buf);
         }
     }
@@ -946,14 +945,17 @@ static DWORD logwrline(HANDLE h, const char *str)
 
 static DWORD logprintf(HANDLE h, const char *format, ...)
 {
+    int     c;
     char    buf[MBUFSIZ];
     va_list ap;
 
-    memset(buf, 0, sizeof(buf));
     va_start(ap, format);
-    _vsnprintf(buf, MBUFSIZ - 1, format, ap);
+    c = vsnprintf(buf, MBUFSIZ, format, ap);
     va_end(ap);
-    return logwrline(h, buf);
+    if (c > 0)
+        return logwrline(h, buf);
+    else
+        return 0;
 }
 
 static DWORD logwrtime(HANDLE h, const char *hdr)
@@ -2455,7 +2457,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             servicemode  = 0;
             cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
-            wnamestamp = CPP_WIDEN(SHUTDOWN_APPNAME) L" " CPP_WIDEN(SVCBATCH_VERSION_TXT);
+            wnamestamp = CPP_WIDEN(SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT);
         }
     }
     if (wenv != NULL) {
