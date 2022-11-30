@@ -142,7 +142,7 @@
 #define CPP_TOSTR_HELPER(n)     #n
 #define CPP_TOSTR(n)            CPP_TOSTR_HELPER(n)
 
-#define CPP_WIDEN_HELPER(n)     L#n
+#define CPP_WIDEN_HELPER(n)     L ## n
 #define CPP_WIDEN(n)            CPP_WIDEN_HELPER(n)
 
 

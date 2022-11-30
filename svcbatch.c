@@ -77,6 +77,7 @@ static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static wchar_t  *logfilepart      = NULL;
 static wchar_t  *logredirect      = NULL;
+static wchar_t  *wnamestamp       = NULL;
 
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
@@ -98,7 +99,6 @@ static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
 static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
-static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME " " SVCBATCH_VERSION_TXT);
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 static const wchar_t *rotateparam = NULL;
@@ -152,6 +152,21 @@ static wchar_t *xwcsdup(const wchar_t *s)
     n = wcslen(s);
     p = xwmalloc(n);
     wmemcpy(p, s, n);
+    return p;
+}
+
+static wchar_t *xcwiden(const char *s)
+{
+    wchar_t *p;
+    size_t   i, n;
+
+    if (s == NULL)
+        return NULL;
+    n = strlen(s);
+    p = xwmalloc(n);
+    for (i = 0; i < n; i++) {
+        p[i] = (wchar_t)(s[i]);
+    }
     return p;
 }
 
@@ -2457,9 +2472,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             servicemode  = 0;
             cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
-            wnamestamp = CPP_WIDEN(SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT);
         }
     }
+    wnamestamp = xcwiden(cnamestamp);
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
             ++envc;
