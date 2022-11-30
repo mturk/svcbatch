@@ -80,6 +80,7 @@ DWORD WINAPI rotatemonitor(void *unused)
     if (revents[0] == NULL) {
         r = GetLastError();
         dbgprintf(progname, "failed to open %s", sig);
+        dbgprints(progname, "rotatemonitor done");
         return r;
     }
     dbgprintf(progname, "waiting for rotate event: %s", sig);
@@ -205,9 +206,14 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     if (rh != NULL) {
-        dbgprints(progname, "closing rotatemonitor");
-        SetEvent(revents[1]);
-        WaitForSingleObject(rh, 2000);
+        if (WaitForSingleObject(rh, 0) != WAIT_OBJECT_0) {
+            dbgprints(progname, "closing rotatemonitor");
+            SetEvent(revents[1]);
+            WaitForSingleObject(rh, 2000);
+        }
+        else {
+            dbgprints(progname, "rotatemonitor already closed");
+        }
         CloseHandle(rh);
         CloseHandle(revents[1]);
     }
