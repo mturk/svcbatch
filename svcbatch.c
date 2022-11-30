@@ -317,23 +317,15 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
             place = zerostring;
             return EOF;
         }
-        if (*place == L'\0') {
-            ++xwoptind;
-            place = zerostring;
-            return L'!';
-        }
     }
     xwoption = *(place++);
 
-    if (xwoption != L':') {
+    if (xwoption >= L'A') {
         oli = wcschr(opts, towlower((wchar_t)xwoption));
     }
     if (oli == NULL) {
-        if (*place == L'\0') {
-            ++xwoptind;
-            place = zerostring;
-        }
-        return L'!';
+        place = zerostring;
+        return EINVAL;
     }
 
     /* Does this option need an argument? */
@@ -345,16 +337,14 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
         if (*place != L'\0') {
             xwoptarg = place;
         }
-        else if (oli[2] != L':') {
-            if (nargc > ++xwoptind) {
-                xwoptarg = nargv[xwoptind];
-            }
+        else if (nargc > ++xwoptind) {
+            xwoptarg = nargv[xwoptind];
         }
         ++xwoptind;
         place = zerostring;
         if (IS_EMPTY_WCS(xwoptarg)) {
             /* Option-argument is absent or empty */
-            return L':';
+            return ENOENT;
         }
     }
     else {
@@ -2444,7 +2434,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     logtickcount = GetTickCount64();
-    dbgprints(__FUNCTION__, cnamestamp);
     if (wenv != NULL) {
         while (wenv[envc] != NULL)
             ++envc;
@@ -2499,7 +2488,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             case L'x':
                 servicemode  = 0;
             break;
-            case L':':
+            case ENOENT:
                 bb[0] = xwoption;
                 return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid command line option value", bb);
             break;
@@ -2509,6 +2498,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
 
         }
+    }
+    if (hasdebuginfo) {
+        dbgprints(__FUNCTION__, cnamestamp);
+        dbgprints(__FUNCTION__, GetCommandLineA());
     }
     argc  -= xwoptind;
     wargv += xwoptind;
