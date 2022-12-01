@@ -2680,20 +2680,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             xfree(psn);
         }
         if (haspipedlogs) {
-            int hasdorotate = 1;
-            if (rotateparam != NULL) {
-                if ((rotateparam[0] ==  L'0') && (rotateparam[1] ==  WNUL)) {
-                    hasdorotate = 0;
-                    rotateparam = NULL;
-                }
-            }
-            if (hasdorotate) {
-                wchar_t *psn = xwcsconcat(DOROTATE_IPCNAME, serviceuuid);
-                rsignalevent = CreateEventW(&sazero, FALSE, FALSE, psn);
-                if (IS_INVALID_HANDLE(rsignalevent))
-                    return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
-                xfree(psn);
-            }
+            wchar_t *psn = xwcsconcat(DOROTATE_IPCNAME, serviceuuid);
+            rsignalevent = CreateEventW(&sazero, FALSE, FALSE, psn);
+            if (IS_INVALID_HANDLE(rsignalevent))
+                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
+            xfree(psn);
         }
     }
     else {
