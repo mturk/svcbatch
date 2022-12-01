@@ -468,11 +468,14 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         va_list ap;
 
         va_start(ap, format);
-        n = vsnprintf(buf, SBUFSIZ, format, ap);
+        n = _vsnprintf(buf, SBUFSIZ - 1, format, ap);
         va_end(ap);
         if (n > 0) {
+            buf[n] = '\0';
             dbgprints(funcname, buf);
         }
+        else
+            dbgprints(funcname, "_vsnprintf failed!");
     }
 }
 
@@ -965,10 +968,12 @@ static DWORD logprintf(HANDLE h, const char *format, ...)
     va_list ap;
 
     va_start(ap, format);
-    c = vsnprintf(buf, MBUFSIZ, format, ap);
+    c = _vsnprintf(buf, MBUFSIZ - 1, format, ap);
     va_end(ap);
-    if (c > 0)
+    if (c > 0) {
+        buf[c] = '\0';
         return logwrline(h, buf);
+    }
     else
         return 0;
 }
