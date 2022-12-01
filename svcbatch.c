@@ -541,50 +541,38 @@ finished:
 
 static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err, const wchar_t *eds)
 {
-    wchar_t        hdr[BBUFSIZ];
+    wchar_t        hdr[MBUFSIZ];
     wchar_t        erb[MBUFSIZ];
     const wchar_t *errarg[10];
     int            c, i = 0;
-    DWORD          r = ern;
 
     errarg[i++] = wnamestamp;
     if (servicename)
         errarg[i++] = servicename;
+    errarg[i++] = CRLFW;
     errarg[i++] = L"reported the following error:\r\n";
-    c = _snwprintf(hdr, BBUFSIZ - 1, L"svcbatch.c(%.4d, %S)", line, fn);
+    if (eds == NULL)
+        c = _snwprintf(hdr, MBUFSIZ - 1, L"svcbatch.c(%.4d, %S) %s",    line, fn, err);
+    else
+        c = _snwprintf(hdr, MBUFSIZ - 1, L"svcbatch.c(%.4d, %S) %s: %s", line, fn, err, eds);
     if (c < 0)
         c = 0;
     hdr[c] = WNUL;
     errarg[i++] = hdr;
-    errarg[i++] = err;
 
     if (ern) {
-        c = _snwprintf(erb, BBUFSIZ - 1, L"(err=%lu) ", ern);
+        c = _snwprintf(erb, BBUFSIZ - 1, L"error(%lu) ", ern);
         if (c < 0)
             c = 0;
         erb[c] = WNUL;
         xwinapierror(erb + c, MBUFSIZ - c, ern);
+        errarg[i++] = CRLFW;
         errarg[i++] = erb;
+        dbgprintf(__FUNCTION__, "%S, %S", hdr, erb);
     }
     else {
-        r = ERROR_INVALID_PARAMETER;
-    }
-    if (eds != NULL)
-        errarg[i++] = eds;
-    if (hasdebuginfo) {
-        if (eds != NULL) {
-            if (ern)
-                dbgprintf(__FUNCTION__, "%S %S %S: %S", hdr, err, erb, eds);
-            else
-                dbgprintf(__FUNCTION__, "%S %S %S",     hdr, err, eds);
-
-        }
-        else {
-            if (ern)
-                dbgprintf(__FUNCTION__, "%S %S %S", hdr, err, erb);
-            else
-                dbgprintf(__FUNCTION__, "%S %S",    hdr, err);
-        }
+        ern = ERROR_INVALID_PARAMETER;
+        dbgprintf(__FUNCTION__, "%S", hdr);
     }
     errarg[i++] = CRLFW;
     while (i < 10) {
@@ -602,7 +590,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
             DeregisterEventSource(es);
         }
     }
-    return r;
+    return ern;
 }
 
 static DWORD xcreatedir(const wchar_t *path)
