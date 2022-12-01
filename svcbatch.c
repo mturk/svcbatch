@@ -1130,7 +1130,7 @@ static DWORD openlogpipe(void)
         logwrline(wr, cnamestamp);
     }
     InterlockedExchangePointer(&logfhandle, wr);
-    dbgprintf(__FUNCTION__, "running pipe log process: %lu", pipedprocpid);
+    dbgprintf(__FUNCTION__, "running pipe log process %lu", pipedprocpid);
     xfree(cmdline);
 
     return 0;
@@ -1236,7 +1236,7 @@ static DWORD openlogfile(BOOL firstopen)
         goto failed;
     }
     if (rc == ERROR_ALREADY_EXISTS) {
-        dbgprintf(__FUNCTION__, "reusing: %S", logfilename);
+        dbgprintf(__FUNCTION__, "reusing %S", logfilename);
         logfflush(h);
     }
     else {
@@ -1316,7 +1316,7 @@ static void closelogfile(void)
         SAFE_CLOSE_HANDLE(logrhandle);
         ws = WaitForSingleObject(pipedprocess, SVCBATCH_STOP_HINT);
         if (ws != WAIT_OBJECT_0)
-            dbgprintf(__FUNCTION__, "wait for piped log returned: %lu", ws);
+            dbgprintf(__FUNCTION__, "wait for piped log returned %lu", ws);
         SAFE_CLOSE_HANDLE(pipedprocess);
         SAFE_CLOSE_HANDLE(pipedprocjob);
     }
@@ -1339,7 +1339,7 @@ static int resolverotate(const wchar_t *str)
     }
     if ((str[0] >=  L'0') && (str[0] <=  L'9') && (str[1] ==  WNUL)) {
         svcmaxlogs = str[0] - L'0';
-        dbgprintf(__FUNCTION__, "max rotate logs: %d", svcmaxlogs);
+        dbgprintf(__FUNCTION__, "max rotate logs %d", svcmaxlogs);
         return 0;
     }
     rotatetmo.QuadPart = rotateint;
@@ -1560,7 +1560,7 @@ static int runshutdown(DWORD rt)
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
 
-    dbgprintf(__FUNCTION__, "waiting for shutdown process: %lu to finish", cp.dwProcessId);
+    dbgprintf(__FUNCTION__, "waiting for shutdown process %lu to finish", cp.dwProcessId);
     rc = WaitForMultipleObjects(2, wh, FALSE, rt + SVCBATCH_STOP_STEP);
     switch (rc) {
         case WAIT_OBJECT_0:
@@ -1568,11 +1568,11 @@ static int runshutdown(DWORD rt)
                       cp.dwProcessId);
         break;
         case WAIT_OBJECT_1:
-            dbgprintf(__FUNCTION__, "processended for: %lu",
+            dbgprintf(__FUNCTION__, "processended for %lu",
                       cp.dwProcessId);
         break;
         case WAIT_TIMEOUT:
-            dbgprintf(__FUNCTION__, "sending signal event to: %lu",
+            dbgprintf(__FUNCTION__, "sending signal event to %lu",
                       cp.dwProcessId);
             SetEvent(ssignalevent);
         break;
@@ -1581,14 +1581,14 @@ static int runshutdown(DWORD rt)
     }
     if (rc != WAIT_OBJECT_0) {
         if (WaitForSingleObject(cp.hProcess, rt) != WAIT_OBJECT_0) {
-            dbgprintf(__FUNCTION__, "calling TerminateProcess for: %lu",
+            dbgprintf(__FUNCTION__, "calling TerminateProcess for %lu",
                        cp.dwProcessId);
             TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
         }
     }
     if (!GetExitCodeProcess(cp.hProcess, &rc)) {
         rc = GetLastError();
-        dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", rc);
+        dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with %lu", rc);
     }
 finished:
     xfree(cmdline);
@@ -1605,14 +1605,14 @@ static unsigned int __stdcall stopthread(void *unused)
     if (servicemode)
         dbgprints(__FUNCTION__, "service stop");
     else
-        dbgprints(__FUNCTION__, "shutdown stop ");
+        dbgprints(__FUNCTION__, "shutdown stop");
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
     if (shutdownfile != NULL) {
         DWORD rc;
 
         dbgprints(__FUNCTION__, "creating shutdown process");
         rc = runshutdown(SVCBATCH_STOP_CHECK);
-        dbgprintf(__FUNCTION__, "runshutdown returned: %lu", rc);
+        dbgprintf(__FUNCTION__, "runshutdown returned %lu", rc);
         if (WaitForSingleObject(processended, 0) == WAIT_OBJECT_0) {
             dbgprints(__FUNCTION__, "processended by shutdown");
             goto finished;
@@ -1628,7 +1628,7 @@ static unsigned int __stdcall stopthread(void *unused)
             }
         }
     }
-    dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT for: %S", svcbatchname);
+    dbgprintf(__FUNCTION__, "raising CTRL_C_EVENT for %S", svcbatchname);
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         DWORD ws;
 
@@ -1641,7 +1641,7 @@ static unsigned int __stdcall stopthread(void *unused)
         }
     }
     else {
-        dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed %lu", GetLastError());
+        dbgprintf(__FUNCTION__, "SetConsoleCtrlHandler failed err=%lu", GetLastError());
     }
     dbgprints(__FUNCTION__, "process still running");
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
@@ -1706,11 +1706,11 @@ static unsigned int __stdcall rdpipethread(void *unused)
             dbgprintf(__FUNCTION__, "err=%lu", rc);
         if (WaitForSingleObject(childprocess, SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT) {
             if (GetExitCodeProcess(pipedprocess, &rc)) {
-                dbgprintf(__FUNCTION__, "piped process exited with: %lu", rc);
+                dbgprintf(__FUNCTION__, "piped process exited with %lu", rc);
             }
             else {
                 rc = GetLastError();
-                dbgprintf(__FUNCTION__, "piped GetExitCodeProcess failed with: %lu", rc);
+                dbgprintf(__FUNCTION__, "piped GetExitCodeProcess failed with %lu", rc);
             }
             if (InterlockedAdd(&sstarted, 0) == 0) {
                 svcsyserror(__FUNCTION__, __LINE__, rc, L"log redirection process failed", NULL);
@@ -1738,7 +1738,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
     dbgprints(__FUNCTION__, "started");
 
     if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
-        dbgprintf(__FUNCTION__, "send %lu chars to: %lu", wr, childprocpid);
+        dbgprintf(__FUNCTION__, "send %lu bytes to pid %lu", wr, childprocpid);
         if (!FlushFileBuffers(inputpipewrs))
             rc = GetLastError();
     }
@@ -1849,7 +1849,7 @@ static void monitorservice(void)
                     dbgprints(__FUNCTION__, "console ctrl+break send");
                 }
                 else {
-                    dbgprintf(__FUNCTION__, "Unknown control: %lu", cc);
+                    dbgprintf(__FUNCTION__, "unknown control %lu", cc);
                 }
                 ResetEvent(monitorevent);
             break;
@@ -1899,7 +1899,7 @@ static unsigned int __stdcall rotatethread(void *unused)
         if (wc == WAIT_OBJECT_0)
             dbgprints(__FUNCTION__, "processended signaled");
         else
-            dbgprintf(__FUNCTION__, "processended: %lu", wc);
+            dbgprintf(__FUNCTION__, "processended with %lu", wc);
         goto finished;
     }
     dbgprints(__FUNCTION__, "running");
@@ -1984,11 +1984,11 @@ static unsigned int __stdcall rotatethread(void *unused)
             break;
             case WAIT_FAILED:
                 rc = GetLastError();
-                dbgprintf(__FUNCTION__, "wait failed: %lu", rc);
+                dbgprintf(__FUNCTION__, "wait failed with err=%lu", rc);
             break;
             default:
                 rc = wc;
-                dbgprintf(__FUNCTION__, "wait error: %lu", rc);
+                dbgprintf(__FUNCTION__, "wait err=%lu", rc);
             break;
         }
     }
@@ -2109,7 +2109,7 @@ static unsigned int __stdcall workerthread(void *unused)
     ResumeThread(wh[2]);
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    dbgprintf(__FUNCTION__, "running child pid: %lu", childprocpid);
+    dbgprintf(__FUNCTION__, "running child with pid %lu", childprocpid);
     if (haslogrotate) {
         xcreatethread(1, 0, &rotatethread, NULL);
     }
@@ -2117,11 +2117,11 @@ static unsigned int __stdcall workerthread(void *unused)
     CloseHandle(wh[1]);
     CloseHandle(wh[2]);
 
-    dbgprintf(__FUNCTION__, "finished %S pid: %lu",
+    dbgprintf(__FUNCTION__, "finished %S with pid %lu",
               svcbatchname, childprocpid);
     if (!GetExitCodeProcess(childprocess, &rc)) {
         rc = GetLastError();
-        dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with: %lu", rc);
+        dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with %lu", rc);
     }
     if (rc) {
         if (servicemode) {
@@ -2129,14 +2129,14 @@ static unsigned int __stdcall workerthread(void *unused)
                 /**
                   * 255 is exit code when CTRL_C is send to cmd.exe
                   */
-                dbgprintf(__FUNCTION__, "%S exited with: %lu",
+                dbgprintf(__FUNCTION__, "service %S exited with %lu",
                           svcbatchname, rc);
                 setsvcstatusexit(ERROR_PROCESS_ABORTED);
             }
         }
         else {
             setsvcstatusexit(rc);
-            dbgprintf(__FUNCTION__, "%S exited with: %lu",
+            dbgprintf(__FUNCTION__, "%S exited with %lu",
                       svcbatchname, rc);
         }
     }
@@ -2173,7 +2173,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
                 dbgprints(__FUNCTION__, "signaled CTRL_LOGOFF_EVENT");
             break;
             default:
-                dbgprintf(__FUNCTION__, "unknown ctrl: %lu", ctrl);
+                dbgprintf(__FUNCTION__, "unknown control %lu", ctrl);
                 rv = FALSE;
             break;
         }
@@ -2204,7 +2204,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
         case SERVICE_CONTROL_STOP:
-            dbgprints(__FUNCTION__, msg + 8);
+            dbgprints(__FUNCTION__, msg + 19);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
             if (haslogstatus) {
                 EnterCriticalSection(&logfilelock);
@@ -2220,7 +2220,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak) {
-                dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_BREAK");
+                dbgprints(__FUNCTION__, "raising SVCBATCH_CTRL_BREAK");
                 InterlockedExchange(&monitorsig, ctrl);
                 SetEvent(monitorevent);
             }
@@ -2231,7 +2231,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
         case SVCBATCH_CTRL_ROTATE:
             if (IS_VALID_HANDLE(rsignalevent)) {
-                dbgprintf(__FUNCTION__, "signaling rotate to process: %lu", pipedprocpid);
+                dbgprintf(__FUNCTION__, "signaling SVCBATCH_CTRL_ROTATE to %lu", pipedprocpid);
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h != NULL) {
@@ -2245,16 +2245,14 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 SetEvent(rsignalevent);
                 InterlockedExchangePointer(&logfhandle, h);
                 LeaveCriticalSection(&logfilelock);
-                return 0;
             }
-            if (IS_VALID_HANDLE(logrotatesig)) {
+            else if (IS_VALID_HANDLE(logrotatesig)) {
                 /**
                  * Signal to rotatethread that
                  * user send custom service control
                  */
-                dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_ROTATE");
+                dbgprints(__FUNCTION__, "signaling SVCBATCH_CTRL_ROTATE");
                 SetEvent(logrotatesig);
-                return 0;
             }
             else {
                 dbgprints(__FUNCTION__, "log rotation is disabled");
@@ -2262,10 +2260,10 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
         break;
         case SERVICE_CONTROL_INTERROGATE:
-            dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_INTERROGATE");
+            dbgprints(__FUNCTION__, "SERVICE_CONTROL_INTERROGATE");
         break;
         default:
-            dbgprintf(__FUNCTION__, "unknown ctrl: %lu", ctrl);
+            dbgprintf(__FUNCTION__, "unknown control %lu", ctrl);
             return ERROR_CALL_NOT_IMPLEMENTED;
         break;
     }
@@ -2392,7 +2390,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
                 ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
             }
         }
-        dbgprintf(__FUNCTION__, "stopthread status: %lu", ws);
+        dbgprintf(__FUNCTION__, "stopthread status=%lu", ws);
     }
 
 finished:
