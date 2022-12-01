@@ -501,10 +501,8 @@ static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
         }
     }
     else {
-        int n = _snwprintf(buf, bufsize - 1, L"Unknown Win32 error code: %lu", statcode);
-        if (n < 0)
-            n = 0;
-        buf[n] = WNUL;
+        buf[0] = WNUL;
+        buf[1] = WNUL;
     }
 }
 
