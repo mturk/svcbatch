@@ -21,6 +21,7 @@ rem
 setlocal
 rem
 echo %~nx0: Called from %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Arguments %*
 echo.
 rem Dump environment variables to SvcBatch.shutdown.log file
 set

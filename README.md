@@ -341,6 +341,16 @@ make sure to get familiar with `sc.exe` utility.
   This is particularly useful for services that do not handle
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
+  If **-a** command line option is defined its parameter will
+  be used as additional arguments send to the **batchfile**.
+
+* **-a [arguments]**
+
+  **Provide arguments to shutdown batch file**
+
+  This option enables to send **arguments** to shutdown batch file
+  defined by **-s** command line option.
+
 * **-q**
 
   **Do not log internal messages**

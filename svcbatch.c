@@ -103,6 +103,7 @@ static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 static const wchar_t *rotateparam = NULL;
 static const wchar_t *logdirparam = NULL;
+static const wchar_t *svcendargs  = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
 static wchar_t *xwmalloc(size_t size)
@@ -1508,6 +1509,8 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(0, cmdline, L"-n");
     cmdline = xappendarg(1, cmdline, svclogfname);
     cmdline = xappendarg(1, cmdline, shutdownfile);
+    if (svcendargs != NULL)
+        cmdline = xappendarg(0, cmdline, svcendargs);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
@@ -2488,7 +2491,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (envc == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"Missing system environment", NULL);
 
-    while ((opt = xwgetopt(argc, wargv, L"bdlqpe:o:r:s:w:n:u:xz:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bdlqpe:o:r:s:w:n:u:xz:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
@@ -2519,6 +2522,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
             case L's':
                 svcendparam  = xwoptarg;
+            break;
+            case L'a':
+                svcendargs   = xwoptarg;
             break;
             case L'w':
                 shomeparam   = xwoptarg;

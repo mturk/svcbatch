@@ -12,6 +12,10 @@ For a full list of changes, see the [git commit log][log]
  * Remove automatic log flush
  * Use high-resolution timer for internal logging
 
+### New Features
+
+ * Add -a command option that enables to provide arguments to shutdown batch file
+
 
 ## v1.3.2
 
