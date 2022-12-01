@@ -2486,7 +2486,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             ++envc;
     }
     if (envc == 0)
-        return svcsyserror(__FUNCTION__, __LINE__, 0, L"System", L"Missing environment");
+        return svcsyserror(__FUNCTION__, __LINE__, 0, L"Missing system environment", NULL);
 
     while ((opt = xwgetopt(argc, wargv, L"bdlqpe:o:r:s:w:n:u:xz:")) != EOF) {
         switch (opt) {
@@ -2502,17 +2502,17 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             case L'q':
                 haslogstatus = 0;
             break;
+            case L'p':
+                preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
+            break;
             case L'o':
-                logdirparam = xwoptarg;
+                logdirparam  = xwoptarg;
             break;
             case L'e':
                 lredirparam  = xwoptarg;
             break;
             case L'n':
                 svclogfname  = xwoptarg;
-            break;
-            case L'p':
-                preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             case L'r':
                 rotateparam  = xwoptarg;
@@ -2533,20 +2533,31 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 serviceuuid  = xwcsdup(xwoptarg);
             break;
             case L'x':
-                servicemode  = 0;
+                if (servicemode)
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Cannot use private -x command option in service mode", NULL);
             break;
             case ENOENT:
                 bb[0] = xwoption;
-                return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid command line option value", bb);
+                return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                   L"Invalid command line option value", bb);
             break;
             default:
                 bb[0] = xwoption;
-                return svcsyserror(__FUNCTION__, __LINE__, 0, L"Unknown command line option", bb);
+                return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                   L"Unknown command line option", bb);
             break;
-
         }
     }
 
+    if (servicemode) {
+        if (servicename)
+            return svcsyserror(__FUNCTION__, __LINE__, 0,
+                               L"Cannot use private -z command option in service mode", NULL);
+        if (serviceuuid)
+            return svcsyserror(__FUNCTION__, __LINE__, 0,
+                               L"Cannot use private -u command option in service mode", NULL);
+    }
     argc  -= xwoptind;
     wargv += xwoptind;
     if (argc > 0) {
@@ -2564,8 +2575,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (servicemode)
             serviceuuid = xuuidstring();
         else
-            return svcsyserror(__FUNCTION__, __LINE__, 0, L"Runtime error",
-                               L"Missing -u <SVCBATCH_SERVICE_UUID> parameter");
+            return svcsyserror(__FUNCTION__, __LINE__, 0,
+                               L"Missing -u <SVCBATCH_SERVICE_UUID> parameter", NULL);
     }
     if (IS_EMPTY_WCS(serviceuuid))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"xuuidstring", NULL);
@@ -2667,10 +2678,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     svcstopended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"svcstopended");
     processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"processended");
     if (servicemode) {
         if (shutdownfile != NULL) {
             wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
@@ -2697,11 +2708,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (haslogrotate) {
         logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
         if (IS_INVALID_HANDLE(logrotatesig))
-            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
+            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"logrotatesig");
     }
     monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"monitorevent");
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
