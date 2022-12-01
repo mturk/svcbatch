@@ -2188,13 +2188,13 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 
     switch (ctrl) {
         case SERVICE_CONTROL_PRESHUTDOWN:
-            msg = "Signaled SERVICE_CONTROL_PRESHUTDOWN";
+            msg = "Service signaled : SERVICE_CONTROL_PRESHUTDOWN";
         break;
         case SERVICE_CONTROL_SHUTDOWN:
-            msg = "Signaled SERVICE_CONTROL_SHUTDOWN";
+            msg = "Service signaled : SERVICE_CONTROL_SHUTDOWN";
         break;
         case SERVICE_CONTROL_STOP:
-            msg = "Signaled SERVICE_CONTROL_STOP";
+            msg = "Service signaled : SERVICE_CONTROL_STOP";
         break;
     }
 
@@ -2204,7 +2204,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
         case SERVICE_CONTROL_STOP:
-            dbgprints(__FUNCTION__, msg);
+            dbgprints(__FUNCTION__, msg + 8);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
             if (haslogstatus) {
                 EnterCriticalSection(&logfilelock);
