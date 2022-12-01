@@ -2219,17 +2219,19 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             createstopthread();
         break;
         case SVCBATCH_CTRL_BREAK:
-            dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_BREAK");
-            if (hasctrlbreak == 0) {
-                dbgprints(__FUNCTION__, "disabled SVCBATCH_CTRL_BREAK signal");
+            if (hasctrlbreak) {
+                dbgprints(__FUNCTION__, "signaled SVCBATCH_CTRL_BREAK");
+                InterlockedExchange(&monitorsig, ctrl);
+                SetEvent(monitorevent);
+            }
+            else {
+                dbgprints(__FUNCTION__, "ctrl+break is disabled");
                 return ERROR_CALL_NOT_IMPLEMENTED;
             }
-            InterlockedExchange(&monitorsig, ctrl);
-            SetEvent(monitorevent);
         break;
         case SVCBATCH_CTRL_ROTATE:
             if (IS_VALID_HANDLE(rsignalevent)) {
-                dbgprintf(__FUNCTION__, "signaled rotate to: %lu", pipedprocpid);
+                dbgprintf(__FUNCTION__, "signaling rotate to process: %lu", pipedprocpid);
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h != NULL) {
@@ -2254,8 +2256,10 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 SetEvent(logrotatesig);
                 return 0;
             }
-            dbgprints(__FUNCTION__, "log rotation is disabled");
-            return ERROR_CALL_NOT_IMPLEMENTED;
+            else {
+                dbgprints(__FUNCTION__, "log rotation is disabled");
+                return ERROR_CALL_NOT_IMPLEMENTED;
+            }
         break;
         case SERVICE_CONTROL_INTERROGATE:
             dbgprints(__FUNCTION__, "signaled SERVICE_CONTROL_INTERROGATE");
