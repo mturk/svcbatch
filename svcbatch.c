@@ -664,22 +664,19 @@ static HANDLE xcreatethread(int detach, unsigned initflag,
     return h;
 }
 
-static wchar_t *winrealpathname(const wchar_t *path, int isdir)
+static wchar_t *winrealpathname(const wchar_t *src, int isdir)
 {
     wchar_t    *buf;
 
-    if (IS_EMPTY_WCS(path))
+    if (IS_EMPTY_WCS(src))
         return NULL;
-    if (servicemode == 0)
-        return xwcsdup(path);
-
-    if ((path[0] == L'.') && ((path[1] == L'\\') || (path[1] == L'/'))) {
+    if ((src[0] == L'.') && ((src[1] == L'\\') || (src[1] == L'/'))) {
         /**
          * Remove leading './' or '.\'
          */
-        path += 2;
+        src += 2;
     }
-    buf = xwcsdup(path);
+    buf = xwcsdup(src);
     if (IS_EMPTY_WCS(buf))
         return NULL;
     xcleanwinpath(buf, isdir);
@@ -1020,8 +1017,13 @@ static DWORD createlogdir(void)
 {
     if (logdirparam != NULL) {
         DWORD rc;
-        wchar_t *dp = winrealpathname(logdirparam, 1);
+        wchar_t *dp;
 
+        if (servicemode == 0) {
+            loglocation = xwcsdup(logdirparam);
+            return 0;
+        }
+        dp = winrealpathname(logdirparam, 1);
         if (dp == NULL) {
             svcsyserror(__FUNCTION__, __LINE__, 0,
                         L"winrealpathname", logdirparam);
