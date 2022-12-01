@@ -482,22 +482,21 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 
 static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
 {
-    DWORD len;
-    len = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
-                         FORMAT_MESSAGE_IGNORE_INSERTS,
-                         NULL,
-                         statcode,
-                         MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                         buf,
-                         bufsize,
-                         NULL);
-    if (len) {
+    int n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
+                           FORMAT_MESSAGE_IGNORE_INSERTS,
+                           NULL,
+                           statcode,
+                           MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                           buf,
+                           bufsize - 2,
+                           NULL);
+    if (n) {
         do {
-            buf[len--] = WNUL;
-        } while ((len > 0) && ((buf[len] == L'.') || (buf[len] <= L' ')));
-        while (len-- > 0) {
-            if (iswspace(buf[len]))
-                buf[len] = L' ';
+            buf[n--] = WNUL;
+        } while ((n > 0) && ((buf[n] == L'.') || (buf[n] <= L' ')));
+        while (n-- > 0) {
+            if (iswspace(buf[n]))
+                buf[n] = L' ';
         }
     }
     else {
