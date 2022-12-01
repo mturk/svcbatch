@@ -545,12 +545,13 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     wchar_t        erb[MBUFSIZ];
     const wchar_t *errarg[10];
     int            c, i = 0;
+    DWORD          r = ern;
 
     errarg[i++] = wnamestamp;
     if (servicename)
         errarg[i++] = servicename;
     errarg[i++] = L"reported the following error:\r\n";
-    c = _snwprintf(hdr, BBUFSIZ - 1, L"svcbatch.c(%d, %S)", line, fn);
+    c = _snwprintf(hdr, BBUFSIZ - 1, L"svcbatch.c(%.4d, %S)", line, fn);
     if (c < 0)
         c = 0;
     hdr[c] = WNUL;
@@ -566,15 +567,24 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
         errarg[i++] = erb;
     }
     else {
-        erb[0] = WNUL;
-        ern = ERROR_INVALID_PARAMETER;
+        r = ERROR_INVALID_PARAMETER;
     }
-    if (eds != NULL) {
+    if (eds != NULL)
         errarg[i++] = eds;
-        dbgprintf(fn, "%S %S %S: %S",  hdr, err, erb, eds);
-    }
-    else {
-        dbgprintf(fn, "%S %S %S", hdr, err, erb);
+    if (hasdebuginfo) {
+        if (eds != NULL) {
+            if (ern)
+                dbgprintf(__FUNCTION__, "%S %S %S: %S", hdr, err, erb, eds);
+            else
+                dbgprintf(__FUNCTION__, "%S %S %S",     hdr, err, eds);
+
+        }
+        else {
+            if (ern)
+                dbgprintf(__FUNCTION__, "%S %S %S", hdr, err, erb);
+            else
+                dbgprintf(__FUNCTION__, "%S %S",    hdr, err);
+        }
     }
     errarg[i++] = CRLFW;
     while (i < 10) {
@@ -592,7 +602,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
             DeregisterEventSource(es);
         }
     }
-    return ern;
+    return r;
 }
 
 static DWORD xcreatedir(const wchar_t *path)
@@ -2433,7 +2443,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         opt;
     int         envc  = 0;
     int         rv    = 0;
-    wchar_t     bb[2] = { WNUL, WNUL };
+    wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
     const wchar_t *batchparam  = NULL;
@@ -2542,14 +2552,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                        L"Cannot use private -x command option in service mode", NULL);
             break;
             case ENOENT:
-                bb[0] = xwoption;
+                bb[1] = xwoption;
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                   L"Invalid command line option value", bb);
+                                   L"Missing argument for command line option", bb);
             break;
             default:
-                bb[0] = xwoption;
+                bb[1] = xwoption;
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                   L"Unknown command line option", bb);
+                                   L"Invalid command line option", bb);
             break;
         }
     }
