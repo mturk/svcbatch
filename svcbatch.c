@@ -664,46 +664,24 @@ static HANDLE xcreatethread(int detach, unsigned initflag,
     return h;
 }
 
-static wchar_t *expandenvstrings(const wchar_t *str, int isdir)
+static wchar_t *winrealpathname(const wchar_t *path, int isdir)
 {
-    wchar_t  *buf = NULL;
-    DWORD     siz;
-    DWORD     len = 0;
+    wchar_t    *buf;
 
-    if (IS_EMPTY_WCS(str))
+    if (IS_EMPTY_WCS(path))
         return NULL;
     if (servicemode == 0)
-        return xwcsdup(str);
+        return xwcsdup(path);
 
-    if ((str[0] == L'.') && ((str[1] == L'\\') || (str[1] == L'/'))) {
+    if ((path[0] == L'.') && ((path[1] == L'\\') || (path[1] == L'/'))) {
         /**
          * Remove leading './' or '.\'
          */
-        str += 2;
+        path += 2;
     }
-    if (*str == WNUL)
+    buf = xwcsdup(path);
+    if (IS_EMPTY_WCS(buf))
         return NULL;
-    for (siz = 0; str[siz] != WNUL; siz++) {
-        if (str[siz] == L'%')
-            len++;
-    }
-    if (len < 2) {
-        buf = xwmalloc(siz);
-        wmemcpy(buf, str, siz);
-    }
-    while (buf == NULL) {
-        buf = xwmalloc(siz);
-        len = ExpandEnvironmentStringsW(str, buf, siz);
-        if (len == 0) {
-            xfree(buf);
-            return NULL;
-        }
-        if (len > siz) {
-            xfree(buf);
-            buf = NULL;
-            siz = len;
-        }
-    }
     xcleanwinpath(buf, isdir);
 
     return buf;
@@ -711,23 +689,34 @@ static wchar_t *expandenvstrings(const wchar_t *str, int isdir)
 
 static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 {
-    wchar_t    *es;
-    wchar_t    *buf  = NULL;
+    wchar_t    *buf;
     DWORD       siz  = _MAX_FNAME;
     DWORD       len  = 0;
     HANDLE      fh;
-    DWORD       fa   = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
+    DWORD       atr  = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
-    es = expandenvstrings(path, isdir);
-    if ((es == NULL) || (servicemode == 0))
-        return es;
+    if (IS_EMPTY_WCS(path))
+        return NULL;
+    if (servicemode == 0)
+        return xwcsdup(path);
 
-    fh = CreateFileW(es, GENERIC_READ, FILE_SHARE_READ, NULL,
-                     OPEN_EXISTING, fa, NULL);
-    xfree(es);
+    if ((path[0] == L'.') && ((path[1] == L'\\') || (path[1] == L'/'))) {
+        /**
+         * Remove leading './' or '.\'
+         */
+        path += 2;
+    }
+    buf = xwcsdup(path);
+    if (IS_EMPTY_WCS(buf))
+        return NULL;
+    xcleanwinpath(buf, isdir);
+
+    fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
+                     OPEN_EXISTING, atr, NULL);
+    xfree(buf);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
-
+    buf = NULL;
     while (buf == NULL) {
         buf = xwmalloc(siz);
         len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
@@ -1031,15 +1020,21 @@ static DWORD createlogdir(void)
 {
     if (logdirparam != NULL) {
         DWORD rc;
+        wchar_t *dp = winrealpathname(logdirparam, 1);
 
-        loglocation = getrealpathname(logdirparam, 1);
+        if (dp == NULL) {
+            svcsyserror(__FUNCTION__, __LINE__, 0,
+                        L"winrealpathname", logdirparam);
+            return ERROR_BAD_PATHNAME;
+        }
+        loglocation = getrealpathname(dp, 1);
         if (loglocation == NULL) {
-            rc = xcreatepath(logdirparam);
+            rc = xcreatepath(dp);
             if (rc != 0)
-                return svcsyserror(__FUNCTION__, __LINE__, rc, L"xcreatepath", logdirparam);
-            loglocation = getrealpathname(logdirparam, 1);
+                return svcsyserror(__FUNCTION__, __LINE__, rc, L"xcreatepath", dp);
+            loglocation = getrealpathname(dp, 1);
             if (loglocation == NULL)
-                return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", logdirparam);
+                return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", dp);
         }
         if (_wcsicmp(loglocation, servicehome) == 0) {
             svcsyserror(__FUNCTION__, __LINE__, 0,
@@ -1047,6 +1042,7 @@ static DWORD createlogdir(void)
                         loglocation);
             return ERROR_BAD_PATHNAME;
         }
+        xfree(dp);
     }
     return 0;
 }

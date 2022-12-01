@@ -61,7 +61,7 @@ rem
 rem
 :doCreate
 rem
-set "SERVICE_LOG_DIR=-o \"Logs\%SERVICE_NAME%\""
+set "SERVICE_LOG_DIR=-o \"Logs/%SERVICE_NAME%\""
 rem Rotate Log files each 30 minutes or when larger then 100Kbytes
 set "ROTATE_RULE=/R @30~100K"
 rem Uncomment to disable log rotation
