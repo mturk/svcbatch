@@ -6,6 +6,11 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v1.3.5
+
+ * In development
+
+
 ## v1.3.4
 
  * Remove automatic log flush
