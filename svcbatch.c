@@ -269,48 +269,93 @@ static int envsort(const void *arg1, const void *arg2)
     return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
 }
 
-static wchar_t *xappendarg(int q, wchar_t *s1, const wchar_t *s2)
+static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2)
 {
-    wchar_t *cp, *rv;
-    int i, l1, l2;
-    int nq = 0, lx = 4;
+    const wchar_t *c;
+    wchar_t *e;
+    wchar_t *d;
+
+    int l1, l2;
 
     l2 = xwcslen(s2);
     if (l2 == 0)
         return s1;
 
     l1 = xwcslen(s1);
-    if (q) {
-        for (i = 0; i < l2; i++) {
-            if (s2[i] == L'"')
-                lx++;
-            else if (iswspace(s2[i]))
-                nq = 1;
+    if (nq) {
+        if (wcspbrk(s2, L" \f\n\r\t\v\"") == NULL) {
+            nq = 0;
+        }
+        else {
+            int n = 2;
+            for (c = s2; ; c++) {
+                int b = 0;
+
+                while (*c == L'\\') {
+                    b++;
+                    c++;
+                }
+
+                if (*c == WNUL) {
+                    n += b * 2;
+                    break;
+                }
+                else if (*c == L'"') {
+                    n += b * 2 + 1;
+                    n += 1;
+                }
+                else {
+                    n += b;
+                    n += 1;
+                }
+            }
+            l2 = n;
         }
     }
-    cp = rv = xwmalloc(l1 + l2 + lx);
+    e = xwmalloc(l1 + l2 + 2);
+    d = e;
 
     if(l1 > 0) {
-        wmemcpy(cp, s1, l1);
-        cp += l1;
-        *(cp++) = L' ';
+        wmemcpy(d, s1, l1);
+        d += l1;
+        *(d++) = L' ';
     }
     if (nq) {
-        *(cp++) = L'"';
-        for (i = 0; i < l2; i++) {
-            if (s2[i] == L'"')
-                *(cp++) = L'\\';
-            *(cp++) = s2[i];
+        *(d++) = L'"';
+        for (c = s2; ; c++) {
+            int b = 0;
+
+            while (*c == '\\') {
+                b++;
+                c++;
+            }
+
+            if (*c == WNUL) {
+                wmemset(d, L'\\', b * 2);
+                d += b * 2;
+                break;
+            }
+            else if (*c == L'"') {
+                wmemset(d, L'\\', b * 2 + 1);
+                d += b * 2 + 1;
+                *(d++) = *c;
+            }
+            else {
+                wmemset(d, L'\\', b);
+                d += b;
+                *(d++) = *c;
+            }
         }
-        *(cp++) = L'"';
+        *(d++) = L'"';
     }
     else {
-        wmemcpy(cp, s2, l2);
-        cp += l2;
+        wmemcpy(d, s2, l2);
+        d += l2;
     }
-    *cp = WNUL;
+    *d = WNUL;
     xfree(s1);
-    return rv;
+
+    return e;
 }
 
 int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
