@@ -8,9 +8,9 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.3.3
 
- * In development
  * Remove automatic log flush
  * Use high-resolution timer for internal logging
+ * Fix issues with reporting errors to Windows Event Log
 
 ### New Features
 
