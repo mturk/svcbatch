@@ -2056,17 +2056,9 @@ static unsigned int __stdcall workerthread(void *unused)
 
     cmdline = xappendarg(1, NULL, comspec);
     cmdline = xappendarg(0, cmdline, L"/D /C");
-    if (svcbatchargs != NULL) {
-        wchar_t *b = xappendarg(1, NULL, svcbatchfile);
-        cmdline = xwcsappend(cmdline, L" \"");
-        cmdline = xwcsappend(cmdline, b);
-        cmdline = xappendarg(0, cmdline, svcbatchargs);
-        cmdline = xwcsappend(cmdline, L"\"");
-        xfree(b);
-    }
-    else {
-        cmdline = xappendarg(1, cmdline, svcbatchfile);
-    }
+    cmdline = xappendarg(1, cmdline, svcbatchfile);
+    cmdline = xappendarg(0, cmdline, svcbatchargs);
+
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
