@@ -8,17 +8,19 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.3.4
 
- * In development
-
-## v1.3.3
-
  * Remove automatic log flush
  * Use high-resolution timer for internal logging
  * Fix issues with reporting errors to Windows Event Log
+ * Fix quoting arguments for batch files
 
 ### New Features
 
  * Add -a command option that enables to provide arguments to shutdown batch file
+
+
+## v1.3.3
+
+ * Not released
 
 
 ## v1.3.2
