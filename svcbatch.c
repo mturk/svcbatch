@@ -418,6 +418,39 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     return oli[0];
 }
 
+static wchar_t *xarrblk(int cnt, const wchar_t **arr, wchar_t sep)
+{
+    int   i, n, x;
+    int   len = cnt;
+    int   cs[64];
+    wchar_t *ep;
+    wchar_t *bp;
+
+
+    for (i = 0, x = 0; i < cnt; i++, x++) {
+        n = xwcslen(arr[i]);
+        if (x < 64)
+            cs[x] = n;
+        len += n;
+    }
+
+    bp = xwmalloc(len + 1);
+    ep = bp;
+    for (i = 0, x = 0; i < cnt; i++, x++) {
+        if (x < 64)
+            n = cs[x];
+        else
+            n = xwcslen(arr[i]);
+        if (i > 0)
+            *(ep++) = sep;
+        wmemcpy(ep, arr[i], n);
+        ep += n;
+    }
+    *(ep) = WNUL;
+
+    return bp;
+}
+
 static void xcleanwinpath(wchar_t *s, int isdir)
 {
     int i;
@@ -2307,11 +2340,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
-    int          i, n, x;
     DWORD        rv = 0;
-    int          eblen = 0;
-    int          ebsiz[64];
-    wchar_t     *ep;
     HANDLE       wh[4] = { NULL, NULL, NULL, NULL };
     DWORD        ws;
 
@@ -2361,21 +2390,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
-    for (i = 0, x = 0; i < dupwenvc; i++, x++) {
-        n = xwcslen(dupwenvp[i]);
-        if (x < 64)
-            ebsiz[x] = n;
-        eblen += (n + 1);
-    }
-    wenvblock = xwcalloc(eblen);
-    for (i = 0, x = 0, ep = wenvblock; i < dupwenvc; i++, x++) {
-        if (x < 64)
-            n = ebsiz[x];
-        else
-            n = xwcslen(dupwenvp[i]);
-        wmemcpy(ep, dupwenvp[i], n);
-        ep += (n + 1);
-    }
+    /**
+     * Convert environment array to environment block
+     */
+    wenvblock = xarrblk(dupwenvc, dupwenvp, WNUL);
+
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     if (haspipedlogs) {
         rv = openlogpipe();
