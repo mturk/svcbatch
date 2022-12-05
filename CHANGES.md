@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v1.3.5
 
  * In development
+ * Terminate external log application if it fails to exit within 5 seconds after closing log files
 
 
 ## v1.3.4

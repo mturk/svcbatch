@@ -1218,6 +1218,7 @@ static DWORD openlogpipe(void)
     return 0;
 
 failed:
+    SAFE_CLOSE_HANDLE(logrhandle);
     SAFE_CLOSE_HANDLE(pipedprocess);
     SAFE_CLOSE_HANDLE(pipedprocjob);
 
@@ -1384,6 +1385,7 @@ static void closelogfile(void)
     EnterCriticalSection(&logfilelock);
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h != NULL) {
+        dbgprints(__FUNCTION__, "closing");
         if (haslogstatus) {
             logfflush(h);
             logwrtime(h, "Log closed");
@@ -1391,17 +1393,25 @@ static void closelogfile(void)
         FlushFileBuffers(h);
         CloseHandle(h);
     }
+    SAFE_CLOSE_HANDLE(logrhandle);
     LeaveCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(pipedprocess)) {
-        DWORD ws;
+        dbgprintf(__FUNCTION__, "wait for log process %lu to finish", pipedprocpid);
+        if (WaitForSingleObject(pipedprocess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
+            dbgprintf(__FUNCTION__, "terminating log process %lu", pipedprocpid);
+            TerminateProcess(pipedprocess, WAIT_TIMEOUT);
+        }
+        if (hasdebuginfo) {
+            DWORD rv;
 
-        SAFE_CLOSE_HANDLE(logrhandle);
-        ws = WaitForSingleObject(pipedprocess, SVCBATCH_STOP_HINT);
-        if (ws != WAIT_OBJECT_0)
-            dbgprintf(__FUNCTION__, "wait for piped log returned %lu", ws);
+            if (GetExitCodeProcess(pipedprocess, &rv)) {
+                dbgprintf(__FUNCTION__, "log process returned %lu", rv);
+            }
+        }
         SAFE_CLOSE_HANDLE(pipedprocess);
         SAFE_CLOSE_HANDLE(pipedprocjob);
     }
+    dbgprints(__FUNCTION__, "closed");
 }
 
 static int resolverotate(const wchar_t *str)
@@ -1779,27 +1789,6 @@ static unsigned int __stdcall rdpipethread(void *unused)
             dbgprints(__FUNCTION__, "logfile closed");
         else
             dbgprintf(__FUNCTION__, "err=%lu", rc);
-        if (WaitForSingleObject(childprocess, SVCBATCH_PENDING_WAIT) == WAIT_TIMEOUT) {
-            if (GetExitCodeProcess(pipedprocess, &rc)) {
-                dbgprintf(__FUNCTION__, "piped process exited with %lu", rc);
-            }
-            else {
-                rc = GetLastError();
-                dbgprintf(__FUNCTION__, "piped GetExitCodeProcess failed with %lu", rc);
-            }
-            if (InterlockedAdd(&sstarted, 0) == 0) {
-                svcsyserror(__FUNCTION__, __LINE__, rc, L"log redirection process failed", NULL);
-                dbgprints(__FUNCTION__, "terminating child process");
-                TerminateProcess(childprocess, ERROR_PROCESS_ABORTED);
-                dbgprints(__FUNCTION__, "terminated");
-            }
-            else {
-                dbgprints(__FUNCTION__, "stop already started");
-            }
-        }
-        else {
-            dbgprints(__FUNCTION__, "done with childprocess");
-        }
     }
     dbgprints(__FUNCTION__, "done");
 
@@ -2193,7 +2182,7 @@ static unsigned int __stdcall workerthread(void *unused)
     }
     if (rc) {
         if (servicemode) {
-            if (rc != ERROR_EA_LIST_INCONSISTENT) {
+            if (rc != 255) {
                 /**
                   * 255 is exit code when CTRL_C is send to cmd.exe
                   */

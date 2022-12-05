@@ -219,8 +219,14 @@ int wmain(int argc, const wchar_t **wargv)
     }
     CloseHandle(w);
     if (e) {
-        if ((e == ERROR_BROKEN_PIPE) || (e == ERROR_NO_DATA))
+        if ((e == ERROR_BROKEN_PIPE) || (e == ERROR_NO_DATA)) {
             dbgprints(progname, "iopipe closed");
+            e = 0;
+#if SIMULATE_FAILURE
+            /* SvcBatch will kill this process after 5 seconds */
+            Sleep(6000);
+#endif
+        }
         else
             dbgprintf(progname, "iopipe error: %lu", e);
     }
