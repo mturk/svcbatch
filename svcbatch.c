@@ -1100,10 +1100,6 @@ static DWORD createlogdir(void)
         DWORD rc;
         wchar_t *dp;
 
-        if (servicemode == 0) {
-            loglocation = xwcsdup(logdirparam);
-            return 0;
-        }
         dp = winrealpathname(logdirparam, 1);
         if (dp == NULL) {
             svcsyserror(__FUNCTION__, __LINE__, 0,

@@ -16,14 +16,17 @@
 #ifndef _SVCBATCH_H_INCLUDED_
 #define _SVCBATCH_H_INCLUDED_
 
+#if defined(_MSC_VER)
 /**
  * Disable or reduce the frequency of...
  *   C4100: unreferenced formal parameter
  *   C4702: unreachable code
  *   C4244: int to char/short - precision loss
  */
-#if defined(_MSC_VER)
 # pragma warning(disable: 4100 4244 4702)
+#endif
+
+#if defined(_MSC_VER)
 # define CPP_INT64_C(_v)    (_v##I64)
 # define CPP_UINT64_C(_v)   (_v##UI64)
 #else

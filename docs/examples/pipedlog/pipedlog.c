@@ -151,6 +151,7 @@ int wmain(int argc, const wchar_t **wargv)
                     else {
                         c += wr;
                         if (c > 16384) {
+                            dbgprints(progname, "flushing");
                             FlushFileBuffers(w);
                             c = 0;
                         }

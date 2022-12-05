@@ -10,8 +10,8 @@ For a full list of changes, see the [git commit log][log]
 
  * In development
  * Terminate external log application if it fails to exit within 5 seconds after closing log files
- * Fix quoting arguments for shutdown batch file
  * Allow multiple -a command options
+ * Fix quoting arguments for shutdown batch file
  * Drop experimental support for user rotate service control for external log applications
 
 ## v1.3.4

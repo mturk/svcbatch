@@ -212,7 +212,7 @@ make sure to get familiar with `sc.exe` utility.
   location where SvcBatch.log files will be created.
   SvcBatch will create a **path** directory if it doesn't exist.
 
-  If not set, SvcBatch will create and use the  **SVCBTCH_SERVICE_HOME\Logs**
+  If not set, SvcBatch will create and use the  **SVCBATCH_SERVICE_HOME\Logs**
   directory as a location for log files and any runtime data
   that has to be created.
 
@@ -239,6 +239,8 @@ make sure to get familiar with `sc.exe` utility.
   If **-r** command line option is defined its parameter will
   be used as additional argument send to the **program**.
 
+  The **program** current directory is always set
+  to **SVCBATCH_SERVICE_LOGDIR**.
 
 * **-n [prefix]**
 
