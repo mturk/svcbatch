@@ -1540,50 +1540,47 @@ static int resolverotate(const wchar_t *str)
 
 static int runshutdown(DWORD rt)
 {
-    wchar_t  xparam[32];
+    wchar_t  rp[6] = { L'-', L'x', WNUL, WNUL, WNUL, WNUL };
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc = 0;
-    int      ip = 0;
+    int      ip = 2;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
-    cmdline = xappendarg(1, NULL, NULL, svcbatchexe);
-    xparam[ip++] = L'-';
-    xparam[ip++] = L'x';
     if (hasdebuginfo)
-        xparam[ip++] = L'd';
+        rp[ip++] = L'd';
     if (uselocaltime)
-        xparam[ip++] = L'l';
+        rp[ip++] = L'l';
     if (haslogstatus == 0)
-        xparam[ip++] = L'q';
-    if (haspipedlogs == 0) {
-        xparam[ip++] = L'r';
-        if (autorotate)
-            xparam[ip++] = L'@';
-        else
-            xparam[ip++] = L'0' + svcmaxlogs;
-    }
-    xparam[ip++] = L' ';
-    xparam[ip++] = L'-';
-    xparam[ip++] = L'z';
-    xparam[ip++] = WNUL;
+        rp[ip++] = L'q';
 
-    cmdline = xappendarg(1, cmdline, xparam, servicename);
-    cmdline = xappendarg(0, cmdline, L"-u",  serviceuuid);
-    cmdline = xappendarg(0, cmdline, L"-w",  servicehome);
-    cmdline = xappendarg(0, cmdline, L"-o",  loglocation);
+    cmdline = xappendarg(1, NULL,    NULL,  svcbatchexe);
+    cmdline = xappendarg(0, cmdline, NULL,  rp);
+    cmdline = xappendarg(1, cmdline, L"-z", servicename);
+    cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
+    cmdline = xappendarg(0, cmdline, L"-w", servicehome);
+    cmdline = xappendarg(0, cmdline, L"-o", loglocation);
+    cmdline = xappendarg(0, cmdline, L"-n", svclogfname);
     if (haspipedlogs) {
-        cmdline = xappendarg(0, cmdline, L"-e", logredirect);
+        cmdline = xappendarg(1, cmdline, L"-e", logredirect);
         cmdline = xappendarg(1, cmdline, L"-r", rotateparam);
     }
-    cmdline = xappendarg(0, cmdline, L"-n", svclogfname);
-    cmdline = xappendarg(1, cmdline, NULL,  shutdownfile);
-    cmdline = xappendarg(0, cmdline, NULL,  svcendargs);
-    dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
+    else {
+        rp[1] = L'r';
+        if (autorotate)
+            rp[2] = L'@';
+        else
+            rp[2] = L'0' + svcmaxlogs;
+        rp[3] = WNUL
+        cmdline = xappendarg(0, cmdline, NULL, rp);
+    }
+    cmdline = xappendarg(1, cmdline, NULL, shutdownfile);
+    cmdline = xappendarg(0, cmdline, NULL, svcendargs);
+    dbgprintf(__FUNCTION__, "cmdline %S",  cmdline);
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
