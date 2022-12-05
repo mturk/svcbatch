@@ -32,15 +32,17 @@ rem
 set "SERVICE_NAME="
 if "x%SVCBATCH_SERVICE_NAME%" == "x" goto noService
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
-echo %~nx0: Arguments %*
+echo %~nx0: Arguments [%*]
+echo.
 echo.
 rem Dump environment variables to log file
 set
 echo.
+echo.
 rem
 :doRepeat
 rem
-echo [%TIME%] ... running
+echo %~nx0: [%TIME%] ... running
 rem Simulate work by sleeping for 5 seconds
 ping -n 6 127.0.0.1 >NUL
 rem Uncomment to write more data to SvcBatch.log
@@ -52,7 +54,7 @@ rem Send shutdown signal
 rem sc stop %SVCBATCH_SERVICE_NAME%
 goto doRepeat
 rem Comment above goto to simulate failure
-echo Simulating failure
+echo %~nx0: Simulating failure
 ping -n 6 127.0.0.1 >NUL
 rem SvcBatch will report error if we end without
 rem explicit call to sc stop [service name]
@@ -75,10 +77,10 @@ rem
 rem Write log to external program instead to log file
 rem set "SERVICE_LOG_REDIR=-e \"%cd%\..\..\x64\pipedlog.exe\""
 rem You can use -r parater as arguments to external program
-rem set "ROTATE_RULE=-r \"one %SERVICE_NAME% \\\"some argument\\\"\""
+rem set "ROTATE_RULE=-r first -r second -r \"argument with spaces\""
 rem
 rem Set arguments for dummyshutdown.bat
-set "SHUTDOWN_ARGS=-a \"one two \\\"quoted argument\\\"\""
+set "SHUTDOWN_ARGS=-a one -Atwo /a\"%SERVICE_NAME% argument with spaces\""
 rem
 rem Set log file name prefix intead defaut SvcBatch
 set "SERVICE_LOG_PREFIX=-n %SERVICE_NAME%"
@@ -124,7 +126,7 @@ rem
 rem
 sc stop "%SERVICE_NAME%" >NUL
 sc delete "%SERVICE_NAME%"
-echo Deleted %SERVICE_NAME%
+echo %~nx0: Deleted %SERVICE_NAME%
 goto End
 rem
 :doRemove
@@ -133,11 +135,11 @@ rem
 sc stop "%SERVICE_NAME%" >NUL 2>&1
 sc delete "%SERVICE_NAME%" >NUL 2>&1
 rd /S /Q "Logs" >NUL 2>&1
-echo Removed %SERVICE_NAME%
+echo %~nx0: Removed %SERVICE_NAME%
 goto End
 rem
 :noService
-echo SVCBATCH_SERVICE_NAME not defined
+echo %~nx0: SVCBATCH_SERVICE_NAME not defined
 exit /B 1
 rem
 rem

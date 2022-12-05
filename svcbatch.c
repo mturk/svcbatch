@@ -72,6 +72,7 @@ static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *svcbatchargs     = NULL;
+static wchar_t  *svcendargs       = NULL;
 
 static wchar_t  *loglocation      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -103,7 +104,6 @@ static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 static const wchar_t *rotateparam = NULL;
 static const wchar_t *logdirparam = NULL;
-static const wchar_t *svcendargs  = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
 static wchar_t *xwmalloc(size_t size)
@@ -2478,6 +2478,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
+    wchar_t       *rotateargs  = NULL;
     const wchar_t *batchparam  = NULL;
     const wchar_t *shomeparam  = NULL;
     const wchar_t *svcendparam = NULL;
@@ -2558,13 +2559,19 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 svclogfname  = xwoptarg;
             break;
             case L'r':
-                rotateparam  = xwoptarg;
+                if (servicemode && lredirparam) {
+                    rotateargs  = xappendarg(1, rotateargs,  NULL, xwoptarg);
+                    rotateparam = rotateargs;
+                }
+                else {
+                    rotateparam = xwoptarg;
+                }
             break;
             case L's':
                 svcendparam  = xwoptarg;
             break;
             case L'a':
-                svcendargs   = xwoptarg;
+                svcendargs   = xappendarg(1, svcendargs,  NULL, xwoptarg);
             break;
             case L'w':
                 shomeparam   = xwoptarg;

@@ -237,7 +237,9 @@ make sure to get familiar with `sc.exe` utility.
   log file name, either `SvcBatch.log` or `SvcBatch.shutdown.log`.
 
   If **-r** command line option is defined its parameter will
-  be used as additional arguments send to the **program**.
+  be used as additional argument send to the **program**.
+
+  Use multiple **-r** command options if multiple arguments are required.
 
 * **-n [prefix]**
 
@@ -344,12 +346,13 @@ make sure to get familiar with `sc.exe` utility.
   If **-a** command line option is defined its parameter will
   be used as additional arguments send to the **batchfile**.
 
-* **-a [arguments]**
+* **-a [argument]**
 
-  **Provide arguments to shutdown batch file**
+  **Provide additional arguments to shutdown batch file**
 
-  This option enables to send **arguments** to shutdown batch file
-  defined by **-s** command line option.
+  This option enables to add additional **argument** to shutdown batch file.
+  Use multiple **-a [argument]** command options if multiple arguments are required.
+
 
 * **-q**
 
