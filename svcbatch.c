@@ -236,20 +236,20 @@ static wchar_t *xwcsmkpath(const wchar_t *s1, const wchar_t *s2)
 
 static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
 {
-    wchar_t *cp, *rv;
+    wchar_t *cp;
     int l1 = xwcslen(s1);
     int l2 = xwcslen(s2);
 
     if (l2 == 0)
         return s1;
 
-    cp = rv = xwmalloc(l1 + l2);
+    cp = xwmalloc(l1 + l2);
 
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
     wmemcpy(cp + l1, s2, l2);
     xfree(s1);
-    return rv;
+    return cp;
 }
 
 static int xwcsisenvvar(const wchar_t *str, const wchar_t *var)
@@ -263,10 +263,6 @@ static int xwcsisenvvar(const wchar_t *str, const wchar_t *var)
             return *str == L'=';
     }
     return 0;
-}
-static int envsort(const void *arg1, const void *arg2)
-{
-    return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
 }
 
 static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2)
@@ -450,6 +446,12 @@ static wchar_t *xarrblk(int cnt, const wchar_t **arr, wchar_t sep)
 
     return bp;
 }
+
+static int envsort(const void *arg1, const void *arg2)
+{
+    return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
+}
+
 
 static void xcleanwinpath(wchar_t *s, int isdir)
 {
