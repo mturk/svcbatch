@@ -265,26 +265,25 @@ static int xwcsisenvvar(const wchar_t *str, const wchar_t *var)
     return 0;
 }
 
-static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2)
+static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t *s3)
 {
     const wchar_t *c;
     wchar_t *e;
     wchar_t *d;
 
-    int l1, l2;
+    int l1, l2, l3;
 
-    l2 = xwcslen(s2);
-    if (l2 == 0)
+    l3 = xwcslen(s3);
+    if (l3 == 0)
         return s1;
 
-    l1 = xwcslen(s1);
     if (nq) {
-        if (wcspbrk(s2, L" \f\n\r\t\v\"") == NULL) {
+        if (wcspbrk(s3, L" \t\"") == NULL) {
             nq = 0;
         }
         else {
             int n = 2;
-            for (c = s2; ; c++) {
+            for (c = s3; ; c++) {
                 int b = 0;
 
                 while (*c == L'\\') {
@@ -305,10 +304,12 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2)
                     n += 1;
                 }
             }
-            l2 = n;
+            l3 = n;
         }
     }
-    e = xwmalloc(l1 + l2 + 2);
+    l1 = xwcslen(s1);
+    l2 = xwcslen(s2);
+    e = xwmalloc(l1 + l2 + l3 + 3);
     d = e;
 
     if(l1 > 0) {
@@ -316,9 +317,14 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2)
         d += l1;
         *(d++) = L' ';
     }
+    if(l2 > 0) {
+        wmemcpy(d, s2, l2);
+        d += l2;
+        *(d++) = L' ';
+    }
     if (nq) {
         *(d++) = L'"';
-        for (c = s2; ; c++) {
+        for (c = s3; ; c++) {
             int b = 0;
 
             while (*c == '\\') {
@@ -345,8 +351,8 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2)
         *(d++) = L'"';
     }
     else {
-        wmemcpy(d, s2, l2);
-        d += l2;
+        wmemcpy(d, s3, l3);
+        d += l3;
     }
     *d = WNUL;
     xfree(s1);
@@ -1172,9 +1178,9 @@ static DWORD openlogpipe(void)
     }
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    cmdline = xappendarg(1, NULL,    logredirect);
-    cmdline = xappendarg(1, cmdline, logfilepart);
-    cmdline = xappendarg(0, cmdline, rotateparam);
+    cmdline = xappendarg(1, NULL,    NULL, logredirect);
+    cmdline = xappendarg(1, cmdline, NULL, logfilepart);
+    cmdline = xappendarg(0, cmdline, NULL, rotateparam);
 
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
     if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
@@ -1534,7 +1540,7 @@ static int resolverotate(const wchar_t *str)
 
 static int runshutdown(DWORD rt)
 {
-    wchar_t  xparam[10];
+    wchar_t  xparam[32];
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
@@ -1545,7 +1551,7 @@ static int runshutdown(DWORD rt)
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
-    cmdline = xappendarg(1, NULL, svcbatchexe);
+    cmdline = xappendarg(1, NULL, NULL, svcbatchexe);
     xparam[ip++] = L'-';
     xparam[ip++] = L'x';
     if (hasdebuginfo)
@@ -1561,31 +1567,22 @@ static int runshutdown(DWORD rt)
         else
             xparam[ip++] = L'0' + svcmaxlogs;
     }
-    xparam[ip] = WNUL;
-    cmdline = xappendarg(0, cmdline, xparam);
-    cmdline = xappendarg(0, cmdline, L"-z");
-    cmdline = xappendarg(1, cmdline, servicename);
-    cmdline = xappendarg(0, cmdline, L"-u");
-    cmdline = xappendarg(0, cmdline, serviceuuid);
-    cmdline = xappendarg(0, cmdline, L"-w");
-    cmdline = xappendarg(1, cmdline, servicehome);
-    if (loglocation != NULL) {
-        cmdline = xappendarg(0, cmdline, L"-o");
-        cmdline = xappendarg(1, cmdline, loglocation);
-    }
+    xparam[ip++] = L' ';
+    xparam[ip++] = L'-';
+    xparam[ip++] = L'z';
+    xparam[ip++] = WNUL;
+
+    cmdline = xappendarg(1, cmdline, xparam, servicename);
+    cmdline = xappendarg(0, cmdline, L"-u",  serviceuuid);
+    cmdline = xappendarg(0, cmdline, L"-w",  servicehome);
+    cmdline = xappendarg(0, cmdline, L"-o",  loglocation);
     if (haspipedlogs) {
-        cmdline = xappendarg(0, cmdline, L"-e");
-        cmdline = xappendarg(1, cmdline, logredirect);
-        if (rotateparam) {
-            cmdline = xappendarg(0, cmdline, L"-r");
-            cmdline = xappendarg(1, cmdline, rotateparam);
-        }
+        cmdline = xappendarg(0, cmdline, L"-e", logredirect);
+        cmdline = xappendarg(1, cmdline, L"-r", rotateparam);
     }
-    cmdline = xappendarg(0, cmdline, L"-n");
-    cmdline = xappendarg(1, cmdline, svclogfname);
-    cmdline = xappendarg(1, cmdline, shutdownfile);
-    if (svcendargs != NULL)
-        cmdline = xappendarg(0, cmdline, svcendargs);
+    cmdline = xappendarg(0, cmdline, L"-n", svclogfname);
+    cmdline = xappendarg(1, cmdline, NULL,  shutdownfile);
+    cmdline = xappendarg(0, cmdline, NULL,  svcendargs);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
@@ -2089,10 +2086,9 @@ static unsigned int __stdcall workerthread(void *unused)
     dbgprints(__FUNCTION__, "started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-    cmdline = xappendarg(1, NULL, comspec);
-    cmdline = xappendarg(0, cmdline, L"/D /C");
-    cmdline = xappendarg(1, cmdline, svcbatchfile);
-    cmdline = xappendarg(0, cmdline, svcbatchargs);
+    cmdline = xappendarg(1, NULL,    NULL,     comspec);
+    cmdline = xappendarg(0, cmdline, L"/D /C", svcbatchfile);
+    cmdline = xappendarg(0, cmdline, NULL,     svcbatchargs);
 
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
@@ -2625,7 +2621,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             /**
              * Add arguments for batch file
              */
-            svcbatchargs = xappendarg(1, svcbatchargs,  wargv[i]);
+            svcbatchargs = xappendarg(1, svcbatchargs,  NULL, wargv[i]);
         }
     }
     if (IS_EMPTY_WCS(batchparam))
