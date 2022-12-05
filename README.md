@@ -239,7 +239,6 @@ make sure to get familiar with `sc.exe` utility.
   If **-r** command line option is defined its parameter will
   be used as additional argument send to the **program**.
 
-  Use multiple **-r** command options if multiple arguments are required.
 
 * **-n [prefix]**
 

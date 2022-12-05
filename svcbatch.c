@@ -84,7 +84,6 @@ static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
-static HANDLE    rsignalevent     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
@@ -1180,7 +1179,7 @@ static DWORD openlogpipe(void)
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     cmdline = xappendarg(1, NULL,    NULL, logredirect);
     cmdline = xappendarg(1, cmdline, NULL, logfilepart);
-    cmdline = xappendarg(0, cmdline, NULL, rotateparam);
+    cmdline = xappendarg(1, cmdline, NULL, rotateparam);
 
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
     if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
@@ -1572,9 +1571,9 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(0, cmdline, NULL,  rp);
     cmdline = xappendarg(1, cmdline, L"-z", servicename);
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
-    cmdline = xappendarg(0, cmdline, L"-w", servicehome);
-    cmdline = xappendarg(0, cmdline, L"-o", loglocation);
-    cmdline = xappendarg(0, cmdline, L"-n", svclogfname);
+    cmdline = xappendarg(1, cmdline, L"-w", servicehome);
+    cmdline = xappendarg(1, cmdline, L"-o", loglocation);
+    cmdline = xappendarg(1, cmdline, L"-n", svclogfname);
     if (haspipedlogs) {
         cmdline = xappendarg(1, cmdline, L"-e", logredirect);
         cmdline = xappendarg(1, cmdline, L"-r", rotateparam);
@@ -2287,23 +2286,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
         break;
         case SVCBATCH_CTRL_ROTATE:
-            if (IS_VALID_HANDLE(rsignalevent)) {
-                dbgprintf(__FUNCTION__, "signaling SVCBATCH_CTRL_ROTATE to %lu", pipedprocpid);
-                EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
-                if (h != NULL) {
-                    if (haslogstatus) {
-                        logfflush(h);
-                        logwrtime(h, "Signaling rotate");
-                    }
-                    QueryPerformanceCounter(&pcstarttime);
-                    FlushFileBuffers(h);
-                }
-                SetEvent(rsignalevent);
-                InterlockedExchangePointer(&logfhandle, h);
-                LeaveCriticalSection(&logfilelock);
-            }
-            else if (IS_VALID_HANDLE(logrotatesig)) {
+            if (IS_VALID_HANDLE(logrotatesig)) {
                 /**
                  * Signal to rotatethread that
                  * user send custom service control
@@ -2367,6 +2350,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         loglocation = xwcsdup(logdirparam);
         dupwenvp[dupwenvc++] = xwcsdup(L"SVCBATCH_SERVICE_MODE=0");
     }
+    if (loglocation == NULL)
+        loglocation = servicehome;
     /**
      * Add additional environment variables
      * They are unique to this service instance
@@ -2459,7 +2444,6 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(ssignalevent);
-    SAFE_CLOSE_HANDLE(rsignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(logrotatesig);
     SAFE_CLOSE_HANDLE(childprocjob);
@@ -2478,7 +2462,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
-    wchar_t       *rotateargs  = NULL;
     const wchar_t *batchparam  = NULL;
     const wchar_t *shomeparam  = NULL;
     const wchar_t *svcendparam = NULL;
@@ -2559,13 +2542,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 svclogfname  = xwoptarg;
             break;
             case L'r':
-                if (servicemode && lredirparam) {
-                    rotateargs  = xappendarg(1, rotateargs,  NULL, xwoptarg);
-                    rotateparam = rotateargs;
-                }
-                else {
-                    rotateparam = xwoptarg;
-                }
+                rotateparam  = xwoptarg;
             break;
             case L's':
                 svcendparam  = xwoptarg;
@@ -2713,7 +2690,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         haslogrotate = 0;
     }
 
-    dupwenvp = waalloc(envc + 8);
+    dupwenvp = waalloc(envc + 10);
     for (i = 0; i < envc; i++) {
         /**
          * Remove all environment variables
@@ -2740,13 +2717,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
             ssignalevent = CreateEventW(&sazero, TRUE, FALSE, psn);
             if (IS_INVALID_HANDLE(ssignalevent))
-                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
-            xfree(psn);
-        }
-        if (haspipedlogs) {
-            wchar_t *psn = xwcsconcat(DOROTATE_IPCNAME, serviceuuid);
-            rsignalevent = CreateEventW(&sazero, FALSE, FALSE, psn);
-            if (IS_INVALID_HANDLE(rsignalevent))
                 return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
             xfree(psn);
         }

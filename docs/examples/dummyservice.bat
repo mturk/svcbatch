@@ -75,9 +75,9 @@ rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-r 0"
 rem
 rem Write log to external program instead to log file
-rem set "SERVICE_LOG_REDIR=-e \"%cd%\..\..\x64\pipedlog.exe\""
+set "SERVICE_LOG_REDIR=-e \"%cd%\..\..\x64\pipedlog.exe\""
 rem You can use -r parater as arguments to external program
-rem set "ROTATE_RULE=-r first -r second -r \"argument with spaces\""
+set "ROTATE_RULE=-r \"argument with spaces\""
 rem
 rem Set arguments for dummyshutdown.bat
 set "SHUTDOWN_ARGS=-a one -Atwo /a\"%SERVICE_NAME% argument with spaces\""

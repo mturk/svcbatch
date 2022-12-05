@@ -32,7 +32,6 @@
 static const char *progname = "pipedlog";
 static char CRLFA[2] = { '\r', '\n'};
 static char SMODE[2] = { 'x',  '\0'};
-static HANDLE revents[2];
 
 static void dbgprints(const char *funcname, const char *string)
 {
@@ -67,46 +66,12 @@ DWORD WINAPI failurethread(void *unused)
 }
 #endif
 
-DWORD WINAPI rotatemonitor(void *unused)
-{
-    DWORD  r = 0;
-    char sig[64];
-
-    dbgprints(progname, "rotatemonitor started");
-    strcpy(sig, "Local\\SvcBatch-Dorotate-");
-    GetEnvironmentVariableA("SVCBATCH_SERVICE_UUID", sig + strlen(sig), 40);
-
-    revents[0] = OpenEventA(SYNCHRONIZE, FALSE, sig);
-    if (revents[0] == NULL) {
-        r = GetLastError();
-        dbgprintf(progname, "failed to open %s", sig);
-        dbgprints(progname, "rotatemonitor done");
-        return r;
-    }
-    dbgprintf(progname, "waiting for rotate event: %s", sig);
-    while (r == 0) {
-        r = WaitForMultipleObjects(2, revents, FALSE, INFINITE);
-        if (r == WAIT_OBJECT_0) {
-            dbgprints(progname, "rotate signaled");
-            /**
-             * Actual log rotation code should go here.
-             */
-            Sleep(1000);
-            dbgprints(progname, "rotated");
-        }
-    }
-    CloseHandle(revents[0]);
-    dbgprints(progname, "rotatemonitor done");
-    return 0;
-}
-
 int wmain(int argc, const wchar_t **wargv)
 {
     int i;
     DWORD    e = 0;
     DWORD    c = 0;
     HANDLE   w, r;
-    HANDLE   rh = NULL;
     BYTE     b[RDBUFSIZE];
     SECURITY_ATTRIBUTES sa;
 
@@ -164,10 +129,6 @@ int wmain(int argc, const wchar_t **wargv)
     else {
         dbgprintf(progname, "created: %S", wargv[1]);
     }
-    if (SMODE[0] == '1') {
-        revents[1] = CreateEvent(NULL, TRUE, FALSE, NULL);
-        rh = CreateThread(NULL, 0, rotatemonitor, NULL, 0, &e);
-    }
 #if SIMULATE_FAILURE
     CloseHandle(CreateThread(NULL, 0, failurethread, NULL, 0, &e));
 #endif
@@ -204,18 +165,6 @@ int wmain(int argc, const wchar_t **wargv)
         else {
             e = GetLastError();
         }
-    }
-    if (rh != NULL) {
-        if (WaitForSingleObject(rh, 0) != WAIT_OBJECT_0) {
-            dbgprints(progname, "closing rotatemonitor");
-            SetEvent(revents[1]);
-            WaitForSingleObject(rh, 2000);
-        }
-        else {
-            dbgprints(progname, "rotatemonitor already closed");
-        }
-        CloseHandle(rh);
-        CloseHandle(revents[1]);
     }
     CloseHandle(w);
     if (e) {

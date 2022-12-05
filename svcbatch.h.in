@@ -47,7 +47,6 @@
 #define SVCBATCH_LOGFEXT       L".log"
 #define SHUTDOWN_LOGFEXT       L".shutdown.log"
 #define SHUTDOWN_IPCNAME       L"Local\\SvcBatch-Shutdown-"
-#define DOROTATE_IPCNAME       L"Local\\SvcBatch-Dorotate-"
 
 /**
  * Maximum number of SvcBatch.log.N files
