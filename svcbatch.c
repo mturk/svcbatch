@@ -1575,7 +1575,7 @@ static int runshutdown(DWORD rt)
             rp[2] = L'@';
         else
             rp[2] = L'0' + svcmaxlogs;
-        rp[3] = WNUL
+        rp[3] = WNUL;
         cmdline = xappendarg(0, cmdline, NULL, rp);
     }
     cmdline = xappendarg(1, cmdline, NULL, shutdownfile);
@@ -1691,7 +1691,10 @@ static unsigned int __stdcall stopthread(void *unused)
         }
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
         if (rc == 0) {
-            if (WaitForSingleObject(ssignalevent, 0) != WAIT_OBJECT_0) {
+            if (WaitForSingleObject(ssignalevent, 0) == WAIT_OBJECT_0) {
+                dbgprints(__FUNCTION__, "shutdown signal event set");
+            }
+            else {
                 dbgprints(__FUNCTION__, "wait for processended");
                 if (WaitForSingleObject(processended, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
                     dbgprints(__FUNCTION__, "processended");
@@ -1990,6 +1993,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                 EnterCriticalSection(&logfilelock);
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h == NULL) {
+                    dbgprints(__FUNCTION__, "logfile closed");
                     rc = ERROR_NO_MORE_FILES;
                 }
                 else {
@@ -2000,6 +2004,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                             dbgprints(__FUNCTION__, "rotate by size");
                             rc = rotatelogs();
                             if (rc != 0) {
+                                dbgprintf(__FUNCTION__, "rotatelogs failed with %lu", rc);
                                 setsvcstatusexit(rc);
                                 createstopthread();
                             }
