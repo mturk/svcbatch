@@ -2343,7 +2343,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     /**
      * Convert environment array to environment block
      */
-    wenvblock = xenvblock(dupwenvc, dupwenvp);
+    wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp);
     if (wenvblock == NULL) {
         svcsyserror(__FUNCTION__, __LINE__, 0, L"bad environment", NULL);
         reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
