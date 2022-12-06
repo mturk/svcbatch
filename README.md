@@ -441,7 +441,8 @@ Again, as with log rotate, the **233** is our custom control code.
 
   Do not send `CTRL_BREAK_EVENT` if the batch file runs a process
   that does not have a custom `CTRL_BREAK_EVENT` console handler.
-  By default the process will exit and the service will either fail or hang.
+  By default the process will exit and the service will either fail.
+
 
 ## Stop and Shutdown
 

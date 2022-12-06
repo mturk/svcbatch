@@ -11,7 +11,6 @@ inside different environments and target applications.
 - [Python Examples](examples/python.md)
 - [Ruby Examples](examples/ruby.md)
 - [PowerShell Examples](examples/powershell.md)
-- [Dummy Service Example: batchfile](examples/dummyservice.bat)
 
 ### Maintainer Help
 
