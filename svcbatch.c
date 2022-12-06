@@ -2538,9 +2538,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              * Private options
              */
             case L'z':
+                if (servicemode)
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Cannot use private -z command option in service mode", NULL);
                 servicename  = xwcsdup(xwoptarg);
             break;
             case L'u':
+                if (servicemode)
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Cannot use private -u command option in service mode", NULL);
                 serviceuuid  = xwcsdup(xwoptarg);
             break;
             case L'x':
@@ -2561,14 +2567,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 
-    if (servicemode) {
-        if (servicename)
-            return svcsyserror(__FUNCTION__, __LINE__, 0,
-                               L"Cannot use private -z command option in service mode", NULL);
-        if (serviceuuid)
-            return svcsyserror(__FUNCTION__, __LINE__, 0,
-                               L"Cannot use private -u command option in service mode", NULL);
-    }
     argc  -= xwoptind;
     wargv += xwoptind;
     if (argc > 0) {
