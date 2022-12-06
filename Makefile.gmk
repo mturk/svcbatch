@@ -99,7 +99,7 @@ $(FINCLUDE): $(SRCDIR)/$(PROJECT).h.in
 $(WORKDIR)/%.o: $(SRCDIR)/%.c $(FINCLUDE)
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) $<
 
-$(WORKDIR)/%.o: $(SRCDIR)/docs/examples/pipedlog/%.c $(FINCLUDE)
+$(WORKDIR)/%.o: $(SRCDIR)/test/pipedlog/%.c $(FINCLUDE)
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(FINCLUDE) $(MANIFEST)
@@ -112,7 +112,7 @@ $(OUTPUT): $(WORKDIR) $(MANIFEST) $(OBJECTS)
 $(PIPELOG): $(OUTPUT) $(PIPEOBJ)
 	$(LN) $(LNOPTS) -o $@ $(PIPEOBJ) $(LDLIBS)
 
-examples: $(PIPELOG)
+tests: $(PIPELOG)
 	@:
 
 clean:

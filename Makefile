@@ -102,7 +102,7 @@ $(WORKDIR)\$(PROJECT).h: $(PPREFIX).h.in
 {$(SRCDIR)}.c{$(WORKDIR)}.obj:
 	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
 
-{$(SRCDIR)\docs\examples\pipedlog}.c{$(WORKDIR)}.obj:
+{$(SRCDIR)\test\pipedlog}.c{$(WORKDIR)}.obj:
 	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
 
 {$(SRCDIR)}.rc{$(WORKDIR)}.res:
@@ -114,7 +114,7 @@ $(OUTPUT): $(WORKDIR) $(WORKDIR)\$(PROJECT).h $(WORKDIR)\$(PROJECT).manifest $(O
 $(PIPELOG): $(OUTPUT) $(PIPEOBJ)
 	$(LN) $(LFLAGS) $(PIPEOBJ) $(LDLIBS) /out:$(PIPELOG)
 
-examples: $(PIPELOG)
+tests: $(PIPELOG)
 
 clean:
 	@-rd /S /Q $(WORKDIR) 2>NUL
