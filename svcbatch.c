@@ -2671,7 +2671,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         haslogrotate = 0;
     }
 
-    dupwenvp = waalloc(envc + 10);
+    dupwenvp = waalloc(envc + 4);
     for (i = 0; i < envc; i++) {
         /**
          * Remove all environment variables
