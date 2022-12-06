@@ -14,6 +14,7 @@ For a full list of changes, see the [git commit log][log]
  * Fix quoting arguments for shutdown batch file
  * Drop experimental support for user rotate service control for external log applications
  * Drop SVCBATCH_SERVICE_MODE environment variable
+ * Drop SVCBATCH_SERVICE_LOGDIR environment variable
 
 ## v1.3.4
 
