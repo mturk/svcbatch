@@ -13,6 +13,7 @@ For a full list of changes, see the [git commit log][log]
  * Allow multiple -a command options
  * Fix quoting arguments for shutdown batch file
  * Drop experimental support for user rotate service control for external log applications
+ * Drop SVCBATCH_SERVICE_MODE environment variable
 
 ## v1.3.4
 

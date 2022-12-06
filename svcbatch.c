@@ -2331,13 +2331,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
-        dupwenvp[dupwenvc++] = xwcsdup(L"SVCBATCH_SERVICE_MODE=1");
     }
     else {
         dbgprintf(__FUNCTION__, "shutting down %S", servicename);
 
         loglocation = xwcsdup(logdirparam);
-        dupwenvp[dupwenvc++] = xwcsdup(L"SVCBATCH_SERVICE_MODE=0");
     }
 
     /**

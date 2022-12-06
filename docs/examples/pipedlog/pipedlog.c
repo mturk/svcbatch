@@ -75,8 +75,6 @@ int wmain(int argc, const wchar_t **wargv)
     BYTE     b[RDBUFSIZE];
     SECURITY_ATTRIBUTES sa;
 
-    GetEnvironmentVariableA("SVCBATCH_SERVICE_MODE", SMODE, 2);
-    dbgprints(progname, "started");
     r = GetStdHandle(STD_INPUT_HANDLE);
     if (r == INVALID_HANDLE_VALUE) {
         e = GetLastError();
@@ -87,6 +85,11 @@ int wmain(int argc, const wchar_t **wargv)
         dbgprints(progname, "Missing logfile argument");
         return ERROR_INVALID_PARAMETER;
     }
+    if (wcsstr(wargv[1], L".shutdown."))
+        SMODE[0] = L'0';
+    else
+        SMODE[0] = L'1';
+    dbgprints(progname, "started");
     if (argc > 2) {
         dbgprints(progname, "extra arguments [[");
         for (i = 2; i < argc; i++) {
