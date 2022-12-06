@@ -419,37 +419,29 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     return oli[0];
 }
 
-static wchar_t *xarrblk(int cnt, const wchar_t **arr, wchar_t sep)
+static wchar_t *xenvblock(int cnt, const wchar_t **arr)
 {
-    int   i, n, x;
-    int   len = cnt;
-    int   cs[64];
-    wchar_t *ep;
-    wchar_t *bp;
+    int      i, n;
+    int      c = 1;
+    wchar_t *e;
+    wchar_t *b;
 
 
-    for (i = 0, x = 0; i < cnt; i++, x++) {
+    b = (wchar_t *)calloc(32768, sizeof(wchar_t));
+    if (b == NULL) {
+        _wperror(L"xwcalloc");
+        _exit(1);
+    }
+    e = b;
+    for (i = 0; i < cnt; i++) {
         n = xwcslen(arr[i]);
-        if (x < 64)
-            cs[x] = n;
-        len += n;
+        if ((c + n) > 32767)
+            return NULL;
+        wmemcpy(e, arr[i], n++);
+        e += n;
+        c += n;
     }
-
-    bp = xwmalloc(len + 1);
-    ep = bp;
-    for (i = 0, x = 0; i < cnt; i++, x++) {
-        if (x < 64)
-            n = cs[x];
-        else
-            n = xwcslen(arr[i]);
-        if (i > 0)
-            *(ep++) = sep;
-        wmemcpy(ep, arr[i], n);
-        ep += n;
-    }
-    *(ep) = WNUL;
-
-    return bp;
+    return b;
 }
 
 static int envsort(const void *arg1, const void *arg2)
@@ -2301,9 +2293,9 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
-    DWORD        rv = 0;
-    HANDLE       wh[4] = { NULL, NULL, NULL, NULL };
-    DWORD        ws;
+    DWORD  rv = 0;
+    HANDLE wh[4] = { NULL, NULL, NULL, NULL };
+    DWORD  ws;
 
     ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
@@ -2352,7 +2344,12 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     /**
      * Convert environment array to environment block
      */
-    wenvblock = xarrblk(dupwenvc, dupwenvp, WNUL);
+    wenvblock = xenvblock(dupwenvc, dupwenvp);
+    if (wenvblock == NULL) {
+        svcsyserror(__FUNCTION__, __LINE__, 0, L"bad environment", NULL);
+        reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
+        return;
+    }
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     if (haspipedlogs) {
