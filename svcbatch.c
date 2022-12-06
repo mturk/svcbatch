@@ -74,7 +74,7 @@ static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *svcbatchargs     = NULL;
 static wchar_t  *svcendargs       = NULL;
 
-static wchar_t  *loglocation      = NULL;
+static wchar_t  *outlocation      = NULL;
 static wchar_t  *logfilename      = NULL;
 static wchar_t  *logfilepart      = NULL;
 static wchar_t  *logredirect      = NULL;
@@ -91,7 +91,7 @@ static HANDLE    outputpiperd     = NULL;
 static HANDLE    inputpipewrs     = NULL;
 static HANDLE    pipedprocjob     = NULL;
 static HANDLE    pipedprocess     = NULL;
-static HANDLE    logrhandle       = NULL;
+static HANDLE    pipedprocout     = NULL;
 
 static wchar_t      zerostring[4] = { WNUL,  WNUL,  WNUL, WNUL };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', WNUL, WNUL };
@@ -102,7 +102,7 @@ static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
 static const wchar_t *rotateparam = NULL;
-static const wchar_t *logdirparam = NULL;
+static const wchar_t *outdirparam = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
 static wchar_t *xwmalloc(size_t size)
@@ -1067,7 +1067,7 @@ static void logconfig(HANDLE h)
         logprintf(h, "      arguments  : %S", svcbatchargs);
     logprintf(h, "Base directory   : %S", servicebase);
     logprintf(h, "Working directory: %S", servicehome);
-    logprintf(h, "Log directory    : %S", loglocation);
+    logprintf(h, "Runtime directory: %S", outlocation);
     if (haspipedlogs)
         logprintf(h, "Log redirected to: %S", logredirect);
 
@@ -1098,25 +1098,25 @@ static DWORD createlogdir(void)
     DWORD   rc;
     wchar_t *dp;
 
-    dp = winrealpathname(logdirparam, 1);
+    dp = winrealpathname(outdirparam, 1);
     if (dp == NULL) {
         svcsyserror(__FUNCTION__, __LINE__, 0,
-                    L"winrealpathname", logdirparam);
+                    L"winrealpathname", outdirparam);
         return ERROR_BAD_PATHNAME;
     }
-    loglocation = getrealpathname(dp, 1);
-    if (loglocation == NULL) {
+    outlocation = getrealpathname(dp, 1);
+    if (outlocation == NULL) {
         rc = xcreatepath(dp);
         if (rc != 0)
             return svcsyserror(__FUNCTION__, __LINE__, rc, L"xcreatepath", dp);
-        loglocation = getrealpathname(dp, 1);
-        if (loglocation == NULL)
+        outlocation = getrealpathname(dp, 1);
+        if (outlocation == NULL)
             return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, L"getrealpathname", dp);
     }
-    if (_wcsicmp(loglocation, servicehome) == 0) {
+    if (_wcsicmp(outlocation, servicehome) == 0) {
         svcsyserror(__FUNCTION__, __LINE__, 0,
-                    L"Loglocation cannot be the same as servicehome",
-                    loglocation);
+                    L"outlocation cannot be the same as servicehome",
+                    outlocation);
         return ERROR_BAD_PATHNAME;
     }
     xfree(dp);
@@ -1139,7 +1139,7 @@ static DWORD openlogpipe(void)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    rc = createiopipes(&si, &wr, &logrhandle);
+    rc = createiopipes(&si, &wr, &pipedprocout);
     if (rc != 0) {
         return rc;
     }
@@ -1174,7 +1174,7 @@ static DWORD openlogpipe(void)
     if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
                         wenvblock,
-                        loglocation,
+                        outlocation,
                        &si, &cp)) {
         rc = GetLastError();
         svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", logredirect);
@@ -1206,7 +1206,7 @@ static DWORD openlogpipe(void)
     return 0;
 
 failed:
-    SAFE_CLOSE_HANDLE(logrhandle);
+    SAFE_CLOSE_HANDLE(pipedprocout);
     SAFE_CLOSE_HANDLE(pipedprocess);
     SAFE_CLOSE_HANDLE(pipedprocjob);
 
@@ -1226,7 +1226,7 @@ static DWORD openlogfile(BOOL firstopen)
     else
         rotateold = svcmaxlogs;
     if (logfilename == NULL)
-        logfilename = xwcsmkpath(loglocation, logfilepart);
+        logfilename = xwcsmkpath(outlocation, logfilepart);
     if (logfilename == NULL)
         return svcsyserror(__FUNCTION__, __LINE__,
                            ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
@@ -1381,7 +1381,7 @@ static void closelogfile(void)
         FlushFileBuffers(h);
         CloseHandle(h);
     }
-    SAFE_CLOSE_HANDLE(logrhandle);
+    SAFE_CLOSE_HANDLE(pipedprocout);
     LeaveCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(pipedprocess)) {
         dbgprintf(__FUNCTION__, "wait for log process %lu to finish", pipedprocpid);
@@ -1561,7 +1561,7 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(1, cmdline, L"-z", servicename);
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
-    cmdline = xappendarg(1, cmdline, L"-o", loglocation);
+    cmdline = xappendarg(1, cmdline, L"-o", outlocation);
     cmdline = xappendarg(1, cmdline, L"-n", svclogfname);
     if (haspipedlogs) {
         cmdline = xappendarg(1, cmdline, L"-e", logredirect);
@@ -2335,7 +2335,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     else {
         dbgprintf(__FUNCTION__, "shutting down %S", servicename);
 
-        loglocation = xwcsdup(logdirparam);
+        outlocation = xwcsdup(outdirparam);
     }
 
     /**
@@ -2346,7 +2346,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=",   servicehome);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=",   servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=",   serviceuuid);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", loglocation);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGDIR=", outlocation);
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
     /**
@@ -2518,7 +2518,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             case L'o':
-                logdirparam  = xwoptarg;
+                outdirparam  = xwoptarg;
             break;
             case L'e':
                 lredirparam  = xwoptarg;
@@ -2645,8 +2645,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(batchparam) == 0)
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
-    if (logdirparam == NULL)
-        logdirparam = SVCBATCH_LOG_BASE;
+    if (outdirparam == NULL)
+        outdirparam = SVCBATCH_LOG_BASE;
     if (IS_EMPTY_WCS(lredirparam)) {
 
         rv = resolverotate(rotateparam);
