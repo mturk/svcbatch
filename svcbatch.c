@@ -2058,7 +2058,7 @@ static unsigned int __stdcall workerthread(void *unused)
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
     cmdline = xappendarg(1, NULL,    NULL,     comspec);
-    cmdline = xappendarg(0, cmdline, L"/D /C", svcbatchfile);
+    cmdline = xappendarg(1, cmdline, L"/D /C", svcbatchfile);
     cmdline = xappendarg(0, cmdline, NULL,     svcbatchargs);
 
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
