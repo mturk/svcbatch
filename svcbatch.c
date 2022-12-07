@@ -1131,8 +1131,12 @@ static unsigned int __stdcall rdpipedlog(void *unused)
     DWORD rm = MBUFSIZ - 256;
     char  rb[2];
     char  rl[MBUFSIZ];
+    char  pn[32];
 
-    dbgprints(__FUNCTION__, "started");
+    if (hasdebuginfo) {
+        dbgprints(__FUNCTION__, "started");
+        _snprintf(pn, 30, "pipedlog(%lu)", pipedprocpid);
+    }
     while (rc == 0) {
         DWORD rd = 0;
 
@@ -1141,20 +1145,22 @@ static unsigned int __stdcall rdpipedlog(void *unused)
                 rc = GetLastError();
             }
             else {
-                if (rb[0] == '\r') {
-                    /* Skip */
-                }
-                else if (rb[0] == '\n') {
-                    rl[rn] = '\0';
-                    dbgprints(__FUNCTION__, rl);
-                    rn = 0;
-                }
-                else {
-                    rl[rn++] = rb[0];
-                    if (rn > rm) {
+                if (hasdebuginfo) {
+                    if (rb[0] == '\r') {
+                        /* Skip */
+                    }
+                    else if (rb[0] == '\n') {
                         rl[rn] = '\0';
-                        dbgprints(__FUNCTION__, rl);
+                        dbgprints(pn, rl);
                         rn = 0;
+                    }
+                    else {
+                        rl[rn++] = rb[0];
+                        if (rn > rm) {
+                            rl[rn] = '\0';
+                            dbgprints(pn, rl);
+                            rn = 0;
+                        }
                     }
                 }
             }
@@ -1163,18 +1169,19 @@ static unsigned int __stdcall rdpipedlog(void *unused)
             rc = GetLastError();
         }
     }
-    if (rn) {
-        rl[rn] = '\0';
-        dbgprints(__FUNCTION__, rl);
+    if (hasdebuginfo) {
+        if (rn) {
+            rl[rn] = '\0';
+            dbgprints(pn, rl);
+        }
+        if (rc) {
+            if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+                dbgprints(__FUNCTION__, "pipe closed");
+            else
+                dbgprintf(__FUNCTION__, "err=%lu", rc);
+        }
+        dbgprints(__FUNCTION__, "done");
     }
-    if (rc) {
-        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
-            dbgprints(__FUNCTION__, "pipe closed");
-        else
-            dbgprintf(__FUNCTION__, "err=%lu", rc);
-    }
-    dbgprints(__FUNCTION__, "done");
-
     XENDTHREAD(0);
 }
 
@@ -1437,7 +1444,6 @@ static void closelogfile(void)
         FlushFileBuffers(h);
         CloseHandle(h);
     }
-    SAFE_CLOSE_HANDLE(pipedprocout);
     LeaveCriticalSection(&logfilelock);
     if (IS_VALID_HANDLE(pipedprocess)) {
         dbgprintf(__FUNCTION__, "wait for log process %lu to finish", pipedprocpid);
@@ -1452,6 +1458,7 @@ static void closelogfile(void)
                 dbgprintf(__FUNCTION__, "log process returned %lu", rv);
             }
         }
+        SAFE_CLOSE_HANDLE(pipedprocout);
         SAFE_CLOSE_HANDLE(pipedprocess);
         SAFE_CLOSE_HANDLE(pipedprocjob);
     }
