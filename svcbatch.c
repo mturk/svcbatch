@@ -1124,6 +1124,60 @@ static DWORD createoutdir(void)
     return 0;
 }
 
+static unsigned int __stdcall rdpipedlog(void *unused)
+{
+    DWORD rc = 0;
+    DWORD rn = 0;
+    DWORD rm = MBUFSIZ - 256;
+    char  rb[2];
+    char  rl[MBUFSIZ];
+
+    dbgprints(__FUNCTION__, "started");
+    while (rc == 0) {
+        DWORD rd = 0;
+
+        if (ReadFile(pipedprocout, rb, 1, &rd, NULL)) {
+            if (rd == 0) {
+                rc = GetLastError();
+            }
+            else {
+                if (rb[0] == '\r') {
+                    /* Skip */
+                }
+                else if (rb[0] == '\n') {
+                    rl[rn] = '\0';
+                    dbgprints(__FUNCTION__, rl);
+                    rn = 0;
+                }
+                else {
+                    rl[rn++] = rb[0];
+                    if (rn > rm) {
+                        rl[rn] = '\0';
+                        dbgprints(__FUNCTION__, rl);
+                        rn = 0;
+                    }
+                }
+            }
+        }
+        else {
+            rc = GetLastError();
+        }
+    }
+    if (rn) {
+        rl[rn] = '\0';
+        dbgprints(__FUNCTION__, rl);
+    }
+    if (rc) {
+        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+            dbgprints(__FUNCTION__, "pipe closed");
+        else
+            dbgprintf(__FUNCTION__, "err=%lu", rc);
+    }
+    dbgprints(__FUNCTION__, "done");
+
+    XENDTHREAD(0);
+}
+
 static DWORD openlogpipe(void)
 {
     DWORD    rc;
@@ -1196,6 +1250,7 @@ static DWORD openlogpipe(void)
     }
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
+    xcreatethread(1, 0, &rdpipedlog, NULL);
 
     if (haslogstatus) {
         logwrline(wr, cnamestamp);
@@ -1673,7 +1728,7 @@ finished:
 
 static unsigned int __stdcall stopthread(void *param)
 {
-    DWORD rs = *((DWORD *)param);
+    DWORD rs = (DWORD)((intptr_t)param);
 
     if (hasdebuginfo) {
         if (servicemode)
@@ -1734,14 +1789,14 @@ finished:
     XENDTHREAD(0);
 }
 
-static void createstopthread(DWORD p)
+static void createstopthread(DWORD rv)
 {
-    if (p) {
-        setsvcstatusexit(p);
+    if (rv) {
+        setsvcstatusexit(rv);
     }
     if (InterlockedIncrement(&sstarted) == 1) {
         ResetEvent(svcstopended);
-        xcreatethread(1, 0, &stopthread, (void *)&p);
+        xcreatethread(1, 0, &stopthread, (void *)((intptr_t)rv));
     }
     else {
         dbgprints(__FUNCTION__, "already started");

@@ -21,7 +21,6 @@
 #if defined(_MSC_VER)
 # pragma warning(disable: 4100 4244 4702)
 #endif
-#define SDBUFSIZE 2048
 #define RDBUFSIZE 8192
 
 /**
@@ -29,39 +28,14 @@
  */
 #define SIMULATE_FAILURE 0
 
-static const char *progname = "pipedlog";
 static char CRLFA[2] = { '\r', '\n'};
-static char SMODE[2] = { 'x',  '\0'};
-
-static void dbgprints(const char *funcname, const char *string)
-{
-    char buf[SDBUFSIZE];
-    _snprintf(buf, SDBUFSIZE - 1,
-              "[%.4lu] %s %-16s %s",
-              GetCurrentThreadId(),
-              SMODE, funcname, string);
-     buf[SDBUFSIZE - 1] = '\0';
-     OutputDebugStringA(buf);
-}
-
-static void dbgprintf(const char *funcname, const char *format, ...)
-{
-    char    buf[SDBUFSIZE];
-    va_list ap;
-
-    va_start(ap, format);
-    _vsnprintf(buf, SDBUFSIZE - 1, format, ap);
-    va_end(ap);
-    buf[SDBUFSIZE - 1] = '\0';
-    dbgprints(funcname, buf);
-}
 
 #if SIMULATE_FAILURE
 DWORD WINAPI failurethread(void *unused)
 {
-    dbgprints(progname, "simulating failure");
+    fputs("simulating failure\n", stdout);
     Sleep(10000);
-    dbgprints(progname, "calling ExitProcess(ERROR_WRITE_FAULT)");
+    fputs("calling ExitProcess(ERROR_WRITE_FAULT)\n", stdout);
     ExitProcess(ERROR_WRITE_FAULT);
 }
 #endif
@@ -78,26 +52,22 @@ int wmain(int argc, const wchar_t **wargv)
     r = GetStdHandle(STD_INPUT_HANDLE);
     if (r == INVALID_HANDLE_VALUE) {
         e = GetLastError();
-        dbgprints(progname, "Missing stdin handle");
+        fprintf(stderr, "Missing stdin handle %lu", e);
         return e;
     }
     if (argc < 2) {
-        dbgprints(progname, "Missing logfile argument");
+        fputs("Missing logfile argument\n", stderr);
         return ERROR_INVALID_PARAMETER;
     }
-    if (wcsstr(wargv[1], L".shutdown."))
-        SMODE[0] = L'0';
-    else
-        SMODE[0] = L'1';
-    dbgprints(progname, "started");
+    fputs("started\n", stdout);
     if (argc > 2) {
-        dbgprints(progname, "extra arguments [[");
+        fputs("extra arguments [[\n", stdout);
         for (i = 2; i < argc; i++) {
-            dbgprintf(progname, "  %S", wargv[i]);
+            fprintf(stdout, "  %S\n", wargv[i]);
         }
-        dbgprints(progname, "]]");
+        fputs("]]\n", stdout);
     }
-
+    fflush(stdout);
     memset(&sa, 0, sizeof(SECURITY_ATTRIBUTES));
     sa.nLength = (DWORD)sizeof(SECURITY_ATTRIBUTES);
 
@@ -106,7 +76,7 @@ int wmain(int argc, const wchar_t **wargv)
                     FILE_ATTRIBUTE_NORMAL, NULL);
     e = GetLastError();
     if (w == INVALID_HANDLE_VALUE) {
-        dbgprintf(progname, "cannot create: %S", wargv[1]);
+        fprintf(stderr, "cannot create: %S\n", wargv[1]);
         return e;
     }
     if (e == ERROR_ALREADY_EXISTS) {
@@ -115,26 +85,27 @@ int wmain(int argc, const wchar_t **wargv)
 
         if (!SetFilePointerEx(w, ee, NULL, FILE_END)) {
             e = GetLastError();
-            dbgprintf(progname, "cannot set file pointer for: %S", wargv[1]);
+            fprintf(stderr, "cannot set file pointer for: %S\n", wargv[1]);
             CloseHandle(w);
             return e;
         }
         if (WriteFile(w, CRLFA, 2, &wr, NULL) && (wr != 0)) {
-            dbgprintf(progname, "reusing: %S", wargv[1]);
+            fprintf(stdout, "reusing: %S\n", wargv[1]);
         }
         else {
             e = GetLastError();
-            dbgprintf(progname, "cannot write to: %S", wargv[1]);
+            fprintf(stderr, "cannot write to: %S\n", wargv[1]);
             CloseHandle(w);
             return e;
         }
     }
     else {
-        dbgprintf(progname, "created: %S", wargv[1]);
+        fprintf(stdout, "created: %S\n", wargv[1]);
     }
 #if SIMULATE_FAILURE
     CloseHandle(CreateThread(NULL, 0, failurethread, NULL, 0, &e));
 #endif
+    fflush(stdout);
     e = 0;
     while (e == 0) {
         DWORD rd = 0;
@@ -143,18 +114,17 @@ int wmain(int argc, const wchar_t **wargv)
         if (ReadFile(r, b, RDBUFSIZE, &rd, NULL)) {
             if (rd == 0) {
                 e = GetLastError();
-                dbgprints(progname, "read 0 bytes");
             }
             else {
                 if (WriteFile(w, b, rd, &wr, NULL)) {
                     if (wr == 0) {
                         e = GetLastError();
-                        dbgprints(progname, "wrote 0 bytes");
                     }
                     else {
                         c += wr;
                         if (c > 16384) {
-                            dbgprints(progname, "flushing");
+                            fputs("flushing...\n", stdout);
+                            fflush(stdout);
                             FlushFileBuffers(w);
                             c = 0;
                         }
@@ -162,7 +132,6 @@ int wmain(int argc, const wchar_t **wargv)
                 }
                 else {
                     e = GetLastError();
-                    dbgprints(progname, "WriteFile failed");
                 }
             }
         }
@@ -173,7 +142,7 @@ int wmain(int argc, const wchar_t **wargv)
     CloseHandle(w);
     if (e) {
         if ((e == ERROR_BROKEN_PIPE) || (e == ERROR_NO_DATA)) {
-            dbgprints(progname, "iopipe closed");
+            fputs("iopipe closed\n", stdout);
             e = 0;
 #if SIMULATE_FAILURE
             /* SvcBatch will kill this process after 5 seconds */
@@ -181,10 +150,11 @@ int wmain(int argc, const wchar_t **wargv)
 #endif
         }
         else
-            dbgprintf(progname, "iopipe error: %lu", e);
+            fprintf(stderr, "iopipe error: %lu\n", e);
     }
     else {
-        dbgprints(progname, "done");
+        fputs("done\n", stdout);
     }
+    fflush(stdout);
     return e;
 }
