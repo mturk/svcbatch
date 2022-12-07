@@ -126,6 +126,12 @@ static wchar_t *xwcalloc(size_t size)
     return p;
 }
 
+static void xfree(void *m)
+{
+    if (m != NULL)
+        free(m);
+}
+
 static wchar_t **waalloc(size_t size)
 {
     wchar_t **p = (wchar_t **)calloc(size + 2, sizeof(wchar_t *));
@@ -136,10 +142,15 @@ static wchar_t **waalloc(size_t size)
     return p;
 }
 
-static void xfree(void *m)
+static void waafree(wchar_t **a)
 {
-    if (m != NULL)
-        free(m);
+    wchar_t **p = a;
+
+    if (a == NULL)
+        return;
+    while (*p != NULL)
+        xfree(*(p++));
+    free(a);
 }
 
 static wchar_t *xwcsdup(const wchar_t *s)
@@ -2358,6 +2369,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
         return;
     }
+    waafree(dupwenvp);
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     if (haspipedlogs) {
