@@ -144,13 +144,13 @@ static wchar_t **waalloc(size_t size)
 
 static void waafree(wchar_t **a)
 {
-    wchar_t **p = a;
+    if (a != NULL) {
+        wchar_t **p = a;
 
-    if (a == NULL)
-        return;
-    while (*p != NULL)
-        xfree(*(p++));
-    free(a);
+        while (*p != NULL)
+            xfree(*(p++));
+        free(a);
+    }
 }
 
 static wchar_t *xwcsdup(const wchar_t *s)
@@ -262,19 +262,6 @@ static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
     return cp;
 }
 
-static int xwcsisenvvar(const wchar_t *str, const wchar_t *var)
-{
-    while (*str != WNUL) {
-        if (towlower(*str) != towlower(*var))
-            break;
-        str++;
-        var++;
-        if (*var == WNUL)
-            return *str == L'=';
-    }
-    return 0;
-}
-
 static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t *s3)
 {
     const wchar_t *c;
@@ -319,8 +306,8 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
     }
     l1 = xwcslen(s1);
     l2 = xwcslen(s2);
-    e = xwmalloc(l1 + l2 + l3 + 3);
-    d = e;
+    e  = xwmalloc(l1 + l2 + l3 + 4);
+    d  = e;
 
     if(l1 > 0) {
         wmemcpy(d, s1, l1);
@@ -446,8 +433,10 @@ static wchar_t *xenvblock(int cnt, const wchar_t **arr)
     e = b;
     for (i = 0; i < cnt; i++) {
         n = xwcslen(arr[i]);
-        if ((c + n) > 32767)
+        if ((c + n) >= 32767) {
+            free(b);
             return NULL;
+        }
         wmemcpy(e, arr[i], n++);
         e += n;
         c += n;
