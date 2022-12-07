@@ -1131,12 +1131,8 @@ static unsigned int __stdcall rdpipedlog(void *unused)
     DWORD rm = MBUFSIZ - 256;
     char  rb[2];
     char  rl[MBUFSIZ];
-    char  pn[32];
 
-    if (hasdebuginfo) {
-        dbgprints(__FUNCTION__, "started");
-        _snprintf(pn, 30, "pipedlog(%lu)", pipedprocpid);
-    }
+    dbgprints(__FUNCTION__, "started");
     while (rc == 0) {
         DWORD rd = 0;
 
@@ -1151,14 +1147,14 @@ static unsigned int __stdcall rdpipedlog(void *unused)
                     }
                     else if (rb[0] == '\n') {
                         rl[rn] = '\0';
-                        dbgprints(pn, rl);
+                        dbgprintf(__FUNCTION__, "[%.4lu] %s", pipedprocpid, rl);
                         rn = 0;
                     }
                     else {
                         rl[rn++] = rb[0];
                         if (rn > rm) {
                             rl[rn] = '\0';
-                            dbgprints(pn, rl);
+                            dbgprintf(__FUNCTION__, "[%.4lu] %s", pipedprocpid, rl);
                             rn = 0;
                         }
                     }
@@ -1172,7 +1168,7 @@ static unsigned int __stdcall rdpipedlog(void *unused)
     if (hasdebuginfo) {
         if (rn) {
             rl[rn] = '\0';
-            dbgprints(pn, rl);
+            dbgprintf(__FUNCTION__, "[%.4lu] %s", pipedprocpid, rl);
         }
         if (rc) {
             if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
@@ -1180,8 +1176,8 @@ static unsigned int __stdcall rdpipedlog(void *unused)
             else
                 dbgprintf(__FUNCTION__, "err=%lu", rc);
         }
-        dbgprints(__FUNCTION__, "done");
     }
+    dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
 }
 
