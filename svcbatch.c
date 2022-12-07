@@ -628,6 +628,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     wchar_t        hdr[MBUFSIZ];
     wchar_t        erb[MBUFSIZ];
     const wchar_t *errarg[10];
+    int            n = MBUFSIZ - 4;
     int            c, i = 0;
 
     errarg[i++] = wnamestamp;
@@ -636,20 +637,20 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     errarg[i++] = CRLFW;
     errarg[i++] = L"reported the following error:\r\n";
     if (eds == NULL)
-        c = _snwprintf(hdr, MBUFSIZ - 1, L"svcbatch.c(%.4d, %S) %s",    line, fn, err);
+        c = _snwprintf(hdr, n, L"svcbatch.c(%.4d, %S) %s",    line, fn, err);
     else
-        c = _snwprintf(hdr, MBUFSIZ - 1, L"svcbatch.c(%.4d, %S) %s: %s", line, fn, err, eds);
-    if (c < 0)
-        c = 0;
-    hdr[c] = WNUL;
+        c = _snwprintf(hdr, n, L"svcbatch.c(%.4d, %S) %s: %s", line, fn, err, eds);
+    if (c > 0)
+        hdr[c] = WNUL;
+    hdr[n] = WNUL;
     errarg[i++] = hdr;
 
     if (ern) {
-        c = _snwprintf(erb, BBUFSIZ - 1, L"error(%lu) ", ern);
+        c = _snwprintf(erb, BBUFSIZ, L"error(%lu) ", ern);
         if (c < 0)
             c = 0;
         erb[c] = WNUL;
-        xwinapierror(erb + c, MBUFSIZ - c, ern);
+        xwinapierror(erb + c, n - c, ern);
         errarg[i++] = CRLFW;
         errarg[i++] = erb;
         dbgprintf(__FUNCTION__, "%S, %S", hdr, erb);
