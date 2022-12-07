@@ -521,20 +521,23 @@ static void dbgprints(const char *funcname, const char *string)
 {
     if (hasdebuginfo) {
         int  n;
-        char buf[MBUFSIZ];
+        int  c = MBUFSIZ - 8;
+        char b[MBUFSIZ];
 
-        n = _snprintf(buf, MBUFSIZ - 1,
-                     "[%.4lu] %d %-16s %s",
+        n = _snprintf(b, c, "[%.4lu] %d %-16s %s",
                      GetCurrentThreadId(),
                      servicemode,
                      funcname, string);
          if (n > 0) {
-            buf[n] = '\0';
-            OutputDebugStringA(buf);
+            b[n] = '\0';
          }
-         else
-            OutputDebugStringA(funcname);
-
+         else {
+            b[c++] = '.';
+            b[c++] = '.';
+            b[c++] = '.';
+         }
+         b[c] = '\0';
+         OutputDebugStringA(b);
     }
 }
 
@@ -542,18 +545,23 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 {
     if (hasdebuginfo) {
         int     n;
-        char    buf[SBUFSIZ];
+        int     c = MBUFSIZ - 256;
+        char    b[MBUFSIZ];
         va_list ap;
 
         va_start(ap, format);
-        n = _vsnprintf(buf, SBUFSIZ - 1, format, ap);
+        n = _vsnprintf(b, c, format, ap);
         va_end(ap);
         if (n > 0) {
-            buf[n] = '\0';
-            dbgprints(funcname, buf);
+            b[n] = '\0';
         }
-        else
-            dbgprints(funcname, "_vsnprintf failed!");
+        else {
+            b[c++] = '.';
+            b[c++] = '.';
+            b[c++] = '.';
+        }
+        b[c] = '\0';
+        dbgprints(funcname, b);
     }
 }
 
