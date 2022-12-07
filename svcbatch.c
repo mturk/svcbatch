@@ -2575,7 +2575,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (envc == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"Missing system environment", NULL);
 
-    while ((opt = xwgetopt(argc, wargv, L"a:bdlqpe:o:r:s:w:n:u:xz:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bde:ln:o:pqr:s:u:w:xz:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
