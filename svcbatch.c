@@ -1677,9 +1677,9 @@ static unsigned int __stdcall stopthread(void *param)
 
     if (hasdebuginfo) {
         if (servicemode)
-            dbgprintf(__FUNCTION__, "service stop %lu",  rs);
+            dbgprints(__FUNCTION__, "service stop");
         else
-            dbgprintf(__FUNCTION__, "shutdown stop %lu", rs);
+            dbgprints(__FUNCTION__, "shutdown stop");
     }
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
     if ((shutdownfile != NULL) && (rs == 0)) {
