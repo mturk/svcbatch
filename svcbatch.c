@@ -1094,7 +1094,7 @@ static void logconfig(HANDLE h)
     logfflush(h);
 }
 
-static DWORD createlogdir(void)
+static DWORD createoutdir(void)
 {
     DWORD   rc;
     wchar_t *dp;
@@ -1116,7 +1116,7 @@ static DWORD createlogdir(void)
     }
     if (_wcsicmp(outlocation, servicehome) == 0) {
         svcsyserror(__FUNCTION__, __LINE__, 0,
-                    L"outlocation cannot be the same as servicehome",
+                    L"Output directory cannot be the same as servicehome",
                     outlocation);
         return ERROR_BAD_PATHNAME;
     }
@@ -2326,7 +2326,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         dbgprintf(__FUNCTION__, "started %S", servicename);
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-        rv = createlogdir();
+        rv = createoutdir();
         if (rv != 0) {
             svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
             reportsvcstatus(SERVICE_STOPPED, rv);
