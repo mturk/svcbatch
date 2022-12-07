@@ -352,6 +352,9 @@ make sure to get familiar with `sc.exe` utility.
   This option enables to add additional **argument** to shutdown batch file.
   Use multiple **-a [argument]** command options if multiple arguments are required.
 
+  If **-s** option was not defined, SvcBatch will use service batch file as
+  shutdown file with provided **argument(s)**. In that case service batch
+  file shuld process those arguments and act accordingly.
 
 * **-q**
 

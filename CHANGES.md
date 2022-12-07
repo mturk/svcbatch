@@ -11,6 +11,7 @@ For a full list of changes, see the [git commit log][log]
  * In development
  * Terminate external log application if it fails to exit within 5 seconds after closing log files
  * Allow multiple -a command options
+ * Use service batch file as shutdown batch file if -a was defined and -s was not
  * Fix quoting arguments for shutdown batch file
  * Drop experimental support for user rotate service control for external log applications
  * Drop SVCBATCH_SERVICE_MODE environment variable

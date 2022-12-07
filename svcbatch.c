@@ -2662,6 +2662,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             if (IS_EMPTY_WCS(shutdownfile))
                 return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
         }
+        else if (svcbatchargs) {
+            /**
+             * Use the service batch file as shutdownfile
+             */
+            shutdownfile = svcbatchfile;
+        }
         haslogrotate = svcmaxlogs;
     }
     else {
