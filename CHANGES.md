@@ -16,7 +16,8 @@ For a full list of changes, see the [git commit log][log]
  * Drop experimental support for user rotate service control for external log applications
  * Drop SVCBATCH_SERVICE_MODE environment variable
  * Drop SVCBATCH_SERVICE_LOGDIR environment variable
- * Fix running batch files containing spaces 
+ * Fix running batch files containing spaces
+ * Stop service if write to logfile fails
 
 ## v1.3.4
 

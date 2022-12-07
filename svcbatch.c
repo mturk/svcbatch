@@ -1671,14 +1671,18 @@ finished:
     return rc;
 }
 
-static unsigned int __stdcall stopthread(void *unused)
+static unsigned int __stdcall stopthread(void *param)
 {
-    if (servicemode)
-        dbgprints(__FUNCTION__, "service stop");
-    else
-        dbgprints(__FUNCTION__, "shutdown stop");
+    DWORD rs = *((DWORD *)param);
+
+    if (hasdebuginfo) {
+        if (servicemode)
+            dbgprintf(__FUNCTION__, "service stop %lu",  rs);
+        else
+            dbgprintf(__FUNCTION__, "shutdown stop %lu", rs);
+    }
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-    if (shutdownfile != NULL) {
+    if ((shutdownfile != NULL) && (rs == 0)) {
         DWORD rc;
 
         dbgprints(__FUNCTION__, "creating shutdown process");
@@ -1730,11 +1734,14 @@ finished:
     XENDTHREAD(0);
 }
 
-static void createstopthread(void)
+static void createstopthread(DWORD p)
 {
+    if (p) {
+        setsvcstatusexit(p);
+    }
     if (InterlockedIncrement(&sstarted) == 1) {
         ResetEvent(svcstopended);
-        xcreatethread(1, 0, &stopthread, NULL);
+        xcreatethread(1, 0, &stopthread, (void *)&p);
     }
     else {
         dbgprints(__FUNCTION__, "already started");
@@ -1765,6 +1772,12 @@ static unsigned int __stdcall rdpipethread(void *unused)
 
                 InterlockedExchangePointer(&logfhandle, h);
                 LeaveCriticalSection(&logfilelock);
+                if (rc) {
+                    if (rc != ERROR_NO_MORE_FILES) {
+                        svcsyserror(__FUNCTION__, __LINE__, rc, L"logappend", NULL);
+                        createstopthread(rc);
+                    }
+                }
             }
         }
         else {
@@ -1842,7 +1855,7 @@ static void monitorshutdown(void)
                 LeaveCriticalSection(&logfilelock);
             }
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            createstopthread();
+            createstopthread(0);
         break;
         default:
         break;
@@ -1982,9 +1995,8 @@ static unsigned int __stdcall rotatethread(void *unused)
                             dbgprints(__FUNCTION__, "rotate by size");
                             rc = rotatelogs();
                             if (rc != 0) {
-                                dbgprintf(__FUNCTION__, "rotatelogs failed with %lu", rc);
-                                setsvcstatusexit(rc);
-                                createstopthread();
+                                svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                                createstopthread(rc);
                             }
                             else {
                                 if (rotateint != ONE_DAY) {
@@ -1997,9 +2009,8 @@ static unsigned int __stdcall rotatethread(void *unused)
                     else {
                         rc = GetLastError();
                         CloseHandle(h);
-                        setsvcstatusexit(rc);
                         svcsyserror(__FUNCTION__, __LINE__, rc, L"GetFileSizeEx", NULL);
-                        createstopthread();
+                        createstopthread(rc);
                     }
                 }
                 LeaveCriticalSection(&logfilelock);
@@ -2014,8 +2025,8 @@ static unsigned int __stdcall rotatethread(void *unused)
                     SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
                 }
                 else {
-                    setsvcstatusexit(rc);
-                    createstopthread();
+                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                    createstopthread(rc);
                 }
             break;
             case WAIT_OBJECT_1:
@@ -2029,8 +2040,8 @@ static unsigned int __stdcall rotatethread(void *unused)
                     ResetEvent(logrotatesig);
                 }
                 else {
-                    setsvcstatusexit(rc);
-                    createstopthread();
+                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                    createstopthread(rc);
                 }
             break;
             case WAIT_OBJECT_2:
@@ -2262,7 +2273,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 InterlockedExchangePointer(&logfhandle, h);
                 LeaveCriticalSection(&logfilelock);
             }
-            createstopthread();
+            createstopthread(0);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak) {
