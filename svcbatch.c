@@ -585,7 +585,7 @@ static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
         }
     }
     else {
-        buf[0] = WNUL;
+        buf[0] = L'?';
         buf[1] = WNUL;
     }
 }
