@@ -8,6 +8,11 @@ For a full list of changes, see the [git commit log][log]
 
 ## v1.4.0
 
+  * In development
+
+
+## v1.4.0
+
  * Terminate external log application if it fails to exit within 5 seconds after closing log files
  * Use service batch file as shutdown batch file if -a was defined and -s was not
  * Drop experimental support for user rotate service control for external log applications
