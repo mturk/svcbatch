@@ -774,21 +774,12 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     HANDLE      fh;
     DWORD       atr  = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
-    if (IS_EMPTY_WCS(path))
-        return NULL;
     if (servicemode == 0)
         return xwcsdup(path);
 
-    if ((path[0] == L'.') && ((path[1] == L'\\') || (path[1] == L'/'))) {
-        /**
-         * Remove leading './' or '.\'
-         */
-        path += 2;
-    }
-    buf = xwcsdup(path);
+    buf = winrealpathname(path, isdir);
     if (IS_EMPTY_WCS(buf))
         return NULL;
-    xcleanwinpath(buf, isdir);
 
     fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, atr, NULL);
