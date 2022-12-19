@@ -1244,7 +1244,10 @@ static DWORD openlogpipe(void)
     else {
         int i;
         for (i = 1; i < logredirargc; i++) {
-            cmdline = xappendarg(1, cmdline, NULL, logredirargv[i]);
+            if (wcscmp(logredirargv[i], L"@@logfile@@") == 0)
+                cmdline = xappendarg(1, cmdline, NULL, svclogfname);
+            else
+                cmdline = xappendarg(1, cmdline, NULL, logredirargv[i]);
         }
     }
     LocalFree(logredirargv);
@@ -1285,6 +1288,7 @@ static DWORD openlogpipe(void)
     return 0;
 
 failed:
+    SAFE_CLOSE_HANDLE(wr);
     SAFE_CLOSE_HANDLE(pipedprocout);
     SAFE_CLOSE_HANDLE(pipedprocess);
     SAFE_CLOSE_HANDLE(pipedprocjob);

@@ -234,6 +234,10 @@ make sure to get familiar with `sc.exe` utility.
   The first argument to the **program** is always
   log file name, unless **arguments** are not defined.
 
+  In case any of the **arguments** is `@@logfile@@` it will
+  be replaced at runtime by `Svcbatch.log` or any name defined
+  by **-n** parameter option.
+
   The **program** current directory is always set
   to service output directory.
 
