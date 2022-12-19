@@ -6,10 +6,17 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
-## v1.4.0
+## v1.5.0
 
   * In development
+  * Drop external log application for shutdown batch file
+  * Change default log rotation extension
 
+### New Features
+
+ * Add -t command option that will truncate log file
+ * Use -m command option to replace previous -r0...9
+ * Add SVCBATCH_SERVICE_ROOT environment variable
 
 ## v1.4.0
 

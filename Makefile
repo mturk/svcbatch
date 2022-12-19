@@ -52,7 +52,7 @@ RCOPTS = /l 0x409 /n
 RFLAGS = /d NDEBUG /d WINVER=$(WINVER) /d _WIN32_WINNT=$(WINVER)
 
 LFLAGS = /nologo /INCREMENTAL:NO /OPT:REF /SUBSYSTEM:CONSOLE /MACHINE:$(_CPU) /VERSION:$(EXEVER)
-LDLIBS = kernel32.lib advapi32.lib user32.lib $(EXTRA_LIBS)
+LDLIBS = kernel32.lib advapi32.lib user32.lib shell32.lib $(EXTRA_LIBS)
 
 !IF DEFINED(VSCMD_VER)
 RCOPTS = /nologo $(RCOPTS)

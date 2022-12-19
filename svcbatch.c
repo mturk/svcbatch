@@ -15,6 +15,7 @@
 
 #include <windows.h>
 #include <wincrypt.h>
+#include <shellapi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,21 +47,25 @@ static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
-static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
+static int       hasdebuginfo     = 0;
 static int       hasctrlbreak     = 0;
 static int       haslogstatus     = 1;
-static int       haslogrotate     = 1;
+static int       hasnologging     = 0;
+static int       haslogrotate     = 0;
 static int       haspipedlogs     = 0;
-static int       autorotate       = 0;
+static int       rotatebysize     = 0;
+static int       rotatebytime     = 0;
 static int       uselocaltime     = 0;
 static int       servicemode      = 1;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
+static int       truncatelogs     = 0;
 static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
 static DWORD     pipedprocpid     = 0;
 
 static int       xwoptind         = 1;   /* Index into parent argv vector */
 static int       xwoption         = 0;   /* Character checked for validity */
+static int       logredirargc     = 0;
 
 static wchar_t   svcbatchexe[HBUFSIZ];
 static wchar_t  *svcbatchfile     = NULL;
@@ -76,8 +81,8 @@ static wchar_t  *svcendargs       = NULL;
 
 static wchar_t  *outlocation      = NULL;
 static wchar_t  *logfilename      = NULL;
-static wchar_t  *logfilepart      = NULL;
 static wchar_t  *logredirect      = NULL;
+static wchar_t **logredirargv     = NULL;
 static wchar_t  *wnamestamp       = NULL;
 
 static HANDLE    childprocjob     = NULL;
@@ -101,8 +106,8 @@ static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
-static const wchar_t *rotateparam = NULL;
-static const wchar_t *outdirparam = NULL;
+static const wchar_t *shtlogfname = SHUTDOWN_LOGNAME;
+static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
 static const wchar_t *xwoptarg    = NULL;
 
 static wchar_t *xwmalloc(size_t size)
@@ -356,6 +361,20 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
 
     return e;
 }
+
+static int xwstartswith(const wchar_t *str, const wchar_t *src)
+{
+    while (*str != L'\0') {
+        if (*str != *src)
+            break;
+        str++;
+        src++;
+        if (*src == L'\0')
+            return 1;
+    }
+    return 0;
+}
+
 
 int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
 {
@@ -1057,6 +1076,7 @@ static void logconfig(HANDLE h)
     logprintf(h, "Batch file       : %S", svcbatchfile);
     if (svcbatchargs != NULL)
         logprintf(h, "      arguments  : %S", svcbatchargs);
+    logprintf(h, "Root directory   : %S", exelocation);
     logprintf(h, "Base directory   : %S", servicebase);
     logprintf(h, "Working directory: %S", servicehome);
     logprintf(h, "Runtime directory: %S", outlocation);
@@ -1066,8 +1086,10 @@ static void logconfig(HANDLE h)
     if (servicemode) {
         wchar_t *fs = NULL;
 
-        if (autorotate)
-            fs = xwcsappend(fs, L"autorotate, ");
+        if (rotatebysize)
+            fs = xwcsappend(fs, L"rotate by size, ");
+        if (rotatebytime)
+            fs = xwcsappend(fs, L"rotate by time, ");
         if (shutdownfile)
             fs = xwcsappend(fs, L"shutdown batch, ");
         if (hasctrlbreak)
@@ -1216,9 +1238,16 @@ static DWORD openlogpipe(void)
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     cmdline = xappendarg(1, NULL,    NULL, logredirect);
-    cmdline = xappendarg(1, cmdline, NULL, logfilepart);
-    cmdline = xappendarg(1, cmdline, NULL, rotateparam);
-
+    if (logredirargc == 1) {
+        cmdline = xappendarg(1, cmdline, NULL, svclogfname);
+    }
+    else {
+        int i;
+        for (i = 1; i < logredirargc; i++) {
+            cmdline = xappendarg(1, cmdline, NULL, logredirargv[i]);
+        }
+    }
+    LocalFree(logredirargv);
     dbgprintf(__FUNCTION__, "cmdline %S", cmdline);
     if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
@@ -1269,42 +1298,44 @@ static DWORD openlogfile(BOOL firstopen)
     wchar_t *logpb = NULL;
     DWORD rc;
     HANDLE h = NULL;
-    int i, rotateold;
+    int rotateprev;
 
-    if (autorotate)
-        rotateold = 0;
+    if (rotatebysize || rotatebytime || (svcmaxlogs < 2))
+        rotateprev = 0;
     else
-        rotateold = svcmaxlogs;
+        rotateprev = svcmaxlogs;
     if (logfilename == NULL)
-        logfilename = xwcsmkpath(outlocation, logfilepart);
+        logfilename = xwcsmkpath(outlocation, svclogfname);
     if (logfilename == NULL)
         return svcsyserror(__FUNCTION__, __LINE__,
                            ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
 
     if (svcmaxlogs > 0) {
         if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
-            DWORD mm = 0;
-
             if (firstopen)
                 reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-            if (autorotate) {
-                SYSTEMTIME st;
-                wchar_t wrb[24];
-
-                if (uselocaltime)
-                    GetLocalTime(&st);
-                else
-                    GetSystemTime(&st);
-                _snwprintf(wrb, 22, L".%.4d-%.2d-%.2d.%.2d%.2d%.2d",
-                           st.wYear, st.wMonth, st.wDay,
-                           st.wHour, st.wMinute, st.wSecond);
-                logpb = xwcsconcat(logfilename, wrb);
-            }
-            else {
-                mm = MOVEFILE_REPLACE_EXISTING;
+            if (rotateprev) {
                 logpb = xwcsconcat(logfilename, sfx);
             }
-            if (!MoveFileExW(logfilename, logpb, mm)) {
+            else {
+                wchar_t wrb[16];
+                FILETIME ft;
+                ULARGE_INTEGER ui;
+
+                GetSystemTimeAsFileTime(&ft);
+
+                ui.HighPart  = ft.dwHighDateTime;
+                ui.LowPart   = ft.dwLowDateTime;
+                ui.QuadPart /= 10;
+                /** Number of micro-seconds between the beginning of the Windows epoch
+                 *  (Jan. 1, 1601) and the Unix epoch (Jan. 1, 1970)
+                 */
+                ui.QuadPart -= CPP_UINT64_C(11644473600000000);
+                ui.QuadPart /= CPP_UINT64_C(1000000);
+                _snwprintf(wrb, 14, L".%.10llu", ui.QuadPart);
+                logpb = xwcsconcat(logfilename, wrb);
+            }
+            if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
                 rc = GetLastError();
                 xfree(logpb);
                 return svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileExW", logfilename);
@@ -1319,7 +1350,8 @@ static DWORD openlogfile(BOOL firstopen)
     }
     if (firstopen)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    if (rotateold) {
+    if (rotateprev) {
+        int i;
         /**
          * Rotate previous log files
          */
@@ -1349,7 +1381,8 @@ static DWORD openlogfile(BOOL firstopen)
         }
     }
     h = CreateFileW(logfilename, GENERIC_WRITE,
-                    FILE_SHARE_READ, &sazero, OPEN_ALWAYS,
+                    FILE_SHARE_READ, &sazero,
+                    truncatelogs ? CREATE_ALWAYS : OPEN_ALWAYS,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
@@ -1357,15 +1390,23 @@ static DWORD openlogfile(BOOL firstopen)
         goto failed;
     }
     if (rc == ERROR_ALREADY_EXISTS) {
-        dbgprintf(__FUNCTION__, "reusing %S", logfilename);
-        logfflush(h);
+        if (truncatelogs) {
+            InterlockedExchange(&logwritten, 0);
+            dbgprintf(__FUNCTION__, "truncated %S", logfilename);
+        }
+        else {
+            logfflush(h);
+            dbgprintf(__FUNCTION__, "reusing %S", logfilename);
+        }
     }
     else {
         InterlockedExchange(&logwritten, 0);
     }
     if (haslogstatus) {
         logwrline(h, cnamestamp);
-        if (firstopen)
+        if (truncatelogs)
+            logwrtime(h, "Log truncated");
+        else if (firstopen)
             logwrtime(h, "Log opened");
     }
     InterlockedExchangePointer(&logfhandle, h);
@@ -1452,51 +1493,109 @@ static void closelogfile(void)
     dbgprints(__FUNCTION__, "closed");
 }
 
+static void resolvetimeut(int hh, int mm, int ss)
+{
+    SYSTEMTIME     st;
+    FILETIME       ft;
+    ULARGE_INTEGER ui;
+
+    rotateint = ONE_DAY;
+    if (uselocaltime)
+        GetLocalTime(&st);
+    else
+        GetSystemTime(&st);
+    SystemTimeToFileTime(&st, &ft);
+    ui.HighPart = ft.dwHighDateTime;
+    ui.LowPart  = ft.dwLowDateTime;
+    ui.QuadPart += rotateint;
+    ft.dwHighDateTime = ui.HighPart;
+    ft.dwLowDateTime  = ui.LowPart;
+    FileTimeToSystemTime(&ft, &st);
+    st.wHour   = hh;
+    st.wMinute = mm;
+    st.wSecond = ss;
+    SystemTimeToFileTime(&st, &ft);
+    rotatetmo.HighPart = ft.dwHighDateTime;
+    rotatetmo.LowPart  = ft.dwLowDateTime;
+
+}
+
 static int resolverotate(const wchar_t *str)
 {
-    wchar_t   *rp, *sp;
+    wchar_t *sp;
 
     if (IS_EMPTY_WCS(str)) {
         return 0;
     }
-    if ((str[0] ==  L'@') && (str[1] ==  WNUL)) {
-        /* Special case for shutdown autorotate */
-        autorotate = 1;
-        if (servicemode)
+
+    sp = xwcsdup(str);
+    if (wcspbrk(sp, L"BKMGbkmg") != NULL) {
+        LONGLONG len;
+        LONGLONG siz;
+        LONGLONG mux;
+        wchar_t *rp = sp;
+        wchar_t *ep = zerostring;
+
+        siz = _wcstoi64(rp, &ep, 10);
+        if ((siz <= CPP_INT64_C(0)) || (ep == rp) || (errno == ERANGE))
             return __LINE__;
-        else
-            return 0;
+        switch (ep[0]) {
+            case L'B':
+                mux = CPP_INT64_C(1);
+            break;
+            case L'K':
+                mux = KILOBYTES(1);
+            break;
+            case L'M':
+                mux = MEGABYTES(1);
+            break;
+            case L'G':
+                mux = MEGABYTES(1024);
+            break;
+            default:
+                return __LINE__;
+            break;
+        }
+        len = siz * mux;
+        if (len < SVCBATCH_MIN_LOGSIZE)
+            return __LINE__;
+        if (hasdebuginfo) {
+            if (ep[0] != 'B')
+                dbgprintf(__FUNCTION__, "rotate if > %lu %S", (DWORD)siz, ep);
+            else
+                dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
+        }
+        rotatesiz.QuadPart = len;
+        rotatebysize = 1;
     }
-    if ((str[0] >=  L'0') && (str[0] <=  L'9') && (str[1] ==  WNUL)) {
-        svcmaxlogs = str[0] - L'0';
-        dbgprintf(__FUNCTION__, "max rotate logs %d", svcmaxlogs);
-        return 0;
-    }
-    rotatetmo.QuadPart = rotateint;
-    rp = sp = xwcsdup(str);
-    if (*rp == L'@') {
-        int      hh, mm, ss;
+    else {
+        wchar_t *rp  = sp;
         wchar_t *p;
 
-        rp++;
         p = wcschr(rp, L':');
         if (p == NULL) {
-            if ((p = wcschr(rp, L'~')) != NULL)
-                *(p++) = WNUL;
-            mm = _wtoi(rp);
-            if ((mm < SVCBATCH_MIN_LOGRTIME) || (errno == ERANGE)) {
+            int mm = _wtoi(rp);
+            if ((mm < 0) || (errno == ERANGE)) {
                 dbgprintf(__FUNCTION__, "invalid rotate timeout %S", rp);
                 return __LINE__;
             }
-            rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
-            dbgprintf(__FUNCTION__, "rotate each %d minutes", mm);
-            rotatetmo.QuadPart = rotateint;
-            rp = p;
+            if (mm == 0) {
+                dbgprints(__FUNCTION__, "rotate at midnight");
+                resolvetimeut(0, 0, 0);
+            }
+            else if (mm < SVCBATCH_MIN_LOGRTIME) {
+                dbgprintf(__FUNCTION__, "rotate timeout %S is lower then %d",
+                          rp, SVCBATCH_MIN_LOGRTIME);
+                return __LINE__;
+            }
+            else {
+                rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
+                dbgprintf(__FUNCTION__, "rotate each %d minutes", mm);
+                rotatetmo.QuadPart = rotateint;
+            }
         }
         else {
-            SYSTEMTIME     st;
-            FILETIME       ft;
-            ULARGE_INTEGER ui;
+            int hh, mm, ss;
 
             *(p++) = WNUL;
             hh = _wtoi(rp);
@@ -1510,101 +1609,59 @@ static int resolverotate(const wchar_t *str)
             if ((mm < 0) || (mm > 59) || (errno == ERANGE))
                 return __LINE__;
             rp = p;
-            if ((p = wcschr(rp, L'~')) != NULL)
-                *(p++) = WNUL;
             ss = _wtoi(rp);
             if (((ss < 0) || ss > 59) || (errno == ERANGE))
                 return __LINE__;
-
-            rp = p;
-            rotateint = ONE_DAY;
-            if (uselocaltime)
-                GetLocalTime(&st);
-            else
-                GetSystemTime(&st);
-            SystemTimeToFileTime(&st, &ft);
-            ui.HighPart = ft.dwHighDateTime;
-            ui.LowPart  = ft.dwLowDateTime;
-            ui.QuadPart += rotateint;
-            ft.dwHighDateTime = ui.HighPart;
-            ft.dwLowDateTime  = ui.LowPart;
-            FileTimeToSystemTime(&ft, &st);
-            st.wHour   = hh;
-            st.wMinute = mm;
-            st.wSecond = ss;
-            SystemTimeToFileTime(&st, &ft);
-            rotatetmo.HighPart = ft.dwHighDateTime;
-            rotatetmo.LowPart  = ft.dwLowDateTime;
-            dbgprintf(__FUNCTION__, "rotate at %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
-                      st.wYear, st.wMonth, st.wDay,
-                      st.wHour, st.wMinute, st.wSecond);
+            dbgprintf(__FUNCTION__, "rotate each day at %.2d:%.2d:%.2d",
+                      hh, mm, ss);
+            resolvetimeut(hh, mm, ss);
         }
-    }
-    if (rp != NULL) {
-        LONGLONG len;
-        LONGLONG siz;
-        LONGLONG mux = CPP_INT64_C(1);
-        wchar_t *ep  = zerostring;
-        wchar_t  mm  = L'B';
-
-        siz = _wcstoi64(rp, &ep, 10);
-        if ((siz <= CPP_INT64_C(0)) || (ep == rp) || (errno == ERANGE))
-            return __LINE__;
-        if (*ep != '\0') {
-            mm = towupper(ep[0]);
-            switch (mm) {
-                case L'B':
-                break;
-                case L'K':
-                    mux = KILOBYTES(1);
-                break;
-                case L'M':
-                    mux = MEGABYTES(1);
-                break;
-                case L'G':
-                    mux = MEGABYTES(1024);
-                break;
-                default:
-                    return __LINE__;
-                break;
-            }
-        }
-        len = siz * mux;
-        if (len < SVCBATCH_MIN_LOGSIZE)
-            return __LINE__;
-        if (hasdebuginfo) {
-            if (mm != 'B')
-                dbgprintf(__FUNCTION__, "rotate if > %lu %Cb", (DWORD)siz, mm);
-            else
-                dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
-        }
-        rotatesiz.QuadPart = len;
+        rotatebytime = 1;
     }
     xfree(sp);
-    autorotate = 1;
     return 0;
 }
 
 
 static int runshutdown(DWORD rt)
 {
-    wchar_t  rp[6] = { L'-', L'x', WNUL, WNUL, WNUL, WNUL };
+    wchar_t  rp[10];
     wchar_t *cmdline;
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc = 0;
-    int      ip = 2;
+    int      ip = 0;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
+    rp[ip++] = L'-';
+    rp[ip++] = L'x';
     if (hasdebuginfo)
         rp[ip++] = L'd';
-    if (uselocaltime)
-        rp[ip++] = L'l';
+    if (hasdebuginfo >  1)
+        rp[ip++] = L'd';
     if (haslogstatus == 0)
         rp[ip++] = L'q';
+    if (hasnologging) {
+        rp[ip++] = L'q';
+    }
+    else {
+        int n = svcmaxlogs;
+
+        if (svcmaxlogs) {
+            if (rotatebysize || rotatebytime)
+                n = 1;
+        }
+        if (uselocaltime)
+            rp[ip++] = L'l';
+        if (truncatelogs)
+            rp[ip++] = L't';
+        rp[ip++] = L'm';
+        rp[ip++] = L'0' + n;
+    }
+    rp[ip++] = WNUL;
 
     cmdline = xappendarg(1, NULL,    NULL,  svcbatchexe);
     cmdline = xappendarg(0, cmdline, NULL,  rp);
@@ -1612,23 +1669,9 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
     cmdline = xappendarg(1, cmdline, L"-o", outlocation);
-    cmdline = xappendarg(1, cmdline, L"-n", svclogfname);
-    if (haspipedlogs) {
-        cmdline = xappendarg(1, cmdline, L"-e", logredirect);
-        cmdline = xappendarg(1, cmdline, L"-r", rotateparam);
-    }
-    else {
-        rp[1] = L'r';
-        if (autorotate)
-            rp[2] = L'@';
-        else
-            rp[2] = L'0' + svcmaxlogs;
-        rp[3] = WNUL;
-        cmdline = xappendarg(0, cmdline, NULL, rp);
-    }
-    cmdline = xappendarg(1, cmdline, NULL, shutdownfile);
-    cmdline = xappendarg(0, cmdline, NULL, svcendargs);
-    dbgprintf(__FUNCTION__, "cmdline %S",  cmdline);
+    cmdline = xappendarg(1, cmdline, L"-n", shtlogfname);
+    cmdline = xappendarg(1, cmdline, NULL,  shutdownfile);
+    cmdline = xappendarg(0, cmdline, NULL,  svcendargs);
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
@@ -1656,6 +1699,7 @@ static int runshutdown(DWORD rt)
         svcsyserror(__FUNCTION__, __LINE__, rc, L"SetInformationJobObject", NULL);
         goto finished;
     }
+    dbgprintf(__FUNCTION__, "cmdline %S",   cmdline);
 
     if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, TRUE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_CONSOLE,
@@ -1804,7 +1848,6 @@ static unsigned int __stdcall rdpipethread(void *unused)
     dbgprints(__FUNCTION__, "started");
     while (rc == 0) {
         DWORD rd = 0;
-        HANDLE h = NULL;
 
         if (ReadFile(outputpiperd, ioreadbuffer, DSIZEOF(ioreadbuffer), &rd, NULL)) {
             if (rd == 0) {
@@ -1812,14 +1855,19 @@ static unsigned int __stdcall rdpipethread(void *unused)
             }
             else {
                 EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
+                if (hasdebuginfo > 1) {
+                    dbgprintf(__FUNCTION__, "read %.4lu bytes from %lu", rd, childprocpid);
+                }
+                if (hasnologging == 0) {
+                    HANDLE h = InterlockedExchangePointer(&logfhandle, NULL);
 
-                if (h != NULL)
-                    rc = logappend(h, ioreadbuffer, rd);
-                else
-                    rc = ERROR_NO_MORE_FILES;
+                    if (h != NULL)
+                        rc = logappend(h, ioreadbuffer, rd);
+                    else
+                        rc = ERROR_NO_MORE_FILES;
 
-                InterlockedExchangePointer(&logfhandle, h);
+                    InterlockedExchangePointer(&logfhandle, h);
+                }
                 LeaveCriticalSection(&logfilelock);
                 if (rc) {
                     if (rc != ERROR_NO_MORE_FILES) {
@@ -1853,7 +1901,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
     dbgprints(__FUNCTION__, "started");
 
     if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
-        dbgprintf(__FUNCTION__, "send %lu bytes to pid %lu", wr, childprocpid);
+        dbgprintf(__FUNCTION__, "send %lu bytes to %lu", wr, childprocpid);
         if (!FlushFileBuffers(inputpipewrs))
             rc = GetLastError();
     }
@@ -1995,6 +2043,10 @@ static unsigned int __stdcall rotatethread(void *unused)
     DWORD  wc, ms, rc = 0;
 
     dbgprintf(__FUNCTION__, "started");
+
+    if (rotatetmo.QuadPart == 0)
+        rotatetmo.QuadPart = rotateint;
+
     wh[0] = CreateWaitableTimerW(NULL, TRUE, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
         rc = GetLastError();
@@ -2019,7 +2071,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     }
     dbgprints(__FUNCTION__, "running");
 
-    if (rotatesiz.QuadPart)
+    if (rotatebysize)
         ms = SVCBATCH_LOGROTATE_STEP;
     else
         ms = INFINITE;
@@ -2386,16 +2438,17 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         dbgprintf(__FUNCTION__, "started %S", servicename);
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-        rv = createoutdir();
-        if (rv != 0) {
-            svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
-            reportsvcstatus(SERVICE_STOPPED, rv);
-            return;
+        if (hasnologging == 0) {
+            rv = createoutdir();
+            if (rv != 0) {
+                svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
+                reportsvcstatus(SERVICE_STOPPED, rv);
+                return;
+            }
         }
     }
     else {
         dbgprintf(__FUNCTION__, "shutting down %S", servicename);
-
         outlocation = xwcsdup(outdirparam);
     }
 
@@ -2406,6 +2459,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
+    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_ROOT=", exelocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
 
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), envsort);
@@ -2420,20 +2474,25 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     waafree(dupwenvp);
 
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    if (haspipedlogs) {
-        rv = openlogpipe();
+    if (hasnologging) {
+        dbgprints(__FUNCTION__, "logging is disabled");
     }
     else {
-        rv = openlogfile(TRUE);
+        reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+        if (haspipedlogs) {
+            rv = openlogpipe();
+        }
+        else {
+            rv = openlogfile(TRUE);
+        }
+        if (rv != 0) {
+            svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
+            reportsvcstatus(SERVICE_STOPPED, rv);
+            return;
+        }
+        if (haslogstatus)
+            logconfig(logfhandle);
     }
-    if (rv != 0) {
-        svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
-        reportsvcstatus(SERVICE_STOPPED, rv);
-        return;
-    }
-    if (haslogstatus)
-        logconfig(logfhandle);
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
@@ -2535,6 +2594,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 svcbatchexe[i] = WNUL;
                 exelocation = xwcsdup(svcbatchexe);
                 svcbatchexe[i] = L'\\';
+                break;
             }
         }
     }
@@ -2566,22 +2626,31 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (envc == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"Missing system environment", NULL);
 
-    while ((opt = xwgetopt(argc, wargv, L"a:bde:ln:o:pqr:s:u:w:xz:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bde:lm:n:o:pqr:s:tu:w:xz:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
             break;
             case L'd':
-                hasdebuginfo = 1;
+                hasdebuginfo++;
             break;
             case L'l':
                 uselocaltime = 1;
             break;
             case L'q':
+                if (haslogstatus == 0) {
+                    /**
+                     * -qq disables logging
+                     */
+                    hasnologging = 1;
+                }
                 haslogstatus = 0;
             break;
             case L'p':
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
+            break;
+            case L't':
+                truncatelogs = 1;
             break;
             case L'o':
                 outdirparam  = xwoptarg;
@@ -2591,9 +2660,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
             case L'n':
                 svclogfname  = xwoptarg;
+                shtlogfname  = NULL;
             break;
             case L'r':
-                rotateparam  = xwoptarg;
+                rv = resolverotate(xwoptarg);
+                if (rv != 0)
+                    return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", xwoptarg);
             break;
             case L's':
                 svcendparam  = xwoptarg;
@@ -2603,6 +2675,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
             case L'w':
                 shomeparam   = xwoptarg;
+            break;
+            case L'm':
+                svcmaxlogs   = _wtoi(xwoptarg);
+                if ((svcmaxlogs < 0) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Invalid -m command option value", xwoptarg);
             break;
             /**
              * Private options
@@ -2709,24 +2787,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(batchparam) == 0)
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
-    if (outdirparam == NULL)
-        outdirparam = SVCBATCH_LOG_BASE;
-    if (IS_EMPTY_WCS(lredirparam)) {
-
-        rv = resolverotate(rotateparam);
-        if (rv != 0)
-            return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", rotateparam);
-    }
-    else {
-        logredirect = getrealpathname(lredirparam, 0);
-        if (IS_EMPTY_WCS(logredirect))
-            return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
-        haspipedlogs = 1;
-        svcmaxlogs   = 0;
+    if (hasnologging) {
+        outdirparam = NULL;
+        lredirparam = NULL;
+        svclogfname = NULL;
+        shtlogfname = NULL;
+        svcmaxlogs  = 0;
     }
 
     if (servicemode) {
-        logfilepart = xwcsconcat(svclogfname, SVCBATCH_LOGFEXT);
         if (svcendparam) {
             shutdownfile = getrealpathname(svcendparam, 0);
             if (IS_EMPTY_WCS(shutdownfile))
@@ -2738,20 +2807,64 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              */
             shutdownfile = svcbatchfile;
         }
-        haslogrotate = svcmaxlogs;
-    }
-    else {
-        logfilepart  = xwcsconcat(svclogfname, SHUTDOWN_LOGFEXT);
-        haslogrotate = 0;
-    }
+        if (shutdownfile) {
+            if ((shtlogfname == NULL) && (svclogfname != NULL)) {
+                /**
+                 * We have user defined -n parameter.
+                 * Find .exetension and replace with .shutdown.extension
+                 */
+                i = xwcslen(svclogfname);
+                while (--i > 0) {
+                    if (svclogfname[i] == L'.') {
+                        wchar_t *psx;
+                        wchar_t *pln = xwcsdup(svclogfname);
 
-    dupwenvp = waalloc(envc + 4);
+                        pln[i] = WNUL;
+                        psx    = xwcsconcat(pln, SHUTDOWN_LOGFEXT);
+                        pln[i] = L'.';
+                        shtlogfname = xwcsconcat(psx, pln + i);
+                        xfree(psx);
+                        xfree(pln);
+                        break;
+                    }
+                }
+                if (shtlogfname == NULL) {
+                    /**
+                     * There is no .extension, append .shutdown
+                     */
+                    shtlogfname = xwcsconcat(svclogfname, SHUTDOWN_LOGFEXT);
+                }
+            }
+        }
+        if (lredirparam != NULL) {
+            logredirargv = CommandLineToArgvW(lredirparam, &logredirargc);
+            if (logredirargv == NULL)
+                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), lredirparam, NULL);
+            logredirect = getrealpathname(logredirargv[0], 0);
+            if (IS_EMPTY_WCS(logredirect)) {
+                if (isrelativepath(logredirargv[0])) {
+                    wchar_t *pr = xwcsmkpath(exelocation, logredirargv[0]);
+                    logredirect = getrealpathname(pr, 0);
+                    xfree(pr);
+                }
+                if (IS_EMPTY_WCS(logredirect))
+                    return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
+            }
+            haspipedlogs = 1;
+        }
+        else {
+            haslogrotate = svcmaxlogs;
+        }
+    }
+    if (truncatelogs)
+        svcmaxlogs = 0;
+    dupwenvp = waalloc(envc + 6);
     for (i = 0; i < envc; i++) {
         /**
          * Remove all environment variables
          * starting with SVCBATCH_SERVICE_
          */
-        if (_wcsnicmp(wenv[i], L"SVCBATCH_SERVICE_", 17) < 0)
+        if (xwstartswith(wenv[i], SVCBATCH_EPREFIX) == 0)
             dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
     }
 

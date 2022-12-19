@@ -46,16 +46,17 @@
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
-#define SVCBATCH_LOGNAME       L"SvcBatch"
-#define SVCBATCH_LOGFEXT       L".log"
-#define SHUTDOWN_LOGFEXT       L".shutdown.log"
+#define SVCBATCH_LOGNAME       L"SvcBatch.log"
+#define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
+#define SHUTDOWN_LOGFEXT       L".shutdown"
 #define SHUTDOWN_IPCNAME       L"Local\\SvcBatch-Shutdown-"
+#define SVCBATCH_LOGSDIR       L"Logs"
+#define SVCBATCH_EPREFIX 	   L"SVCBATCH_SERVICE_"
 
 /**
  * Maximum number of SvcBatch.log.N files
  */
 #define SVCBATCH_MAX_LOGS       9
-#define SVCBATCH_LOG_BASE       L"Logs"
 
 /**
  * Custom SCM control code that
@@ -92,7 +93,7 @@
 #define SVCBATCH_PENDING_WAIT   1000
 #define SVCBATCH_PENDING_INIT   200
 #define SVCBATCH_MIN_LOGSIZE    CPP_INT64_C(32768)
-#if defined(_RUN_API_TESTS)
+#if defined(SVCBATCH_ISDEV_VERSION)
 #define SVCBATCH_MIN_LOGRTIME   2
 #else
 #define SVCBATCH_MIN_LOGRTIME   30

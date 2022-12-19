@@ -149,11 +149,11 @@ Number **234** has been randomly chosen, since win32
 API requires that this number must be larger then `127` and
 lower then `255`.
 
-By default log rotation will be executed each 90 days
+By default log rotation will be executed each `90` days
 unles **-r [rule]** option is defined by internal watchdog
 thread.
 
-Users can disable log rotation by adding **-r 0** option.
+Users can disable log rotation by adding **-m 0** option.
 In that case SvcBatch.log file will be be created or opened
 for append if already present.
 
@@ -220,7 +220,7 @@ make sure to get familiar with `sc.exe` utility.
   service will fail if another service already opened SvacBatch.log
   in that location.
 
-* **-e [program]**
+* **-e [program][arguments]**
 
   **Set external log program**
 
@@ -232,25 +232,22 @@ make sure to get familiar with `sc.exe` utility.
   program instead of log file.
 
   The first argument to the **program** is always
-  log file name, either `SvcBatch.log` or `SvcBatch.shutdown.log`.
-
-  If **-r** command line option is defined its parameter will
-  be used as additional argument send to the **program**.
+  log file name, unless **arguments** are not defined.
 
   The **program** current directory is always set
   to service output directory.
 
-* **-n [prefix]**
+* **-n [name]**
 
-  **Set log file name prefix**
+  **Set log file name**
 
-  This option allows a user to set the log file prefix.
+  This option allows a user to set the alternate log file name.
 
-  By default SvcBatch will use `SvcBatch` as log file
-  prefix creating `SvcBatch.log` or `SvcBatch.shutdown.log` file.
+  By default SvcBatch will use `SvcBatch.log` and
+  `SvcBatch.shutdown.log` as log file names.
 
-  When set SvcBatch will append `.log` or `.shudown.log` file name extension
-  to the provided **prefix**
+  In case **-s** option is defined  the `.shutdown` suffix
+  will be added to **name**.
 
 
 * **-w [path]**
@@ -285,42 +282,52 @@ make sure to get familiar with `sc.exe` utility.
   larger then `100K` bytes.
 
   ```no-highlight
-      sc create ... -r @17:00:00~100K
+      sc create ... -r 17:00:00 -r 100K
   ```
 
   If time is given without a colons, SvcBatch will use it
   as minutes between log rotation.
 
   ```no-highlight
-      sc create ... -r @60~200K
+      sc create ... -r 60 - r 200K
   ```
 
-  The upper example will rotate logs each 60 minutes. In case
+  The upper example will rotate logs each `60` minutes. In case
   log file gets larger the 200Kbytes within that interval,
   it will be rotated as well.
 
-  In case the **rule** contains a single decimal number
-  between `0 and 9` it will be used instead default `1...9`.
-
-  ```no-highlight
-      sc create ... -r 4
-  ```
-  Instead rotating Svcbatch.log from `1...9` it will rotate
-  exiting log files from `1...4.`. In case that number is `0`,
-  log rotation will be disabled.
+  In case **rule** parameter is `0` SvcBatch will rotate
+  log files each day at midnight. This is the same as
+  defining `-r 00:00:00`
 
   The **rule** parameter uses the following format:
 
   ```no-highlight
-      <[@[minutes|hh:mm:ss][~size[K|M|G]]]>|<size[K|M|G]>
+      <[minutes|hh:mm:ss]>|<size[B|K|M|G]>
   ```
 
   When this parameter is defined log rotation will not use
   the logic defined in [Log Rotation](#log-rotation) section.
 
   Intead rotating Svcbatch.log from `1...9` it will rotate
-  exiting `SvcBatch.log` to `SvcBatch.log.YYYY-MM-DD.hhmmss`.
-  Timestamp used is the last write time of `SvcBatch.log`
+  exiting `SvcBatch.log` to `SvcBatch.log.nnnnnnnnnn `.
+  The `nnnnnnnnnn` is the number of seconds since
+  `Unix epoch (Jan. 1, 1970)`.
+
+* **-m [number]**
+
+  **Set maximum number of log files**
+
+  In case the **number** contains a single decimal number
+  between `0 and 9` it will be used instead default `1...9`.
+
+  ```no-highlight
+      sc create ... -m 4
+  ```
+  Instead rotating Svcbatch.log from `1...9` it will rotate
+  exiting log files from `1...4.`. In case that number is `0`,
+  log rotation will be disabled.
+
 
 * **-p**
 
@@ -363,6 +370,9 @@ make sure to get familiar with `sc.exe` utility.
   This option disables logging of various internal
   SvcBatch messages.
 
+  In case **-qq** was defined at install time, the
+  logging is copletely disabled.
+
 * **-l**
 
   **Use local time**
@@ -370,6 +380,14 @@ make sure to get familiar with `sc.exe` utility.
   This option causes all logging and rotation
   to use local instead system time.
 
+* **-t**
+
+  **Truncate log file instead reusing**
+
+  This option causes the logfile to be truncated instead of rotated.
+
+  This is useful when a log is processed in real time by a command
+  like tail, and there is no need for archived data.
 
 ## Private Environment Variables
 
@@ -388,6 +406,10 @@ SvcBatch sets for each instance.
 * **SVCBATCH_SERVICE_HOME**
 
   This variable is set to the service working directory.
+
+* **SVCBATCH_SERVICE_ROOT**
+
+  This variable is set to the `svcbatch.exe` directory.
 
 * **SVCBATCH_SERVICE_NAME**
 
