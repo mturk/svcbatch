@@ -11,6 +11,7 @@ For a full list of changes, see the [git commit log][log]
   * In development
   * Drop external log application for shutdown batch file
   * Change default log rotation extension
+  * Do not rotate shutdown log files
 
 ### New Features
 

@@ -1345,7 +1345,7 @@ static DWORD openlogfile(BOOL firstopen)
 
     if (wcschr(svclogfname, L'%'))
         return makelogfile(firstopen);
-    if (rotatebysize || rotatebytime || (svcmaxlogs < 2))
+    if (rotatebysize || rotatebytime)
         rotateprev = 0;
     else
         rotateprev = svcmaxlogs;
@@ -1689,23 +1689,12 @@ static int runshutdown(DWORD rt)
         rp[ip++] = L'd';
     if (haslogstatus == 0)
         rp[ip++] = L'q';
-    if (hasnologging) {
+    if (hasnologging)
         rp[ip++] = L'q';
-    }
-    else {
-        int n = svcmaxlogs;
-
-        if (svcmaxlogs) {
-            if (rotatebysize || rotatebytime)
-                n = 1;
-        }
-        if (uselocaltime)
-            rp[ip++] = L'l';
-        if (truncatelogs)
-            rp[ip++] = L't';
-        rp[ip++] = L'm';
-        rp[ip++] = L'0' + n;
-    }
+    if (uselocaltime)
+        rp[ip++] = L'l';
+    if (truncatelogs)
+        rp[ip++] = L't';
     rp[ip++] = WNUL;
 
     cmdline = xappendarg(1, NULL,    NULL,  svcbatchexe);
@@ -2919,9 +2908,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         else {
             haslogrotate = svcmaxlogs;
         }
+        if (truncatelogs)
+            svcmaxlogs = 0;
     }
-    if (truncatelogs)
+    else {
         svcmaxlogs = 0;
+    }
     dupwenvp = waalloc(envc + 6);
     for (i = 0; i < envc; i++) {
         /**
