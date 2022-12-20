@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <wchar.h>
+#include <time.h>
 #include <process.h>
 #include <errno.h>
 #include "svcbatch.h"
@@ -1196,7 +1197,7 @@ static unsigned int __stdcall rdpipedlog(void *unused)
 
 static DWORD openlogpipe(void)
 {
-    DWORD    rc;
+    DWORD  rc;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
@@ -1296,14 +1297,54 @@ failed:
     return rc;
 }
 
+static DWORD makelogfile(BOOL firstopen)
+{
+    wchar_t ewb[128];
+    struct  tm *ctm;
+    time_t  ctt;
+    DWORD   rc;
+    HANDLE  h;
+
+    if (firstopen)
+        reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+
+    time(&ctt);
+    if (uselocaltime)
+        ctm = localtime(&ctt);
+    else
+        ctm = gmtime(&ctt);
+    wcsftime(ewb, 128, svclogfname, ctm);
+    xfree(logfilename);
+    logfilename = xwcsmkpath(outlocation, ewb);
+
+    h = CreateFileW(logfilename, GENERIC_WRITE,
+                    FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
+                    FILE_ATTRIBUTE_NORMAL, NULL);
+    rc = GetLastError();
+    if (IS_INVALID_HANDLE(h)) {
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateFileW", logfilename);
+        return rc;
+    }
+    InterlockedExchange(&logwritten, 0);
+    if (haslogstatus) {
+        logwrline(h, cnamestamp);
+        logwrtime(h, "Log opened");
+    }
+    InterlockedExchangePointer(&logfhandle, h);
+    return 0;
+}
+
 static DWORD openlogfile(BOOL firstopen)
 {
     wchar_t sfx[4] = { L'.', L'0', WNUL, WNUL };
     wchar_t *logpb = NULL;
-    DWORD rc;
+    DWORD  rc;
     HANDLE h = NULL;
-    int rotateprev;
+    int    rotateprev;
+    DWORD  cm = truncatelogs ? CREATE_ALWAYS : OPEN_ALWAYS;
 
+    if (wcschr(svclogfname, L'%'))
+        return makelogfile(firstopen);
     if (rotatebysize || rotatebytime || (svcmaxlogs < 2))
         rotateprev = 0;
     else
@@ -1384,9 +1425,9 @@ static DWORD openlogfile(BOOL firstopen)
             xfree(logpn);
         }
     }
+
     h = CreateFileW(logfilename, GENERIC_WRITE,
-                    FILE_SHARE_READ, &sazero,
-                    truncatelogs ? CREATE_ALWAYS : OPEN_ALWAYS,
+                    FILE_SHARE_READ, &sazero, cm,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
@@ -2810,6 +2851,25 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              * Use the service batch file as shutdownfile
              */
             shutdownfile = svcbatchfile;
+        }
+        if (svclogfname) {
+            if (wcschr(svclogfname, L'@')) {
+                int      n = xwcslen(svclogfname);
+                wchar_t *s;
+                /**
+                 * Name is strftime formated
+                 * replace @ with % so it can be used by strftime
+                 */
+                s = xwmalloc(n);
+                for (i = 0; i < n; i++) {
+                    if (svclogfname[i] == L'@')
+                        s[i] = L'%';
+                    else
+                        s[i] = svclogfname[i];
+                }
+                svclogfname = s;
+            }
+
         }
         if (shutdownfile) {
             if ((shtlogfname == NULL) && (svclogfname != NULL)) {
