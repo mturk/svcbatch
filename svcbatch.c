@@ -42,8 +42,6 @@ static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 static LARGE_INTEGER         pcfrequency;
 static LARGE_INTEGER         pcstarttime;
 
-static BYTE                  ioreadbuffer[HBUFSIZ];
-
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
@@ -1667,7 +1665,6 @@ static int resolverotate(const wchar_t *str)
     return 0;
 }
 
-
 static int runshutdown(DWORD rt)
 {
     wchar_t  rp[10];
@@ -1681,11 +1678,15 @@ static int runshutdown(DWORD rt)
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     dbgprints(__FUNCTION__, "started");
+
+    memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
+    memset(&si, 0, sizeof(STARTUPINFOW));
+    si.cb = DSIZEOF(STARTUPINFOW);
+
     rp[ip++] = L'-';
     rp[ip++] = L'x';
     if (hasdebuginfo)
-        rp[ip++] = L'd';
-    if (hasdebuginfo >  1)
         rp[ip++] = L'd';
     if (haslogstatus == 0)
         rp[ip++] = L'q';
@@ -1706,11 +1707,6 @@ static int runshutdown(DWORD rt)
     cmdline = xappendarg(1, cmdline, L"-n", shtlogfname);
     cmdline = xappendarg(1, cmdline, NULL,  shutdownfile);
     cmdline = xappendarg(0, cmdline, NULL,  svcendargs);
-
-    memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
-    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
-    memset(&si, 0, sizeof(STARTUPINFOW));
-    si.cb = DSIZEOF(STARTUPINFOW);
 
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
@@ -1878,12 +1874,13 @@ static void createstopthread(DWORD rv)
 static unsigned int __stdcall rdpipethread(void *unused)
 {
     DWORD rc = 0;
+    BYTE  rb[HBUFSIZ];
 
     dbgprints(__FUNCTION__, "started");
     while (rc == 0) {
         DWORD rd = 0;
 
-        if (ReadFile(outputpiperd, ioreadbuffer, DSIZEOF(ioreadbuffer), &rd, NULL)) {
+        if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
             if (rd == 0) {
                 rc = GetLastError();
             }
@@ -1896,7 +1893,7 @@ static unsigned int __stdcall rdpipethread(void *unused)
                     HANDLE h = InterlockedExchangePointer(&logfhandle, NULL);
 
                     if (h != NULL)
-                        rc = logappend(h, ioreadbuffer, rd);
+                        rc = logappend(h, rb, rd);
                     else
                         rc = ERROR_NO_MORE_FILES;
 
