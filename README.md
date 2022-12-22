@@ -149,10 +149,6 @@ Number **234** has been randomly chosen, since win32
 API requires that this number must be larger then `127` and
 lower then `255`.
 
-By default log rotation will be executed each `90` days
-unles **-r [rule]** option is defined by internal watchdog
-thread.
-
 Users can disable log rotation by adding **-m 0** option.
 In that case SvcBatch.log file will be be created or opened
 for append if already present.

@@ -12,6 +12,7 @@ For a full list of changes, see the [git commit log][log]
   * Drop external log application for shutdown batch file
   * Change default log rotation extension
   * Do not rotate shutdown log files
+  * Do not rotate each 90 days
 
 ### New Features
 

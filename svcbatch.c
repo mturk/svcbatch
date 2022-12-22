@@ -36,7 +36,7 @@ static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
 static SECURITY_ATTRIBUTES   sazero;
-static LONGLONG              rotateint   = SVCBATCH_LOGROTATE_DEF;
+static LONGLONG              rotateint   = 0;
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 static LARGE_INTEGER         pcfrequency;
@@ -2082,27 +2082,35 @@ static unsigned int __stdcall rotatethread(void *unused)
 {
     HANDLE wh[3];
     HANDLE h = NULL;
-    DWORD  wc, ms, rc = 0;
+    DWORD  wc, ms;
+    DWORD  rc = 0;
+    DWORD  nw = 2;
 
     dbgprintf(__FUNCTION__, "started");
+
+    wh[0] = processended;
+    wh[1] = logrotatesig;
+    wh[2] = NULL;
 
     if (rotatetmo.QuadPart == 0)
         rotatetmo.QuadPart = rotateint;
 
-    wh[0] = CreateWaitableTimerW(NULL, TRUE, NULL);
-    if (IS_INVALID_HANDLE(wh[0])) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateWaitableTimer", NULL);
-        goto finished;
+    if (rotatetmo.QuadPart != 0) {
+        wh[2] = CreateWaitableTimerW(NULL, TRUE, NULL);
+        if (IS_INVALID_HANDLE(wh[2])) {
+            rc = GetLastError();
+            setsvcstatusexit(rc);
+            svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateWaitableTimer", NULL);
+            goto finished;
+        }
+        if (!SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0)) {
+            rc = GetLastError();
+            setsvcstatusexit(rc);
+            svcsyserror(__FUNCTION__, __LINE__, rc, L"SetWaitableTimer", NULL);
+            goto finished;
+        }
+        nw = 3;
     }
-    if (!SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"SetWaitableTimer", NULL);
-        goto finished;
-    }
-
     wc = WaitForSingleObject(processended, SVCBATCH_LOGROTATE_INIT);
     if (wc != WAIT_TIMEOUT) {
         if (wc == WAIT_OBJECT_0)
@@ -2118,10 +2126,8 @@ static unsigned int __stdcall rotatethread(void *unused)
     else
         ms = INFINITE;
 
-    wh[1] = logrotatesig;
-    wh[2] = processended;
     while (rc == 0) {
-        wc = WaitForMultipleObjects(3, wh, FALSE, ms);
+        wc = WaitForMultipleObjects(nw, wh, FALSE, ms);
         switch (wc) {
             case WAIT_TIMEOUT:
                 EnterCriticalSection(&logfilelock);
@@ -2142,9 +2148,9 @@ static unsigned int __stdcall rotatethread(void *unused)
                                 createstopthread(rc);
                             }
                             else {
-                                if (rotateint != ONE_DAY) {
-                                    CancelWaitableTimer(wh[0]);
-                                    SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
+                                if (IS_INVALID_HANDLE(wh[2]) && (rotateint != ONE_DAY)) {
+                                    CancelWaitableTimer(wh[2]);
+                                    SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
                                 }
                             }
                         }
@@ -2159,26 +2165,16 @@ static unsigned int __stdcall rotatethread(void *unused)
                 LeaveCriticalSection(&logfilelock);
             break;
             case WAIT_OBJECT_0:
-                dbgprints(__FUNCTION__, "rotate by time");
-                rc = rotatelogs();
-                if (rc == 0) {
-                    CancelWaitableTimer(wh[0]);
-                    if (rotateint == ONE_DAY)
-                        rotatetmo.QuadPart += rotateint;
-                    SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
-                }
-                else {
-                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
-                    createstopthread(rc);
-                }
+                rc = ERROR_PROCESS_ABORTED;
+                dbgprints(__FUNCTION__, "processended signaled");
             break;
             case WAIT_OBJECT_1:
                 dbgprints(__FUNCTION__, "rotate by signal");
                 rc = rotatelogs();
                 if (rc == 0) {
-                    if (rotateint != ONE_DAY) {
-                        CancelWaitableTimer(wh[0]);
-                        SetWaitableTimer(wh[0], &rotatetmo, 0, NULL, NULL, 0);
+                    if (IS_INVALID_HANDLE(wh[2]) && (rotateint != ONE_DAY)) {
+                        CancelWaitableTimer(wh[2]);
+                        SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
                     }
                     ResetEvent(logrotatesig);
                 }
@@ -2188,8 +2184,18 @@ static unsigned int __stdcall rotatethread(void *unused)
                 }
             break;
             case WAIT_OBJECT_2:
-                rc = ERROR_PROCESS_ABORTED;
-                dbgprints(__FUNCTION__, "processended signaled");
+                dbgprints(__FUNCTION__, "rotate by time");
+                rc = rotatelogs();
+                if (rc == 0) {
+                    CancelWaitableTimer(wh[2]);
+                    if (rotateint == ONE_DAY)
+                        rotatetmo.QuadPart += rotateint;
+                    SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
+                }
+                else {
+                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                    createstopthread(rc);
+                }
             break;
             case WAIT_FAILED:
                 rc = GetLastError();
@@ -2204,7 +2210,7 @@ static unsigned int __stdcall rotatethread(void *unused)
 
 finished:
     dbgprints(__FUNCTION__, "done");
-    SAFE_CLOSE_HANDLE(wh[0]);
+    SAFE_CLOSE_HANDLE(wh[2]);
     XENDTHREAD(0);
 }
 
