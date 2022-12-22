@@ -2111,16 +2111,6 @@ static unsigned int __stdcall rotatethread(void *unused)
         }
         nw = 3;
     }
-    wc = WaitForSingleObject(processended, SVCBATCH_LOGROTATE_INIT);
-    if (wc != WAIT_TIMEOUT) {
-        if (wc == WAIT_OBJECT_0)
-            dbgprints(__FUNCTION__, "processended signaled");
-        else
-            dbgprintf(__FUNCTION__, "processended with %lu", wc);
-        goto finished;
-    }
-    dbgprints(__FUNCTION__, "running");
-
     if (rotatebysize)
         ms = SVCBATCH_LOGROTATE_STEP;
     else
@@ -2137,29 +2127,35 @@ static unsigned int __stdcall rotatethread(void *unused)
                     rc = ERROR_NO_MORE_FILES;
                 }
                 else {
-                    LARGE_INTEGER fs;
-                    if (GetFileSizeEx(h, &fs)) {
-                        InterlockedExchangePointer(&logfhandle, h);
-                        if (fs.QuadPart >= rotatesiz.QuadPart) {
-                            dbgprints(__FUNCTION__, "rotate by size");
-                            rc = rotatelogs();
-                            if (rc != 0) {
-                                svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
-                                createstopthread(rc);
-                            }
-                            else {
-                                if (IS_INVALID_HANDLE(wh[2]) && (rotateint != ONE_DAY)) {
-                                    CancelWaitableTimer(wh[2]);
-                                    SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
+                    /**
+                     * Check for size only if something was
+                     * written to the log file.
+                     */
+                    if (InterlockedCompareExchange(&logwritten, 0, 0) != 0) {
+                        LARGE_INTEGER fs;
+                        if (GetFileSizeEx(h, &fs)) {
+                            InterlockedExchangePointer(&logfhandle, h);
+                            if (fs.QuadPart >= rotatesiz.QuadPart) {
+                                dbgprints(__FUNCTION__, "rotate by size");
+                                rc = rotatelogs();
+                                if (rc != 0) {
+                                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                                    createstopthread(rc);
+                                }
+                                else {
+                                    if (IS_VALID_HANDLE(wh[2]) && (rotateint != ONE_DAY)) {
+                                        CancelWaitableTimer(wh[2]);
+                                        SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
+                                    }
                                 }
                             }
                         }
-                    }
-                    else {
-                        rc = GetLastError();
-                        CloseHandle(h);
-                        svcsyserror(__FUNCTION__, __LINE__, rc, L"GetFileSizeEx", NULL);
-                        createstopthread(rc);
+                        else {
+                            rc = GetLastError();
+                            CloseHandle(h);
+                            svcsyserror(__FUNCTION__, __LINE__, rc, L"GetFileSizeEx", NULL);
+                            createstopthread(rc);
+                        }
                     }
                 }
                 LeaveCriticalSection(&logfilelock);
@@ -2172,7 +2168,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                 dbgprints(__FUNCTION__, "rotate by signal");
                 rc = rotatelogs();
                 if (rc == 0) {
-                    if (IS_INVALID_HANDLE(wh[2]) && (rotateint != ONE_DAY)) {
+                    if (IS_VALID_HANDLE(wh[2]) && (rotateint != ONE_DAY)) {
                         CancelWaitableTimer(wh[2]);
                         SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
                     }
