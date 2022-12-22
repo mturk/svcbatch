@@ -1311,7 +1311,9 @@ static DWORD makelogfile(BOOL firstopen)
         ctm = localtime(&ctt);
     else
         ctm = gmtime(&ctt);
-    wcsftime(ewb, 128, svclogfname, ctm);
+    if (wcsftime(ewb, 128, svclogfname, ctm) == 0)
+        return svcsyserror(__FUNCTION__, __LINE__,
+                           ERROR_INVALID_PARAMETER, L"wcsftime", svclogfname);
     xfree(logfilename);
     logfilename = xwcsmkpath(outlocation, ewb);
 
@@ -1326,7 +1328,10 @@ static DWORD makelogfile(BOOL firstopen)
     InterlockedExchange(&logwritten, 0);
     if (haslogstatus) {
         logwrline(h, cnamestamp);
-        logwrtime(h, "Log opened");
+        if (rc == ERROR_ALREADY_EXISTS)
+            logwrtime(h, "Log truncated");
+        else
+            logwrtime(h, "Log opened");
     }
     InterlockedExchangePointer(&logfhandle, h);
     return 0;
@@ -1361,7 +1366,7 @@ static DWORD openlogfile(BOOL firstopen)
                 logpb = xwcsconcat(logfilename, sfx);
             }
             else {
-                wchar_t wrb[16];
+                wchar_t  sb[16];
                 FILETIME ft;
                 ULARGE_INTEGER ui;
 
@@ -1375,8 +1380,9 @@ static DWORD openlogfile(BOOL firstopen)
                  */
                 ui.QuadPart -= CPP_UINT64_C(11644473600000000);
                 ui.QuadPart /= CPP_UINT64_C(1000000);
-                _snwprintf(wrb, 14, L".%.10llu", ui.QuadPart);
-                logpb = xwcsconcat(logfilename, wrb);
+                _snwprintf(sb, 12, L".%.10llu", ui.QuadPart);
+                sb[12] = WNUL;
+                logpb  = xwcsconcat(logfilename, sb);
             }
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
                 rc = GetLastError();
@@ -1447,10 +1453,15 @@ static DWORD openlogfile(BOOL firstopen)
     }
     if (haslogstatus) {
         logwrline(h, cnamestamp);
-        if (truncatelogs)
-            logwrtime(h, "Log truncated");
-        else if (firstopen)
+        if (rc == ERROR_ALREADY_EXISTS) {
+            if (truncatelogs)
+                logwrtime(h, "Log truncated");
+            else if (firstopen)
+                logwrtime(h, "Log reused");
+        }
+        else if (firstopen) {
             logwrtime(h, "Log opened");
+        }
     }
     InterlockedExchangePointer(&logfhandle, h);
     xfree(logpb);
