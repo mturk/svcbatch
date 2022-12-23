@@ -1607,7 +1607,7 @@ static int resolverotate(const wchar_t *str)
     }
 
     sp = xwcsdup(str);
-    if (wcspbrk(sp, L"BKMGbkmg") != NULL) {
+    if (wcspbrk(sp, L"BKMG") != NULL) {
         LONGLONG len;
         LONGLONG siz;
         LONGLONG mux;
