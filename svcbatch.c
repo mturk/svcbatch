@@ -1694,7 +1694,7 @@ static int resolverotate(const wchar_t *str)
                 return __LINE__;
             rp = p;
             ss = _wtoi(rp);
-            if (((ss < 0) || ss > 59) || (errno == ERANGE))
+            if ((ss < 0) || (ss > 59) || (errno == ERANGE))
                 return __LINE__;
             dbgprintf(__FUNCTION__, "rotate each day at %.2d:%.2d:%.2d",
                       hh, mm, ss);
