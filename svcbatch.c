@@ -1486,14 +1486,39 @@ static DWORD rotatelogs(void)
     EnterCriticalSection(&logfilelock);
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h == NULL) {
-        LeaveCriticalSection(&logfilelock);
         InterlockedExchange64(&logwritten, 0);
+        LeaveCriticalSection(&logfilelock);
         return ERROR_FILE_NOT_FOUND;
     }
     QueryPerformanceCounter(&pcstarttime);
     FlushFileBuffers(h);
-    CloseHandle(h);
-    rc = openlogfile(FALSE);
+    if (truncatelogs) {
+        LARGE_INTEGER ee = {{ 0, 0 }};
+
+        if (SetFilePointerEx(h, ee, NULL, FILE_BEGIN)) {
+            if (SetEndOfFile(h)) {
+                InterlockedExchange64(&logwritten, 0);
+                if (haslogstatus) {
+                    logwrline(h, cnamestamp);
+                    logwrtime(h, "Log truncated");
+                    logprintf(h, "Log generation   : %lu",
+                              InterlockedIncrement(&rotatecount));
+                    logconfig(h);
+                }
+                InterlockedExchangePointer(&logfhandle, h);
+                LeaveCriticalSection(&logfilelock);
+                dbgprints(__FUNCTION__, "truncated");
+                return 0;
+            }
+        }
+        rc = GetLastError();
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"truncatelogs", NULL);
+        CloseHandle(h);
+    }
+    else {
+        CloseHandle(h);
+        rc = openlogfile(FALSE);
+    }
     if (rc == 0) {
         if (haslogstatus) {
             logwrtime(logfhandle, "Log rotated");
@@ -1501,6 +1526,7 @@ static DWORD rotatelogs(void)
                       InterlockedIncrement(&rotatecount));
             logconfig(logfhandle);
         }
+        dbgprints(__FUNCTION__, "rotated");
     }
     else {
         setsvcstatusexit(rc);
@@ -2741,6 +2767,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 
+    if (truncatelogs && lredirparam) {
+        return svcsyserror(__FUNCTION__, __LINE__, 0,
+                           L"Cannot use external logging with -t option",
+                           lredirparam);
+    }
     argc  -= xwoptind;
     wargv += xwoptind;
     if (argc > 0) {
