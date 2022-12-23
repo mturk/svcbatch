@@ -1022,10 +1022,8 @@ static DWORD logwrline(HANDLE h, const char *str)
     hh = (DWORD)((ct.QuadPart / MS_IN_HOUR));
 
     nc = _snprintf(buf, BBUFSIZ - 1,
-                   "[%.2lu:%.2lu:%.2lu.%.6lu] [%.4lu:%.4lu] ",
-                   hh, mm, ss, us,
-                   GetCurrentProcessId(),
-                   GetCurrentThreadId());
+                   "[%.2lu:%.2lu:%.2lu.%.6lu] ",
+                   hh, mm, ss, us);
     if (nc > 0) {
         buf[nc] = '\0';
         if (WriteFile(h, buf, nc, &wr, NULL) && (wr != 0))
@@ -2135,8 +2133,8 @@ static unsigned int __stdcall rotatethread(void *unused)
     while (rc == 0) {
         DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
 
-        if (InterlockedAdd(&sstarted, 0) > 0) {
-            dbgprints(__FUNCTION__, "service stop running");
+        if ((InterlockedAdd(&sstarted, 0) > 0) && (wc != WAIT_OBJECT_0)) {
+            dbgprints(__FUNCTION__, "service stop is running");
             wc = ERROR_NO_MORE_FILES;
         }
         switch (wc) {
