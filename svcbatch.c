@@ -1547,55 +1547,32 @@ static void closelogfile(void)
     dbgprints(__FUNCTION__, "closed");
 }
 
-static void resolvetimeut(int hh, int mm, int ss)
+static void resolvetimeut(int hh, int mm, int ss, int od)
 {
     SYSTEMTIME     st;
     FILETIME       ft;
     ULARGE_INTEGER ui;
 
-    rotateint = ONE_DAY;
-    if (uselocaltime)
+    rotateint = od ? ONE_DAY : ONE_HOUR;
+    if (uselocaltime && od)
         GetLocalTime(&st);
     else
         GetSystemTime(&st);
+
     SystemTimeToFileTime(&st, &ft);
-    ui.HighPart = ft.dwHighDateTime;
-    ui.LowPart  = ft.dwLowDateTime;
+    ui.HighPart  = ft.dwHighDateTime;
+    ui.LowPart   = ft.dwLowDateTime;
     ui.QuadPart += rotateint;
     ft.dwHighDateTime = ui.HighPart;
     ft.dwLowDateTime  = ui.LowPart;
     FileTimeToSystemTime(&ft, &st);
-    st.wHour   = hh;
+    if (od)
+        st.wHour = hh;
     st.wMinute = mm;
     st.wSecond = ss;
     SystemTimeToFileTime(&st, &ft);
     rotatetmo.HighPart = ft.dwHighDateTime;
     rotatetmo.LowPart  = ft.dwLowDateTime;
-
-}
-
-static void onehourtimeut(void)
-{
-    SYSTEMTIME     st;
-    FILETIME       ft;
-    ULARGE_INTEGER ui;
-
-    rotateint = ONE_HOUR;
-
-    GetSystemTime(&st);
-    SystemTimeToFileTime(&st, &ft);
-    ui.HighPart = ft.dwHighDateTime;
-    ui.LowPart  = ft.dwLowDateTime;
-    ui.QuadPart += rotateint;
-    ft.dwHighDateTime = ui.HighPart;
-    ft.dwLowDateTime  = ui.LowPart;
-    FileTimeToSystemTime(&ft, &st);
-    st.wMinute = 0;
-    st.wSecond = 0;
-    SystemTimeToFileTime(&st, &ft);
-    rotatetmo.HighPart = ft.dwHighDateTime;
-    rotatetmo.LowPart  = ft.dwLowDateTime;
-
 }
 
 static int resolverotate(const wchar_t *str)
@@ -1661,7 +1638,7 @@ static int resolverotate(const wchar_t *str)
             }
             if (mm == 0) {
                 dbgprints(__FUNCTION__, "rotate at midnight");
-                resolvetimeut(0, 0, 0);
+                resolvetimeut(0, 0, 0, 1);
             }
             else if (mm < SVCBATCH_MIN_LOGRTIME) {
                 dbgprintf(__FUNCTION__, "rotate timeout %S is lower then %d",
@@ -1670,7 +1647,7 @@ static int resolverotate(const wchar_t *str)
             }
             else if (mm == 60) {
                 dbgprints(__FUNCTION__, "rotate on each full hour");
-                onehourtimeut();
+                resolvetimeut(0, 0, 0, 0);
             }
             else {
                 rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
@@ -1699,7 +1676,7 @@ static int resolverotate(const wchar_t *str)
                 return __LINE__;
             dbgprintf(__FUNCTION__, "rotate each day at %.2d:%.2d:%.2d",
                       hh, mm, ss);
-            resolvetimeut(hh, mm, ss);
+            resolvetimeut(hh, mm, ss, 1);
         }
         rotatebytime = 1;
     }
