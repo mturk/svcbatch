@@ -402,13 +402,19 @@ make sure to get familiar with `sc.exe` utility.
 
 * **-q**
 
-  **Do not log internal messages**
+  **Disable logging**
 
-  This option disables logging of various internal
+  This option disables logging.
+
+
+* **-v**
+
+  **Log internal messages**
+
+  This option enables logging of various internal
   SvcBatch messages.
 
-  In case **-qq** was defined at install time, the
-  logging is copletely disabled.
+
 
 * **-l**
 

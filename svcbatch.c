@@ -48,8 +48,8 @@ static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
 static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
+static int       haslogstatus     = SVCBATCH_ISDEV_VERSION;
 static int       hasctrlbreak     = 0;
-static int       haslogstatus     = 1;
 static int       hasnologging     = 0;
 static int       haslogrotate     = 0;
 static int       haspipedlogs     = 0;
@@ -1759,14 +1759,14 @@ static int runshutdown(DWORD rt)
     rp[ip++] = L'x';
     if (hasdebuginfo)
         rp[ip++] = L'd';
-    if (haslogstatus == 0)
-        rp[ip++] = L'q';
-    if (hasnologging)
-        rp[ip++] = L'q';
     if (uselocaltime)
         rp[ip++] = L'l';
+    if (hasnologging)
+        rp[ip++] = L'q';
     if (truncatelogs)
         rp[ip++] = L't';
+    if (haslogstatus)
+        rp[ip++] = L'v';
     rp[ip++] = WNUL;
 
     cmdline = xappendarg(1, NULL,    NULL,  svcbatchexe);
@@ -2696,7 +2696,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (envc == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"Missing system environment", NULL);
 
-    while ((opt = xwgetopt(argc, wargv, L"a:bde:lm:n:o:pqr:s:tu:w:xz:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bde:lm:n:o:pqr:s:tu:vw:xz:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
@@ -2708,19 +2708,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 uselocaltime = 1;
             break;
             case L'q':
-                if (haslogstatus == 0) {
-                    /**
-                     * -qq disables logging
-                     */
-                    hasnologging = 1;
-                }
-                haslogstatus = 0;
+                hasnologging = 1;
             break;
             case L'p':
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             case L't':
                 truncatelogs = 1;
+            break;
+            case L'v':
+                haslogstatus = 1;
             break;
             case L'o':
                 outdirparam  = xwoptarg;
