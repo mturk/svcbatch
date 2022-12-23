@@ -1587,9 +1587,9 @@ static int resolverotate(const wchar_t *str)
     if (wcspbrk(sp, L"BKMG") != NULL) {
         LONGLONG len;
         LONGLONG siz;
-        LONGLONG mux;
-        wchar_t *rp = sp;
-        wchar_t *ep = zerostring;
+        LONGLONG mux = 0;
+        wchar_t *rp  = sp;
+        wchar_t *ep  = zerostring;
 
         siz = _wcstoi64(rp, &ep, 10);
         if ((siz <= CPP_INT64_C(0)) || (ep == rp) || (errno == ERANGE))
@@ -1614,12 +1614,7 @@ static int resolverotate(const wchar_t *str)
         len = siz * mux;
         if (len < SVCBATCH_MIN_LOGSIZE)
             return __LINE__;
-        if (hasdebuginfo) {
-            if (ep[0] != 'B')
-                dbgprintf(__FUNCTION__, "rotate if > %lu %S", (DWORD)siz, ep);
-            else
-                dbgprintf(__FUNCTION__, "rotate if > %lu bytes", (DWORD)siz);
-        }
+        dbgprintf(__FUNCTION__, "rotate if larger then %S", rp);
         rotatesiz.QuadPart = len;
         rotatebysize = 1;
     }
