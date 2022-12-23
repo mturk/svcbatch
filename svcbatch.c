@@ -48,7 +48,6 @@ static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
 static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
-static int       hasdebugtrace    = 0;
 static int       hasctrlbreak     = 0;
 static int       haslogstatus     = 1;
 static int       hasnologging     = 0;
@@ -1952,9 +1951,6 @@ static unsigned int __stdcall rdpipethread(void *unused)
             }
             else {
                 EnterCriticalSection(&logfilelock);
-                if (hasdebugtrace > 1) {
-                    dbgprintf(__FUNCTION__, "read %.4lu bytes from %lu", rd, childprocpid);
-                }
                 if (hasnologging == 0) {
                     HANDLE h = InterlockedExchangePointer(&logfhandle, NULL);
 
@@ -2701,7 +2697,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
             case L'd':
                 hasdebuginfo = 1;
-                hasdebugtrace++;
             break;
             case L'l':
                 uselocaltime = 1;
@@ -2957,8 +2952,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     else {
-        haslogrotate = 0;
         svcmaxlogs   = 0;
+        haslogrotate = 0;
     }
 
     dupwenvp = waalloc(envc + 6);
@@ -3003,6 +2998,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         logrotatesig = CreateEvent(&sazero, TRUE, FALSE, NULL);
         if (IS_INVALID_HANDLE(logrotatesig))
             return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"logrotatesig");
+    }
+    else {
+        rotatebysize = 0;
+        rotatebytime = 0;
     }
     monitorevent = CreateEvent(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
