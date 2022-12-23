@@ -2733,8 +2733,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 shtlogfname  = NULL;
             break;
             case L'r':
-                if (rcnt > 2)
-                    return svcsyserror(__FUNCTION__, __LINE__, 0, L"Only two -r options are allowed", xwoptarg);
+                if (rcnt > 1)
+                    return svcsyserror(__FUNCTION__, __LINE__, 0, L"Only two -r options are allowed", NULL);
                 else
                     rparam[rcnt++] = xwoptarg;
             break;
@@ -2999,7 +2999,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         xfree(psn);
     }
     if (haslogrotate) {
-        for (i = 0; i < 2; i++) {
+        for (i = 0; i < rcnt; i++) {
             rv = resolverotate(rparam[i]);
             if (rv != 0)
                 return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", rparam[i]);
