@@ -122,13 +122,13 @@ rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-m 0"
 rem
 rem Write log to external program instead to log file
-rem set "SERVICE_LOG_REDIR=-e \"pipedlog.exe \\\"piped %SERVICE_NAME%.log\\\" some \\\"dummy arguments\\\"\""
+rem set "SERVICE_LOG_REDIR=-e \"pipedlog.exe @@logfile@@ some \\\"dummy arguments\\\"\""
 rem
 rem Use Apache Httpd rotatelogs utility for logging
 rem set "SERVICE_LOG_REDIR=-e \"rotatelogs.exe -l @@logfile@@ 120\""
 rem
 rem Set log file name intead defaut SvcBatch.log
-set "SERVICE_LOG_FNAME=-n %SERVICE_NAME%.log"
+set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log\""
 rem
 rem set "SERVICE_LOG_FNAME=-n %SERVICE_NAME%.@Y-@m-@d.@H@M@S.log"
 rem
