@@ -1592,7 +1592,7 @@ static int resolverotate(const wchar_t *str)
         wchar_t *ep  = zerostring;
 
         siz = _wcstoi64(rp, &ep, 10);
-        if ((siz <= CPP_INT64_C(0)) || (ep == rp) || (errno == ERANGE))
+        if ((siz < 0) || (ep == rp) || (errno == ERANGE))
             return __LINE__;
         switch (ep[0]) {
             case L'B':
@@ -1612,11 +1612,16 @@ static int resolverotate(const wchar_t *str)
             break;
         }
         len = siz * mux;
-        if (len < SVCBATCH_MIN_LOGSIZE)
-            return __LINE__;
-        dbgprintf(__FUNCTION__, "rotate if larger then %S", rp);
-        rotatesiz.QuadPart = len;
-        rotatebysize = 1;
+        if (len < KILOBYTES(1)) {
+            dbgprintf(__FUNCTION__, "rotate size %S is less then 1K", rp);
+            rotatesiz.QuadPart = CPP_INT64_C(0);
+            rotatebysize = 0;
+        }
+        else {
+            dbgprintf(__FUNCTION__, "rotate if larger then %S", rp);
+            rotatesiz.QuadPart = len;
+            rotatebysize = 1;
+        }
     }
     else {
         wchar_t *rp  = sp;
@@ -1634,11 +1639,6 @@ static int resolverotate(const wchar_t *str)
             if (mm == 0) {
                 dbgprints(__FUNCTION__, "rotate at midnight");
                 resolvetimeut(0, 0, 0, 1);
-            }
-            else if (mm < SVCBATCH_MIN_LOGRTIME) {
-                dbgprintf(__FUNCTION__, "rotate timeout %S is lower then %d",
-                          rp, SVCBATCH_MIN_LOGRTIME);
-                return __LINE__;
             }
             else if (mm == 60) {
                 dbgprints(__FUNCTION__, "rotate on each full hour");

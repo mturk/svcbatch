@@ -333,6 +333,9 @@ make sure to get familiar with `sc.exe` utility.
   In case **rule** parameter is `60` SvcBatch will rotate
   log files every full hour.
 
+  In case **rule** parameter for rotation based on log file size
+  is less then `1K` (1024 bytes), SvcBatch will not rotate logs by size.
+
   The **rule** parameter uses the following format:
 
   ```no-highlight
@@ -342,7 +345,7 @@ make sure to get familiar with `sc.exe` utility.
   When this parameter is defined log rotation will not use
   the logic defined in [Log Rotation](#log-rotation) section.
 
-  Intead rotating Svcbatch.log from `1...9` it will rotate
+  Intead rotating Svcbatch.log from `1...9` it will rename
   exiting `SvcBatch.log` to `SvcBatch.log.nnnnnnnnnn `.
   The `nnnnnnnnnn` is the number of seconds since
   `Unix epoch (Jan. 1, 1970)`.
