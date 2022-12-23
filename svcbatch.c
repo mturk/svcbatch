@@ -892,8 +892,11 @@ static void reportsvcstatus(DWORD status, DWORD param)
         if (param != 0)
             ssvcstatus.dwServiceSpecificExitCode = param;
         if (ssvcstatus.dwServiceSpecificExitCode == 0 &&
-            ssvcstatus.dwCurrentState != SERVICE_STOP_PENDING)
+            ssvcstatus.dwCurrentState != SERVICE_STOP_PENDING) {
             ssvcstatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
+            svcsyserror(__FUNCTION__, __LINE__, 0, servicename,
+                        L"stopped without SERVICE_CONTROL_STOP signal");
+        }
         if (ssvcstatus.dwServiceSpecificExitCode != 0)
             ssvcstatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
@@ -2344,25 +2347,19 @@ static unsigned int __stdcall workerthread(void *unused)
 
     dbgprintf(__FUNCTION__, "finished %S with pid %lu",
               svcbatchname, childprocpid);
-    if (!GetExitCodeProcess(childprocess, &rc)) {
+    if (GetExitCodeProcess(childprocess, &rc)) {
+        dbgprintf(__FUNCTION__, "%S exited with %lu", svcbatchname, rc);
+    }
+    else {
         rc = GetLastError();
         dbgprintf(__FUNCTION__, "GetExitCodeProcess failed with %lu", rc);
     }
     if (rc) {
-        if (servicemode) {
-            if (rc != 255) {
-                /**
-                  * 255 is exit code when CTRL_C is send to cmd.exe
-                  */
-                dbgprintf(__FUNCTION__, "service %S exited with %lu",
-                          svcbatchname, rc);
-                setsvcstatusexit(ERROR_PROCESS_ABORTED);
-            }
-        }
-        else {
-            setsvcstatusexit(rc);
-            dbgprintf(__FUNCTION__, "%S exited with %lu",
-                      svcbatchname, rc);
+        if (rc != 255) {
+            /**
+              * 255 is exit code when CTRL_C is send to cmd.exe
+              */
+            setsvcstatusexit(ERROR_PROCESS_ABORTED);
         }
     }
 
@@ -2611,8 +2608,8 @@ finished:
     SAFE_CLOSE_HANDLE(childprocjob);
 
     closelogfile();
-    dbgprints(__FUNCTION__, "done");
     reportsvcstatus(SERVICE_STOPPED, rv);
+    dbgprints(__FUNCTION__, "done");
 }
 
 static void __cdecl cconsolecleanup(void)
