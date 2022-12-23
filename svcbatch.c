@@ -1941,6 +1941,7 @@ static void createstopthread(DWORD rv)
         xcreatethread(1, 0, &stopthread, (void *)((intptr_t)rv));
     }
     else {
+        InterlockedDecrement(&sstarted);
         dbgprints(__FUNCTION__, "already started");
     }
 }
@@ -1970,7 +1971,7 @@ static unsigned int __stdcall rdpipethread(void *unused)
 
                     InterlockedExchangePointer(&logfhandle, h);
                     if ((rc == 0) && rotatebysize) {
-                        if (InterlockedAdd64(&logwritten, 0) >= rotatesiz.QuadPart) {
+                        if (InterlockedCompareExchange64(&logwritten, 0, 0) >= rotatesiz.QuadPart) {
                             InterlockedExchange64(&logwritten, 0);
                             InterlockedExchange(&rotatesig, 1);
                             SetEvent(logrotatesig);
@@ -2180,7 +2181,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     while (rc == 0) {
         DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
 
-        if ((InterlockedAdd(&sstarted, 0) > 0) && (wc != WAIT_OBJECT_0)) {
+        if ((InterlockedCompareExchange(&sstarted, 0, 0) > 0) && (wc != WAIT_OBJECT_0)) {
             dbgprints(__FUNCTION__, "service stop is running");
             wc = ERROR_NO_MORE_FILES;
         }
