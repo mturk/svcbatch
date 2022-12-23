@@ -2132,6 +2132,11 @@ static unsigned int __stdcall rotatethread(void *unused)
 
     while (rc == 0) {
         DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
+
+        if (InterlockedAdd(&sstarted, 0) > 0) {
+            dbgprints(__FUNCTION__, "service stop running");
+            wc = ERROR_NO_MORE_FILES;
+        }
         switch (wc) {
             case WAIT_OBJECT_0:
                 rc = ERROR_PROCESS_ABORTED;
@@ -2139,52 +2144,35 @@ static unsigned int __stdcall rotatethread(void *unused)
             break;
             case WAIT_OBJECT_1:
                 dbgprints(__FUNCTION__, "rotate by signal");
-                if (InterlockedAdd(&sstarted, 0) > 0) {
-                    dbgprints(__FUNCTION__, "service stop running");
-                    rc = ERROR_NO_MORE_FILES;
+                rc = rotatelogs();
+                if (rc == 0) {
+                    if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
+                        CancelWaitableTimer(wh[2]);
+                        SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
+                    }
+                    ResetEvent(logrotatesig);
                 }
                 else {
-                    rc = rotatelogs();
-                    if (rc == 0) {
-                        if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
-                            CancelWaitableTimer(wh[2]);
-                            SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
-                        }
-                        ResetEvent(logrotatesig);
-                    }
-                    else {
-                        svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
-                        createstopthread(rc);
-                    }
+                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                    createstopthread(rc);
                 }
             break;
             case WAIT_OBJECT_2:
                 dbgprints(__FUNCTION__, "rotate by time");
-                if (InterlockedAdd(&sstarted, 0) > 0) {
-                    dbgprints(__FUNCTION__, "service stop running");
-                    rc = ERROR_NO_MORE_FILES;
+                rc = rotatelogs();
+                if (rc == 0) {
+                    CancelWaitableTimer(wh[2]);
+                    if (rotateint > 0)
+                        rotatetmo.QuadPart += rotateint;
+                    SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
                 }
                 else {
-                    rc = rotatelogs();
-                    if (rc == 0) {
-                        CancelWaitableTimer(wh[2]);
-                        if (rotateint > 0)
-                            rotatetmo.QuadPart += rotateint;
-                        SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
-                    }
-                    else {
-                        svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
-                        createstopthread(rc);
-                    }
+                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                    createstopthread(rc);
                 }
-            break;
-            case WAIT_FAILED:
-                rc = GetLastError();
-                dbgprintf(__FUNCTION__, "wait failed with err=%lu", rc);
             break;
             default:
                 rc = wc;
-                dbgprintf(__FUNCTION__, "wait err=%lu", rc);
             break;
         }
     }
