@@ -1686,7 +1686,8 @@ static int resolverotate(const wchar_t *str)
             if ((hh < 0) || (hh > 23) || (errno == ERANGE))
                 return __LINE__;
             rp = p;
-            if ((p = wcschr(rp, L':')) == NULL)
+            p  = wcschr(rp, L':');
+            if (p == NULL)
                 return __LINE__;
             *(p++) = WNUL;
             mm = _wtoi(rp);
