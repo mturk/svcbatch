@@ -1652,8 +1652,10 @@ static int resolverotate(const wchar_t *str)
 
         p = wcschr(rp, L':');
         if (p == NULL) {
-            int mm = _wtoi(rp);
-            if ((mm < 0) || (errno == ERANGE)) {
+            wchar_t *ep = zerostring;
+            long     mm = wcstol(rp, &ep, 10);
+
+            if ((mm < 0) || (errno == ERANGE) || (*ep != WNUL)) {
                 dbgprintf(__FUNCTION__, "invalid rotate timeout %S", rp);
                 return __LINE__;
             }
@@ -1672,7 +1674,7 @@ static int resolverotate(const wchar_t *str)
             }
             else {
                 rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
-                dbgprintf(__FUNCTION__, "rotate each %d minutes", mm);
+                dbgprintf(__FUNCTION__, "rotate each %ld minutes", mm);
                 rotatetmo.QuadPart = rotateint;
             }
         }
