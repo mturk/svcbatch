@@ -1145,39 +1145,45 @@ static DWORD createoutdir(void)
 
 static unsigned int __stdcall rdpipedlog(void *unused)
 {
+    DWORD rs;
     DWORD rc = 0;
     DWORD rn = 0;
     DWORD rm = SBUFSIZ - 32;
     char  rb[2];
     char  rl[SBUFSIZ];
+    char *rp;
 
     dbgprints(__FUNCTION__, "started");
+    if (hasdebuginfo) {
+        rp = rb;
+        rs = 1;
+    }
+    else {
+        rp = rl;
+        rs = SBUFSIZ;
+    }
     while (rc == 0) {
         DWORD rd = 0;
 
-        if (ReadFile(pipedprocout, rb, 1, &rd, NULL)) {
-            if (rd == 0) {
-                rc = GetLastError();
-            }
-            else {
-                if (hasdebuginfo) {
-                    if (rb[0] == '\r') {
-                        /* Skip */
-                    }
-                    else if (rb[0] == '\n') {
+        if (ReadFile(pipedprocout, rp, rs, &rd, NULL) && (rd != 0)) {
+            if (hasdebuginfo) {
+                if (rb[0] == '\r') {
+                    /* Skip */
+                }
+                else if (rb[0] == '\n') {
+                    rl[rn] = '\0';
+                    dbgprintf(__FUNCTION__, "[%.4lu] %s", pipedprocpid, rl);
+                    rn = 0;
+                }
+                else {
+                    rl[rn++] = rb[0];
+                    if (rn > rm) {
                         rl[rn] = '\0';
                         dbgprintf(__FUNCTION__, "[%.4lu] %s", pipedprocpid, rl);
                         rn = 0;
                     }
-                    else {
-                        rl[rn++] = rb[0];
-                        if (rn > rm) {
-                            rl[rn] = '\0';
-                            dbgprintf(__FUNCTION__, "[%.4lu] %s", pipedprocpid, rl);
-                            rn = 0;
-                        }
-                    }
                 }
+
             }
         }
         else {
@@ -1195,8 +1201,8 @@ static unsigned int __stdcall rdpipedlog(void *unused)
             else
                 dbgprintf(__FUNCTION__, "err=%lu", rc);
         }
+        dbgprints(__FUNCTION__, "done");
     }
-    dbgprints(__FUNCTION__, "done");
     XENDTHREAD(0);
 }
 
