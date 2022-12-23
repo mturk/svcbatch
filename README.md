@@ -249,7 +249,7 @@ make sure to get familiar with `sc.exe` utility.
   In case **-s** option is defined  the `.shutdown` suffix
   will be added to **name**.
 
-  If **name** includes any `@` characters, it is reblaced by
+  If **name** includes any `@` characters, it is replaced by
   `%` character at runtime and treated as a format string
    to `strftime` function.
 
@@ -262,6 +262,43 @@ make sure to get familiar with `sc.exe` utility.
   the same log file name would be produced and log rotation would
   overwite the same file.
 
+  **Supported formatting codes**
+
+  Here are listed some of the most common formatting codes.
+
+  ```no-highlight
+    @a  Abbreviated weekday name in the locale
+    @A  Full weekday name in the locale
+    @b  Abbreviated month name in the locale
+    @B  Full month name in the locale
+    @c  Date and time representation appropriate for locale
+    @C  The year divided by 100 and truncated to an integer, as a decimal number (00−99)
+    @d  Day of month as a decimal number (01 - 31)
+    @D  Equivalent to @m/@d/@y
+    @e  Day of month as a decimal number (1 - 31), where single digits are preceded by a space
+    @F  Equivalent to @Y-@m-@d
+    @g  The last 2 digits of the ISO 8601 week-based year as a decimal number (00 - 99)
+    @G  The ISO 8601 week-based year as a decimal number
+    @h  Abbreviated month name (equivalent to %b)
+    @H  Hour in 24-hour format (00 - 23)
+    @I  Hour in 12-hour format (01 - 12)
+    @j  Day of the year as a decimal number (001 - 366)
+    @m  Month as a decimal number (01 - 12)
+    @M  Minute as a decimal number (00 - 59)
+    @p  The locale's A.M./P.M. indicator for 12-hour clock
+    @r  The locale's 12-hour clock time
+    @R  Equivalent to @H:@M
+    @S  Second as a decimal number (00 - 59)
+    @T  Equivalent to @H:@M:@S, the ISO 8601 time format
+    @u  ISO 8601 weekday as a decimal number (1 - 7; Monday is 1)
+    @U  Week number of the year as a decimal number (00 - 53), where the first Sunday is the first day of week 1
+    @w  Weekday as a decimal number (0 - 6; Sunday is 0)
+    @W  Week number of the year as a decimal number (00 - 53), where the first Monday is the first day of week 1
+    @x  Date representation for the locale
+    @X  Time representation for the locale
+    @y  Year without century, as decimal number (00 - 99)
+    @Y  Year with century, as decimal number
+  ```
 
 
 * **-w [path]**
