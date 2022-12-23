@@ -19,7 +19,8 @@ For a full list of changes, see the [git commit log][log]
  * Add -t command option that will truncate log file
  * Use -m command option to replace previous -r0...9
  * Add SVCBATCH_SERVICE_ROOT environment variable
- * Enable log rotation at each full hour
+ * Add support for log rotation at each full hour
+ * Add strftime support for log file names
 
 ## v1.4.0
 
