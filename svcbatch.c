@@ -1440,7 +1440,6 @@ static DWORD openlogfile(BOOL firstopen)
     }
     if (rc == ERROR_ALREADY_EXISTS) {
         if (truncatelogs) {
-            InterlockedExchange(&logwritten, 0);
             dbgprintf(__FUNCTION__, "truncated %S", logfilename);
         }
         else {
@@ -1448,9 +1447,7 @@ static DWORD openlogfile(BOOL firstopen)
             dbgprintf(__FUNCTION__, "reusing %S", logfilename);
         }
     }
-    else {
-        InterlockedExchange(&logwritten, 0);
-    }
+    InterlockedExchange(&logwritten, 0);
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (rc == ERROR_ALREADY_EXISTS) {
@@ -1573,6 +1570,8 @@ static void resolvetimeut(int hh, int mm, int ss, int od)
     SystemTimeToFileTime(&st, &ft);
     rotatetmo.HighPart = ft.dwHighDateTime;
     rotatetmo.LowPart  = ft.dwLowDateTime;
+
+    rotatebytime = 1;
 }
 
 static int resolverotate(const wchar_t *str)
@@ -1627,6 +1626,10 @@ static int resolverotate(const wchar_t *str)
         wchar_t *rp  = sp;
         wchar_t *p;
 
+        rotateint    = 0;
+        rotatebytime = 0;
+        rotatetmo.QuadPart = 0;
+
         p = wcschr(rp, L':');
         if (p == NULL) {
             wchar_t *ep = zerostring;
@@ -1645,9 +1648,15 @@ static int resolverotate(const wchar_t *str)
                 resolvetimeut(0, 0, 0, 0);
             }
             else {
-                rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
-                dbgprintf(__FUNCTION__, "rotate each %ld minutes", mm);
-                rotatetmo.QuadPart = rotateint;
+                if (mm > 1) {
+                    rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
+                    dbgprintf(__FUNCTION__, "rotate each %ld minutes", mm);
+                    rotatetmo.QuadPart = rotateint;
+                    rotatebytime = 1;
+                }
+                else {
+                    dbgprints(__FUNCTION__, "rotate by time disabled");
+                }
             }
         }
         else {
@@ -1673,7 +1682,6 @@ static int resolverotate(const wchar_t *str)
                       hh, mm, ss);
             resolvetimeut(hh, mm, ss, 1);
         }
-        rotatebytime = 1;
     }
     xfree(sp);
     return 0;
