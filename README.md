@@ -249,6 +249,20 @@ make sure to get familiar with `sc.exe` utility.
   In case **-s** option is defined  the `.shutdown` suffix
   will be added to **name**.
 
+  If **name** includes any `@` characters, it is reblaced by
+  `%` character at runtime and treated as a format string
+   to `strftime` function.
+
+  When using `strftime` filename formatting, be sure the
+  log file name format has enough granularity to produce a different
+  file name each time the logs are rotated. Otherwise rotation
+  will overwrite the same file instead of starting a new one.
+  For example, if logfile was `service.@Y-@m-@d.log` with log rotation
+  at `5` megabytes, but `5` megabytes was reached twice in the same day,
+  the same log file name would be produced and log rotation would
+  overwite the same file.
+
+
 
 * **-w [path]**
 
@@ -289,16 +303,20 @@ make sure to get familiar with `sc.exe` utility.
   as minutes between log rotation.
 
   ```no-highlight
-      sc create ... -r 60 - r 200K
+      sc create ... -r 90 - r 200K
   ```
 
-  The upper example will rotate logs each `60` minutes. In case
+  The upper example will rotate logs each `90` minutes. In case
   log file gets larger the 200Kbytes within that interval,
-  it will be rotated as well.
+  it will be rotated as well. In that case internal timer
+  will be reset and next rotation will occur after `90` minutes.
 
   In case **rule** parameter is `0` SvcBatch will rotate
   log files each day at midnight. This is the same as
-  defining `-r 00:00:00`
+  defining `-r 00:00:00`.
+
+  In case **rule** parameter is `60` SvcBatch will rotate
+  log files every full hour.
 
   The **rule** parameter uses the following format:
 

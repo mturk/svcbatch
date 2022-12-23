@@ -116,6 +116,8 @@ rem Rotate Log files each 30 minutes or when larger then 100Kbytes
 set "ROTATE_RULE=/R 30 -r100K"
 rem Rotate Log files at midnight
 rem set "ROTATE_RULE=-r0"
+rem Rotate Log files every full hour or when larger then 40000 bytes
+rem set "ROTATE_RULE=-r60 -r 40000B"
 rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-m 0"
 rem

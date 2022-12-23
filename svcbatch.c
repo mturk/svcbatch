@@ -1574,6 +1574,30 @@ static void resolvetimeut(int hh, int mm, int ss)
 
 }
 
+static void onehourtimeut(void)
+{
+    SYSTEMTIME     st;
+    FILETIME       ft;
+    ULARGE_INTEGER ui;
+
+    rotateint = ONE_HOUR;
+
+    GetSystemTime(&st);
+    SystemTimeToFileTime(&st, &ft);
+    ui.HighPart = ft.dwHighDateTime;
+    ui.LowPart  = ft.dwLowDateTime;
+    ui.QuadPart += rotateint;
+    ft.dwHighDateTime = ui.HighPart;
+    ft.dwLowDateTime  = ui.LowPart;
+    FileTimeToSystemTime(&ft, &st);
+    st.wMinute = 0;
+    st.wSecond = 0;
+    SystemTimeToFileTime(&st, &ft);
+    rotatetmo.HighPart = ft.dwHighDateTime;
+    rotatetmo.LowPart  = ft.dwLowDateTime;
+
+}
+
 static int resolverotate(const wchar_t *str)
 {
     wchar_t *sp;
@@ -1641,6 +1665,10 @@ static int resolverotate(const wchar_t *str)
                 dbgprintf(__FUNCTION__, "rotate timeout %S is lower then %d",
                           rp, SVCBATCH_MIN_LOGRTIME);
                 return __LINE__;
+            }
+            else if (mm == 60) {
+                dbgprints(__FUNCTION__, "rotate on each full hour");
+                onehourtimeut();
             }
             else {
                 rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
@@ -2143,7 +2171,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                                     createstopthread(rc);
                                 }
                                 else {
-                                    if (IS_VALID_HANDLE(wh[2]) && (rotateint != ONE_DAY)) {
+                                    if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
                                         CancelWaitableTimer(wh[2]);
                                         SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
                                     }
@@ -2168,7 +2196,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                 dbgprints(__FUNCTION__, "rotate by signal");
                 rc = rotatelogs();
                 if (rc == 0) {
-                    if (IS_VALID_HANDLE(wh[2]) && (rotateint != ONE_DAY)) {
+                    if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
                         CancelWaitableTimer(wh[2]);
                         SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
                     }
@@ -2184,7 +2212,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                 rc = rotatelogs();
                 if (rc == 0) {
                     CancelWaitableTimer(wh[2]);
-                    if (rotateint == ONE_DAY)
+                    if (rotateint > 0)
                         rotatetmo.QuadPart += rotateint;
                     SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
                 }
