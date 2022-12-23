@@ -894,8 +894,8 @@ static void reportsvcstatus(DWORD status, DWORD param)
         if (ssvcstatus.dwServiceSpecificExitCode == 0 &&
             ssvcstatus.dwCurrentState != SERVICE_STOP_PENDING) {
             ssvcstatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
-            svcsyserror(__FUNCTION__, __LINE__, 0, servicename,
-                        L"stopped without SERVICE_CONTROL_STOP signal");
+            svcsyserror(__FUNCTION__, __LINE__, 0,
+                        L"service stopped without SERVICE_CONTROL_STOP signal", NULL);
         }
         if (ssvcstatus.dwServiceSpecificExitCode != 0)
             ssvcstatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
