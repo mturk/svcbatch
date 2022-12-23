@@ -29,7 +29,7 @@ static volatile LONG         monitorsig  = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
-static volatile LONG         logwritten  = 0;
+static volatile LONG64       logwritten  = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -949,20 +949,27 @@ finished:
     return rc;
 }
 
-static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
+static int xseekfend(HANDLE h)
 {
-    DWORD wr;
     LARGE_INTEGER ee = {{ 0, 0 }};
 
     if (haspipedlogs == 0) {
         if (!SetFilePointerEx(h, ee, NULL, FILE_END))
-            return GetLastError();
+            return 1;
     }
+    return 0;
+}
+
+static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
+{
+    DWORD wr;
+
+
+    if (xseekfend(h))
+        return GetLastError();
+
     if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0)) {
-        if (InterlockedAdd(&logwritten, wr) >= SVCBATCH_LOGFLUSH_SIZE) {
-            FlushFileBuffers(h);
-            InterlockedExchange(&logwritten, 0);
-        }
+        InterlockedAdd64(&logwritten, wr);
         return 0;
     }
     else {
@@ -973,22 +980,21 @@ static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 static DWORD logfflush(HANDLE h)
 {
     DWORD wr;
-    LARGE_INTEGER ee = {{ 0, 0 }};
 
-    if (haspipedlogs == 0) {
-        if (!SetFilePointerEx(h, ee, NULL, FILE_END))
-            return GetLastError();
-    }
-    if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0))
-        FlushFileBuffers(h);
-    else
+    if (xseekfend(h))
         return GetLastError();
-    InterlockedExchange(&logwritten, 0);
-    if (haspipedlogs == 0) {
-        if (!SetFilePointerEx(h, ee, NULL, FILE_END))
-            return GetLastError();
+    if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0)) {
+        InterlockedAdd64(&logwritten, wr);
+        if (haspipedlogs == 0)
+            FlushFileBuffers(h);
     }
-    return 0;
+    else {
+        return GetLastError();
+    }
+    if (xseekfend(h))
+        return GetLastError();
+    else
+        return 0;
 }
 
 static DWORD logwrline(HANDLE h, const char *str)
@@ -1022,16 +1028,16 @@ static DWORD logwrline(HANDLE h, const char *str)
     if (nc > 0) {
         buf[nc] = '\0';
         if (WriteFile(h, buf, nc, &wr, NULL) && (wr != 0))
-            InterlockedAdd(&logwritten, wr);
+            InterlockedAdd64(&logwritten, wr);
         else
             return GetLastError();
     }
     if (WriteFile(h, str, (DWORD)strlen(str), &wr, NULL) && (wr != 0))
-        InterlockedAdd(&logwritten, wr);
+        InterlockedAdd64(&logwritten, wr);
     else
         return GetLastError();
     if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0))
-        InterlockedAdd(&logwritten, wr);
+        InterlockedAdd64(&logwritten, wr);
     else
         return GetLastError();
 
@@ -1140,9 +1146,9 @@ static unsigned int __stdcall rdpipedlog(void *unused)
 {
     DWORD rc = 0;
     DWORD rn = 0;
-    DWORD rm = MBUFSIZ - 256;
+    DWORD rm = SBUFSIZ - 32;
     char  rb[2];
-    char  rl[MBUFSIZ];
+    char  rl[SBUFSIZ];
 
     dbgprints(__FUNCTION__, "started");
     while (rc == 0) {
@@ -1325,7 +1331,7 @@ static DWORD makelogfile(BOOL firstopen)
         svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateFileW", logfilename);
         return rc;
     }
-    InterlockedExchange(&logwritten, 0);
+    InterlockedExchange64(&logwritten, 0);
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (rc == ERROR_ALREADY_EXISTS)
@@ -1447,7 +1453,7 @@ static DWORD openlogfile(BOOL firstopen)
             dbgprintf(__FUNCTION__, "reusing %S", logfilename);
         }
     }
-    InterlockedExchange(&logwritten, 0);
+    InterlockedExchange64(&logwritten, 0);
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (rc == ERROR_ALREADY_EXISTS) {
@@ -1482,11 +1488,8 @@ static DWORD rotatelogs(void)
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h == NULL) {
         LeaveCriticalSection(&logfilelock);
+        InterlockedExchange64(&logwritten, 0);
         return ERROR_FILE_NOT_FOUND;
-    }
-    if (haslogstatus) {
-        logfflush(h);
-        logwrtime(h, "Log rotating");
     }
     QueryPerformanceCounter(&pcstarttime);
     FlushFileBuffers(h);
@@ -1955,7 +1958,9 @@ static unsigned int __stdcall wrpipethread(void *unused)
 
     if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
         dbgprintf(__FUNCTION__, "send %lu bytes to %lu", wr, childprocpid);
-        if (!FlushFileBuffers(inputpipewrs))
+        if (FlushFileBuffers(inputpipewrs))
+            dbgprints(__FUNCTION__, "flushed");
+        else
             rc = GetLastError();
     }
     else {
@@ -2092,7 +2097,6 @@ static unsigned int __stdcall monitorthread(void *unused)
 static unsigned int __stdcall rotatethread(void *unused)
 {
     HANDLE wh[3];
-    HANDLE h = NULL;
     DWORD  wc, ms;
     DWORD  rc = 0;
     DWORD  nw = 2;
@@ -2132,40 +2136,17 @@ static unsigned int __stdcall rotatethread(void *unused)
         switch (wc) {
             case WAIT_TIMEOUT:
                 EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
-                if (h == NULL) {
-                    dbgprints(__FUNCTION__, "logfile closed");
-                    rc = ERROR_NO_MORE_FILES;
-                }
-                else {
-                    /**
-                     * Check for size only if something was
-                     * written to the log file.
-                     */
-                    if (InterlockedCompareExchange(&logwritten, 0, 0) != 0) {
-                        LARGE_INTEGER fs;
-                        if (GetFileSizeEx(h, &fs)) {
-                            InterlockedExchangePointer(&logfhandle, h);
-                            if (fs.QuadPart >= rotatesiz.QuadPart) {
-                                dbgprints(__FUNCTION__, "rotate by size");
-                                rc = rotatelogs();
-                                if (rc != 0) {
-                                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
-                                    createstopthread(rc);
-                                }
-                                else {
-                                    if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
-                                        CancelWaitableTimer(wh[2]);
-                                        SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
-                                    }
-                                }
-                            }
-                        }
-                        else {
-                            rc = GetLastError();
-                            CloseHandle(h);
-                            svcsyserror(__FUNCTION__, __LINE__, rc, L"GetFileSizeEx", NULL);
-                            createstopthread(rc);
+                if (InterlockedAdd64(&logwritten, 0) >= rotatesiz.QuadPart) {
+                    dbgprints(__FUNCTION__, "rotate by size");
+                    rc = rotatelogs();
+                    if (rc != 0) {
+                        svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                        createstopthread(rc);
+                    }
+                    else {
+                        if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
+                            CancelWaitableTimer(wh[2]);
+                            SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
                         }
                     }
                 }
@@ -2915,13 +2896,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             if (logredirargv == NULL)
                 return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), lredirparam, NULL);
             logredirect = getrealpathname(logredirargv[0], 0);
-            if (IS_EMPTY_WCS(logredirect)) {
+            if (logredirect == NULL) {
                 if (isrelativepath(logredirargv[0])) {
                     wchar_t *pr = xwcsmkpath(exelocation, logredirargv[0]);
                     logredirect = getrealpathname(pr, 0);
                     xfree(pr);
                 }
-                if (IS_EMPTY_WCS(logredirect))
+                if (logredirect == NULL)
                     return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
             }
             haspipedlogs = 1;
