@@ -2104,6 +2104,7 @@ static unsigned int __stdcall monitorthread(void *unused)
 static unsigned int __stdcall rotatethread(void *unused)
 {
     HANDLE wh[3];
+    HANDLE wt = NULL;
     DWORD  rc = 0;
     DWORD  nw = 2;
 
@@ -2114,20 +2115,20 @@ static unsigned int __stdcall rotatethread(void *unused)
     wh[2] = NULL;
 
     if (rotatetmo.QuadPart) {
-        wh[2] = CreateWaitableTimerW(NULL, TRUE, NULL);
-        if (IS_INVALID_HANDLE(wh[2])) {
+        wt = CreateWaitableTimerW(NULL, TRUE, NULL);
+        if (IS_INVALID_HANDLE(wt)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
             svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateWaitableTimer", NULL);
             goto finished;
         }
-        if (!SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0)) {
+        if (!SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, 0)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
             svcsyserror(__FUNCTION__, __LINE__, rc, L"SetWaitableTimer", NULL);
             goto finished;
         }
-        nw = 3;
+        wh[nw++] = wt;
     }
 
     while (rc == 0) {
@@ -2146,9 +2147,9 @@ static unsigned int __stdcall rotatethread(void *unused)
                 dbgprints(__FUNCTION__, "rotate by signal");
                 rc = rotatelogs();
                 if (rc == 0) {
-                    if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
-                        CancelWaitableTimer(wh[2]);
-                        SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
+                    if (IS_VALID_HANDLE(wt) && (rotateint < 0)) {
+                        CancelWaitableTimer(wt);
+                        SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, 0);
                     }
                     ResetEvent(logrotatesig);
                 }
@@ -2161,10 +2162,11 @@ static unsigned int __stdcall rotatethread(void *unused)
                 dbgprints(__FUNCTION__, "rotate by time");
                 rc = rotatelogs();
                 if (rc == 0) {
-                    CancelWaitableTimer(wh[2]);
+                    CancelWaitableTimer(wt);
                     if (rotateint > 0)
                         rotatetmo.QuadPart += rotateint;
-                    SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
+                    SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, 0);
+                    ResetEvent(logrotatesig);
                 }
                 else {
                     svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
@@ -2179,7 +2181,7 @@ static unsigned int __stdcall rotatethread(void *unused)
 
 finished:
     dbgprints(__FUNCTION__, "done");
-    SAFE_CLOSE_HANDLE(wh[2]);
+    SAFE_CLOSE_HANDLE(wt);
     XENDTHREAD(0);
 }
 
