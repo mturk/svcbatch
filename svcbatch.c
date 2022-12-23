@@ -842,10 +842,10 @@ static int resolvebatchname(const wchar_t *a)
     int i;
 
     if (svcbatchfile != NULL)
-        return 1;
+        return 0;
     svcbatchfile = getrealpathname(a, 0);
     if (IS_EMPTY_WCS(svcbatchfile))
-        return 0;
+        return 1;
 
     i = xwcslen(svcbatchfile);
     while (--i > 0) {
@@ -854,10 +854,12 @@ static int resolvebatchname(const wchar_t *a)
             svcbatchname = svcbatchfile + i + 1;
             servicebase  = xwcsdup(svcbatchfile);
             svcbatchfile[i] = L'\\';
-            return 1;
+            return 0;
         }
     }
-    return 0;
+    xfree(svcbatchfile);
+    svcbatchfile = NULL;
+    return 1;
 }
 
 static void setsvcstatusexit(DWORD e)
@@ -2816,7 +2818,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     else {
-        if (resolvebatchname(batchparam) == 0)
+        if (resolvebatchname(batchparam))
             return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
         if (IS_EMPTY_WCS(shomeparam)) {
@@ -2840,7 +2842,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (!SetCurrentDirectoryW(servicehome))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), servicehome, NULL);
 
-    if (resolvebatchname(batchparam) == 0)
+    if (resolvebatchname(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
     if (hasnologging) {
