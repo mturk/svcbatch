@@ -1218,10 +1218,10 @@ static DWORD openlogpipe(void)
     if (rc != 0) {
         return rc;
     }
-    pipedprocjob = CreateJobObjectW(&sazero, NULL);
+    pipedprocjob = CreateJobObject(&sazero, NULL);
     if (IS_INVALID_HANDLE(pipedprocjob)) {
         rc = GetLastError();
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObjectW", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObject", NULL);
         goto failed;
     }
 
@@ -1300,7 +1300,7 @@ failed:
     return rc;
 }
 
-static DWORD makelogfile(BOOL firstopen)
+static DWORD makelogfile(int firstopen)
 {
     wchar_t ewb[128];
     struct  tm *ctm;
@@ -1327,7 +1327,7 @@ static DWORD makelogfile(BOOL firstopen)
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateFileW", logfilename);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateFile", logfilename);
         return rc;
     }
     InterlockedExchange64(&logwritten, 0);
@@ -1342,7 +1342,7 @@ static DWORD makelogfile(BOOL firstopen)
     return 0;
 }
 
-static DWORD openlogfile(BOOL firstopen)
+static DWORD openlogfile(int firstopen)
 {
     wchar_t sfx[4] = { L'.', L'0', WNUL, WNUL };
     wchar_t *logpb = NULL;
@@ -1392,13 +1392,13 @@ static DWORD openlogfile(BOOL firstopen)
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
                 rc = GetLastError();
                 xfree(logpb);
-                return svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileExW", logfilename);
+                return svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileEx", logfilename);
             }
         }
         else {
             rc = GetLastError();
             if (rc != ERROR_FILE_NOT_FOUND) {
-                return svcsyserror(__FUNCTION__, __LINE__, rc, L"GetFileAttributesW", logfilename);
+                return svcsyserror(__FUNCTION__, __LINE__, rc, L"GetFileAttributes", logfilename);
             }
         }
     }
@@ -1422,7 +1422,7 @@ static DWORD openlogfile(BOOL firstopen)
                 lognn = xwcsconcat(logfilename, sfx);
                 if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
                     rc = GetLastError();
-                    svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileExW", lognn);
+                    svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileEx", lognn);
                     xfree(logpn);
                     xfree(lognn);
                     goto failed;
@@ -1440,7 +1440,7 @@ static DWORD openlogfile(BOOL firstopen)
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateFileW", logfilename);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateFile", logfilename);
         goto failed;
     }
     if (rc == ERROR_ALREADY_EXISTS) {
@@ -1517,7 +1517,7 @@ static DWORD rotatelogs(void)
     }
     else {
         CloseHandle(h);
-        rc = openlogfile(FALSE);
+        rc = openlogfile(0);
     }
     if (rc == 0) {
         if (haslogstatus) {
@@ -1764,11 +1764,11 @@ static int runshutdown(DWORD rt)
         JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
 
-    job = CreateJobObjectW(&sazero, NULL);
+    job = CreateJobObject(&sazero, NULL);
     if (IS_INVALID_HANDLE(job)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObjectW", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObject", NULL);
         goto finished;
     }
     if (!SetInformationJobObject(job, JobObjectExtendedLimitInformation,
@@ -2140,7 +2140,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     wh[2] = NULL;
 
     if (rotatetmo.QuadPart) {
-        wt = CreateWaitableTimerW(NULL, TRUE, NULL);
+        wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
@@ -2244,11 +2244,11 @@ static unsigned int __stdcall workerthread(void *unused)
         setsvcstatusexit(rc);
         goto finished;
     }
-    childprocjob = CreateJobObjectW(&sazero, NULL);
+    childprocjob = CreateJobObject(&sazero, NULL);
     if (IS_INVALID_HANDLE(childprocjob)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObjectW", NULL);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateJobObject", NULL);
         goto finished;
     }
 
@@ -2535,7 +2535,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             rv = openlogpipe();
         }
         else {
-            rv = openlogfile(TRUE);
+            rv = openlogfile(1);
         }
         if (rv != 0) {
             svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
@@ -2769,8 +2769,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     if (truncatelogs && lredirparam) {
         return svcsyserror(__FUNCTION__, __LINE__, 0,
-                           L"Cannot use external logging with -t option",
-                           lredirparam);
+                           L"Options -e and -t are mutually exclusive", NULL);
     }
     argc  -= xwoptind;
     wargv += xwoptind;
@@ -2959,10 +2958,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Create logic state events
      */
-    svcstopended = CreateEventW(&sazero, TRUE, TRUE,  NULL);
+    svcstopended = CreateEvent(&sazero, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"svcstopended");
-    processended = CreateEventW(&sazero, TRUE, FALSE, NULL);
+    processended = CreateEvent(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"processended");
     if (servicemode) {
@@ -2982,11 +2981,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         xfree(psn);
     }
     if (haslogrotate) {
-        logrotatesig = CreateEventW(&sazero, TRUE, FALSE, NULL);
+        logrotatesig = CreateEvent(&sazero, TRUE, FALSE, NULL);
         if (IS_INVALID_HANDLE(logrotatesig))
             return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"logrotatesig");
     }
-    monitorevent = CreateEventW(&sazero, TRUE, FALSE, NULL);
+    monitorevent = CreateEvent(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"monitorevent");
     InitializeCriticalSection(&servicelock);
