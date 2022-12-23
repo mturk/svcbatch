@@ -26,6 +26,7 @@
 #include "svcbatch.h"
 
 static volatile LONG         monitorsig  = 0;
+static volatile LONG         rotatesig   = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
@@ -1925,8 +1926,8 @@ static unsigned int __stdcall rdpipethread(void *unused)
                     InterlockedExchangePointer(&logfhandle, h);
                     if ((rc == 0) && rotatebysize) {
                         if (InterlockedAdd64(&logwritten, 0) >= rotatesiz.QuadPart) {
-                            dbgprints(__FUNCTION__, "rotate by size");
                             InterlockedExchange64(&logwritten, 0);
+                            InterlockedExchange(&rotatesig, 1);
                             SetEvent(logrotatesig);
                         }
                     }
@@ -2144,7 +2145,12 @@ static unsigned int __stdcall rotatethread(void *unused)
                 dbgprints(__FUNCTION__, "processended signaled");
             break;
             case WAIT_OBJECT_1:
-                dbgprints(__FUNCTION__, "rotate by signal");
+                if (hasdebuginfo) {
+                    if (InterlockedExchange(&rotatesig, 0) == 1)
+                        dbgprints(__FUNCTION__, "rotate by size");
+                    else
+                        dbgprints(__FUNCTION__, "rotate by signal");
+                }
                 rc = rotatelogs();
                 if (rc == 0) {
                     if (IS_VALID_HANDLE(wt) && (rotateint < 0)) {
@@ -2415,6 +2421,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                  * user send custom service control
                  */
                 dbgprints(__FUNCTION__, "signaling SVCBATCH_CTRL_ROTATE");
+                InterlockedExchange(&rotatesig, 0);
                 SetEvent(logrotatesig);
             }
             else {
