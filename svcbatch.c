@@ -47,7 +47,8 @@ static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
-static int       hasdebuginfo     = 0;
+static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
+static int       hasdebugtrace    = 0;
 static int       hasctrlbreak     = 0;
 static int       haslogstatus     = 1;
 static int       hasnologging     = 0;
@@ -1319,8 +1320,7 @@ static DWORD makelogfile(int firstopen)
     else
         ctm = gmtime(&ctt);
     if (wcsftime(ewb, 128, svclogfname, ctm) == 0)
-        return svcsyserror(__FUNCTION__, __LINE__,
-                           ERROR_INVALID_PARAMETER, L"wcsftime", svclogfname);
+        return svcsyserror(__FUNCTION__, __LINE__, 0, L"invalid format code", svclogfname);
     xfree(logfilename);
     logfilename = xwcsmkpath(outlocation, ewb);
 
@@ -1952,7 +1952,7 @@ static unsigned int __stdcall rdpipethread(void *unused)
             }
             else {
                 EnterCriticalSection(&logfilelock);
-                if (hasdebuginfo > 1) {
+                if (hasdebugtrace > 1) {
                     dbgprintf(__FUNCTION__, "read %.4lu bytes from %lu", rd, childprocpid);
                 }
                 if (hasnologging == 0) {
@@ -2700,7 +2700,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 hasctrlbreak = 1;
             break;
             case L'd':
-                hasdebuginfo++;
+                hasdebuginfo = 1;
+                hasdebugtrace++;
             break;
             case L'l':
                 uselocaltime = 1;
