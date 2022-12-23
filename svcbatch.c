@@ -2835,12 +2835,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         if (svclogfname) {
             if (wcschr(svclogfname, L'@')) {
-                int      n = xwcslen(svclogfname);
+                int      n;
                 wchar_t *s;
                 /**
                  * Name is strftime formated
                  * replace @ with % so it can be used by strftime
                  */
+                if (truncatelogs) {
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Cannot use strftime formatted logfile with -t option",
+                                       svclogfname);
+                }
+                n = xwcslen(svclogfname);
                 s = xwmalloc(n);
                 for (i = 0; i < n; i++) {
                     if (svclogfname[i] == L'@')
