@@ -1923,6 +1923,13 @@ static unsigned int __stdcall rdpipethread(void *unused)
                         rc = ERROR_NO_MORE_FILES;
 
                     InterlockedExchangePointer(&logfhandle, h);
+                    if ((rc == 0) && rotatebysize) {
+                        if (InterlockedAdd64(&logwritten, 0) >= rotatesiz.QuadPart) {
+                            dbgprints(__FUNCTION__, "rotate by size");
+                            InterlockedExchange64(&logwritten, 0);
+                            SetEvent(logrotatesig);
+                        }
+                    }
                 }
                 LeaveCriticalSection(&logfilelock);
                 if (rc) {
@@ -2097,7 +2104,6 @@ static unsigned int __stdcall monitorthread(void *unused)
 static unsigned int __stdcall rotatethread(void *unused)
 {
     HANDLE wh[3];
-    DWORD  wc, ms;
     DWORD  rc = 0;
     DWORD  nw = 2;
 
@@ -2123,49 +2129,33 @@ static unsigned int __stdcall rotatethread(void *unused)
         }
         nw = 3;
     }
-    if (rotatebysize)
-        ms = SVCBATCH_LOGROTATE_STEP;
-    else
-        ms = INFINITE;
 
     while (rc == 0) {
-        wc = WaitForMultipleObjects(nw, wh, FALSE, ms);
+        DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
         switch (wc) {
-            case WAIT_TIMEOUT:
-                EnterCriticalSection(&logfilelock);
-                if (InterlockedAdd64(&logwritten, 0) >= rotatesiz.QuadPart) {
-                    dbgprints(__FUNCTION__, "rotate by size");
-                    rc = rotatelogs();
-                    if (rc != 0) {
-                        svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
-                        createstopthread(rc);
-                    }
-                    else {
-                        if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
-                            CancelWaitableTimer(wh[2]);
-                            SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
-                        }
-                    }
-                }
-                LeaveCriticalSection(&logfilelock);
-            break;
             case WAIT_OBJECT_0:
                 rc = ERROR_PROCESS_ABORTED;
                 dbgprints(__FUNCTION__, "processended signaled");
             break;
             case WAIT_OBJECT_1:
-                dbgprints(__FUNCTION__, "rotate by signal");
-                rc = rotatelogs();
-                if (rc == 0) {
-                    if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
-                        CancelWaitableTimer(wh[2]);
-                        SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
-                    }
-                    ResetEvent(logrotatesig);
+                if (InterlockedAdd(&sstarted, 0) > 0) {
+                    dbgprints(__FUNCTION__, "service stop running");
+                    rc = ERROR_NO_MORE_FILES;
                 }
                 else {
-                    svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
-                    createstopthread(rc);
+                    dbgprints(__FUNCTION__, "rotate by signal");
+                    rc = rotatelogs();
+                    if (rc == 0) {
+                        if (IS_VALID_HANDLE(wh[2]) && (rotateint < 0)) {
+                            CancelWaitableTimer(wh[2]);
+                            SetWaitableTimer(wh[2], &rotatetmo, 0, NULL, NULL, 0);
+                        }
+                        ResetEvent(logrotatesig);
+                    }
+                    else {
+                        svcsyserror(__FUNCTION__, __LINE__, rc, L"rotatelogs", NULL);
+                        createstopthread(rc);
+                    }
                 }
             break;
             case WAIT_OBJECT_2:
@@ -2374,20 +2364,6 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
 static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
 {
-    HANDLE h = NULL;
-    const char *msg = NULL;
-
-    switch (ctrl) {
-        case SERVICE_CONTROL_PRESHUTDOWN:
-            msg = "Service signaled : SERVICE_CONTROL_PRESHUTDOWN";
-        break;
-        case SERVICE_CONTROL_SHUTDOWN:
-            msg = "Service signaled : SERVICE_CONTROL_SHUTDOWN";
-        break;
-        case SERVICE_CONTROL_STOP:
-            msg = "Service signaled : SERVICE_CONTROL_STOP";
-        break;
-    }
 
     switch (ctrl) {
         case SERVICE_CONTROL_PRESHUTDOWN:
@@ -2395,18 +2371,8 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
         case SERVICE_CONTROL_STOP:
-            dbgprints(__FUNCTION__, msg + 19);
+            dbgprintf(__FUNCTION__, "stop control %lu", ctrl);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-            if (haslogstatus) {
-                EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
-                if (h != NULL) {
-                    logfflush(h);
-                    logwrline(h, msg);
-                }
-                InterlockedExchangePointer(&logfhandle, h);
-                LeaveCriticalSection(&logfilelock);
-            }
             createstopthread(0);
         break;
         case SVCBATCH_CTRL_BREAK:
