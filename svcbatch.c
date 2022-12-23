@@ -48,7 +48,7 @@ static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
 static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
-static int       haslogstatus     = SVCBATCH_ISDEV_VERSION;
+static int       haslogstatus     = 0;
 static int       hasctrlbreak     = 0;
 static int       hasnologging     = 0;
 static int       haslogrotate     = 0;
@@ -2516,6 +2516,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
                 return;
             }
         }
+        if (truncatelogs)
+            svcmaxlogs = 0;
     }
     else {
         dbgprintf(__FUNCTION__, "shutting down %S", servicename);
@@ -2638,6 +2640,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         i;
     int         opt;
     int         envc  = 0;
+    int         rcnt  = 0;
     int         rv    = 0;
     wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
     HANDLE      h;
@@ -2646,7 +2649,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     const wchar_t *shomeparam  = NULL;
     const wchar_t *svcendparam = NULL;
     const wchar_t *lredirparam = NULL;
-
+    const wchar_t *rparam[2];
     /**
      * Make sure children (cmd.exe) are kept quiet.
      */
@@ -2730,9 +2733,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 shtlogfname  = NULL;
             break;
             case L'r':
-                rv = resolverotate(xwoptarg);
-                if (rv != 0)
-                    return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", xwoptarg);
+                if (rcnt > 2)
+                    return svcsyserror(__FUNCTION__, __LINE__, 0, L"Only two -r options are allowed", xwoptarg);
+                else
+                    rparam[rcnt++] = xwoptarg;
             break;
             case L's':
                 svcendparam  = xwoptarg;
@@ -2868,9 +2872,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     if (servicemode) {
         haslogrotate = svcmaxlogs;
-        if (truncatelogs)
-            svcmaxlogs = 0;
-
         if (svcendparam) {
             shutdownfile = getrealpathname(svcendparam, 0);
             if (IS_EMPTY_WCS(shutdownfile))
@@ -2998,14 +2999,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         xfree(psn);
     }
     if (haslogrotate) {
+        for (i = 0; i < 2; i++) {
+            rv = resolverotate(rparam[i]);
+            if (rv != 0)
+                return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", rparam[i]);
+        }
         logrotatesig = CreateEvent(&sazero, TRUE, FALSE, NULL);
         if (IS_INVALID_HANDLE(logrotatesig))
             return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"logrotatesig");
     }
-    else {
-        rotatebysize = 0;
-        rotatebytime = 0;
-    }
+
     monitorevent = CreateEvent(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"monitorevent");

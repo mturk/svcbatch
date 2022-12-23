@@ -135,7 +135,7 @@ rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
-set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" -pDbL /w \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_REDIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run test"
+set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" -pvDbL /w \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_REDIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run test"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
