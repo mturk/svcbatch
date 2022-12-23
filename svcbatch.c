@@ -1419,19 +1419,32 @@ static DWORD openlogfile(int firstopen)
 
             if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
                 wchar_t *lognn;
+                int      logmv = 1;
 
-                sfx[1] = L'0' + i;
-                lognn = xwcsconcat(logfilename, sfx);
-                if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
-                    rc = GetLastError();
-                    svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileEx", lognn);
-                    xfree(logpn);
+                if (i > 2) {
+                    /**
+                     * Check for gap
+                     */
+                    sfx[1] = L'0' + i - 2;
+                    lognn = xwcsconcat(logfilename, sfx);
+                    if (GetFileAttributesW(lognn) == INVALID_FILE_ATTRIBUTES)
+                        logmv = 0;
                     xfree(lognn);
-                    goto failed;
                 }
-                xfree(lognn);
-                if (firstopen)
-                    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+                if (logmv) {
+                    sfx[1] = L'0' + i;
+                    lognn = xwcsconcat(logfilename, sfx);
+                    if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
+                        rc = GetLastError();
+                        svcsyserror(__FUNCTION__, __LINE__, rc, logpn, lognn);
+                        xfree(logpn);
+                        xfree(lognn);
+                        goto failed;
+                    }
+                    xfree(lognn);
+                    if (firstopen)
+                        reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+                }
             }
             xfree(logpn);
         }
@@ -2441,7 +2454,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
         break;
         case SVCBATCH_CTRL_ROTATE:
-            if (IS_VALID_HANDLE(logrotatesig)) {
+            if (haslogrotate) {
                 /**
                  * Signal to rotatethread that
                  * user send custom service control
