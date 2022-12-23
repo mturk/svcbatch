@@ -2107,10 +2107,7 @@ static unsigned int __stdcall rotatethread(void *unused)
     wh[1] = logrotatesig;
     wh[2] = NULL;
 
-    if (rotatetmo.QuadPart == 0)
-        rotatetmo.QuadPart = rotateint;
-
-    if (rotatetmo.QuadPart != 0) {
+    if (rotatetmo.QuadPart) {
         wh[2] = CreateWaitableTimerW(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wh[2])) {
             rc = GetLastError();
