@@ -1393,8 +1393,9 @@ static DWORD openlogfile(int firstopen)
             }
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
                 rc = GetLastError();
+                svcsyserror(__FUNCTION__, __LINE__, rc, logfilename, logpb);
                 xfree(logpb);
-                return svcsyserror(__FUNCTION__, __LINE__, rc, L"MoveFileEx", logfilename);
+                return rc;
             }
         }
         else {
@@ -2679,9 +2680,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (argc > 6) {
         const wchar_t *p = wargv[1];
         if ((p[0] == L'-') && (p[1] == L'x')) {
-            servicemode  = 0;
-            cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
-            cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
+            servicemode = 0;
+            cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
+            cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
         }
     }
     wnamestamp = xcwiden(cnamestamp);
@@ -2867,6 +2868,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
 
     if (servicemode) {
+        haslogrotate = svcmaxlogs;
+        if (truncatelogs)
+            svcmaxlogs = 0;
+
         if (svcendparam) {
             shutdownfile = getrealpathname(svcendparam, 0);
             if (IS_EMPTY_WCS(shutdownfile))
@@ -2947,16 +2952,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
             }
             haspipedlogs = 1;
+            haslogrotate = 0;
         }
-        else {
-            haslogrotate = svcmaxlogs;
-        }
-        if (truncatelogs)
-            svcmaxlogs = 0;
     }
     else {
-        svcmaxlogs = 0;
+        haslogrotate = 0;
+        svcmaxlogs   = 0;
     }
+
     dupwenvp = waalloc(envc + 6);
     for (i = 0; i < envc; i++) {
         /**
