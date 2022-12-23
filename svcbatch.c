@@ -2122,7 +2122,7 @@ static unsigned int __stdcall rotatethread(void *unused)
             svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateWaitableTimer", NULL);
             goto finished;
         }
-        if (!SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, 0)) {
+        if (!SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
             svcsyserror(__FUNCTION__, __LINE__, rc, L"SetWaitableTimer", NULL);
@@ -2149,7 +2149,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                 if (rc == 0) {
                     if (IS_VALID_HANDLE(wt) && (rotateint < 0)) {
                         CancelWaitableTimer(wt);
-                        SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, 0);
+                        SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
                     }
                     ResetEvent(logrotatesig);
                 }
@@ -2165,7 +2165,7 @@ static unsigned int __stdcall rotatethread(void *unused)
                     CancelWaitableTimer(wt);
                     if (rotateint > 0)
                         rotatetmo.QuadPart += rotateint;
-                    SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, 0);
+                    SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
                     ResetEvent(logrotatesig);
                 }
                 else {
