@@ -407,7 +407,7 @@ make sure to get familiar with `sc.exe` utility.
   This option disables both logging and log rotation.
 
   When defined no log files or directories will be created and
-  any output from service batch files will be discarde.
+  any output from service batch files will be discarded.
 
   Use this option when output from `cmd.exe` is not needed or
   service batch file manages logging on its own.
@@ -420,6 +420,30 @@ make sure to get familiar with `sc.exe` utility.
   This option enables logging of various internal
   SvcBatch messages.
 
+  If enabled SvcBatch will put something like the following
+  when log file is opened:
+
+  ```no-highlight
+    [00:00:00.037265] SvcBatch 1.5.0 (dev) (Dec 23 2022 10:00:00 msc 150030729.207)
+    [00:00:00.037335] Log opened       : 2022-12-23 12:00:01
+    [00:00:00.037353] Service name     : adummysvc
+    [00:00:00.037368] Service uuid     : 79a743db-4723-31aa-f7c1-f1de4f664f12
+    [00:00:00.037384] Batch file       : C:\Projects\svcbatch\test\dummyservice.bat
+    [00:00:00.037415]       arguments  : run test
+    [00:00:00.037430] Root directory   : C:\Projects\svcbatch\x64
+    [00:00:00.037447] Base directory   : C:\Projects\svcbatch\test
+    [00:00:00.037462] Working directory: C:\Projects\svcbatch\test
+    [00:00:00.037642] Runtime directory: C:\Projects\svcbatch\test\Logs\adummysvc
+    [00:00:00.037651] Features         : rotate by size, rotate by time, shutdown batch
+
+     ...
+
+    [00:00:00.350878] Service signaled : SERVICE_CONTROL_STOP
+
+    ...
+
+    [00:00:15.668318] Log closed       : 2022-12-23 12:15:04
+  ```
 
 
 * **-l**
