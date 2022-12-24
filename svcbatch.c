@@ -1955,35 +1955,30 @@ static unsigned int __stdcall rdpipethread(void *unused)
     while (rc == 0) {
         DWORD rd = 0;
 
-        if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL)) {
-            if (rd == 0) {
-                rc = GetLastError();
-            }
-            else {
-                EnterCriticalSection(&logfilelock);
-                if (hasnologging == 0) {
-                    HANDLE h = InterlockedExchangePointer(&logfhandle, NULL);
+        if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL) && (rd != 0)) {
+            EnterCriticalSection(&logfilelock);
+            if (hasnologging == 0) {
+                HANDLE h = InterlockedExchangePointer(&logfhandle, NULL);
 
-                    if (h != NULL)
-                        rc = logappend(h, rb, rd);
-                    else
-                        rc = ERROR_NO_MORE_FILES;
+                if (h != NULL)
+                    rc = logappend(h, rb, rd);
+                else
+                    rc = ERROR_NO_MORE_FILES;
 
-                    InterlockedExchangePointer(&logfhandle, h);
-                    if ((rc == 0) && rotatebysize) {
-                        if (InterlockedCompareExchange64(&logwritten, 0, 0) >= rotatesiz.QuadPart) {
-                            InterlockedExchange64(&logwritten, 0);
-                            InterlockedExchange(&rotatesig, 1);
-                            SetEvent(logrotatesig);
-                        }
+                InterlockedExchangePointer(&logfhandle, h);
+                if ((rc == 0) && rotatebysize) {
+                    if (InterlockedCompareExchange64(&logwritten, 0, 0) >= rotatesiz.QuadPart) {
+                        InterlockedExchange64(&logwritten, 0);
+                        InterlockedExchange(&rotatesig, 1);
+                        SetEvent(logrotatesig);
                     }
                 }
-                LeaveCriticalSection(&logfilelock);
-                if (rc) {
-                    if (rc != ERROR_NO_MORE_FILES) {
-                        svcsyserror(__FUNCTION__, __LINE__, rc, L"logappend", NULL);
-                        createstopthread(rc);
-                    }
+            }
+            LeaveCriticalSection(&logfilelock);
+            if (rc) {
+                if (rc != ERROR_NO_MORE_FILES) {
+                    svcsyserror(__FUNCTION__, __LINE__, rc, L"logappend", NULL);
+                    createstopthread(rc);
                 }
             }
         }
@@ -2509,7 +2504,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         if (hasnologging == 0) {
             rv = createoutdir();
             if (rv != 0) {
-                svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
+                svcsyserror(__FUNCTION__, __LINE__, 0, L"createoutdir failed", NULL);
                 reportsvcstatus(SERVICE_STOPPED, rv);
                 return;
             }
@@ -2784,6 +2779,20 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 
+    if (hasnologging) {
+        /**
+         * The -q option was defined
+         *
+         * Disable all log related options
+         */
+        outdirparam  = NULL;
+        lredirparam  = NULL;
+        svclogfname  = NULL;
+        shtlogfname  = NULL;
+        svcmaxlogs   = 0;
+        truncatelogs = 0;
+        haslogstatus = 0;
+    }
     if (truncatelogs && lredirparam) {
         return svcsyserror(__FUNCTION__, __LINE__, 0,
                            L"Options -e and -t are mutually exclusive", NULL);
@@ -2859,14 +2868,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     if (resolvebatchname(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
-
-    if (hasnologging) {
-        outdirparam = NULL;
-        lredirparam = NULL;
-        svclogfname = NULL;
-        shtlogfname = NULL;
-        svcmaxlogs  = 0;
-    }
 
     if (servicemode) {
         haslogrotate = svcmaxlogs;
