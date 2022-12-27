@@ -703,8 +703,8 @@ static void xmktimedstr(int mod, wchar_t *buf, int siz, const wchar_t *pfx, cons
         SYSTEMTIME st;
 
         GetSystemTime(&st);
-        _snwprintf(buf, bsz, L"%s_%d_%.4d%.2d%.2d%.2d%2d%.2d",
-                   pfx, mod, st.wYear, st.wMonth, st.wDay,
+        _snwprintf(buf, bsz, L"%s%.4d%.2d%.2d%.2d%2d%.2d",
+                   pfx, st.wYear, st.wMonth, st.wDay,
                    st.wHour, st.wMinute, st.wSecond);
     }
     else {
@@ -839,6 +839,11 @@ static FILE *xmkdbgtemp(void)
     wchar_t bb[BBUFSIZ];
     wchar_t rb[TBUFSIZ];
 
+    rc = GetEnvironmentVariableW(L"_" SVCBATCH_DBGPREFIX L"dbg", bb, _MAX_FNAME);
+    if (rc != 0) {
+        xwcslcat(bb, BBUFSIZ, L".shutdown.log");
+        return _wfsopen(bb, L"wtc", _SH_DENYWR);
+    }
     rc = GetEnvironmentVariableW(L"TEMP", bb, _MAX_FNAME);
     if ((rc == 0) || (rc >= _MAX_FNAME)) {
         rc = GetEnvironmentVariableW(L"TMP", bb, _MAX_FNAME);
@@ -849,8 +854,10 @@ static FILE *xmkdbgtemp(void)
             return NULL;
         }
     }
-    xmktimedstr(1, rb, TBUFSIZ, L"\\sb_debug", L".log");
+    xmktimedstr(1, rb, TBUFSIZ, L"\\" SVCBATCH_DBGPREFIX, NULL);
     xwcslcat(bb, BBUFSIZ, rb);
+    SetEnvironmentVariableW(L"_" SVCBATCH_DBGPREFIX L"dbg", bb);
+    xwcslcat(bb, BBUFSIZ, L".log");
 
     ds = _wfsopen(bb, L"wtc", _SH_DENYWR);
     if (ds == NULL) {
@@ -3165,7 +3172,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return ERROR_BAD_PATHNAME;
     }
 #endif
-    if (argc < 3) {
+    if (argc == 1) {
         fputs(cnamestamp, stdout);
         fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details", stdout);
 
@@ -3184,9 +3191,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     wnamestamp = xcwiden(cnamestamp);
     _DBGPRINTF("%S", wnamestamp);
-#if defined(_DEBUG) && (_DEBUG > 1)
-    _DBGPRINTF("%S", GetCommandLineW());
-#endif
     while ((opt = xwgetopt(argc, wargv, L"a:bc:e:h:lm:n:o:pqr:s:tu:vw:xz:")) != EOF) {
         switch (opt) {
             case L'b':
@@ -3469,8 +3473,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          * Remove all environment variables
          * starting with SVCBATCH_
          */
-        if (!xwstartswith(wenv[i], L"SVCBATCH_"))
-            dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
+        if (!xwstartswith(wenv[i], L"SVCBATCH_")
+#if defined(_DEBUG)
+        && !xwstartswith(wenv[i], L"_" SVCBATCH_DBGPREFIX)
+#endif
+        ) dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
     }
 
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
