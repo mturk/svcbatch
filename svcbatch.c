@@ -3213,6 +3213,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
         }
     }
+#if defined(_DEBUG)
+    if (consolemode && servicemode) {
+        /**
+         * Services current directory is always
+         * set to SystemDirectory
+         *
+         * hard coded for now
+         */
+        SetCurrentDirectoryW(L"C:\\Windows\\System32");
+
+    }
+#endif
     wnamestamp = xcwiden(cnamestamp);
     _DBGPRINTS(cnamestamp);
 
