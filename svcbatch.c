@@ -560,7 +560,7 @@ int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     }
     xwoption = *(place++);
 
-    if (xwoption >= L'A') {
+    if (xwoption != L':') {
         oli = wcschr(opts, towlower((wchar_t)xwoption));
     }
     if (oli == NULL) {
@@ -2006,7 +2006,6 @@ static int runshutdown(DWORD rt)
 {
     wchar_t  rp[TBUFSIZ];
     wchar_t *cmdline;
-    wchar_t *svcname = servicename;
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc = 0;
@@ -2028,11 +2027,10 @@ static int runshutdown(DWORD rt)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
         cmdline = xappendarg(1, cmdline, L"--", servicename);
-        svcname = NULL;
     }
 #endif
+    cmdline = xappendarg(1, cmdline, L"++", servicename);
     rp[ip++] = L'-';
-    rp[ip++] = L'x';
     if (uselocaltime)
         rp[ip++] = L'l';
     if (hasnologging)
@@ -2042,10 +2040,10 @@ static int runshutdown(DWORD rt)
     if (haslogstatus)
         rp[ip++] = L'v';
     rp[ip++] = WNUL;
+    if (ip > 2)
+        cmdline = xappendarg(0, cmdline, NULL,  rp);
 
-    cmdline = xappendarg(0, cmdline, NULL,  rp);
-    cmdline = xappendarg(1, cmdline, L"-z", svcname);
-    cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
+    cmdline = xappendarg(0, cmdline, L"-0", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
     cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
     cmdline = xappendarg(1, cmdline, L"-n", shtlogfname);
@@ -3197,22 +3195,27 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return ERROR_ACCESS_DENIED;
     }
 #endif
+    /**
+     * Check if running as service or as a child process.
+     */
+    if (argc > 2) {
+        const wchar_t *p = wargv[1];
+        if ((p[0] == L'+') && (p[1] == L'+') && (p[2] == WNUL)) {
+            servicemode = 0;
+            if (servicename == NULL)
+                servicename = xwcsdup(wargv[2]);
+            wargv[2] = wargv[0];
+            argc  -= 2;
+            wargv += 2;
+            cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
+            cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
+        }
+    }
     if (argc == 1) {
         fprintf(stdout, "%s\n\n", cnamestamp);
         fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
 
         return 0;
-    }
-    /**
-     * Check if running as service or as a child process.
-     */
-    if (argc > 4) {
-        const wchar_t *p = wargv[1];
-        if ((p[0] == L'-') && (p[1] == L'x')) {
-            servicemode = 0;
-            cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
-            cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
-        }
     }
 #if defined(_DEBUG)
     if (consolemode && servicemode) {
@@ -3229,7 +3232,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wnamestamp = xcwiden(cnamestamp);
     _DBGPRINTS(cnamestamp);
 
-    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tu:vw:xz:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tvw:0:1:2:3:4:5:6:7:8:9:")) != EOF) {
+        if (servicemode) {
+            if (wcschr(L"0123456789", opt)) {
+                bb[1] = xwoption;
+                return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                   L"Cannot use private option in service mode", bb);
+            }
+        }
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
@@ -3298,23 +3308,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             /**
              * Private options
              */
-            case L'z':
-                if (servicemode)
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Cannot use private -z command option in service mode", NULL);
-                servicename  = xwcsdup(xwoptarg);
-            break;
-            case L'u':
-                if (servicemode)
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Cannot use private -u command option in service mode", NULL);
+            case L'0':
                 serviceuuid  = xwcsdup(xwoptarg);
             break;
-            case L'x':
-                if (servicemode)
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Cannot use private -x command option in service mode", NULL);
-            break;
+            /**
+             * Invalid option
+             */
             case ENOENT:
                 bb[1] = xwoption;
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
