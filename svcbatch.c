@@ -1057,28 +1057,32 @@ static HANDLE xcreatethread(int detach, unsigned initflag,
     return h;
 }
 
-static wchar_t *xcleanpathname(const wchar_t *src, int isdir)
+static wchar_t *getfullpathname(const wchar_t *src, int isdir)
 {
-    wchar_t *d;
+    wchar_t *cp;
 
     if (IS_EMPTY_WCS(src))
         return NULL;
-    d = xwcsdup(src);
-    xcleanwinpath(d, isdir);
+    cp = xwcsdup(src);
+    xcleanwinpath(cp, isdir);
 
-    return d;
+    if (isrelativepath(cp)) {
+        DWORD   nn;
+        DWORD   sz = HBUFSIZ - 1;
+        wchar_t bb[HBUFSIZ];
+
+        nn = GetFullPathNameW(cp, sz, bb, NULL);
+        if ((nn == 0) || (nn >= sz)) {
+            xfree(cp);
+            return NULL;
+        }
+        xfree(cp);
+        cp = xwcsdup(bb);
+    }
+
+    return cp;
 }
 
-static int getfullpathname(wchar_t *buf, DWORD siz, const wchar_t *str)
-{
-    DWORD nn;
-
-    nn = GetFullPathNameW(str, siz, buf, NULL);
-    if ((nn == 0) || (nn >= siz))
-        return 0;
-    else
-        return 1;
-}
 
 static wchar_t *getrealpathname(const wchar_t *path, int isdir)
 {
@@ -1091,21 +1095,9 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     if (servicemode == 0)
         return xwcsdup(path);
 
-    buf = xcleanpathname(path, isdir);
+    buf = getfullpathname(path, isdir);
     if (IS_EMPTY_WCS(buf))
         return NULL;
-    if (isrelativepath(buf)) {
-        wchar_t bb[HBUFSIZ];
-
-        if (getfullpathname(bb, HBUFSIZ - 1, buf)) {
-            xfree(buf);
-            buf = xwcsdup(bb);
-        }
-        else {
-            xfree(buf);
-            return NULL;
-        }
-    }
     fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, atr, NULL);
     xfree(buf);
@@ -1400,10 +1392,10 @@ static DWORD createlogsdir(void)
     DWORD   rc;
     wchar_t *dp;
 
-    dp = xcleanpathname(outdirparam, 1);
+    dp = getfullpathname(outdirparam, 1);
     if (dp == NULL) {
         svcsyserror(__FUNCTION__, __LINE__, 0,
-                    L"xcleanpathname", outdirparam);
+                    L"getfullpathname", outdirparam);
         return ERROR_BAD_PATHNAME;
     }
     servicelogs = getrealpathname(dp, 1);
