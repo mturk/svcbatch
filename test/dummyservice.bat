@@ -41,7 +41,7 @@ set
 echo.
 echo.
 rem
-:doRepeat
+:runService
 rem
 echo %~nx0: [%TIME%] ... running
 rem Simulate work by sleeping for 5 seconds
@@ -51,9 +51,18 @@ rem echo.
 rem set
 rem echo.
 rem
+rem Check if shutdown batch signaled to stop the service
+if exist "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" (
+    echo %~nx0: [%TIME%] found shutdown-%SVCBATCH_SERVICE_UUID%
+    ping -n 6 127.0.0.1 >NUL
+    echo %~nx0: [%TIME%] done
+    del /F /Q "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" 2>NUL
+    goto End
+)
+rem
 rem Send shutdown signal
 rem sc stop %SVCBATCH_SERVICE_NAME%
-goto doRepeat
+goto runService
 rem Comment above goto to simulate failure
 echo %~nx0: Simulating failure
 ping -n 6 127.0.0.1 >NUL
@@ -77,9 +86,16 @@ echo.
 rem
 rem
 echo %~nx0: [%TIME%] Shutdown running
-rem Simulate some work by sleeping for 10 seconds
+rem Simulate some work by sleeping for 5 seconds
 ping -n 6 127.0.0.1 >NUL
+rem Simple IPC mechanism to signal the service
+rem to stop by creating unique file
+echo %~nx0: [%TIME%] creating shutdown-%SVCBATCH_SERVICE_UUID%
+echo Y> "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%"
+:runShutdown
 ping -n 6 127.0.0.1 >NUL
+echo %~nx0: [%TIME%] ... running
+goto runShutdown
 echo %~nx0: [%TIME%] Shutdown done
 rem
 goto End

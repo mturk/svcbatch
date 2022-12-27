@@ -50,15 +50,26 @@ OUTPUT  = $(WORKDIR)/$(TARGET)
 PIPELOG = $(WORKDIR)/pipedlog.exe
 
 WINVER  = 0x0601
-CFLAGS  = -DNDEBUG -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
+
+ifdef _DEBUG
+CFLAGS  = -D_DEBUG=$(_DEBUG)
+RFLAGS  = -D _DEBUG=$(_DEBUG)
+RL      = @true
+else
+CFLAGS  = -DNDEBUG
+RFLAGS  = -D NDEBUG
+endif
+
+CFLAGS += -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
 	-D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE \
 	-DUNICODE -D_UNICODE
 LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-implicit-fallthrough -municode -mconsole
 RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
-RFLAGS  = -D NDEBUG -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER)
+RFLAGS += -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER)
 CLOPTS  = $(LNOPTS) -c
 LDLIBS  = -lkernel32 -ladvapi32 -luser32 -lshell32
 RLOPTS  = --strip-unneeded
+
 
 ifdef VERSION_SFX
 CFLAGS += -DVERSION_SFX=$(VERSION_SFX)

@@ -51,8 +51,10 @@
 #define SHUTDOWN_LOGFEXT       L".shutdown"
 #define SHUTDOWN_IPCNAME       L"Local\\SvcBatch-Shutdown-"
 #define SVCBATCH_LOGSDIR       L"Logs"
-#define SVCBATCH_EPREFIX 	   L"SVCBATCH_SERVICE_"
-
+#if defined(_DEBUG)
+#define SVCBATCH_SCMNAME       L"\\\\.\\pipe\\SvcBatch-ScmPipe-"
+#define SVCBATCH_SCSNAME       L"Global\\SvcBatch-ScmSignal-"
+#endif
 /**
  * Maximum number of SvcBatch.log.N files
  */
@@ -98,15 +100,21 @@
 #define MS_IN_MINUTE            60000
 #define MS_IN_HOUR              3600000
 
+#define TBUFSIZ                 64
+#define FBUFSIZ                 256
 #define BBUFSIZ                 512
 #define SBUFSIZ                 1024
 #define MBUFSIZ                 2048
 #define HBUFSIZ                 8192
+
 #define ONE_MINUTE              CPP_INT64_C(600000000)
 #define ONE_HOUR                CPP_INT64_C(36000000000)
 #define ONE_DAY                 CPP_INT64_C(864000000000)
 #define KILOBYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1024))
 #define MEGABYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1048576))
+
+#define II_CONSOLE				1
+#define II_SERVICE				2
 
 /**
  * Helper macros
@@ -168,6 +176,11 @@
 #else
 # define SVCBATCH_VERSION_DEV   ""
 #endif
+#if defined(_DEBUG)
+# define SVCBATCH_VERSION_DBG   "_" CPP_TOSTR(_DEBUG) ".debug"
+#else
+# define SVCBATCH_VERSION_DBG   ""
+#endif
 
 /**
  * Macro for .rc files using numeric csv representation
@@ -185,6 +198,7 @@
 
 #define SVCBATCH_VERSION_TXT  \
                                 SVCBATCH_VERSION_STR                    \
+                                SVCBATCH_VERSION_DBG                    \
                                 SVCBATCH_VERSION_DEV " "                \
                                 SVCBATCH_BUILD_STAMP
 
