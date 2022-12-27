@@ -82,6 +82,7 @@ static int       logredirargc     = 0;
 
 #if defined(_DEBUG)
 static int       consolemode      = 0;
+static FILE     *dbgoutstream     = NULL;
 #endif
 
 static wchar_t   svcbatchexe[HBUFSIZ];
@@ -693,6 +694,30 @@ static wchar_t *xuuidstring(void)
     return b;
 }
 
+static void xresourestr(wchar_t *buf, int siz, const wchar_t *pfx, const wchar_t *sfx, DWORD iid)
+{
+    FILETIME ft;
+    ULARGE_INTEGER ui;
+
+    GetSystemTimeAsFileTime(&ft);
+
+    ui.HighPart  = ft.dwHighDateTime;
+    ui.LowPart   = ft.dwLowDateTime;
+    ui.QuadPart /= 10;
+    /** Number of micro-seconds between the beginning of the Windows epoch
+     *  (Jan. 1, 1601) and the Unix epoch (Jan. 1, 1970)
+     */
+    ui.QuadPart -= CPP_UINT64_C(11644473600000000);
+    ui.QuadPart /= CPP_UINT64_C(1000000);
+    if (iid)
+        _snwprintf(buf, siz - 1, L"%s%.10llx", pfx, ui.QuadPart + iid);
+    else
+        _snwprintf(buf, siz - 1, L"%s%.10llu", pfx, ui.QuadPart);
+    buf[siz - 1] = WNUL;
+    if (sfx)
+        xwcslcat(buf, siz, sfx);
+}
+
 static int xisbatchfile(const wchar_t *s)
 {
     int n = xwcslen(s);
@@ -752,11 +777,13 @@ static void dbgprints(const char *funcname, const char *string)
               GetCurrentThreadId(),
               servicemode, funcname, string);
      b[c] = '\0';
-     if (consolemode) {
+     if (dbgoutstream) {
          char tb[TBUFSIZ];
          xtimehdr(tb, TBUFSIZ);
 
-         printf("%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
+         fprintf(dbgoutstream, "%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
+         if (dbgoutstream != stdout)
+             fflush(dbgoutstream);
      }
      else {
         OutputDebugStringA(b);
@@ -771,23 +798,40 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_list ap;
 
     n = _snprintf(b, c, "[%.4lu] %d %-16s ",
-                 GetCurrentThreadId(),
-                 servicemode, funcname);
+                  GetCurrentThreadId(),
+                  servicemode, funcname);
     if (n < 0)
         n = 0;
     va_start(ap, format);
     _vsnprintf(b + n, c - n, format, ap);
     va_end(ap);
     b[c] = '\0';
-    if (consolemode) {
+    if (dbgoutstream) {
         char tb[TBUFSIZ];
         xtimehdr(tb, TBUFSIZ);
 
-        printf("%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
+        fprintf(dbgoutstream, "%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
+        if (dbgoutstream != stdout)
+            fflush(dbgoutstream);
+
     }
     else {
         OutputDebugStringA(b);
     }
+}
+
+static FILE *xmkdbgtemp(void)
+{
+    DWORD rc;
+    wchar_t bb[BBUFSIZ];
+    wchar_t rb[TBUFSIZ];
+
+    rc = GetEnvironmentVariableW(L"TEMP", bb, _MAX_FNAME);
+    if ((rc == 0) || (rc >= _MAX_FNAME))
+        return NULL;
+    xresourestr(rb, TBUFSIZ, L"\\sb", L".log", GetCurrentProcessId());
+    xwcslcat(bb, BBUFSIZ, rb);
+    return _wfopen(bb, L"wt");
 }
 
 #endif
@@ -1563,21 +1607,8 @@ static DWORD openlogfile(int firstopen)
             }
             else {
                 wchar_t  sb[TBUFSIZ];
-                FILETIME ft;
-                ULARGE_INTEGER ui;
 
-                GetSystemTimeAsFileTime(&ft);
-
-                ui.HighPart  = ft.dwHighDateTime;
-                ui.LowPart   = ft.dwLowDateTime;
-                ui.QuadPart /= 10;
-                /** Number of micro-seconds between the beginning of the Windows epoch
-                 *  (Jan. 1, 1601) and the Unix epoch (Jan. 1, 1970)
-                 */
-                ui.QuadPart -= CPP_UINT64_C(11644473600000000);
-                ui.QuadPart /= CPP_UINT64_C(1000000);
-                _snwprintf(sb, 15, L".%.10llu", ui.QuadPart);
-                sb[15] = WNUL;
+                xresourestr(sb, TBUFSIZ, L".", NULL, 0);
                 logpb  = xwcsconcat(logfilename, sb);
             }
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
@@ -3023,6 +3054,11 @@ static void __cdecl objectscleanup(void)
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
+#if defined(_DEBUG)
+    if ((dbgoutstream != NULL) && (dbgoutstream != stdout)) {
+        fclose(dbgoutstream);
+    }
+#endif
 }
 
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
@@ -3083,9 +3119,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (argc > 2) {
         const wchar_t *p = wargv[1];
         if ((p[0] == L'-') && (p[1] == L'-') && (p[2] == WNUL)) {
-            consolemode = 1;
-            servicename = xwcsdup(wargv[2]);
-
+            consolemode  = 1;
+            servicename  = xwcsdup(wargv[2]);
+            dbgoutstream = stdout;
             if (wcspbrk(servicename, L" \t;:\\/\"")) {
                 _DBGPRINTF("Found invalid characters in service name '%S'", servicename);
                 return ERROR_INVALID_PARAMETER;
@@ -3095,6 +3131,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             wargv += 2;
             _DBGPRINTF("Running %S in console mode\n", servicename);
         }
+    }
+    if ((consolemode == 0) && (_DEBUG > 0)) {
+        dbgoutstream = xmkdbgtemp();
+        if (dbgoutstream == NULL)
+            return ERROR_BAD_PATHNAME;
     }
 #endif
     if (argc < 3) {
