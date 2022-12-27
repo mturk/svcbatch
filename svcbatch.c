@@ -3181,7 +3181,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Check if running as service or as a child process.
      */
-    if (argc > 6) {
+    if (argc > 4) {
         const wchar_t *p = wargv[1];
         if ((p[0] == L'-') && (p[1] == L'x')) {
             servicemode = 0;
@@ -3191,7 +3191,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     wnamestamp = xcwiden(cnamestamp);
     _DBGPRINTF("%S", wnamestamp);
-    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:h:lm:n:o:pqr:s:tu:vw:xz:")) != EOF) {
+
+    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tu:vw:xz:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
