@@ -175,28 +175,6 @@ make sure to get familiar with `sc.exe` utility.
 
   See [Custom Control Codes](#custom-control-codes) section below for more details
 
-* **-d**
-
-  **Enable debug tracing**
-
-  This option enables capturing various internal messages for debugging
-  purpose in case there is a problem with service functionality.
-  When defined SvcBatch will use `OutputDebugString` function to send
-  those messages to the debugger for display.
-
-  Internal tracing can be viewed by using
-  [SysInternals DebugView](https://download.sysinternals.com/files/DebugView.zip)
-  utility.
-
-  For more information about DebugView check the
-  [DebugView](https://docs.microsoft.com/en-us/sysinternals/downloads/debugview)
-  official site.
-
-
-  **Important**
-
-  Do not use this option with production services!
-
 * **-o [path]**
 
   **Set service output directory**
