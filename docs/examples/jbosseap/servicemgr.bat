@@ -46,7 +46,7 @@ rem
 :doneArgs
 
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" -o \"%SERVICE_RUNTIME_DIR%\log\" -bdp %JBOSSEAP_SERVER_MODE%.bat %CMD_LINE_ARGS%"
+sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" -bp -o \"%SERVICE_RUNTIME_DIR%\log\" %JBOSSEAP_SERVER_MODE%.bat %CMD_LINE_ARGS%"
 sc config "%SERVICE_NAME%" DisplayName= "%SERVICE_DISPLAY%"
 
 rem Ensure the networking services are running
