@@ -1083,27 +1083,18 @@ static wchar_t *getfullpathname(const wchar_t *src, int isdir)
     return cp;
 }
 
-
-static wchar_t *getrealpathname(const wchar_t *path, int isdir)
+static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
 {
-    wchar_t    *buf;
+    wchar_t    *buf  = NULL;
     DWORD       siz  = _MAX_FNAME;
     DWORD       len  = 0;
     HANDLE      fh;
     DWORD       atr  = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
-    if (servicemode == 0)
-        return xwcsdup(path);
-
-    buf = getfullpathname(path, isdir);
-    if (IS_EMPTY_WCS(buf))
-        return NULL;
-    fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
+    fh = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, atr, NULL);
-    xfree(buf);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
-    buf = NULL;
     while (buf == NULL) {
         buf = xwmalloc(siz);
         len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
@@ -1132,6 +1123,23 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
             wmemmove(buf, buf + 4, len - 3);
         }
     }
+    return buf;
+}
+
+static wchar_t *getrealpathname(const wchar_t *src, int isdir)
+{
+    wchar_t    *fpn;
+    wchar_t    *buf;
+
+    if (servicemode == 0)
+        return xwcsdup(src);
+
+    fpn = getfullpathname(src, isdir);
+    if (IS_EMPTY_WCS(fpn))
+        return NULL;
+    buf = getfinalpathname(fpn, isdir);
+
+    xfree(fpn);
     return buf;
 }
 
@@ -1398,15 +1406,15 @@ static DWORD createlogsdir(void)
                     L"getfullpathname", outdirparam);
         return ERROR_BAD_PATHNAME;
     }
-    servicelogs = getrealpathname(dp, 1);
+    servicelogs = getfinalpathname(dp, 1);
     if (servicelogs == NULL) {
         rc = xcreatepath(dp);
         if (rc != 0)
             return svcsyserror(__FUNCTION__, __LINE__, rc, L"xcreatepath", dp);
-        servicelogs = getrealpathname(dp, 1);
+        servicelogs = getfinalpathname(dp, 1);
         if (servicelogs == NULL)
             return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND,
-                               L"getrealpathname", dp);
+                               L"getfinalpathname", dp);
     }
     if (_wcsicmp(servicelogs, servicehome) == 0) {
         svcsyserror(__FUNCTION__, __LINE__, 0,
