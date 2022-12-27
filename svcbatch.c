@@ -2006,6 +2006,7 @@ static int runshutdown(DWORD rt)
 {
     wchar_t  rp[TBUFSIZ];
     wchar_t *cmdline;
+    wchar_t *svcname = servicename;
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc = 0;
@@ -2027,6 +2028,7 @@ static int runshutdown(DWORD rt)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
         cmdline = xappendarg(1, cmdline, L"--", servicename);
+        svcname = NULL;
     }
 #endif
     rp[ip++] = L'-';
@@ -2042,7 +2044,7 @@ static int runshutdown(DWORD rt)
     rp[ip++] = WNUL;
 
     cmdline = xappendarg(0, cmdline, NULL,  rp);
-    cmdline = xappendarg(1, cmdline, L"-z", servicename);
+    cmdline = xappendarg(1, cmdline, L"-z", svcname);
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
     cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
