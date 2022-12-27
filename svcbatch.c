@@ -794,8 +794,7 @@ static void dbgprints(const char *funcname, const char *string)
          xtimehdr(tb, TBUFSIZ);
 
          fprintf(dbgoutstream, "%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
-         if (dbgoutstream != stdout)
-             fflush(dbgoutstream);
+         fflush(dbgoutstream);
      }
      else {
         OutputDebugStringA(b);
@@ -823,8 +822,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         xtimehdr(tb, TBUFSIZ);
 
         fprintf(dbgoutstream, "%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
-        if (dbgoutstream != stdout)
-            fflush(dbgoutstream);
+        fflush(dbgoutstream);
 
     }
     else {
