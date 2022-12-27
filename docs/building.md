@@ -14,39 +14,13 @@ few standard rules.
 ### Prerequisites
 
 To compile SvcBatch from source code you will need either
-Microsoft C/C++ Compiler from Microsoft Visual Studio 2010
+Microsoft C/C++ Compiler from Microsoft Visual Studio 2015
 or any later version. Alternatively you use
 [MSYS2](https://www.msys2.org) mingw64 compiler toolchain.
 
 The official distributions are build using
 [Build Tools for Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/)
 
-
-### Build using CMSC
-
-CMSC stands for [Custom Microsoft Compiler Toolkit](https://github.com/mturk/cmsc)
-compiler bundle.
-
-Presuming that you have downloaded and unzipped
-[CMSC release](https://github.com/mturk/cmsc/releases)
-in the root of C drive.
-
-Open command prompt in the directory where you have
-downloaded or cloned SvcBatch and do the following
-
-```cmd
-> C:\cmsc-15.0_45\setenv.bat
-Using default architecture: x64
-Setting build environment for win-x64/0x0601
-
-> nmake _STATIC_MSVCRT=1
-
-Microsoft (R) Program Maintenance Utility Version 9.00.30729.207
-...
-```
-
-In case there are no compile errors, svcbatch.exe is located
-inside **x64** subdirectory.
 
 ### Build using Visual Studio
 
