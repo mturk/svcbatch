@@ -64,17 +64,18 @@ static int       truncatelogs     = 0;
 static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
 static DWORD     pipedprocpid     = 0;
-static DWORD     shutdownppid     = 0;
 
 static int       xwoptind         = 1;
 static int       xwoption         = 0;
 static int       logredirargc     = 0;
+
 #if defined(_DEBUG)
 static int       consolemode      = 0;
 static int       hasdebuginfo     = 1;
 #else
 static int       hasdebuginfo     = SVCBATCH_ISDEV_VERSION;
 #endif
+
 static wchar_t   svcbatchexe[HBUFSIZ];
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *svcbatchname     = NULL;
@@ -2010,7 +2011,6 @@ static int runshutdown(DWORD rt)
         TerminateProcess(cp.hProcess, rc);
         goto finished;
     }
-    shutdownppid = cp.dwProcessId;
     wh[0] = cp.hProcess;
     wh[1] = processended;
     ResumeThread(cp.hThread);
