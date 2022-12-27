@@ -54,7 +54,7 @@
 #if defined(_DEBUG)
 #define SVCBATCH_SCMNAME       L"\\\\.\\pipe\\SvcBatch-ScmPipe-"
 #define SVCBATCH_SCSNAME       L"Global\\SvcBatch-ScmSignal-"
-#define SVCBATCH_DBGPREFIX	   L"sb_debug_2_"
+#define SVCBATCH_DBGNAME       L"sb_debug_2_"
 #endif
 /**
  * Maximum number of SvcBatch.log.N files
@@ -114,13 +114,13 @@
 #define KILOBYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1024))
 #define MEGABYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1048576))
 
-#define II_CONSOLE				1
-#define II_SERVICE				2
+#define II_CONSOLE              1
+#define II_SERVICE              2
 
 /**
  * Helper macros
  */
-#define WNUL              		L'\0'
+#define WNUL                    L'\0'
 #define IS_INVALID_HANDLE(_h)   (((_h) == NULL) || ((_h) == INVALID_HANDLE_VALUE))
 #define IS_VALID_HANDLE(_h)     (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))
 #define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == WNUL))

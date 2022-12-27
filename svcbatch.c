@@ -86,7 +86,7 @@ static int       consolemode      = 0;
 static FILE     *dbgoutstream     = NULL;
 #endif
 
-static wchar_t   svcbatchexe[HBUFSIZ];
+static wchar_t  *svcbatchexe      = NULL;
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *svcbatchname     = NULL;
 static wchar_t  *shutdownfile     = NULL;
@@ -839,7 +839,7 @@ static FILE *xmkdbgtemp(void)
     wchar_t bb[BBUFSIZ];
     wchar_t rb[TBUFSIZ];
 
-    rc = GetEnvironmentVariableW(L"_" SVCBATCH_DBGPREFIX L"dbg", bb, _MAX_FNAME);
+    rc = GetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb, _MAX_FNAME);
     if (rc != 0) {
         xwcslcat(bb, BBUFSIZ, L".shutdown.log");
         return _wfsopen(bb, L"wtc", _SH_DENYWR);
@@ -854,9 +854,9 @@ static FILE *xmkdbgtemp(void)
             return NULL;
         }
     }
-    xmktimedstr(1, rb, TBUFSIZ, L"\\" SVCBATCH_DBGPREFIX, NULL);
+    xmktimedstr(1, rb, TBUFSIZ, L"\\" SVCBATCH_DBGNAME, NULL);
     xwcslcat(bb, BBUFSIZ, rb);
-    SetEnvironmentVariableW(L"_" SVCBATCH_DBGPREFIX L"dbg", bb);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb);
     xwcslcat(bb, BBUFSIZ, L".log");
 
     ds = _wfsopen(bb, L"wtc", _SH_DENYWR);
@@ -3095,11 +3095,44 @@ static void __cdecl objectscleanup(void)
 #endif
 }
 
+static int xwmaininit(const wchar_t **wenv)
+{
+    wchar_t bb[HBUFSIZ];
+    DWORD   sz = HBUFSIZ - 1;
+    DWORD   nn;
+    int     ec = 0;
+
+    nn = GetModuleFileNameW(NULL, bb, sz);
+    if ((nn == 0) || (nn >= sz))
+        return 0;
+    while (--nn > 2) {
+        if (bb[nn] == L'\\') {
+            bb[nn] = WNUL;
+            exelocation = xwcsdup(bb);
+            bb[nn] = L'\\';
+            break;
+        }
+    }
+    if (exelocation == NULL)
+        return 0;
+    svcbatchexe = xwcsdup(bb);
+
+    QueryPerformanceFrequency(&pcfrequency);
+    QueryPerformanceCounter(&pcstarttime);
+
+    if (wenv) {
+        while (wenv[ec])
+            ++ec;
+    }
+
+    return ec;
+}
+
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int         i;
     int         opt;
-    int         envc  = 0;
+    int         envc;
     int         rcnt  = 0;
     int         rv    = 0;
     wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
@@ -3111,44 +3144,19 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     const wchar_t *lredirparam  = NULL;
     const wchar_t *rparam[2];
 
-    /**
-     * Make sure children (cmd.exe) are kept quiet.
-     */
-    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
-
 #if defined(_DEBUG)
 # if defined(_MSC_VER) && (_MSC_VER > 1800)
     _set_invalid_parameter_handler(xiphandler);
 # endif
    _CrtSetReportMode(_CRT_ASSERT, 0);
 #endif
-    if (wenv) {
-        while (wenv[envc])
-            ++envc;
-    }
+    envc = xwmaininit(wenv);
     if (envc == 0)
-        return ERROR_ENVVAR_NOT_FOUND;
-
-    i = GetModuleFileNameW(NULL, svcbatchexe, HBUFSIZ);
-    if ((i == 0) || (i > (HBUFSIZ))) {
-        /**
-         * Guard against installations with large paths
-         */
-        return GetLastError();
-    }
-    else {
-        while (--i > 0) {
-            if (svcbatchexe[i] == L'\\') {
-                svcbatchexe[i] = WNUL;
-                exelocation    = xwcsdup(svcbatchexe);
-                svcbatchexe[i] = L'\\';
-                break;
-            }
-        }
-    }
-    QueryPerformanceFrequency(&pcfrequency);
-    QueryPerformanceCounter(&pcstarttime);
-
+        return ERROR_BAD_ENVIRONMENT;
+    /**
+     * Make sure children (cmd.exe) are kept quiet.
+     */
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
 #if defined(_DEBUG)
     if (argc > 2) {
         const wchar_t *p = wargv[1];
@@ -3169,12 +3177,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if ((consolemode == 0) && (_DEBUG > 0)) {
         dbgoutstream = xmkdbgtemp();
         if (dbgoutstream == NULL)
-            return ERROR_BAD_PATHNAME;
+            return ERROR_ACCESS_DENIED;
     }
 #endif
     if (argc == 1) {
-        fputs(cnamestamp, stdout);
-        fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details", stdout);
+        fprintf(stdout, "%s\n\n", cnamestamp);
+        fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
 
         return 0;
     }
@@ -3190,7 +3198,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     wnamestamp = xcwiden(cnamestamp);
-    _DBGPRINTF("%S", wnamestamp);
+    _DBGPRINTS(cnamestamp);
 
     while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tu:vw:xz:")) != EOF) {
         switch (opt) {
@@ -3474,11 +3482,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          * Remove all environment variables
          * starting with SVCBATCH_
          */
-        if (!xwstartswith(wenv[i], L"SVCBATCH_")
-#if defined(_DEBUG)
-        && !xwstartswith(wenv[i], L"_" SVCBATCH_DBGPREFIX)
-#endif
-        ) dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
+        if (!xwstartswith(wenv[i], L"SVCBATCH_"))
+            dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
     }
 
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
