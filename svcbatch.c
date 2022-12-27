@@ -3453,6 +3453,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (servicemode) {
         haslogrotate = svcmaxlogs;
         if (svcendparam) {
+            if (xisbatchfile(svcendparam) == 0)
+                return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid batch file", svcendparam);
+
             shutdownfile = getrealpathname(svcendparam, 0);
             if (IS_EMPTY_WCS(shutdownfile))
                 return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
