@@ -3519,16 +3519,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             logredirargv = CommandLineToArgvW(lredirparam, &logredirargc);
             if (logredirargv == NULL)
                 return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), lredirparam, NULL);
+
             logredirect = getrealpathname(logredirargv[0], 0);
-            if (logredirect == NULL) {
-                if (isrelativepath(logredirargv[0])) {
-                    wchar_t *pr = xwcsmkpath(exelocation, logredirargv[0]);
-                    logredirect = getrealpathname(pr, 0);
-                    xfree(pr);
-                }
-                if (logredirect == NULL)
-                    return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, lredirparam, NULL);
-            }
+            if (logredirect == NULL)
+                return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, logredirargv[0], NULL);
             haspipedlogs = 1;
             haslogrotate = 0;
         }
