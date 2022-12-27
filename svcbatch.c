@@ -1064,16 +1064,21 @@ static wchar_t *xcleanpathname(const wchar_t *src, int isdir)
 
     if (IS_EMPTY_WCS(src))
         return NULL;
-    if ((src[0] == L'.') && ((src[1] == L'\\') || (src[1] == L'/'))) {
-        /**
-         * Remove leading './' or '.\'
-         */
-        src += 2;
-    }
     d = xwcsdup(src);
     xcleanwinpath(d, isdir);
 
     return d;
+}
+
+static int getfullpathname(wchar_t *buf, DWORD siz, const wchar_t *str)
+{
+    DWORD nn;
+
+    nn = GetFullPathNameW(str, siz, buf, NULL);
+    if ((nn == 0) || (nn >= siz))
+        return 0;
+    else
+        return 1;
 }
 
 static wchar_t *getrealpathname(const wchar_t *path, int isdir)
@@ -1090,7 +1095,18 @@ static wchar_t *getrealpathname(const wchar_t *path, int isdir)
     buf = xcleanpathname(path, isdir);
     if (IS_EMPTY_WCS(buf))
         return NULL;
+    if (isrelativepath(buf)) {
+        wchar_t bb[HBUFSIZ];
 
+        if (getfullpathname(bb, HBUFSIZ - 1, buf)) {
+            xfree(buf);
+            buf = xwcsdup(bb);
+        }
+        else {
+            xfree(buf);
+            return NULL;
+        }
+    }
     fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, atr, NULL);
     xfree(buf);
@@ -3343,49 +3359,77 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (IS_EMPTY_WCS(comspec))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC", NULL);
     if (servicemode) {
-        if (isrelativepath(batchparam)) {
-            if (IS_EMPTY_WCS(svchomeparam)) {
+        /**
+         * Find the location of SVCBATCH_SERVICE_HOME
+         * all relative paths are resolved against it.
+         *
+         * 1. If -w is defined and is absolute path
+         *    set it as SetCurrentDirectory and use it as
+         *    home directory for resolving other relative paths
+         *
+         * 2. If batch file is defined as absolute path
+         *    set it as SetCurrentDirectory and resolve -w parameter
+         *    if defined as relative path. If -w was defined and
+         *    and is resloved as valid path set it as home directory.
+         *    If -w was defined and cannot be resolved fail.
+         *
+         * 3. Use running svcbatch.exe directory and set it as
+         *    SetCurrentDirectory.
+         *    If -w parameter was defined, resolve it and set as home
+         *    directory or fail.
+         *    In case -w was not defined reslove batch file and set its
+         *    directory as home directory or fail if it cannot be reolved.
+         *
+         */
+
+         if (svchomeparam) {
+             if (isrelativepath(svchomeparam)) {
+
+             }
+             else {
+                servicehome = getrealpathname(svchomeparam, 1);
+                if (IS_EMPTY_WCS(servicehome))
+                    return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
+             }
+         }
+         if (servicehome == NULL) {
+            if (isrelativepath(batchparam)) {
                 /**
-                 * Batch file is not absolute path
-                 * and we don't have provided workdir.
-                 * Use exelocation as cwd
+                 * No -w param and batch file is relative
+                 * so we will use svcbatch.exe directory
                  */
+            }
+            else {
+                if (resolvebatchname(batchparam))
+                    return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
+
+                if (svchomeparam == NULL) {
+                    servicehome = servicebase;
+                }
+                else {
+                    SetCurrentDirectoryW(servicebase);
+                    servicehome = getrealpathname(svchomeparam, 1);
+                    if (IS_EMPTY_WCS(servicehome))
+                        return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
+                }
+            }
+         }
+         if (servicehome == NULL) {
+            if (svchomeparam == NULL) {
                 servicehome = exelocation;
             }
             else {
-                if (isrelativepath(svchomeparam)) {
-                    if (!SetCurrentDirectoryW(exelocation))
-                        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), exelocation, NULL);
-                }
+                SetCurrentDirectoryW(exelocation);
                 servicehome = getrealpathname(svchomeparam, 1);
                 if (IS_EMPTY_WCS(servicehome))
                     return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
             }
-        }
-        else {
+         }
+         SetCurrentDirectoryW(servicehome);
+         if (svcbatchfile == NULL) {
             if (resolvebatchname(batchparam))
                 return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
-
-            if (IS_EMPTY_WCS(svchomeparam)) {
-                /**
-                 * Batch file is an absolute path
-                 * and we don't have provided workdir.
-                 * Use servicebase as cwd
-                 */
-                servicehome = servicebase;
-            }
-            else {
-                if (isrelativepath(svchomeparam)) {
-                    if (!SetCurrentDirectoryW(servicebase))
-                        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), servicebase, NULL);
-                }
-                servicehome = getrealpathname(svchomeparam, 1);
-                if (IS_EMPTY_WCS(servicehome))
-                    return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
-            }
-        }
-        if (!SetCurrentDirectoryW(servicehome))
-            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), servicehome, NULL);
+         }
     }
     else {
         servicehome  = xwcsdup(svchomeparam);
