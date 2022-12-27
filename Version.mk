@@ -14,8 +14,8 @@
 # limitations under the License.
 #
 #
-VERSION_MAJOR = 1
-VERSION_MINOR = 5
+VERSION_MAJOR = 2
+VERSION_MINOR = 0
 VERSION_PATCH = 0
 VERSION_MICRO = 0
 # Set to zero for non dev versions

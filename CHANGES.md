@@ -6,9 +6,12 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
-## v1.5.0
+## v2.0.0
 
   * In development
+
+  ** This is major version upgrade due to incompatibility with 1.x versions **
+
   * Drop external log application for shutdown batch file
   * Change default log rotation extension
   * Do not rotate shutdown log files
