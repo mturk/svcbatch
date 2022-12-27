@@ -695,28 +695,38 @@ static wchar_t *xuuidstring(void)
     return b;
 }
 
-static void xresourestr(wchar_t *buf, int siz, const wchar_t *pfx, const wchar_t *sfx, DWORD iid)
+static void xmktimedstr(int mod, wchar_t *buf, int siz, const wchar_t *pfx, const wchar_t *sfx)
 {
-    FILETIME ft;
-    ULARGE_INTEGER ui;
+    int bsz = siz - 1;
 
-    GetSystemTimeAsFileTime(&ft);
+    if (mod) {
+        SYSTEMTIME st;
 
-    ui.HighPart  = ft.dwHighDateTime;
-    ui.LowPart   = ft.dwLowDateTime;
-    ui.QuadPart /= 10;
-    /** Number of micro-seconds between the beginning of the Windows epoch
-     *  (Jan. 1, 1601) and the Unix epoch (Jan. 1, 1970)
-     */
-    ui.QuadPart -= CPP_UINT64_C(11644473600000000);
-    ui.QuadPart /= CPP_UINT64_C(1000000);
-    if (iid)
-        _snwprintf(buf, siz - 1, L"%s%.10llx", pfx, ui.QuadPart + iid);
-    else
-        _snwprintf(buf, siz - 1, L"%s%.10llu", pfx, ui.QuadPart);
-    buf[siz - 1] = WNUL;
+        GetSystemTime(&st);
+        _snwprintf(buf, bsz, L"%s_%d_%.4d%.2d%.2d%.2d%2d%.2d",
+                   pfx, mod, st.wYear, st.wMonth, st.wDay,
+                   st.wHour, st.wMinute, st.wSecond);
+    }
+    else {
+        FILETIME       ft;
+        ULARGE_INTEGER ui;
+
+        GetSystemTimeAsFileTime(&ft);
+        ui.HighPart  = ft.dwHighDateTime;
+        ui.LowPart   = ft.dwLowDateTime;
+        ui.QuadPart /= 10;
+        /** Number of micro-seconds between the beginning of the Windows epoch
+         *  (Jan. 1, 1601) and the Unix epoch (Jan. 1, 1970)
+         */
+        ui.QuadPart -= CPP_UINT64_C(11644473600000000);
+        ui.QuadPart /= CPP_UINT64_C(1000000);
+
+        _snwprintf(buf, bsz, L"%s%.10llu", pfx, ui.QuadPart);
+    }
+    buf[bsz] = WNUL;
     if (sfx)
         xwcslcat(buf, siz, sfx);
+
 }
 
 static int xisbatchfile(const wchar_t *s)
@@ -743,6 +753,7 @@ static int xtimehdr(char *wb, int sz)
     DWORD   ss, us, mm, hh;
     int     nc;
 
+    sz--;
     QueryPerformanceCounter(&ct);
     et.QuadPart = ct.QuadPart - pcstarttime.QuadPart;
     /**
@@ -757,11 +768,11 @@ static int xtimehdr(char *wb, int sz)
     mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % 60);
     hh = (DWORD)((ct.QuadPart / MS_IN_HOUR));
 
-    nc = _snprintf(wb, sz - 1, "[%.2lu:%.2lu:%.2lu.%.6lu] ",
+    nc = _snprintf(wb, sz, "[%.2lu:%.2lu:%.2lu.%.6lu] ",
                    hh, mm, ss, us);
-    wb[sz - 1] = '\0';
+    wb[sz] = '\0';
     if (nc < 0)
-        nc = sz - 1;
+        nc = sz;
     return nc;
 }
 
@@ -801,12 +812,12 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     n = _snprintf(b, c, "[%.4lu] %d %-16s ",
                   GetCurrentThreadId(),
                   servicemode, funcname);
-    if (n < 0)
-        n = 0;
+    b[c] = '\0';
     va_start(ap, format);
     _vsnprintf(b + n, c - n, format, ap);
     va_end(ap);
     b[c] = '\0';
+
     if (dbgoutstream) {
         char tb[TBUFSIZ];
         xtimehdr(tb, TBUFSIZ);
@@ -830,11 +841,17 @@ static FILE *xmkdbgtemp(void)
 
     rc = GetEnvironmentVariableW(L"TEMP", bb, _MAX_FNAME);
     if ((rc == 0) || (rc >= _MAX_FNAME)) {
-        OutputDebugStringW(L">>> SvcBatch cannot find valid TEMP directory");
-        return NULL;
+        rc = GetEnvironmentVariableW(L"TMP", bb, _MAX_FNAME);
+        if ((rc == 0) || (rc >= _MAX_FNAME)) {
+            OutputDebugStringW(L">>> SvcBatch");
+            OutputDebugStringW(L"    Missing TEMP and TMP environment variables");
+            OutputDebugStringW(L"<<< SvcBatch");
+            return NULL;
+        }
     }
-    xresourestr(rb, TBUFSIZ, L"\\sb", L".log", GetCurrentProcessId());
+    xmktimedstr(1, rb, TBUFSIZ, L"\\sb_debug", L".log");
     xwcslcat(bb, BBUFSIZ, rb);
+
     ds = _wfsopen(bb, L"wtc", _SH_DENYWR);
     if (ds == NULL) {
         OutputDebugStringW(L">>> SvcBatch cannot create debug file");
@@ -1618,7 +1635,7 @@ static DWORD openlogfile(int firstopen)
             else {
                 wchar_t  sb[TBUFSIZ];
 
-                xresourestr(sb, TBUFSIZ, L".", NULL, 0);
+                xmktimedstr(0, sb, TBUFSIZ, L".", NULL);
                 logpb  = xwcsconcat(logfilename, sb);
             }
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
@@ -3167,7 +3184,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     wnamestamp = xcwiden(cnamestamp);
     _DBGPRINTF("%S", wnamestamp);
-
+#if defined(_DEBUG) && (_DEBUG > 1)
+    _DBGPRINTF("%S", GetCommandLineW());
+#endif
     while ((opt = xwgetopt(argc, wargv, L"a:bc:e:h:lm:n:o:pqr:s:tu:vw:xz:")) != EOF) {
         switch (opt) {
             case L'b':
