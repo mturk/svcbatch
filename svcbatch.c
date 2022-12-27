@@ -23,6 +23,7 @@
 #include <time.h>
 #include <process.h>
 #include <errno.h>
+#include <share.h>
 #if defined(_DEBUG)
 #include <crtdbg.h>
 #endif
@@ -119,7 +120,7 @@ static HANDLE    pipedprocout     = NULL;
 static wchar_t      zerostring[4] = { WNUL,  WNUL,  WNUL, WNUL };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', WNUL, WNUL };
 static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
-static char         YYES[4]       = { 'Y', '\r', '\n', '\0'  };
+static char         YYES[4]       = { 'Y',  '\r', '\n', '\0' };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
@@ -822,16 +823,25 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 
 static FILE *xmkdbgtemp(void)
 {
+    FILE *ds = NULL;
     DWORD rc;
     wchar_t bb[BBUFSIZ];
     wchar_t rb[TBUFSIZ];
 
     rc = GetEnvironmentVariableW(L"TEMP", bb, _MAX_FNAME);
-    if ((rc == 0) || (rc >= _MAX_FNAME))
+    if ((rc == 0) || (rc >= _MAX_FNAME)) {
+        OutputDebugStringW(L">>> SvcBatch cannot find valid TEMP directory");
         return NULL;
+    }
     xresourestr(rb, TBUFSIZ, L"\\sb", L".log", GetCurrentProcessId());
     xwcslcat(bb, BBUFSIZ, rb);
-    return _wfopen(bb, L"wt");
+    ds = _wfsopen(bb, L"wtc", _SH_DENYWR);
+    if (ds == NULL) {
+        OutputDebugStringW(L">>> SvcBatch cannot create debug file");
+        OutputDebugStringW(bb);
+        OutputDebugStringW(L"<<< SvcBatch");
+    }
+    return ds;
 }
 
 #endif
