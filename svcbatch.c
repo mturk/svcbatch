@@ -791,8 +791,8 @@ static void dbgprints(const char *funcname, const char *string)
      b[c] = '\0';
      if (dbgoutstream) {
          char tb[TBUFSIZ];
-         xtimehdr(tb, TBUFSIZ);
 
+         xtimehdr(tb, TBUFSIZ);
          fprintf(dbgoutstream, "%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
          fflush(dbgoutstream);
      }
@@ -819,8 +819,8 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 
     if (dbgoutstream) {
         char tb[TBUFSIZ];
-        xtimehdr(tb, TBUFSIZ);
 
+        xtimehdr(tb, TBUFSIZ);
         fprintf(dbgoutstream, "%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
         fflush(dbgoutstream);
 
@@ -840,7 +840,7 @@ static FILE *xmkdbgtemp(void)
     rc = GetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb, _MAX_FNAME);
     if (rc != 0) {
         xwcslcat(bb, BBUFSIZ, L".shutdown.log");
-        return _wfsopen(bb, L"wtc", _SH_DENYWR);
+        goto doopen;
     }
     rc = GetEnvironmentVariableW(L"TEMP", bb, _MAX_FNAME);
     if ((rc == 0) || (rc >= _MAX_FNAME)) {
@@ -857,6 +857,7 @@ static FILE *xmkdbgtemp(void)
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb);
     xwcslcat(bb, BBUFSIZ, L".log");
 
+doopen:
     ds = _wfsopen(bb, L"wtc", _SH_DENYWR);
     if (ds == NULL) {
         OutputDebugStringW(L">>> SvcBatch cannot create debug file");
