@@ -2996,14 +2996,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * Add additional environment variables
      * They are unique to this service instance
      */
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_PROGRAM_HOME=", exelocation);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
     dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
-    if (hasnologging == 0) {
-        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_LOGS=", servicelogs);
-    }
+
     qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), xenvsort);
     /**
      * Convert environment array to environment block
@@ -3529,13 +3526,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 
-    dupwenvp = waalloc(envc + 8);
+    dupwenvp = waalloc(envc + 6);
     for (i = 0; i < envc; i++) {
         /**
          * Remove all environment variables
          * starting with SVCBATCH_
          */
-        if (!xwstartswith(wenv[i], L"SVCBATCH_"))
+        if (!xwstartswith(wenv[i], L"SVCBATCH_SERVICE_"))
             dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
     }
 

@@ -449,10 +449,6 @@ provide more info about running environments to batch files.
 Here is the list of environment variables that
 SvcBatch sets for each instance.
 
-* **SVCBATCH_PROGRAM_HOME**
-
-  This variable is set to the `svcbatch.exe` directory.
-
 * **SVCBATCH_SERVICE_BASE**
 
   This variable is set to the directory of the service
