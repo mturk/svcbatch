@@ -3229,14 +3229,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wnamestamp = xcwiden(cnamestamp);
     _DBGPRINTS(cnamestamp);
 
-    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tvw:0:1:2:3:4:5:6:7:8:9:")) != EOF) {
-        if (servicemode) {
-            if (wcschr(L"0123456789", opt)) {
-                bb[1] = xwoption;
-                return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                   L"Cannot use private option in service mode", bb);
-            }
-        }
+    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tvw:0:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;

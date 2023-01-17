@@ -18,8 +18,8 @@ rem --------------------------------------------------
 rem SvcBatch release helper script
 rem
 rem Usage: mkrelease.bat version [make arguments]
-rem    eg: mkrelease 1.2.1
-rem        mkrelease 1.2.1.34 "VERSION_SFX=_1.acme" "VERSION_MICRO=34"
+rem    eg: mkrelease 1.2.3
+rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme" "VERSION_MICRO=45"
 rem        mkrelease c ...   compile only
 rem
 setlocal

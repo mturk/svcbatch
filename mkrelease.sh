@@ -21,7 +21,7 @@
 #
 # Usage: mkrelease.sh version [options]
 #    eg: mkrelease.sh 1.2.3
-#    eg: mkrelease.sh 1.2.3.34_1.acme VERSION_SFX=_1.acme VERSION_MICRO=34
+#    eg: mkrelease.sh 1.2.3.45_1.acme VERSION_SFX=_1.acme VERSION_MICRO=45
 #
 
 eexit()
@@ -30,7 +30,7 @@ eexit()
     echo "$@" 1>&2
     echo 1>&2
     echo "Usage: mkrelease.sh version [options]" 1>&2
-    echo "   eg: mkrelease.sh 1.2.4_1 VERSION_MICRO=34" 1>&2
+    echo "   eg: mkrelease.sh 1.2.3_1 VERSION_MICRO=45" 1>&2
     exit $e
 }
 
