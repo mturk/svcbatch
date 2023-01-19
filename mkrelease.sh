@@ -48,13 +48,20 @@ case "`uname -s`" in
   ;;
 
 esac
+#
+HasDebugBuild=0
+if [ "x$1" = "x-d" ]
+then
+  HasDebugBuild=1
+  shift
+fi
 
 ReleaseVersion=$1
 test "x$ReleaseVersion" = "x" && eexit 1 "Missing version argument"
 shift
 BuildDir=x64
 ProjectName=svcbatch
-ReleaseArch=win-x64
+ReleaseArch=mingw-x64
 ReleaseName=$ProjectName-$ReleaseVersion-$ReleaseArch
 ReleaseLog=$ReleaseName.txt
 #
@@ -63,6 +70,13 @@ MakefileFlags="_BUILD_TIMESTAMP=`date +%Y%m%d%H%M%S` $*"
 make -f Makefile.gmk clean
 test "x$BuildHost" = "xcygwin" && MakefileFlags="USE_MINGW_PACKAGE_PREFIX=1 $MakefileFlags"
 make -f Makefile.gmk $MakefileFlags
+#
+DistFiles="$ProjectName.exe ../LICENSE.txt"
+if [ $HasDebugBuild -eq 1 ]
+then
+  make -f Makefile.gmk $MakefileFlags _DEBUG=1
+  DistFiles="$DistFiles dbg/$ProjectName.exe"
+fi
 #
 pushd $BuildDir >/dev/null
 echo "## Binary release v$ReleaseVersion" > $ReleaseLog
@@ -75,7 +89,8 @@ echo "`gcc --version | head -1`" >> $ReleaseLog
 echo >> $ReleaseLog
 echo >> $ReleaseLog
 #
-7za a -bd $ReleaseName.zip $ProjectName.exe
+test "x$BuildHost" = "xcygwin" && MakefileFlags="USE_MINGW_PACKAGE_PREFIX=1 $MakefileFlags"
+7za a -bd $ReleaseName.zip $DistFiles
 echo "SHA256 hash of $ReleaseName.zip:" >> $ReleaseLog
 sha256sum $ReleaseName.zip | sed 's;\ .*;;' >> $ReleaseLog
 echo >> $ReleaseLog
