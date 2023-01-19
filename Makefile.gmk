@@ -53,12 +53,12 @@ WINVER  = 0x0601
 ifdef _DEBUG
 CFLAGS  = -D_DEBUG=$(_DEBUG)
 RFLAGS  = -D _DEBUG=$(_DEBUG)
-WORKDIR = $(SRCDIR)/.build/gcc/dbg
+WORKDIR = $(SRCDIR)/.build/dbg
 RL      = @true
 else
 CFLAGS  = -DNDEBUG
 RFLAGS  = -D NDEBUG
-WORKDIR = $(SRCDIR)/.build/gcc/rel
+WORKDIR = $(SRCDIR)/.build/rel
 endif
 
 CFLAGS += -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \

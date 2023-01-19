@@ -19,9 +19,9 @@
 # --------------------------------------------------
 # SvcBatch release helper script
 #
-# Usage: mkrelease.sh version [options]
+# Usage: mkrelease.sh [options] version [make arguments]
 #    eg: mkrelease.sh 1.2.3
-#    eg: mkrelease.sh 1.2.3.45_1.acme VERSION_SFX=_1.acme VERSION_MICRO=45
+#        mkrelease.sh 1.2.3.45_1.acme VERSION_SFX=_1.acme VERSION_MICRO=45
 #
 
 eexit()
@@ -29,8 +29,8 @@ eexit()
     e=$1; shift;
     echo "$@" 1>&2
     echo 1>&2
-    echo "Usage: mkrelease.sh version [options]" 1>&2
-    echo "   eg: mkrelease.sh 1.2.3_1 VERSION_MICRO=45" 1>&2
+    echo "Usage: mkrelease.sh [options] version [make arguments]" 1>&2
+    echo "   eg: mkrelease.sh -d 1.2.3_1 VERSION_MICRO=45" 1>&2
     exit $e
 }
 
@@ -56,11 +56,11 @@ MakefileFlags="_BUILD_TIMESTAMP=`date +%Y%m%d%H%M%S`"
 if [ "x$1" = "x-d" ]
 then
   ReleaseArch=debug-$ReleaseArch
-  BuildDir=.build/gcc/dbg
+  BuildDir=.build/dbg
   MakefileFlags="$MakefileFlags _DEBUG=1"
   shift
 else
-  BuildDir=.build/gcc/rel
+  BuildDir=.build/rel
 fi
 
 ReleaseVersion=$1
@@ -87,8 +87,8 @@ echo "`gcc --version | head -1`" >> $ReleaseLog
 echo >> $ReleaseLog
 echo >> $ReleaseLog
 #
-7za a -bd $ReleaseZip $ProjectName.exe ../../../LICENSE.txt
-echo "SHA256 hash of $ReleaseName.zip:" >> $ReleaseLog
+7za a -bd $ReleaseZip $ProjectName.exe
+echo "SHA256 hash of $ReleaseZip:" >> $ReleaseLog
 sha256sum $ReleaseZip | sed 's;\ .*;;' >> $ReleaseLog
 echo >> $ReleaseLog
 echo '```' >> $ReleaseLog

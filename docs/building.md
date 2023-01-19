@@ -26,7 +26,7 @@ The official distributions are build using
 
 To build the SvcBatch using an already installed Visual Studio,
 you will need to open the Visual Studio native x64 command
-line tool. The rest is almost the same as with CMSC toolkit.
+line tool.
 
 If using Visual Studio 2017 or later, open command prompt
 and call `vcvars64.bat` from Visual Studio install location
@@ -41,7 +41,7 @@ After setting the compiler, use the following
 
 ```
 
-The binary should be inside **x64** subdirectory.
+The binary should be inside **.build\rel** subdirectory.
 
 Using Visual Studio, svcbatch.exe can be built
 as statically linked to the MSVCRT library.
@@ -76,7 +76,20 @@ $ make -f Makefile.gmk
 ```
 
 In case there are no compile errors the svcbatch.exe is located
-inside **x64** subdirectory.
+inside **.build\rel** subdirectory.
+
+### Debug builds
+
+Adding **_DEBUG=1** argument to nmake will produce debug
+builds of svcbatch.exe
+
+```cmd
+> nmake "_DEBUG=1"
+```
+
+In case there are no compile errors the svcbatch.exe is located
+inside **.build\dbg** subdirectory.
+
 
 ### Makefile targets
 
@@ -88,14 +101,14 @@ for SvcBatch development and maintenance
 ```
 
 This will remove all produced binaries and object files
-by deleting **x64** subdirectory.
+by deleting **.build\rel** subdirectory.
 
 ```cmd
-> nmake examples
+> nmake tests
 ```
 
-This will compile various example programs
-and put them inside **x64** subdirectory.
+This will compile various test programs
+and put them inside **.build\rel** subdirectory.
 
 ### Vendor version support
 

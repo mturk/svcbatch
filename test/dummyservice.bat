@@ -106,13 +106,13 @@ rem
 pushd %~dp0
 set "_TESTS_DIR=%cd%"
 popd
-if not exist "%_TESTS_DIR%\..\x64\dbg" (
+if not exist "%_TESTS_DIR%\..\.build\dbg" (
     echo.
     echo Cannot find build directory.
     echo Run [n]make tests _DEBUG=1
     exit /B 1
 )
-pushd ..\x64\dbg
+pushd ..\.build\dbg
 set "_BUILD_DIR=%cd%"
 popd
 set "SERVICE_LOG_REDIR="

@@ -17,17 +17,17 @@ rem
 rem --------------------------------------------------
 rem SvcBatch release helper script
 rem
-rem Usage: mkrelease.bat version [make arguments]
+rem Usage: mkrelease.bat [options] version [make arguments]
 rem    eg: mkrelease 1.2.3
 rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme" "VERSION_MICRO=45"
-rem        mkrelease /c ...   compile only
+rem        mkrelease /d ...   create debug release
+rem        mkrelease /s ...   compile with static msvcrt
 rem
 setlocal
 rem
 set "ProjectName=svcbatch"
 set "ReleaseArch=win-x64"
-set "BuildDir=.build\msc\rel"
-set "CompileOnly=0"
+set "BuildDir=.build\rel"
 set "ProjectFiles=%ProjectName%.exe"
 rem
 rem Get timestamp using Powershell
@@ -36,24 +36,19 @@ set "MakefileArgs=_BUILD_TIMESTAMP=%BuildTimestamp%"
 rem
 :getOpts
 rem
-if /i "x%~1" == "x/c" goto setOptC
-if /i "x%~1" == "x/d" goto setOptD
-if /i "x%~1" == "x/s" goto setOptS
+if /i "x%~1" == "x/d" goto setDebug
+if /i "x%~1" == "x/s" goto setStatic
 rem
 goto doneOpts
 rem
-:setOptC
-set "CompileOnly=1"
-shift
-goto getOpts
-:setOptD
-set "BuildDir=.build\msc\dbg"
+:setDebug
+set "BuildDir=.build\dbg"
 set "MakefileArgs=%MakefileArgs% _DEBUG=1"
 set "ReleaseArch=debug-%ReleaseArch%"
 set "ProjectFiles=%ProjectFiles% %ProjectName%.pdb"
 shift
 goto getOpts
-:setOptS
+:setStatic
 set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=1"
 shift
 goto getOpts
@@ -73,18 +68,14 @@ goto setArgs
 rem
 :doneArgs
 rem
-if %CompileOnly% == 1 goto makeBuild
 nmake /nologo %MakefileArgs% clean
 set "ReleaseName=%ProjectName%-%ReleaseVersion%-%ReleaseArch%"
 set "ReleaseLog=%ReleaseName%.txt
 set "ReleaseZip=%ReleaseName%.zip
 rem
-:makeBuild
 rem Create builds
 nmake /nologo %MakefileArgs%
 if not %ERRORLEVEL% == 0 goto Failed
-rem
-if %CompileOnly% == 1 goto End
 rem
 pushd "%BuildDir%"
 rem
@@ -106,7 +97,7 @@ del /F /Q %ProjectName%.p 2>NUL
 echo. >> %ReleaseLog%
 echo. >> %ReleaseLog%
 rem
-7za.exe a -bd %ReleaseZip% %ProjectFiles% ..\..\..\LICENSE.txt"
+7za.exe a -bd %ReleaseZip% %ProjectFiles%"
 certutil -hashfile %ReleaseZip% SHA256 | findstr /v "CertUtil" >> %ReleaseLog%
 echo. >> %ReleaseLog%
 echo ``` >> %ReleaseLog%
@@ -115,12 +106,12 @@ goto End
 rem
 :Einval
 echo Error: Invalid parameter
-echo Usage: %~nx0 version [options]
+echo Usage: %~nx0 [options] version [arguments]
 exit /b 1
 rem
 :Failed
 echo.
-echo Error: Cannot build %ProjectName%.exe
+echo Error: Cannot build %ProjectName%
 exit /b 1
 rem
 :End
