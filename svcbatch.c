@@ -103,6 +103,7 @@ static wchar_t  *logfilename      = NULL;
 static wchar_t  *logredirect      = NULL;
 static wchar_t **logredirargv     = NULL;
 static wchar_t  *wnamestamp       = NULL;
+static wchar_t  *svclogfname      = NULL;
 
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
@@ -124,8 +125,7 @@ static char         YYES[4]       = { 'Y',  '\r', '\n', '\0' };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
-static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
-static const wchar_t *shtlogfname = SHUTDOWN_LOGNAME;
+static const wchar_t *svclogfnext = SVCBATCH_LOGFEXT;
 static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
 static const wchar_t *xwoptarg    = NULL;
 
@@ -839,7 +839,7 @@ static FILE *xmkdbgtemp(void)
 
     rc = GetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb, _MAX_FNAME);
     if (rc != 0) {
-        xwcslcat(bb, BBUFSIZ, L".shutdown.log");
+        xwcslcat(bb, BBUFSIZ, SHUTDOWN_LOGFEXT);
         goto doopen;
     }
     rc = GetEnvironmentVariableW(L"TEMP", bb, _MAX_FNAME);
@@ -1604,6 +1604,7 @@ static DWORD makelogfile(int firstopen)
     if (wcsftime(ewb, BBUFSIZ, svclogfname, ctm) == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"invalid format code", svclogfname);
     xfree(logfilename);
+    xwcslcat(ewb, BBUFSIZ, svclogfnext);
     logfilename = xwcsmkpath(servicelogs, ewb);
 
     h = CreateFileW(logfilename, GENERIC_WRITE,
@@ -1641,8 +1642,10 @@ static DWORD openlogfile(int firstopen)
         rotateprev = 0;
     else
         rotateprev = svcmaxlogs;
-    if (logfilename == NULL)
+    if (logfilename == NULL) {
         logfilename = xwcsmkpath(servicelogs, svclogfname);
+        logfilename = xwcsappend(logfilename, svclogfnext);
+    }
     if (logfilename == NULL)
         return svcsyserror(__FUNCTION__, __LINE__,
                            ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
@@ -2026,10 +2029,13 @@ static int runshutdown(DWORD rt)
 #if defined(_DEBUG)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
-        cmdline = xappendarg(1, cmdline, L"--", servicename);
+        cmdline = xappendarg(1, cmdline, L"::", servicename);
     }
+    else
 #endif
-    cmdline = xappendarg(1, cmdline, L"++", servicename);
+    {
+        cmdline = xappendarg(1, cmdline, L"++", servicename);
+    }
     rp[ip++] = L'-';
     if (uselocaltime)
         rp[ip++] = L'l';
@@ -2043,14 +2049,14 @@ static int runshutdown(DWORD rt)
     if (ip > 2)
         cmdline = xappendarg(0, cmdline, NULL,  rp);
 
-    cmdline = xappendarg(0, cmdline, L"-0", serviceuuid);
+    cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
     cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
-    cmdline = xappendarg(1, cmdline, L"-n", shtlogfname);
+    cmdline = xappendarg(1, cmdline, L"-n", svclogfname);
     cmdline = xappendarg(1, cmdline, NULL,  shutdownfile);
     cmdline = xappendarg(0, cmdline, NULL,  svcendargs);
 
-    _DBGPRINTF("cmdline %S",   cmdline);
+    _DBGPRINTF("cmdline %S", cmdline);
 
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
@@ -3153,7 +3159,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
     const wchar_t *svcendparam  = NULL;
-    const wchar_t *lredirparam  = NULL;
+    const wchar_t *logpipeparam = NULL;
+    const wchar_t *lognameparam = SVCBATCH_LOGNAME;
     const wchar_t *rparam[2];
 
 #if defined(_DEBUG)
@@ -3172,7 +3179,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DEBUG)
     if (argc > 2) {
         const wchar_t *p = wargv[1];
-        if ((p[0] == L'-') && (p[1] == L'-') && (p[2] == WNUL)) {
+        if ((((p[0] == L'-') && (p[1] == L'-')) || ((p[0] == L':') && (p[1] == L':'))) && (p[2] == WNUL)) {
             consolemode  = 1;
             servicename  = xwcsdup(wargv[2]);
             dbgoutstream = stdout;
@@ -3180,18 +3187,36 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 _DBGPRINTF("Found invalid characters in service name '%S'", servicename);
                 return ERROR_INVALID_PARAMETER;
             }
+            if (p[0] == L':') {
+                servicemode = 0;
+                cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
+                cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
+            }
             wargv[2] = wargv[0];
             argc  -= 2;
             wargv += 2;
-            _DBGPRINTF("Running %S in console mode\n", servicename);
         }
     }
-    if ((consolemode == 0) && (_DEBUG > 0)) {
+    if (consolemode) {
+        if (servicemode) {
+            /**
+             * Services current directory is always
+             * set to SystemDirectory
+             *
+             * hard coded for now
+             */
+            SetCurrentDirectoryW(L"C:\\Windows\\System32");
+        }
+        _DBGPRINTF("Running %S in console mode\n", servicename);
+    }
+# if (_DEBUG > 1)
+    else {
         dbgoutstream = xmkdbgtemp();
         if (dbgoutstream == NULL)
             return ERROR_ACCESS_DENIED;
     }
-#endif
+# endif
+#else
     /**
      * Check if running as service or as a child process.
      */
@@ -3199,8 +3224,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         const wchar_t *p = wargv[1];
         if ((p[0] == L'+') && (p[1] == L'+') && (p[2] == WNUL)) {
             servicemode = 0;
-            if (servicename == NULL)
-                servicename = xwcsdup(wargv[2]);
+            servicename = xwcsdup(wargv[2]);
             wargv[2] = wargv[0];
             argc  -= 2;
             wargv += 2;
@@ -3208,28 +3232,17 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
         }
     }
+#endif
     if (argc == 1) {
         fprintf(stdout, "%s\n\n", cnamestamp);
         fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
 
         return 0;
     }
-#if defined(_DEBUG)
-    if (consolemode && servicemode) {
-        /**
-         * Services current directory is always
-         * set to SystemDirectory
-         *
-         * hard coded for now
-         */
-        SetCurrentDirectoryW(L"C:\\Windows\\System32");
-
-    }
-#endif
     wnamestamp = xcwiden(cnamestamp);
     _DBGPRINTS(cnamestamp);
 
-    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tvw:0:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tu:vw:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = 1;
@@ -3267,7 +3280,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
 #endif
             case L'e':
-                lredirparam  = xwoptarg;
+                logpipeparam = xwoptarg;
             break;
             case L'm':
                 svcmaxlogs   = _wtoi(xwoptarg);
@@ -3276,8 +3289,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                        L"Invalid -m command option value", xwoptarg);
             break;
             case L'n':
-                svclogfname  = xwoptarg;
-                shtlogfname  = NULL;
+                lognameparam = xwoptarg;
             break;
             case L'o':
                 outdirparam  = xwoptarg;
@@ -3298,7 +3310,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             /**
              * Private options
              */
-            case L'0':
+            case L'u':
                 serviceuuid  = xwcsdup(xwoptarg);
             break;
             /**
@@ -3324,14 +3336,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          * Disable all log related options
          */
         outdirparam  = NULL;
-        lredirparam  = NULL;
-        svclogfname  = NULL;
-        shtlogfname  = NULL;
+        logpipeparam = NULL;
+        lognameparam = NULL;
         svcmaxlogs   = 0;
         truncatelogs = 0;
         haslogstatus = 0;
     }
-    if (truncatelogs && lredirparam) {
+    if (truncatelogs && logpipeparam) {
         return svcsyserror(__FUNCTION__, __LINE__, 0,
                            L"Options -e and -t are mutually exclusive", NULL);
     }
@@ -3434,6 +3445,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          }
     }
     else {
+        svclogfnext  = SHUTDOWN_LOGFEXT;
         servicehome  = xwcsdup(svchomeparam);
         svcmaxlogs   = 0;
         haslogrotate = 0;
@@ -3441,6 +3453,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
+    svclogfname = xwcsdup(lognameparam);
     if (servicemode) {
         haslogrotate = svcmaxlogs;
         if (svcendparam) {
@@ -3459,57 +3472,22 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         if (svclogfname) {
             if (wcschr(svclogfname, L'@')) {
-                int      n;
-                wchar_t *s;
+                wchar_t *s = svclogfname;
                 /**
                  * Name is strftime formated
                  * replace @ with % so it can be used by strftime
                  */
-                n = xwcslen(svclogfname);
-                s = xwmalloc(n);
-                for (i = 0; i < n; i++) {
-                    if (svclogfname[i] == L'@')
-                        s[i] = L'%';
-                    else
-                        s[i] = svclogfname[i];
-                }
-                svclogfname = s;
-            }
-
-        }
-        if (shutdownfile && svclogfname) {
-            if (shtlogfname == NULL) {
-                /**
-                 * We have user defined -n parameter.
-                 * Find .exetension and replace with .shutdown.extension
-                 */
-                i = xwcslen(svclogfname);
-                while (--i > 0) {
-                    if (svclogfname[i] == L'.') {
-                        wchar_t *psx;
-                        wchar_t *pln = xwcsdup(svclogfname);
-
-                        pln[i] = WNUL;
-                        psx    = xwcsconcat(pln, SHUTDOWN_LOGFEXT);
-                        pln[i] = L'.';
-                        shtlogfname = xwcsconcat(psx, pln + i);
-                        xfree(psx);
-                        xfree(pln);
-                        break;
-                    }
-                }
-                if (shtlogfname == NULL) {
-                    /**
-                     * There is no .extension, append .shutdown
-                     */
-                    shtlogfname = xwcsconcat(svclogfname, SHUTDOWN_LOGFEXT);
+                while (*s != WNUL) {
+                    if (*s == L'@')
+                        *s = L'%';
+                    s++;
                 }
             }
         }
-        if (lredirparam) {
-            logredirargv = CommandLineToArgvW(lredirparam, &logredirargc);
+        if (logpipeparam) {
+            logredirargv = CommandLineToArgvW(logpipeparam, &logredirargc);
             if (logredirargv == NULL)
-                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), lredirparam, NULL);
+                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), logpipeparam, NULL);
 
             logredirect = getrealpathname(logredirargv[0], 0);
             if (logredirect == NULL)

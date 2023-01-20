@@ -224,8 +224,9 @@ make sure to get familiar with `sc.exe` utility.
   By default SvcBatch will use `SvcBatch.log` and
   `SvcBatch.shutdown.log` as log file names.
 
-  In case **-s** option is defined  the `.shutdown` suffix
-  will be added to **name**.
+  In case **-s** option is defined the `.shutdown.log` suffix
+  will be added to **name**. If not,s the `.log` suffix will be added
+  to the **name**.
 
   If **name** includes any `@` characters, it is replaced by
   `%` character at runtime and treated as a format string
