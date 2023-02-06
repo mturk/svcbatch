@@ -1861,7 +1861,7 @@ static void closelogfile(void)
     _DBGPRINTS("closed");
 }
 
-static void resolvetimeut(int hh, int mm, int ss, int od)
+static void resolvetimeout(int hh, int mm, int ss, int od)
 {
     SYSTEMTIME     st;
     FILETIME       ft;
@@ -1958,11 +1958,11 @@ static int resolverotate(const wchar_t *str)
             }
             if (mm == 0) {
                 _DBGPRINTS("rotate at midnight");
-                resolvetimeut(0, 0, 0, 1);
+                resolvetimeout(0, 0, 0, 1);
             }
             else if (mm == 60) {
                 _DBGPRINTS("rotate on each full hour");
-                resolvetimeut(0, 0, 0, 0);
+                resolvetimeout(0, 0, 0, 0);
             }
             else {
                 if (mm > 1) {
@@ -1997,7 +1997,7 @@ static int resolverotate(const wchar_t *str)
                 return __LINE__;
             _DBGPRINTF("rotate each day at %.2d:%.2d:%.2d",
                       hh, mm, ss);
-            resolvetimeut(hh, mm, ss, 1);
+            resolvetimeout(hh, mm, ss, 1);
         }
     }
     xfree(sp);
