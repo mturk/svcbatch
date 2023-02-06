@@ -3497,10 +3497,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     dupwenvp = waalloc(envc + 6);
     for (i = 0; i < envc; i++) {
-        /**
-         * Remove all environment variables
-         * starting with SVCBATCH_
-         */
         if (!xwstartswith(wenv[i], L"SVCBATCH_SERVICE_"))
             dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
     }
