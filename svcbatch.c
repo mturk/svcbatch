@@ -2244,6 +2244,7 @@ static unsigned int __stdcall rdpipethread(void *unused)
             rc = GetLastError();
         }
     }
+#if defined(_DEBUG)
     if (rc) {
         if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
             _DBGPRINTS("pipe closed");
@@ -2253,7 +2254,7 @@ static unsigned int __stdcall rdpipethread(void *unused)
             _DBGPRINTF("err=%lu", rc);
     }
     _DBGPRINTS("done");
-
+#endif
     XENDTHREAD(0);
 }
 
@@ -2270,7 +2271,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
     else {
         rc = GetLastError();
     }
-
+#if defined(_DEBUG)
     if (rc) {
         if (rc == ERROR_BROKEN_PIPE)
             _DBGPRINTS("pipe closed");
@@ -2278,6 +2279,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
             _DBGPRINTF("err=%lu", rc);
     }
     _DBGPRINTS("done");
+#endif
     XENDTHREAD(0);
 }
 
