@@ -2145,7 +2145,6 @@ finished:
 
 static unsigned int __stdcall stopthread(void *param)
 {
-    DWORD rs = (DWORD)((intptr_t)param);
     DWORD ce = CTRL_C_EVENT;
     DWORD pg = 0;
 
@@ -2161,7 +2160,7 @@ static unsigned int __stdcall stopthread(void *param)
 #endif
 
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-    if (shutdownfile && (rs == 0)) {
+    if (shutdownfile && param) {
         DWORD rc;
 
         _DBGPRINTS("creating shutdown process");
@@ -2220,12 +2219,15 @@ finished:
 
 static void createstopthread(DWORD rv)
 {
+    void *sp = NULL;
+
     if (rv) {
         setsvcstatusexit(rv);
+        sp = INVALID_HANDLE_VALUE;
     }
     if (InterlockedIncrement(&sstarted) == 1) {
         ResetEvent(svcstopended);
-        xcreatethread(1, 0, &stopthread, (void *)((intptr_t)rv));
+        xcreatethread(1, 0, &stopthread, sp);
     }
     else {
         InterlockedDecrement(&sstarted);
