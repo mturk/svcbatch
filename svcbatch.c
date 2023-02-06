@@ -3317,6 +3317,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return svcsyserror(__FUNCTION__, __LINE__, 0,
                            L"Options -e and -t are mutually exclusive", NULL);
     }
+    if ((svcmaxlogs == 0) && (rcnt > 0)) {
+        return svcsyserror(__FUNCTION__, __LINE__, 0,
+                           L"Option -r cannot be used when rotation is disabled", NULL);
+    }
     argc  -= xwoptind;
     wargv += xwoptind;
     if (argc > 0) {
