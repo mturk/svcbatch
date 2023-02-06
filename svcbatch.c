@@ -1237,9 +1237,9 @@ finished:
 
 static int xseekfend(HANDLE h)
 {
-    LARGE_INTEGER ee = {{ 0, 0 }};
-
     if (haspipedlogs == 0) {
+        LARGE_INTEGER ee = {{ 0, 0 }};
+
         if (!SetFilePointerEx(h, ee, NULL, FILE_END))
             return 1;
     }
