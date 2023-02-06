@@ -2378,8 +2378,7 @@ static void monitorservice(void)
                     rc = 1;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
-                    const wchar_t *sn = xwcsiid(II_SERVICE, cc);
-                    _DBGPRINTF("service %S signaled", sn);
+                    _DBGPRINTF("service %S signaled", xwcsiid(II_SERVICE, cc));
                     if (haslogstatus) {
 
                         EnterCriticalSection(&logfilelock);
@@ -2387,7 +2386,7 @@ static void monitorservice(void)
 
                         if (h) {
                             logfflush(h);
-                            logprintf(h, "Signaled %S", sn);
+                            logprintf(h, "Signaled %S", xwcsiid(II_SERVICE, cc));
                         }
                         InterlockedExchangePointer(&logfhandle, h);
                         LeaveCriticalSection(&logfilelock);
