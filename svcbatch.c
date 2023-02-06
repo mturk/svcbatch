@@ -386,7 +386,7 @@ static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs, const wchar_t *
          * Remove leading './' or '.\'
          */
         fs += 2;
-        nd -= 2;
+        nf -= 2;
     }
     cp = xwmalloc(nd + nf + nx + 1);
 
