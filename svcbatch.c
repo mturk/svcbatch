@@ -2327,7 +2327,7 @@ static void monitorshutdown(void)
 static void monitorservice(void)
 {
     HANDLE wh[2];
-    DWORD  rc = 0;
+    BOOL   rc = TRUE;
 
     _DBGPRINTS("started");
 
@@ -2341,13 +2341,13 @@ static void monitorservice(void)
         switch (ws) {
             case WAIT_OBJECT_0:
                 _DBGPRINTS("processended signaled");
-                rc = 1;
+                rc = FALSE;
             break;
             case WAIT_OBJECT_1:
                 cc = (DWORD)InterlockedExchange(&monitorsig, 0);
                 if (cc == 0) {
                     _DBGPRINTS("quit signaled");
-                    rc = 1;
+                    rc = FALSE;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
                     _DBGPRINTF("service %S signaled", xwcsiid(II_SERVICE, cc));
@@ -2380,10 +2380,10 @@ static void monitorservice(void)
                 ResetEvent(monitorevent);
             break;
             default:
-                rc = 1;
+                rc = FALSE;
             break;
         }
-    } while (rc == 0);
+    } while (rc);
 
     _DBGPRINTS("done");
 }
