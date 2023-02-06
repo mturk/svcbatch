@@ -1598,11 +1598,10 @@ static DWORD makelogfile(int firstopen)
 
 static DWORD openlogfile(int firstopen)
 {
-    wchar_t sfx[4] = { L'.', L'0', WNUL, WNUL };
     wchar_t *logpb = NULL;
-    DWORD  rc;
-    HANDLE h = NULL;
+    HANDLE h       = NULL;
     int    rotateprev;
+    DWORD  rc;
     DWORD  cm = truncatelogs ? CREATE_ALWAYS : OPEN_ALWAYS;
 
     if (wcschr(svclogfname, L'%'))
@@ -1622,10 +1621,10 @@ static DWORD openlogfile(int firstopen)
             if (firstopen)
                 reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
             if (rotateprev) {
-                logpb = xwcsconcat(logfilename, sfx);
+                logpb = xwcsconcat(logfilename, L".0");
             }
             else {
-                wchar_t  sb[TBUFSIZ];
+                wchar_t sb[TBUFSIZ];
 
                 xmktimedstr(0, sb, TBUFSIZ, L".");
                 logpb = xwcsconcat(logfilename, sb);
@@ -1653,6 +1652,7 @@ static DWORD openlogfile(int firstopen)
          */
         for (i = svcmaxlogs; i > 0; i--) {
             wchar_t *logpn;
+            wchar_t  sfx[4] = { L'.', WNUL, WNUL, WNUL };
 
             sfx[1] = L'0' + i - 1;
             logpn  = xwcsconcat(logfilename, sfx);
