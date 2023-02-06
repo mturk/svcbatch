@@ -2314,7 +2314,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
 
 static void monitorshutdown(void)
 {
-    HANDLE wh[3];
+    HANDLE wh[4];
     HANDLE h;
     DWORD  ws;
 
@@ -2430,7 +2430,7 @@ static unsigned int __stdcall monitorthread(void *unused)
 
 static unsigned int __stdcall rotatethread(void *unused)
 {
-    HANDLE wh[3];
+    HANDLE wh[4];
     HANDLE wt = NULL;
     DWORD  rc = 0;
     DWORD  nw = 2;
