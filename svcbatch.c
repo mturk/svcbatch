@@ -231,17 +231,17 @@ static void xfree(void *m)
         free(m);
 }
 
-static wchar_t **waalloc(size_t size)
+static wchar_t **xwaalloc(size_t size)
 {
     wchar_t **p = (wchar_t **)calloc(size + 2, sizeof(wchar_t *));
     if (p == NULL) {
-        _wperror(L"waalloc");
+        _wperror(L"xwaalloc");
         _exit(1);
     }
     return p;
 }
 
-static void waafree(wchar_t **a)
+static void xwaafree(wchar_t **a)
 {
     if (a != NULL) {
         wchar_t **p = a;
@@ -2988,7 +2988,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
         return;
     }
-    waafree(dupwenvp);
+    xwaafree(dupwenvp);
 
     if (hasnologging) {
         _DBGPRINTS("logging is disabled");
@@ -3468,7 +3468,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 
-    dupwenvp = waalloc(envc + 6);
+    dupwenvp = xwaalloc(envc + 6);
     for (i = 0; i < envc; i++) {
         if (!xwstartswith(wenv[i], L"SVCBATCH_SERVICE_"))
             dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
