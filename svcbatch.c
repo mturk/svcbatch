@@ -265,26 +265,6 @@ static wchar_t *xwcsdup(const wchar_t *s)
     return p;
 }
 
-static wchar_t *xwcsexpand(wchar_t *s, size_t i, size_t c)
-{
-    wchar_t *p;
-    size_t   n = i + c;
-
-    if (s == NULL)
-        return xwmalloc(c);
-    if (i == 0)
-        n += wcslen(s);
-    p = (wchar_t *)realloc(s, (n + 2) * sizeof(wchar_t));
-    if (p == NULL) {
-        _wperror(L"xwcsexpand");
-        _exit(1);
-    }
-    p[n++] = WNUL;
-    p[n]   = WNUL;
-
-    return p;
-}
-
 static wchar_t *xcwiden(const char *s)
 {
     wchar_t *p;
@@ -391,11 +371,12 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     return cp;
 }
 
-static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs)
+static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs, const wchar_t *fx)
 {
     wchar_t *cp;
     int nd = xwcslen(ds);
     int nf = xwcslen(fs);
+    int nx = xwcslen(fx);
 
     if ((nd == 0) || (nf == 0))
         return NULL;
@@ -407,25 +388,15 @@ static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs)
         fs += 2;
         nd -= 2;
     }
-    cp = xwmalloc(nd + nf + 1);
+    cp = xwmalloc(nd + nf + nx + 1);
 
     wmemcpy(cp, ds, nd);
     cp[nd++] = L'\\';
     wmemcpy(cp + nd, fs, nf);
+    if (nx) {
+        wmemcpy(cp + nd + nf, fx, nx);
+    }
     return cp;
-}
-
-static wchar_t *xwcsappend(wchar_t *s1, const wchar_t *s2)
-{
-    wchar_t *p;
-    int l1 = xwcslen(s1);
-    int l2 = xwcslen(s2);
-
-    if (l2 == 0)
-        return s1;
-    p = xwcsexpand(s1, l1, l2);
-    wmemcpy(p + l1, s2, l2);
-    return p;
 }
 
 static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t *s3)
@@ -1603,8 +1574,7 @@ static DWORD makelogfile(int firstopen)
     if (wcsftime(ewb, BBUFSIZ, svclogfname, ctm) == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"invalid format code", svclogfname);
     xfree(logfilename);
-    xwcslcat(ewb, BBUFSIZ, svclogfnext);
-    logfilename = xwcsmkpath(servicelogs, ewb);
+    logfilename = xwcsmkpath(servicelogs, ewb, svclogfnext);
 
     h = CreateFileW(logfilename, GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
@@ -1641,10 +1611,8 @@ static DWORD openlogfile(int firstopen)
         rotateprev = 0;
     else
         rotateprev = svcmaxlogs;
-    if (logfilename == NULL) {
-        logfilename = xwcsmkpath(servicelogs, svclogfname);
-        logfilename = xwcsappend(logfilename, svclogfnext);
-    }
+    if (logfilename == NULL)
+        logfilename = xwcsmkpath(servicelogs, svclogfname, svclogfnext);
     if (logfilename == NULL)
         return svcsyserror(__FUNCTION__, __LINE__,
                            ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
