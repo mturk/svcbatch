@@ -1660,7 +1660,7 @@ static DWORD openlogfile(int firstopen)
                 wchar_t  sb[TBUFSIZ];
 
                 xmktimedstr(0, sb, TBUFSIZ, L".");
-                logpb  = xwcsconcat(logfilename, sb);
+                logpb = xwcsconcat(logfilename, sb);
             }
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
                 rc = GetLastError();
@@ -1681,7 +1681,7 @@ static DWORD openlogfile(int firstopen)
     if (rotateprev) {
         int i;
         /**
-         * Rotate previous log files
+         * Rename previous log files
          */
         for (i = svcmaxlogs; i > 0; i--) {
             wchar_t *logpn;
@@ -2356,8 +2356,7 @@ static void monitorshutdown(void)
 static void monitorservice(void)
 {
     HANDLE wh[2];
-    HANDLE h;
-    DWORD  ws, rc = 0;
+    DWORD  rc = 0;
 
     _DBGPRINTS("started");
 
@@ -2365,7 +2364,7 @@ static void monitorservice(void)
     wh[1] = monitorevent;
 
     do {
-        DWORD  cc;
+        DWORD ws, cc;
 
         ws = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
         switch (ws) {
@@ -2382,6 +2381,7 @@ static void monitorservice(void)
                 else if (cc == SVCBATCH_CTRL_BREAK) {
                     _DBGPRINTF("service %S signaled", xwcsiid(II_SERVICE, cc));
                     if (haslogstatus) {
+                        HANDLE h;
 
                         EnterCriticalSection(&logfilelock);
                         h = InterlockedExchangePointer(&logfhandle, NULL);
