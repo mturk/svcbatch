@@ -695,7 +695,7 @@ static wchar_t *xuuidstring(void)
     return b;
 }
 
-static void xmktimedstr(int mod, wchar_t *buf, int siz, const wchar_t *pfx, const wchar_t *sfx)
+static void xmktimedstr(int mod, wchar_t *buf, int siz, const wchar_t *pfx)
 {
     int bsz = siz - 1;
 
@@ -723,10 +723,8 @@ static void xmktimedstr(int mod, wchar_t *buf, int siz, const wchar_t *pfx, cons
 
         _snwprintf(buf, bsz, L"%s%.10llu", pfx, ui.QuadPart);
     }
-    buf[bsz] = WNUL;
-    if (sfx)
-        xwcslcat(buf, siz, sfx);
 
+    buf[bsz] = WNUL;
 }
 
 static int xisbatchfile(const wchar_t *s)
@@ -853,7 +851,7 @@ static FILE *xmkdbgtemp(void)
             return NULL;
         }
     }
-    xmktimedstr(1, rb, TBUFSIZ, L"\\" SVCBATCH_DBGNAME, NULL);
+    xmktimedstr(1, rb, TBUFSIZ, L"\\" SVCBATCH_DBGNAME);
     xwcslcat(bb, BBUFSIZ, rb);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb);
     xwcslcat(bb, BBUFSIZ, L".log");
@@ -1661,7 +1659,7 @@ static DWORD openlogfile(int firstopen)
             else {
                 wchar_t  sb[TBUFSIZ];
 
-                xmktimedstr(0, sb, TBUFSIZ, L".", NULL);
+                xmktimedstr(0, sb, TBUFSIZ, L".");
                 logpb  = xwcsconcat(logfilename, sb);
             }
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
