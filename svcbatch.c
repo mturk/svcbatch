@@ -2155,12 +2155,13 @@ static unsigned int __stdcall stopthread(void *param)
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         DWORD ws;
 
+#if defined(_DEBUG)
         if (pg)
             _DBGPRINTF("generating %S for process group %lu",
                         xwcsiid(II_CONSOLE, ce), pg);
         else
             _DBGPRINTF("generating %S", xwcsiid(II_CONSOLE, ce));
-
+#endif
         GenerateConsoleCtrlEvent(ce, pg);
         ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
         SetConsoleCtrlHandler(NULL, FALSE);
