@@ -830,6 +830,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     }
 }
 
+# if (_DEBUG > 1)
 static FILE *xmkdbgtemp(void)
 {
     FILE *ds = NULL;
@@ -866,7 +867,7 @@ doopen:
     }
     return ds;
 }
-
+# endif
 #endif
 
 static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
