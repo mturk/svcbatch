@@ -3313,6 +3313,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         svcmaxlogs   = 0;
         truncatelogs = FALSE;
         haslogstatus = FALSE;
+        haslogrotate = FALSE;
     }
     argc  -= xwoptind;
     wargv += xwoptind;
@@ -3416,14 +3417,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         svclogfnext  = SHUTDOWN_LOGFEXT;
         servicehome  = xwcsdup(svchomeparam);
         svcmaxlogs   = 0;
-        haslogrotate = 0;
+        haslogrotate = FALSE;
     }
     if (resolvebatchname(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
     svclogfname = xwcsdup(lognameparam);
     if (servicemode) {
-        haslogrotate = svcmaxlogs;
+        if (svcmaxlogs > 0)
+            haslogrotate = TRUE;
         if (svcendparam) {
             if (!xisbatchfile(svcendparam))
                 return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid batch file", svcendparam);
@@ -3491,6 +3493,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
             xfree(psn);
         }
+        if (haslogrotate) {
+            for (i = 0; i < rcnt; i++) {
+                rv = resolverotate(rparam[i]);
+                if (rv != 0)
+                    return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", rparam[i]);
+            }
+            logrotatesig = CreateEvent(&sazero, TRUE, FALSE, NULL);
+            if (IS_INVALID_HANDLE(logrotatesig))
+                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"logrotatesig");
+        }
     }
     else {
         wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
@@ -3498,16 +3510,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (IS_INVALID_HANDLE(ssignalevent))
             return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"OpenEvent", psn);
         xfree(psn);
-    }
-    if (haslogrotate) {
-        for (i = 0; i < rcnt; i++) {
-            rv = resolverotate(rparam[i]);
-            if (rv != 0)
-                return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", rparam[i]);
-        }
-        logrotatesig = CreateEvent(&sazero, TRUE, FALSE, NULL);
-        if (IS_INVALID_HANDLE(logrotatesig))
-            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"logrotatesig");
     }
 
     monitorevent = CreateEvent(&sazero, TRUE, FALSE, NULL);
