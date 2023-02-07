@@ -331,6 +331,8 @@ static size_t xwcslcat(wchar_t *dst, size_t siz, const wchar_t *src)
     size_t   c;
     size_t   r;
 
+    if (IS_EMPTY_WCS(s))
+        return 0;
     while ((n-- != 0) && (*d != WNUL))
         d++;
     c = d - dst;
