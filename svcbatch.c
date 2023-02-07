@@ -1557,7 +1557,7 @@ failed:
     return rc;
 }
 
-static DWORD makelogfile(int firstopen)
+static DWORD makelogfile(BOOL firstopen)
 {
     wchar_t ewb[BBUFSIZ];
     struct  tm *ctm;
