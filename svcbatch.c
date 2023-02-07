@@ -1557,7 +1557,7 @@ failed:
     return rc;
 }
 
-static DWORD makelogfile(BOOL firstopen)
+static DWORD makelogfile(BOOL svcstart)
 {
     wchar_t ewb[BBUFSIZ];
     struct  tm *ctm;
@@ -1565,7 +1565,7 @@ static DWORD makelogfile(BOOL firstopen)
     DWORD   rc;
     HANDLE  h;
 
-    if (firstopen)
+    if (svcstart)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
     time(&ctt);
@@ -1598,7 +1598,7 @@ static DWORD makelogfile(BOOL firstopen)
     return 0;
 }
 
-static DWORD openlogfile(BOOL firstopen)
+static DWORD openlogfile(BOOL svcstart)
 {
     wchar_t *logpb = NULL;
     HANDLE h       = NULL;
@@ -1607,7 +1607,7 @@ static DWORD openlogfile(BOOL firstopen)
     DWORD  cm = truncatelogs ? CREATE_ALWAYS : OPEN_ALWAYS;
 
     if (wcschr(svclogfname, L'%'))
-        return makelogfile(firstopen);
+        return makelogfile(svcstart);
     if (rotatebysize || rotatebytime)
         rotateprev = 0;
     else
@@ -1620,7 +1620,7 @@ static DWORD openlogfile(BOOL firstopen)
 
     if (svcmaxlogs > 0) {
         if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
-            if (firstopen)
+            if (svcstart)
                 reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
             if (rotateprev) {
                 logpb = xwcsconcat(logfilename, L".0");
@@ -1645,7 +1645,7 @@ static DWORD openlogfile(BOOL firstopen)
             }
         }
     }
-    if (firstopen)
+    if (svcstart)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     if (rotateprev) {
         int i;
@@ -1684,7 +1684,7 @@ static DWORD openlogfile(BOOL firstopen)
                         goto failed;
                     }
                     xfree(lognn);
-                    if (firstopen)
+                    if (svcstart)
                         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
                 }
             }
@@ -1715,10 +1715,10 @@ static DWORD openlogfile(BOOL firstopen)
         if (rc == ERROR_ALREADY_EXISTS) {
             if (truncatelogs)
                 logwrtime(h, "Log truncated");
-            else if (firstopen)
+            else if (svcstart)
                 logwrtime(h, "Log reused");
         }
-        else if (firstopen) {
+        else if (svcstart) {
             logwrtime(h, "Log opened");
         }
     }
