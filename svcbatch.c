@@ -1135,6 +1135,8 @@ static int resolvebatchname(const wchar_t *a)
     }
     xfree(svcbatchfile);
     svcbatchfile = NULL;
+    servicebase  = NULL;
+    svcbatchname = NULL;
     return 1;
 }
 
