@@ -632,19 +632,6 @@ static void xcleanwinpath(wchar_t *s, int isdir)
     }
 }
 
-/**
- * Check if the path doesn't start
- * with \ or C:\
- */
-static int isrelativepath(const wchar_t *p)
-{
-    if (p[0] < 128) {
-        if ((p[0] == L'\\') || (isalpha(p[0]) && (p[1] == L':')))
-            return 0;
-    }
-    return 1;
-}
-
 static wchar_t *xuuidstring(void)
 {
     int i, x;
@@ -1029,6 +1016,15 @@ static HANDLE xcreatethread(int detach, unsigned initflag,
         h = NULL;
     }
     return h;
+}
+
+static int isrelativepath(const wchar_t *p)
+{
+    if (p[0] < 128) {
+        if ((p[0] == L'\\') || (isalpha(p[0]) && (p[1] == L':')))
+            return 0;
+    }
+    return 1;
 }
 
 static wchar_t *getfullpathname(const wchar_t *src, int isdir)
