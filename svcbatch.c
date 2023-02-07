@@ -2005,18 +2005,20 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(1, cmdline, L"++", servicename);
     }
     rp[ip++] = L'-';
-    if (uselocaltime)
-        rp[ip++] = L'l';
-    if (!havelogging)
+    if (havelogging) {
+        if (uselocaltime)
+            rp[ip++] = L'l';
+        if (truncatelogs)
+            rp[ip++] = L't';
+        if (haslogstatus)
+            rp[ip++] = L'v';
+    }
+    else {
         rp[ip++] = L'q';
-    if (truncatelogs)
-        rp[ip++] = L't';
-    if (haslogstatus)
-        rp[ip++] = L'v';
+    }
     rp[ip++] = WNUL;
     if (ip > 2)
         cmdline = xappendarg(0, cmdline, NULL,  rp);
-
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
     cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
