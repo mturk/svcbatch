@@ -1430,24 +1430,21 @@ static unsigned int __stdcall rdpipedlog(void *unused)
                     rn = 0;
                 }
             }
-            if (rn) {
-                rl[rn] = '\0';
-                DBG_PRINTF("[%.4lu] %s", pipedprocpid, rl);
-            }
-            if (rc) {
-                if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
-                    DBG_PRINTS("pipe closed");
-                else
-                    DBG_PRINTF("err=%lu", rc);
-            }
-            DBG_PRINTS("done");
 #endif
         }
         else {
             rc = GetLastError();
         }
     }
-
+#if defined(_DEBUG)
+    if (rc) {
+        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+            DBG_PRINTS("pipe closed");
+        else
+            DBG_PRINTF("err=%lu", rc);
+    }
+    DBG_PRINTS("done");
+#endif
     XENDTHREAD(0);
 }
 
