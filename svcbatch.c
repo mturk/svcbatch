@@ -1199,7 +1199,6 @@ finished:
 static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
 {
     SECURITY_ATTRIBUTES sa;
-    DWORD  rc = 0;
     HANDLE sh = NULL;
     HANDLE cp = GetCurrentProcess();
 
@@ -1214,10 +1213,8 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreatePipe", NULL);
     if (!DuplicateHandle(cp, sh, cp,
                          iwrs, FALSE, 0,
-                         DUPLICATE_SAME_ACCESS)) {
-        rc = svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"DuplicateHandle", NULL);
-        goto finished;
-    }
+                         DUPLICATE_SAME_ACCESS))
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"DuplicateHandle", NULL);
     SAFE_CLOSE_HANDLE(sh);
 
     /**
@@ -1229,12 +1226,11 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
     if (!DuplicateHandle(cp, sh, cp,
                          ords, FALSE, 0,
                          DUPLICATE_SAME_ACCESS))
-        rc = svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"DuplicateHandle", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"DuplicateHandle", NULL);
     si->hStdOutput = si->hStdError;
 
-finished:
     SAFE_CLOSE_HANDLE(sh);
-    return rc;
+    return 0;
 }
 
 static int xseekfend(HANDLE h)
