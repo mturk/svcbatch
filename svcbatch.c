@@ -3242,13 +3242,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
 #if defined(_DEBUG)
             case L'c':
-                if (consolemode) {
+                if (consolemode)
                     return scmsendcontol(xwoptarg);
-                }
-                else {
+                else
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Cannot use -c command option when running as service", NULL);
-                }
             break;
 #endif
             case L'e':
