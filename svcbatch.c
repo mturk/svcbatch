@@ -3162,8 +3162,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
             }
             wargv[2] = wargv[0];
-            argc  -= 2;
-            wargv += 2;
+            argc    -= 2;
+            wargv   += 2;
         }
     }
     if (consolemode) {
@@ -3194,11 +3194,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if ((p[0] == L'+') && (p[1] == L'+') && (p[2] == WNUL)) {
             servicemode = 0;
             servicename = xwcsdup(wargv[2]);
-            wargv[2] = wargv[0];
-            argc  -= 2;
-            wargv += 2;
-            cnamestamp = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
-            cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
+            cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
+            cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
+
+            wargv[2]    = wargv[0];
+            argc       -= 2;
+            wargv      += 2;
         }
     }
 
