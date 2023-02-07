@@ -1737,15 +1737,15 @@ failed:
 
 static DWORD rotatelogs(void)
 {
-    DWORD  rc;
-    HANDLE h = NULL;
+    DWORD  rc = 0;
+    HANDLE h  = NULL;
 
     EnterCriticalSection(&logfilelock);
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h == NULL) {
         InterlockedExchange64(&logwritten, 0);
-        LeaveCriticalSection(&logfilelock);
-        return ERROR_FILE_NOT_FOUND;
+        rc = ERROR_FILE_NOT_FOUND;
+        goto finished;
     }
     QueryPerformanceCounter(&pcstarttime);
     FlushFileBuffers(h);
@@ -1762,10 +1762,9 @@ static DWORD rotatelogs(void)
                               InterlockedIncrement(&rotatecount));
                     logconfig(h);
                 }
-                InterlockedExchangePointer(&logfhandle, h);
-                LeaveCriticalSection(&logfilelock);
                 DBG_PRINTS("truncated");
-                return 0;
+                InterlockedExchangePointer(&logfhandle, h);
+                goto finished;
             }
         }
         rc = GetLastError();
@@ -1789,6 +1788,8 @@ static DWORD rotatelogs(void)
         setsvcstatusexit(rc);
         svcsyserror(__FUNCTION__, __LINE__, 0, L"rotatelogs failed", NULL);
     }
+
+finished:
     LeaveCriticalSection(&logfilelock);
     return rc;
 }
