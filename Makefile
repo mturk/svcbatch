@@ -26,10 +26,11 @@ PROJECT = svcbatch
 !INCLUDE <Version.mk>
 
 VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_MICRO)
+WORKTOP = $(SRCDIR)\.build
 !IF DEFINED(_DEBUG)
-WORKDIR = $(SRCDIR)\.build\dbg
+WORKDIR = $(WORKTOP)\dbg
 !ELSE
-WORKDIR = $(SRCDIR)\.build\rel
+WORKDIR = $(WORKTOP)\rel
 !ENDIF
 PPREFIX = $(SRCDIR)\$(PROJECT)
 OUTPUT  = $(WORKDIR)\$(PROJECT).exe
@@ -137,3 +138,6 @@ tests: $(PIPELOG)
 
 clean:
 	@-rd /S /Q $(WORKDIR) 2>NUL
+
+distclean:
+	@-rd /S /Q $(WORKTOP) 2>NUL

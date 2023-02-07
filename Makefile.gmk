@@ -45,6 +45,14 @@ VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_MICRO)
 SRCDIR  = .
 PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
+WORKTOP = $(SRCDIR)/.build
+
+ifdef _DEBUG
+WORKDIR = $(WORKTOP)/dbg
+else
+WORKDIR = $(WORKTOP)/rel
+endif
+
 OUTPUT  = $(WORKDIR)/$(TARGET)
 PIPELOG = $(WORKDIR)/pipedlog.exe
 
@@ -53,12 +61,10 @@ WINVER  = 0x0601
 ifdef _DEBUG
 CFLAGS  = -D_DEBUG=$(_DEBUG)
 RFLAGS  = -D _DEBUG=$(_DEBUG)
-WORKDIR = $(SRCDIR)/.build/dbg
 RL      = @true
 else
 CFLAGS  = -DNDEBUG
 RFLAGS  = -D NDEBUG
-WORKDIR = $(SRCDIR)/.build/rel
 endif
 
 CFLAGS += -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
@@ -130,4 +136,7 @@ tests: $(PIPELOG)
 clean:
 	@rm -rf $(WORKDIR)
 
-.PHONY: all clean
+distclean:
+	@rm -rf $(WORKTOP)
+
+.PHONY: all clean distclean
