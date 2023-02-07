@@ -2260,19 +2260,15 @@ static unsigned int __stdcall rdpipethread(void *unused)
 
 static unsigned int __stdcall wrpipethread(void *unused)
 {
-    DWORD  wr, rc = 0;
+    DWORD wr;
 
     _DBGPRINTS("started");
-
     if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
-        if (!FlushFileBuffers(inputpipewrs))
-            rc = GetLastError();
-    }
-    else {
-        rc = GetLastError();
+        FlushFileBuffers(inputpipewrs);
     }
 #if defined(_DEBUG)
-    if (rc) {
+    else {
+        DWORD rc = GetLastError();
         if (rc == ERROR_BROKEN_PIPE)
             _DBGPRINTS("pipe closed");
         else
