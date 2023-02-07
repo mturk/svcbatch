@@ -62,27 +62,29 @@ static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
 static wchar_t  *wenvblock        = NULL;
-static int       haslogstatus     = 0;
-static int       hasctrlbreak     = 0;
-static int       hasnologging     = 0;
-static int       haslogrotate     = 0;
-static int       haspipedlogs     = 0;
-static int       rotatebysize     = 0;
-static int       rotatebytime     = 0;
-static int       uselocaltime     = 0;
-static int       servicemode      = 1;
-static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
-static int       truncatelogs     = 0;
+
+static BOOL      haslogstatus     = FALSE;
+static BOOL      hasctrlbreak     = FALSE;
+static BOOL      hasnologging     = FALSE;
+static BOOL      haslogrotate     = FALSE;
+static BOOL      haspipedlogs     = FALSE;
+static BOOL      rotatebysize     = FALSE;
+static BOOL      rotatebytime     = FALSE;
+static BOOL      uselocaltime     = FALSE;
+static BOOL      truncatelogs     = FALSE;
+static BOOL      servicemode      = TRUE;
+
 static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
 static DWORD     pipedprocpid     = 0;
 
+static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
 static int       xwoptind         = 1;
 static int       xwoption         = 0;
 static int       logredirargc     = 0;
 
 #if defined(_DEBUG)
-static int       consolemode      = 0;
+static BOOL      consolemode      = FALSE;
 static FILE     *dbgoutstream     = NULL;
 #endif
 
@@ -1854,7 +1856,7 @@ static void resolvetimeout(int hh, int mm, int ss, int od)
     rotatetmo.HighPart = ft.dwHighDateTime;
     rotatetmo.LowPart  = ft.dwLowDateTime;
 
-    rotatebytime = 1;
+    rotatebytime = TRUE;
 }
 
 static int resolverotate(const wchar_t *str)
@@ -1897,12 +1899,12 @@ static int resolverotate(const wchar_t *str)
         if (len < KILOBYTES(1)) {
             _DBGPRINTF("rotate size %S is less then 1K", rp);
             rotatesiz.QuadPart = CPP_INT64_C(0);
-            rotatebysize = 0;
+            rotatebysize = FALSE;
         }
         else {
             _DBGPRINTF("rotate if larger then %S", rp);
             rotatesiz.QuadPart = len;
-            rotatebysize = 1;
+            rotatebysize = TRUE;
         }
     }
     else {
@@ -1910,7 +1912,7 @@ static int resolverotate(const wchar_t *str)
         wchar_t *p;
 
         rotateint    = 0;
-        rotatebytime = 0;
+        rotatebytime = FALSE;
         rotatetmo.QuadPart = 0;
 
         p = wcschr(rp, L':');
@@ -1935,7 +1937,7 @@ static int resolverotate(const wchar_t *str)
                     rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
                     _DBGPRINTF("rotate each %ld minutes", mm);
                     rotatetmo.QuadPart = rotateint;
-                    rotatebytime = 1;
+                    rotatebytime = TRUE;
                 }
                 else {
                     _DBGPRINTS("rotate by time disabled");
@@ -3149,7 +3151,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (argc > 2) {
         const wchar_t *p = wargv[1];
         if ((((p[0] == L'-') && (p[1] == L'-')) || ((p[0] == L':') && (p[1] == L':'))) && (p[2] == WNUL)) {
-            consolemode  = 1;
+            consolemode  = TRUE;
             servicename  = xwcsdup(wargv[2]);
             dbgoutstream = stdout;
             if (wcspbrk(servicename, L" \t;:\\/\"")) {
@@ -3157,7 +3159,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 return ERROR_INVALID_PARAMETER;
             }
             if (p[0] == L':') {
-                servicemode = 0;
+                servicemode = FALSE;
                 cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
                 cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
             }
@@ -3192,7 +3194,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (argc > 2) {
         const wchar_t *p = wargv[1];
         if ((p[0] == L'+') && (p[1] == L'+') && (p[2] == WNUL)) {
-            servicemode = 0;
+            servicemode = FALSE;
             servicename = xwcsdup(wargv[2]);
             cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
             cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
@@ -3215,22 +3217,22 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tu:vw:")) != EOF) {
         switch (opt) {
             case L'b':
-                hasctrlbreak = 1;
+                hasctrlbreak = TRUE;
             break;
             case L'l':
-                uselocaltime = 1;
+                uselocaltime = TRUE;
             break;
             case L'p':
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             case L'q':
-                hasnologging = 1;
+                hasnologging = TRUE;
             break;
             case L't':
-                truncatelogs = 1;
+                truncatelogs = TRUE;
             break;
             case L'v':
-                haslogstatus = 1;
+                haslogstatus = TRUE;
             break;
             /**
              * Options with arguments
@@ -3309,8 +3311,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         logpipeparam = NULL;
         lognameparam = NULL;
         svcmaxlogs   = 0;
-        truncatelogs = 0;
-        haslogstatus = 0;
+        truncatelogs = FALSE;
+        haslogstatus = FALSE;
     }
     argc  -= xwoptind;
     wargv += xwoptind;
@@ -3458,8 +3460,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             logredirect = getrealpathname(logredirargv[0], 0);
             if (logredirect == NULL)
                 return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, logredirargv[0], NULL);
-            haspipedlogs = 1;
-            haslogrotate = 0;
+            haspipedlogs = TRUE;
+            haslogrotate = FALSE;
         }
     }
 
