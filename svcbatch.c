@@ -1437,6 +1437,10 @@ static unsigned int __stdcall rdpipedlog(void *unused)
         }
     }
 #if defined(_DEBUG)
+    if (rn) {
+        rl[rn] = '\0';
+        DBG_PRINTF("[%.4lu] %s", pipedprocpid, rl);
+    }
     if (rc) {
         if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
             DBG_PRINTS("pipe closed");
