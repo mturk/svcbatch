@@ -1453,7 +1453,7 @@ static unsigned int __stdcall rdpipedlog(void *unused)
     XENDTHREAD(0);
 }
 
-static DWORD openlogpipe(void)
+static DWORD openlogpipe(BOOL ssp)
 {
     DWORD  rc;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
@@ -1494,8 +1494,8 @@ static DWORD openlogpipe(void)
         svcsyserror(__FUNCTION__, __LINE__, rc, L"SetInformationJobObject", NULL);
         goto failed;
     }
-
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    if (ssp)
+        reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     cmdline = xappendarg(1, NULL,    NULL, logredirect);
     if (logredirargc == 1) {
         cmdline = xappendarg(1, cmdline, NULL, svclogfname);
@@ -2989,12 +2989,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     if (havelogging) {
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-        if (haspipedlogs) {
-            rv = openlogpipe();
-        }
-        else {
+        if (haspipedlogs)
+            rv = openlogpipe(TRUE);
+        else
             rv = openlogfile(TRUE);
-        }
+
         if (rv != 0) {
             svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
             reportsvcstatus(SERVICE_STOPPED, rv);
