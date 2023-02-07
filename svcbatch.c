@@ -1971,7 +1971,7 @@ static int resolverotate(const wchar_t *str)
     return 0;
 }
 
-static int runshutdown(DWORD rt)
+static DWORD runshutdown(DWORD rt)
 {
     wchar_t  rp[TBUFSIZ];
     wchar_t *cmdline;
