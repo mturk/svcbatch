@@ -1018,13 +1018,13 @@ static HANDLE xcreatethread(int detach, unsigned initflag,
     return h;
 }
 
-static int isrelativepath(const wchar_t *p)
+static BOOL isrelativepath(const wchar_t *p)
 {
-    if (p[0] < 128) {
+    if ((p != NULL) && (p[0] < 128)) {
         if ((p[0] == L'\\') || (isalpha(p[0]) && (p[1] == L':')))
-            return 0;
+            return FALSE;
     }
-    return 1;
+    return TRUE;
 }
 
 static wchar_t *getfullpathname(const wchar_t *src, int isdir)
