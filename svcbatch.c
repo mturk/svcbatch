@@ -65,13 +65,13 @@ static wchar_t  *wenvblock        = NULL;
 
 static BOOL      haslogstatus     = FALSE;
 static BOOL      hasctrlbreak     = FALSE;
-static BOOL      hasnologging     = FALSE;
 static BOOL      haslogrotate     = FALSE;
 static BOOL      haspipedlogs     = FALSE;
 static BOOL      rotatebysize     = FALSE;
 static BOOL      rotatebytime     = FALSE;
 static BOOL      uselocaltime     = FALSE;
 static BOOL      truncatelogs     = FALSE;
+static BOOL      havelogging      = TRUE;
 static BOOL      servicemode      = TRUE;
 
 static DWORD     preshutdown      = 0;
@@ -2009,7 +2009,7 @@ static int runshutdown(DWORD rt)
     rp[ip++] = L'-';
     if (uselocaltime)
         rp[ip++] = L'l';
-    if (hasnologging)
+    if (!havelogging)
         rp[ip++] = L'q';
     if (truncatelogs)
         rp[ip++] = L't';
@@ -2218,7 +2218,7 @@ static unsigned int __stdcall rdpipethread(void *unused)
 
         if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL) && (rd != 0)) {
             EnterCriticalSection(&logfilelock);
-            if (!hasnologging) {
+            if (havelogging) {
                 HANDLE h = InterlockedExchangePointer(&logfhandle, NULL);
 
                 if (h)
@@ -2954,7 +2954,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         DBG_PRINTF("started %S", servicename);
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-        if (!hasnologging) {
+        if (havelogging) {
             rv = createlogsdir();
             if (rv) {
                 reportsvcstatus(SERVICE_STOPPED, rv);
@@ -2989,10 +2989,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     xwaafree(dupwenvp);
 
-    if (hasnologging) {
-        DBG_PRINTS("logging is disabled");
-    }
-    else {
+    if (havelogging) {
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         if (haspipedlogs) {
             rv = openlogpipe();
@@ -3007,6 +3004,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         }
         if (haslogstatus)
             logconfig(logfhandle);
+    }
+    else {
+        DBG_PRINTS("logging is disabled");
     }
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -3225,7 +3225,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             case L'q':
-                hasnologging = TRUE;
+                havelogging  = FALSE;
             break;
             case L't':
                 truncatelogs = TRUE;
@@ -3298,7 +3298,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 
-    if (hasnologging) {
+    if (!havelogging) {
         /**
          * The -q option was defined
          *
