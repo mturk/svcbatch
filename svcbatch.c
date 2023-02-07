@@ -512,7 +512,7 @@ static int xwstartswith(const wchar_t *str, const wchar_t *src)
 }
 
 
-int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
+static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
 {
     static const wchar_t *place = zerostring;
     const wchar_t *oli = NULL;
