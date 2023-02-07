@@ -1403,12 +1403,13 @@ static unsigned int __stdcall rdpipedlog(void *unused)
     DWORD rm = SBUFSIZ - 32;
     char  rb[2];
     char  rl[SBUFSIZ];
+
+    DBG_PRINTS("started");
 #else
     DWORD rs = SBUFSIZ;
     char  rb[SBUFSIZ];
 #endif
 
-    DBG_PRINTS("started");
     while (rc == 0) {
         DWORD rd = 0;
 
