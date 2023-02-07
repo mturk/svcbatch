@@ -1598,7 +1598,7 @@ static DWORD makelogfile(int firstopen)
     return 0;
 }
 
-static DWORD openlogfile(int firstopen)
+static DWORD openlogfile(BOOL firstopen)
 {
     wchar_t *logpb = NULL;
     HANDLE h       = NULL;
@@ -1774,7 +1774,7 @@ static DWORD rotatelogs(void)
     }
     else {
         CloseHandle(h);
-        rc = openlogfile(0);
+        rc = openlogfile(FALSE);
     }
     if (rc == 0) {
         if (haslogstatus) {
@@ -2997,7 +2997,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             rv = openlogpipe();
         }
         else {
-            rv = openlogfile(1);
+            rv = openlogfile(TRUE);
         }
         if (rv != 0) {
             svcsyserror(__FUNCTION__, __LINE__, 0, L"openlog failed", NULL);
