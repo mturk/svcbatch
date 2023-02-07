@@ -1101,7 +1101,7 @@ static wchar_t *getrealpathname(const wchar_t *src, int isdir)
     wchar_t    *fpn;
     wchar_t    *buf;
 
-    if (servicemode == 0)
+    if (!servicemode)
         return xwcsdup(src);
 
     fpn = getfullpathname(src, isdir);
@@ -1151,7 +1151,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
 {
     static DWORD cpcnt = 1;
 
-    if (servicemode == 0)
+    if (!servicemode)
         return;
     EnterCriticalSection(&servicelock);
     if (InterlockedExchange(&sscstate, SERVICE_STOPPED) == SERVICE_STOPPED)
@@ -1235,7 +1235,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
 
 static int xseekfend(HANDLE h)
 {
-    if (haspipedlogs == 0) {
+    if (!haspipedlogs) {
         LARGE_INTEGER ee = {{ 0, 0 }};
 
         if (!SetFilePointerEx(h, ee, NULL, FILE_END))
@@ -1269,7 +1269,7 @@ static DWORD logfflush(HANDLE h)
         return GetLastError();
     if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0)) {
         InterlockedAdd64(&logwritten, wr);
-        if (haspipedlogs == 0)
+        if (!haspipedlogs)
             FlushFileBuffers(h);
     }
     else {
@@ -2213,7 +2213,7 @@ static unsigned int __stdcall rdpipethread(void *unused)
 
         if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL) && (rd != 0)) {
             EnterCriticalSection(&logfilelock);
-            if (hasnologging == 0) {
+            if (!hasnologging) {
                 HANDLE h = InterlockedExchangePointer(&logfhandle, NULL);
 
                 if (h)
@@ -2953,7 +2953,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         _DBGPRINTF("started %S", servicename);
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-        if (hasnologging == 0) {
+        if (!hasnologging) {
             rv = createlogsdir();
             if (rv) {
                 reportsvcstatus(SERVICE_STOPPED, rv);
@@ -3323,7 +3323,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             svcbatchargs = xappendarg(1, svcbatchargs,  NULL, wargv[i]);
         }
     }
-    if (xisbatchfile(batchparam) == 0)
+    if (!xisbatchfile(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid batch file", batchparam);
     if (IS_EMPTY_WCS(serviceuuid)) {
         if (servicemode)
@@ -3423,7 +3423,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (servicemode) {
         haslogrotate = svcmaxlogs;
         if (svcendparam) {
-            if (xisbatchfile(svcendparam) == 0)
+            if (!xisbatchfile(svcendparam))
                 return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid batch file", svcendparam);
 
             shutdownfile = getrealpathname(svcendparam, 0);
