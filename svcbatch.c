@@ -2730,7 +2730,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
  * Debug helper code
  */
 
-static int scmsendcontol(const wchar_t *msg)
+static DWORD scmsendcontol(const wchar_t *msg)
 {
     ULARGE_INTEGER mid;
     DWORD          rc  = 0;
