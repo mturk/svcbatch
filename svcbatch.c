@@ -857,9 +857,9 @@ static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
     buf[c] = WNUL;
 }
 
-static int setupeventlog(void)
+static BOOL setupeventlog(void)
 {
-    static int ssrv = 0;
+    static BOOL ssrv = FALSE;
     static volatile LONG eset   = 0;
     static const wchar_t emsg[] = L"%SystemRoot%\\System32\\netmsg.dll\0";
     DWORD c;
@@ -873,7 +873,7 @@ static int setupeventlog(void)
                         0, NULL, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
                         NULL, &k, &c) != ERROR_SUCCESS)
-        return 0;
+        return FALSE;
     if (c == REG_CREATED_NEW_KEY) {
         DWORD dw = EVENTLOG_ERROR_TYPE | EVENTLOG_WARNING_TYPE |
                    EVENTLOG_INFORMATION_TYPE;
@@ -884,7 +884,7 @@ static int setupeventlog(void)
                           (const BYTE *)&dw, 4) != ERROR_SUCCESS)
             goto finished;
     }
-    ssrv = 1;
+    ssrv = TRUE;
 finished:
     RegCloseKey(k);
     return ssrv;
