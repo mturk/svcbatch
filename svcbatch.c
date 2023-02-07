@@ -2186,11 +2186,11 @@ finished:
 
 static void createstopthread(DWORD rv)
 {
-    void *sp = NULL;
+    void *sp = INVALID_HANDLE_VALUE;
 
     if (rv) {
         setsvcstatusexit(rv);
-        sp = INVALID_HANDLE_VALUE;
+        sp = NULL;
     }
     if (InterlockedIncrement(&sstarted) == 1) {
         ResetEvent(svcstopended);
@@ -3185,7 +3185,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return ERROR_ACCESS_DENIED;
     }
 # endif
-#else
+#endif
     /**
      * Check if running as service or as a child process.
      */
@@ -3201,7 +3201,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             cwsappname = CPP_WIDEN(SHUTDOWN_APPNAME);
         }
     }
-#endif
+
     if (argc == 1) {
         fprintf(stdout, "%s\n\n", cnamestamp);
         fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
