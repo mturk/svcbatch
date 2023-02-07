@@ -18,14 +18,17 @@ For a full list of changes, see the [git commit log][log]
   * Do not rotate each 90 days
   * Drop -d command option in favor of _DEBUG builds
 
+
 ### New Features
 
+ * Add -q command option to disable logging
  * Add -t command option that will truncate log file
  * Use -m command option to replace previous -r0...9
- * Add -v command option that enables logging various internal messages
- * Add SVCBATCH_SERVICE_ROOT environment variable
+ * Add -v command option that enables to log various internal messages
  * Add support for log rotation at each full hour
  * Add strftime support for log file names
+ * Enable to run services in console mode for _DEBUG builds
+
 
 ## v1.4.0
 
