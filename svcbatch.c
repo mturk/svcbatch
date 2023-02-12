@@ -2018,10 +2018,12 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(0, cmdline, NULL,  rp);
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
-    cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
-    cmdline = xappendarg(1, cmdline, L"-n", svslogfname);
-    cmdline = xappendarg(1, cmdline, NULL,  shutdownfile);
-    cmdline = xappendarg(0, cmdline, NULL,  svcendargs);
+	if (havelogging && svslogfname) {
+		cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
+		cmdline = xappendarg(1, cmdline, L"-n", svslogfname);
+	}
+    cmdline = xappendarg(1, cmdline, NULL, shutdownfile);
+    cmdline = xappendarg(0, cmdline, NULL, svcendargs);
 
     DBG_PRINTF("cmdline %S", cmdline);
 
