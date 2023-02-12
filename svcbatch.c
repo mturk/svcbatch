@@ -498,7 +498,7 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
 static int xwstartswith(const wchar_t *str, const wchar_t *src)
 {
     while (*str != WNUL) {
-        if (*str != *src)
+        if (towupper(*str) != *src)
             break;
         str++;
         src++;
@@ -3454,16 +3454,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
             if (s) {
                 *(s++) = WNUL;
-                if (wcscmp(s, L"NUL"))
+                if (_wcsicmp(s, L"NUL"))
                     svslogfname = s;
             }
             else {
                 svslogfname = SHUTDOWN_LOGNAME;
             }
             if (svslogfname) {
-                if (wcscmp(svclogfname,svslogfname) == 0)
+                if (_wcsicmp(svclogfname,svslogfname) == 0)
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Log and shutdown file names the same", svclogfname);
+                                       L"Log and shutdown file names are the same", svclogfname);
             }
         }
         if (logpipeparam) {
