@@ -127,7 +127,6 @@ static char         YYES[4]       = { 'Y',  '\r', '\n', '\0' };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
-static const wchar_t *svclogfnext = SVCBATCH_LOGFEXT;
 static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
 static const wchar_t *xwoptarg    = NULL;
 
@@ -375,12 +374,11 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     return cp;
 }
 
-static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs, const wchar_t *fx)
+static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs)
 {
     wchar_t *cp;
     int nd = xwcslen(ds);
     int nf = xwcslen(fs);
-    int nx = xwcslen(fx);
 
     if ((nd == 0) || (nf == 0))
         return NULL;
@@ -392,14 +390,12 @@ static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs, const wchar_t *
         fs += 2;
         nf -= 2;
     }
-    cp = xwmalloc(nd + nf + nx + 1);
+    cp = xwmalloc(nd + nf + 1);
 
     wmemcpy(cp, ds, nd);
     cp[nd++] = L'\\';
     wmemcpy(cp + nd, fs, nf);
-    if (nx) {
-        wmemcpy(cp + nd + nf, fx, nx);
-    }
+
     return cp;
 }
 
@@ -1574,7 +1570,7 @@ static DWORD makelogfile(BOOL ssp)
     if (wcsftime(ewb, BBUFSIZ, svclogfname, ctm) == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"invalid format code", svclogfname);
     xfree(logfilename);
-    logfilename = xwcsmkpath(servicelogs, ewb, svclogfnext);
+    logfilename = xwcsmkpath(servicelogs, ewb);
 
     h = CreateFileW(logfilename, GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
@@ -1611,7 +1607,7 @@ static DWORD openlogfile(BOOL ssp)
     else
         rotateprev = svcmaxlogs;
     if (logfilename == NULL)
-        logfilename = xwcsmkpath(servicelogs, svclogfname, svclogfnext);
+        logfilename = xwcsmkpath(servicelogs, svclogfname);
     if (logfilename == NULL)
         return svcsyserror(__FUNCTION__, __LINE__,
                            ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
@@ -3257,6 +3253,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                        L"Invalid -m command option value", xwoptarg);
             break;
             case L'n':
+				if (wcspbrk(xwoptarg, L"/\\:"))
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Invalid -n command option value", xwoptarg);
                 lognameparam = xwoptarg;
             break;
             case L'o':
@@ -3410,7 +3409,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          }
     }
     else {
-        svclogfnext  = SHUTDOWN_LOGFEXT;
         servicehome  = xwcsdup(svchomeparam);
         svcmaxlogs   = 0;
         haslogrotate = FALSE;
@@ -3418,7 +3416,33 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
-    svclogfname = xwcsdup(lognameparam);
+	if (lognameparam) {
+		wchar_t *d;
+		wchar_t *s = xwcsdup(lognameparam);
+
+		d = wcsrchr(s, L'.');
+		if ((d == NULL) || (d == s)) {
+			if (servicemode)
+				svclogfname = xwcsconcat(s, SVCBATCH_LOGFEXT);
+			else
+				svclogfname = xwcsconcat(s, SHUTDOWN_LOGFEXT SVCBATCH_LOGFEXT);
+			xfree(s);
+		}
+		else {
+			if (servicemode) {
+				svclogfname = s;
+			}
+			else {
+				wchar_t *p;
+				*(d) = WNUL;
+				p = xwcsconcat(s, SHUTDOWN_LOGFEXT);
+				*(d) = L'.';
+				svclogfname = xwcsconcat(p, d);
+				xfree(p);
+				xfree(s);
+			}
+		}
+	}
     if (servicemode) {
         if (svcmaxlogs > 0)
             haslogrotate = TRUE;
