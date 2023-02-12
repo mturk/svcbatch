@@ -128,6 +128,7 @@ static char         YYES[4]       = { 'Y',  '\r', '\n', '\0' };
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
+static const wchar_t *svslogfname = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
 static const wchar_t *xwcsiid(int i, DWORD c)
@@ -2001,7 +2002,7 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(1, cmdline, L"++", servicename);
     }
     rp[ip++] = L'-';
-    if (havelogging) {
+    if (havelogging && svslogfname) {
         if (uselocaltime)
             rp[ip++] = L'l';
         if (truncatelogs)
@@ -2018,7 +2019,7 @@ static DWORD runshutdown(DWORD rt)
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
     cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
-    cmdline = xappendarg(1, cmdline, L"-n", svclogfname);
+    cmdline = xappendarg(1, cmdline, L"-n", svslogfname);
     cmdline = xappendarg(1, cmdline, NULL,  shutdownfile);
     cmdline = xappendarg(0, cmdline, NULL,  svcendargs);
 
@@ -3253,7 +3254,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                        L"Invalid -m command option value", xwoptarg);
             break;
             case L'n':
-				if (wcspbrk(xwoptarg, L"/\\:"))
+                if (wcspbrk(xwoptarg, L"/\\:"))
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Invalid -n command option value", xwoptarg);
                 lognameparam = xwoptarg;
@@ -3416,33 +3417,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (resolvebatchname(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
-	if (lognameparam) {
-		wchar_t *d;
-		wchar_t *s = xwcsdup(lognameparam);
-
-		d = wcsrchr(s, L'.');
-		if ((d == NULL) || (d == s)) {
-			if (servicemode)
-				svclogfname = xwcsconcat(s, SVCBATCH_LOGFEXT);
-			else
-				svclogfname = xwcsconcat(s, SHUTDOWN_LOGFEXT SVCBATCH_LOGFEXT);
-			xfree(s);
-		}
-		else {
-			if (servicemode) {
-				svclogfname = s;
-			}
-			else {
-				wchar_t *p;
-				*(d) = WNUL;
-				p = xwcsconcat(s, SHUTDOWN_LOGFEXT);
-				*(d) = L'.';
-				svclogfname = xwcsconcat(p, d);
-				xfree(p);
-				xfree(s);
-			}
-		}
-	}
+    svclogfname = xwcsdup(lognameparam);
     if (servicemode) {
         if (svcmaxlogs > 0)
             haslogrotate = TRUE;
@@ -3461,8 +3436,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             shutdownfile = svcbatchfile;
         }
         if (svclogfname) {
+            wchar_t *s;
+
             if (wcschr(svclogfname, L'@')) {
-                wchar_t *s = svclogfname;
+                s = svclogfname;
                 /**
                  * Name is strftime formated
                  * replace @ with % so it can be used by strftime
@@ -3472,6 +3449,21 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                         *s = L'%';
                     s++;
                 }
+            }
+            s = wcschr(svclogfname, L';');
+
+            if (s) {
+                *(s++) = WNUL;
+                if (wcscmp(s, L"NUL"))
+                    svslogfname = s;
+            }
+            else {
+                svslogfname = SHUTDOWN_LOGNAME;
+            }
+            if (svslogfname) {
+                if (wcscmp(svclogfname,svslogfname) == 0)
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Log and shutdown file names the same", svclogfname);
             }
         }
         if (logpipeparam) {

@@ -17,6 +17,7 @@ For a full list of changes, see the [git commit log][log]
   * Do not rotate shutdown log files
   * Do not rotate each 90 days
   * Drop -d command option in favor of _DEBUG builds
+  * Enable separate shutdown.log file name with -n command option
 
 
 ### New Features

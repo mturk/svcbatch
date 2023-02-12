@@ -52,11 +52,11 @@ rem set
 rem echo.
 rem
 rem Check if shutdown batch signaled to stop the service
-if exist "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" (
+if exist "%SVCBATCH_SERVICE_HOME%\shutdown-%SVCBATCH_SERVICE_UUID%" (
     echo %~nx0: [%TIME%] found shutdown-%SVCBATCH_SERVICE_UUID%
     ping -n 6 127.0.0.1 >NUL
     echo %~nx0: [%TIME%] done
-    del /F /Q "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" 2>NUL
+    del /F /Q "%SVCBATCH_SERVICE_HOME%\shutdown-%SVCBATCH_SERVICE_UUID%" 2>NUL
     goto End
 )
 rem
@@ -91,7 +91,7 @@ ping -n 6 127.0.0.1 >NUL
 rem Simple IPC mechanism to signal the service
 rem to stop by creating unique file
 echo %~nx0: [%TIME%] creating shutdown-%SVCBATCH_SERVICE_UUID%
-echo Y> "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%"
+echo Y> "%SVCBATCH_SERVICE_HOME%\shutdown-%SVCBATCH_SERVICE_UUID%"
 :runShutdown
 ping -n 6 127.0.0.1 >NUL
 echo %~nx0: [%TIME%] ... running
@@ -143,11 +143,11 @@ rem
 rem Use Apache Httpd rotatelogs utility for logging
 rem set "SERVICE_LOG_REDIR=-e \"rotatelogs.exe -l @@logfile@@ 120\""
 rem
-rem Set log file name instead defaut SvcBatch
-rem Note that .log or .shutdown.log extension will be appended
-set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%\""
+rem Set log file names instead defaut SvcBatch.log
+rem and SvcBatch.shutdown.log
+set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log;%SERVICE_NAME%.stop.log\""
 rem
-rem set "SERVICE_LOG_FNAME=-n %SERVICE_NAME%.@Y-@m-@d.@H@M@S"
+rem set "SERVICE_LOG_FNAME=-n %SERVICE_NAME%.@Y-@m-@d.@H@M@S.log"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line

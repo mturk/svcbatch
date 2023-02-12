@@ -215,7 +215,7 @@ make sure to get familiar with `sc.exe` utility.
   The **program** current directory is always set
   to service output directory.
 
-* **-n [name][.extension]**
+* **-n [name][;shutdown-name]**
 
   **Set log file name**
 
@@ -224,13 +224,10 @@ make sure to get familiar with `sc.exe` utility.
   By default SvcBatch will use `SvcBatch.log` and
   `SvcBatch.shutdown.log` as log file names.
 
-  If **extension** is not provided, default `.log`
-  suffix will be added to the **name**.
 
-  In case **-s** option is defined the `.shutdown` suffix
-  will be added to **name** followed by **extension**.
-  For example if `-n logfile.txt` was defined, shutdown log file
-  will be resolved as `logfile.shutdown.txt`.
+  In case **-s** option is defined the **shudown-name** will be
+  used if provided instead default `SvcBatch.shutdown.log` file name.
+  In case **shutdown-name** is `NUL`, shutdown logging will be disabled.
 
   If **name** includes any `@` characters, it is replaced by
   `%` character at runtime and treated as a format string
