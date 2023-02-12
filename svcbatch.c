@@ -813,7 +813,7 @@ static FILE *xmkdbgtemp(void)
     xmktimedstr(1, rb, TBUFSIZ, L"\\" SVCBATCH_DBGNAME);
     xwcslcat(bb, BBUFSIZ, rb);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb);
-    xwcslcat(bb, BBUFSIZ, L".log");
+    xwcslcat(bb, BBUFSIZ, SVCBATCH_LOGFEXT);
 
 doopen:
     ds = _wfsopen(bb, L"wtc", _SH_DENYWR);
