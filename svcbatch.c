@@ -3151,8 +3151,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             consolemode  = TRUE;
             servicename  = xwcsdup(wargv[2]);
             dbgoutstream = stdout;
-            if (wcspbrk(servicename, L" \t;:\\/?<>*|\"'")) {
-                DBG_PRINTF("Found invalid characters in service name '%S'", servicename);
+            if (wcschr(servicename, L'\\')) {
+                DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
                 return ERROR_INVALID_PARAMETER;
             }
             if (p[0] == L'+') {
