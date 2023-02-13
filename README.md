@@ -259,6 +259,20 @@ make sure to get familiar with `sc.exe` utility.
     @Y  Year with century, as decimal number
   ```
 
+  Ensure that **name** contains only valid file name characters.
+  The following are reserved characters:
+
+  ```no-highlight
+    < (less than)
+    > (greater than)
+    : (colon)
+    " (double quote)
+    / (forward slash)
+    \ (backslash)
+    | (vertical bar or pipe)
+    ? (question mark)
+    * (asterisk)
+  ```
 
 * **-w [path]**
 
