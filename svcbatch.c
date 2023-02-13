@@ -128,7 +128,7 @@ static char         YYES[4]       = { 'Y',  '\r', '\n', '\0' };
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
-static const wchar_t *svslogfname = NULL;
+static const wchar_t *svcendlogfn = SHUTDOWN_LOGNAME;
 static const wchar_t *xwoptarg    = NULL;
 
 static const wchar_t *xwcsiid(int i, DWORD c)
@@ -2002,7 +2002,7 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(1, cmdline, L"::", servicename);
     }
     rp[ip++] = L'-';
-    if (havelogging && svslogfname) {
+    if (havelogging && svcendlogfn) {
         if (uselocaltime)
             rp[ip++] = L'l';
         if (truncatelogs)
@@ -2018,9 +2018,9 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(0, cmdline, NULL,  rp);
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
-    if (havelogging && svslogfname) {
+    if (havelogging && svcendlogfn) {
         cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
-        cmdline = xappendarg(1, cmdline, L"-n", svslogfname);
+        cmdline = xappendarg(1, cmdline, L"-n", svcendlogfn);
     }
     cmdline = xappendarg(1, cmdline, NULL, shutdownfile);
     cmdline = xappendarg(0, cmdline, NULL, svcendargs);
@@ -3316,6 +3316,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         outdirparam  = NULL;
         logpipeparam = NULL;
         lognameparam = NULL;
+        svcendlogfn  = NULL;
         svcmaxlogs   = 0;
         truncatelogs = FALSE;
         haslogstatus = FALSE;
@@ -3467,14 +3468,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             s = wcschr(svclogfname, L';');
             if (s) {
                 *(s++) = WNUL;
-                if (_wcsicmp(s, L"NUL"))
-                    svslogfname = s;
+                if (_wcsicmp(s, L"NUL") == 0)
+                    svcendlogfn = NULL;
+                else
+                    svcendlogfn = s;
             }
-            else {
-                svslogfname = SHUTDOWN_LOGNAME;
-            }
-            if (svslogfname) {
-                if (_wcsicmp(svclogfname,svslogfname) == 0)
+            if (svcendlogfn) {
+                if (_wcsicmp(svclogfname, svcendlogfn) == 0)
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Log and shutdown file names are the same", svclogfname);
             }
