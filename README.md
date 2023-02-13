@@ -215,22 +215,25 @@ make sure to get familiar with `sc.exe` utility.
   The **program** current directory is always set
   to service output directory.
 
-* **-n [name][;shutdown-name]**
+* **-n [log name][;shutdown name]**
 
   **Set log file name**
 
-  This option allows a user to set the alternate log file name.
+  This option allows a user to set the alternate log file names.
 
-  By default SvcBatch will use `SvcBatch.log` and
-  `SvcBatch.shutdown.log` as log file names.
+  By default SvcBatch will use `SvcBatch.log` as **log name**
+  and `SvcBatch.shutdown.log` as **shutdown name**.
 
 
-  In case **-s** option is defined the **shudown-name** will be
+  If **-n** argument contains `;` character it will be used
+  as separator for **log name** and **shutdown name**.
+
+  In case **-s** option is defined the **shudown name** will be
   used if provided instead default `SvcBatch.shutdown.log` file name.
-  In case **shutdown-name** is `NUL`, shutdown logging will be disabled.
+  In case **shutdown name** is `NUL`, shutdown logging will be disabled.
 
-  If **name** includes any `@` characters, it is replaced by
-  `%` character at runtime and treated as a format string
+  If **-n** argument includes any `@` characters, they will be replaced
+  with `%` character at runtime and treated as a format string
   to `strftime` function.
 
   When using `strftime` filename formatting, be sure the
@@ -260,7 +263,7 @@ make sure to get familiar with `sc.exe` utility.
     @Y  Year with century, as decimal number
   ```
 
-  Ensure that **name** contains only valid file name characters.
+  Make sure that log names contain only valid file name characters.
   The following are reserved characters:
 
   ```no-highlight
