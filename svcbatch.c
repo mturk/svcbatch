@@ -3453,25 +3453,24 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             shutdownfile = svcbatchfile;
         }
         if (svclogfname) {
-            wchar_t *s;
+            wchar_t *p = svclogfname;
+            wchar_t *s = NULL;
 
             if (wcspbrk(svclogfname, L"/\\:<>?*|\""))
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
                                    L"Invalid -n command option value", svclogfname);
 
-            s = wcschr(svclogfname, L'@');
-            if (s) {
-                /**
-                 * Name is strftime formated
-                 * replace @ with % so it can be used by strftime
-                 */
-                while (*s != WNUL) {
-                    if (*s == L'@')
-                        *s = L'%';
-                    s++;
-                }
+            /**
+             * If name is strftime formated
+             * replace @ with % so it can be used by strftime
+             */
+            while (*p != WNUL) {
+                if (*p == L'@')
+                    *p = L'%';
+                else if (*p == ';')
+                    s = p;
+                p++;
             }
-            s = wcschr(svclogfname, L';');
             if (s) {
                 *(s++) = WNUL;
                 if ((*s == WNUL) || (_wcsicmp(s, L"NUL") == 0))
