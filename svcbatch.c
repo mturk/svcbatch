@@ -1558,6 +1558,8 @@ static DWORD makelogfile(BOOL ssp)
     struct  tm *ctm;
     time_t  ctt;
     DWORD   rc;
+    DWORD   cm = servicemode ? CREATE_ALWAYS : OPEN_ALWAYS;
+
     HANDLE  h;
 
     if (ssp)
@@ -1574,20 +1576,34 @@ static DWORD makelogfile(BOOL ssp)
     logfilename = xwcsmkpath(servicelogs, ewb);
 
     h = CreateFileW(logfilename, GENERIC_WRITE,
-                    FILE_SHARE_READ, &sazero, CREATE_ALWAYS,
+                    FILE_SHARE_READ, &sazero, cm,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
         svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateFile", logfilename);
         return rc;
     }
+    if (rc == ERROR_ALREADY_EXISTS) {
+        if (servicemode) {
+            DBG_PRINTF("truncated %S", logfilename);
+        }
+        else {
+            logfflush(h);
+            DBG_PRINTF("reusing %S", logfilename);
+        }
+    }
     InterlockedExchange64(&logwritten, 0);
     if (haslogstatus) {
         logwrline(h, cnamestamp);
-        if (rc == ERROR_ALREADY_EXISTS)
-            logwrtime(h, "Log truncated");
-        else
+        if (rc == ERROR_ALREADY_EXISTS) {
+            if (servicemode)
+                logwrtime(h, "Log truncated");
+            else if (ssp)
+                logwrtime(h, "Log reused");
+        }
+        else if (ssp) {
             logwrtime(h, "Log opened");
+        }
     }
     InterlockedExchangePointer(&logfhandle, h);
     return 0;
