@@ -1542,7 +1542,7 @@ static DWORD makelogfile(BOOL ssp)
     struct  tm *ctm;
     time_t  ctt;
     DWORD   rc;
-    DWORD   cm = servicemode ? CREATE_ALWAYS : OPEN_ALWAYS;
+    DWORD   cm = OPEN_ALWAYS;
 
     HANDLE  h;
 
@@ -1558,7 +1558,8 @@ static DWORD makelogfile(BOOL ssp)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"invalid format code", svclogfname);
     xfree(logfilename);
     logfilename = xwcsmkpath(servicelogs, ewb);
-
+    if (servicemode || truncatelogs)
+        cm = CREATE_ALWAYS;
     h = CreateFileW(logfilename, GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, cm,
                     FILE_ATTRIBUTE_NORMAL, NULL);
@@ -1568,7 +1569,7 @@ static DWORD makelogfile(BOOL ssp)
         return rc;
     }
     if (rc == ERROR_ALREADY_EXISTS) {
-        if (servicemode) {
+        if (cm == CREATE_ALWAYS) {
             DBG_PRINTF("truncated %S", logfilename);
         }
         else {
@@ -1580,7 +1581,7 @@ static DWORD makelogfile(BOOL ssp)
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (rc == ERROR_ALREADY_EXISTS) {
-            if (servicemode)
+            if (cm == CREATE_ALWAYS)
                 logwrtime(h, "Log truncated");
             else if (ssp)
                 logwrtime(h, "Log reused");
@@ -1696,7 +1697,7 @@ static DWORD openlogfile(BOOL ssp)
         goto failed;
     }
     if (rc == ERROR_ALREADY_EXISTS) {
-        if (truncatelogs) {
+        if (cm == CREATE_ALWAYS) {
             DBG_PRINTF("truncated %S", logfilename);
         }
         else {
@@ -1708,7 +1709,7 @@ static DWORD openlogfile(BOOL ssp)
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (rc == ERROR_ALREADY_EXISTS) {
-            if (truncatelogs)
+            if (cm == CREATE_ALWAYS)
                 logwrtime(h, "Log truncated");
             else if (ssp)
                 logwrtime(h, "Log reused");
