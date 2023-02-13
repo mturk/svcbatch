@@ -2018,10 +2018,10 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(0, cmdline, NULL,  rp);
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
-	if (havelogging && svslogfname) {
-		cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
-		cmdline = xappendarg(1, cmdline, L"-n", svslogfname);
-	}
+    if (havelogging && svslogfname) {
+        cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
+        cmdline = xappendarg(1, cmdline, L"-n", svslogfname);
+    }
     cmdline = xappendarg(1, cmdline, NULL, shutdownfile);
     cmdline = xappendarg(0, cmdline, NULL, svcendargs);
 
@@ -3083,14 +3083,26 @@ static void __cdecl objectscleanup(void)
 
 static int xwmaininit(const wchar_t **wenv)
 {
-    wchar_t bb[HBUFSIZ];
-    DWORD   sz = HBUFSIZ - 1;
-    DWORD   nn;
-    int     ec = 0;
+    wchar_t *bb;
+    DWORD    sm = FBUFSIZ;
+    DWORD    sz;
+    DWORD    nn;
+    int      ec = 0;
 
+    sz = sm - 2;
+    bb = xwmalloc(sz);
     nn = GetModuleFileNameW(NULL, bb, sz);
-    if ((nn == 0) || (nn >= sz))
+    if (nn == 0)
         return 0;
+    while (nn >= sz) {
+        sm = sm * 2;
+        sz = sm - 2;
+        xfree(bb);
+        bb = xwmalloc(sz);
+        nn = GetModuleFileNameW(NULL, bb, sz);
+        if (nn == 0)
+            return 0;
+    }
     while (--nn > 2) {
         if (bb[nn] == L'\\') {
             bb[nn] = WNUL;
@@ -3101,8 +3113,7 @@ static int xwmaininit(const wchar_t **wenv)
     }
     if (exelocation == NULL)
         return 0;
-    svcbatchexe = xwcsdup(bb);
-
+    svcbatchexe = bb;
     QueryPerformanceFrequency(&pcfrequency);
     QueryPerformanceCounter(&pcstarttime);
 
