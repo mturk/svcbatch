@@ -3267,7 +3267,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                        L"Invalid -m command option value", xwoptarg);
             break;
             case L'n':
-                if (wcspbrk(xwoptarg, L"/\\:"))
+                if (wcspbrk(xwoptarg, L"/\\:<>?*|\""))
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Invalid -n command option value", xwoptarg);
                 lognameparam = xwoptarg;
