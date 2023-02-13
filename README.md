@@ -230,7 +230,7 @@ make sure to get familiar with `sc.exe` utility.
 
   In case **-s** option is defined the **shudown name** will be
   used if provided instead default `SvcBatch.shutdown.log` file name.
-  In case **shutdown name** is `NUL`, shutdown logging will be disabled.
+  In case **shutdown name** is `NUL` or empty, shutdown logging will be disabled.
 
   If **-n** argument includes any `@` characters, they will be replaced
   with `%` character at runtime and treated as a format string
@@ -421,25 +421,26 @@ make sure to get familiar with `sc.exe` utility.
   when log file is opened:
 
   ```no-highlight
-    [00:00:00.037265] SvcBatch 1.5.0 (dev) (Dec 23 2022 10:00:00 msc 150030729.207)
-    [00:00:00.037335] Log opened       : 2022-12-23 12:00:01
-    [00:00:00.037353] Service name     : adummysvc
-    [00:00:00.037368] Service uuid     : 79a743db-4723-31aa-f7c1-f1de4f664f12
-    [00:00:00.037384] Batch file       : C:\Projects\svcbatch\test\dummyservice.bat
-    [00:00:00.037415]       arguments  : run test
-    [00:00:00.037430] Root directory   : C:\Projects\svcbatch\x64
-    [00:00:00.037447] Base directory   : C:\Projects\svcbatch\test
-    [00:00:00.037462] Working directory: C:\Projects\svcbatch\test
-    [00:00:00.037642] Runtime directory: C:\Projects\svcbatch\test\Logs\adummysvc
-    [00:00:00.037651] Features         : rotate by size, rotate by time, shutdown batch
-
-     ...
-
-    [00:00:00.350878] Service signaled : SERVICE_CONTROL_STOP
+    [00:00:00.027266] SvcBatch 2.0.0_1.debug (dev) (Feb 13 2023 12:15:41 msc 193431937.0)
+    [00:00:00.027410] Log opened       : 2023-02-13 12:16:27
+    [00:00:00.027429] Service name     : adummysvc
+    [00:00:00.027446] Service uuid     : 4eb43188-6b91-1705-598b-ffb2b78357c9
+    [00:00:00.027463] Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
+    [00:00:00.027479]       arguments  : run test
+    [00:00:00.027495] Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
+    [00:00:00.027512]       arguments  : shutdown argument "argument with spaces"
+    [00:00:00.027528] Program directory: C:\Workplace\svcbatch\.build\dbg
+    [00:00:00.028021] Base directory   : C:\Workplace\svcbatch\test
+    [00:00:00.028029] Home directory   : C:\Workplace\svcbatch\test
+    [00:00:00.028035] Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
 
     ...
 
-    [00:00:15.668318] Log closed       : 2022-12-23 12:15:04
+    [00:00:10.775126] Service signaled : SERVICE_CONTROL_STOP
+
+    ...
+
+    [00:00:25.386534] Log closed       : 2023-02-13 12:16:53
   ```
 
 
