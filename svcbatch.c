@@ -2001,7 +2001,7 @@ static DWORD runshutdown(DWORD rt)
 #if defined(_DEBUG)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
-        cmdline = xappendarg(0, cmdline, NULL, L"-- console");
+        cmdline = xappendarg(0, cmdline, NULL, L"-- .s");
     }
 #endif
     rp[ip++] = L'-';
