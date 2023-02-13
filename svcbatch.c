@@ -1997,16 +1997,13 @@ static DWORD runshutdown(DWORD rt)
     si.cb = DSIZEOF(STARTUPINFOW);
 
     cmdline = xappendarg(1, NULL,    NULL,  svcbatchexe);
+    cmdline = xappendarg(1, cmdline, L"++", servicename);
 #if defined(_DEBUG)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
-        cmdline = xappendarg(1, cmdline, L"-:", servicename);
+        cmdline = xappendarg(0, cmdline, NULL, L"--");
     }
-    else
 #endif
-    {
-        cmdline = xappendarg(1, cmdline, L"++", servicename);
-    }
     rp[ip++] = L'-';
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
@@ -3161,47 +3158,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
-#if defined(_DEBUG)
-    if (argc > 2) {
-        const wchar_t *p = wargv[1];
-        if ((p[0] == L'-') && ((p[1] == L'-') || (p[1] == L':')) && (p[2] == WNUL)) {
-            consolemode  = TRUE;
-            servicename  = xwcsdup(wargv[2]);
-            dbgoutstream = stdout;
-            if (wcschr(servicename, L'\\')) {
-                DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
-                return ERROR_INVALID_PARAMETER;
-            }
-            if (p[1] == L':') {
-                servicemode = FALSE;
-                cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
-                cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
-            }
-            else {
-                /**
-                 * Services current directory is always
-                 * set to SystemDirectory
-                 *
-                 * hard coded for now
-                 */
-                SetCurrentDirectoryW(L"C:\\Windows\\System32");
-            }
-            wargv[2] = wargv[0];
-            argc    -= 2;
-            wargv   += 2;
-        }
-    }
-    if (consolemode) {
-        DBG_PRINTF("Running %S in console mode\n", servicename);
-    }
-# if (_DEBUG > 1)
-    else {
-        dbgoutstream = xmkdbgtemp();
-        if (dbgoutstream == NULL)
-            return ERROR_ACCESS_DENIED;
-    }
-# endif
-#endif
+
     /**
      * Check if running as service or as a child process.
      */
@@ -3219,12 +3176,61 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 
+#if defined(_DEBUG)
+    if (argc > 2) {
+        const wchar_t *p = wargv[1];
+        if ((p[0] == L'-') && (p[1] == L'-') && (p[2] == WNUL)) {
+            dbgoutstream = stdout;
+            consolemode  = TRUE;
+            if (servicename) {
+                i = 1;
+            }
+            else {
+                i = 2;
+                servicename = xwcsdup(wargv[2]);
+                if (wcschr(servicename, L'\\')) {
+                    DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
+                    return ERROR_INVALID_PARAMETER;
+                }
+            }
+            wargv[i] = wargv[0];
+            argc    -= i;
+            wargv   += i;
+        }
+    }
+    if (consolemode) {
+        DBG_PRINTF("Running %S in console mode\n", servicename);
+    }
+# if (_DEBUG > 1)
+    else {
+        dbgoutstream = xmkdbgtemp();
+        if (dbgoutstream == NULL)
+            return ERROR_ACCESS_DENIED;
+    }
+# endif
+    if (consolemode && servicemode) {
+        DWORD   rc;
+        wchar_t eb[BBUFSIZ];
+        /**
+         * Services current directory is always
+         * set to SystemDirectory
+         *
+         */
+        rc = GetEnvironmentVariableW(L"SystemRoot", eb, _MAX_FNAME);
+        if ((rc == 0) || (rc >= _MAX_FNAME))
+            return ERROR_BAD_ENVIRONMENT;
+        xwcslcat(eb, BBUFSIZ, L"\\System32");
+        SetCurrentDirectoryW(eb);
+    }
+#endif
+
     if (argc == 1) {
         fprintf(stdout, "%s\n\n", cnamestamp);
         fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
 
         return 0;
     }
+
     wnamestamp = xcwiden(cnamestamp);
     DBG_PRINTS(cnamestamp);
 
