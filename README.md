@@ -228,7 +228,7 @@ make sure to get familiar with `sc.exe` utility.
   If **-n** argument contains `;` character it will be used
   as separator for **log name** and **shutdown name**.
 
-  In case **-s** option is defined the **shudown name** will be
+  In case **-s** option is defined the **shutdown name** will be
   used if provided instead default `SvcBatch.shutdown.log` file name.
   In case **shutdown name** is `NUL` or empty, shutdown logging will be disabled.
 
@@ -243,11 +243,11 @@ make sure to get familiar with `sc.exe` utility.
   For example, if logfile was `service.@Y-@m-@d.log` with log rotation
   at `5` megabytes, but `5` megabytes was reached twice in the same day,
   the same log file name would be produced and log rotation would
-  overwite the same file.
+  overwrite the same file.
 
   **Supported formatting codes**
 
-  Here are listed some of the most common formatting codes.
+  Here are listed some of the most common formatting codes:
 
   ```no-highlight
     @a  Abbreviated weekday name in the locale
@@ -344,9 +344,9 @@ make sure to get familiar with `sc.exe` utility.
   When this parameter is defined log rotation will not use
   the logic defined in [Log Rotation](#log-rotation) section.
 
-  Intead rotating Svcbatch.log from `1...9` it will rename
-  exiting `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`.
-  The `YYYYMMDDhhmmss` is the currrent local or system time.
+  Instead rotating Svcbatch.log from `1...9` it will rename
+  existing `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`.
+  The `YYYYMMDDhhmmss` is the current local or system time.
 
 * **-m [number]**
 
@@ -395,7 +395,7 @@ make sure to get familiar with `sc.exe` utility.
 
   If **-s** option was not defined, SvcBatch will use service batch file as
   shutdown file with provided **argument(s)**. In that case service batch
-  file shuld process those arguments and act accordingly.
+  file should process those arguments and act accordingly.
 
 * **-q**
 
@@ -504,7 +504,7 @@ SvcBatch sets for each instance.
 
   ```batchfile
   rem
-  rem Create unique temp directoy
+  rem Create unique temp directory
   rem
   md "%TEMP%\%SVCBATCH_SERVICE_UUID%"
   ...
