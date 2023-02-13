@@ -2000,12 +2000,12 @@ static DWORD runshutdown(DWORD rt)
 #if defined(_DEBUG)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
-        cmdline = xappendarg(1, cmdline, L"++", servicename);
+        cmdline = xappendarg(1, cmdline, L"-:", servicename);
     }
     else
 #endif
     {
-        cmdline = xappendarg(1, cmdline, L"::", servicename);
+        cmdline = xappendarg(1, cmdline, L"++", servicename);
     }
     rp[ip++] = L'-';
     if (havelogging && svcendlogfn) {
@@ -3164,7 +3164,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DEBUG)
     if (argc > 2) {
         const wchar_t *p = wargv[1];
-        if ((((p[0] == L'-') && (p[1] == L'-')) || ((p[0] == L'+') && (p[1] == L'+'))) && (p[2] == WNUL)) {
+        if ((p[0] == L'-') && ((p[1] == L'-') || (p[1] == L':')) && (p[2] == WNUL)) {
             consolemode  = TRUE;
             servicename  = xwcsdup(wargv[2]);
             dbgoutstream = stdout;
@@ -3172,7 +3172,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
                 return ERROR_INVALID_PARAMETER;
             }
-            if (p[0] == L'+') {
+            if (p[1] == L':') {
                 servicemode = FALSE;
                 cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
                 cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
@@ -3207,7 +3207,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     if (argc > 2) {
         const wchar_t *p = wargv[1];
-        if ((p[0] == L':') && (p[1] == L':') && (p[2] == WNUL)) {
+        if ((p[0] == L'+') && (p[1] == L'+') && (p[2] == WNUL)) {
             servicemode = FALSE;
             servicename = xwcsdup(wargv[2]);
             cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
