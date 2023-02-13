@@ -3199,6 +3199,22 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     if (consolemode) {
+        if (servicemode) {
+            DWORD   rc;
+            wchar_t eb[BBUFSIZ];
+            /**
+             * Services current directory is always
+             * set to SystemDirectory
+             *
+             */
+            rc = GetEnvironmentVariableW(L"SystemRoot", eb, _MAX_FNAME);
+            if ((rc == 0) || (rc >= _MAX_FNAME)) {
+                DBG_PRINTS("Cannot get 'SystemRoot' environment variable");
+                return ERROR_BAD_ENVIRONMENT;
+            }
+            xwcslcat(eb, BBUFSIZ, L"\\System32");
+            SetCurrentDirectoryW(eb);
+        }
         DBG_PRINTF("Running %S in console mode\n", servicename);
     }
 # if (_DEBUG > 1)
@@ -3208,20 +3224,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return ERROR_ACCESS_DENIED;
     }
 # endif
-    if (consolemode && servicemode) {
-        DWORD   rc;
-        wchar_t eb[BBUFSIZ];
-        /**
-         * Services current directory is always
-         * set to SystemDirectory
-         *
-         */
-        rc = GetEnvironmentVariableW(L"SystemRoot", eb, _MAX_FNAME);
-        if ((rc == 0) || (rc >= _MAX_FNAME))
-            return ERROR_BAD_ENVIRONMENT;
-        xwcslcat(eb, BBUFSIZ, L"\\System32");
-        SetCurrentDirectoryW(eb);
-    }
 #endif
 
     if (argc == 1) {
