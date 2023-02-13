@@ -3267,9 +3267,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                                        L"Invalid -m command option value", xwoptarg);
             break;
             case L'n':
-                if (wcspbrk(xwoptarg, L"/\\:<>?*|\""))
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Invalid -n command option value", xwoptarg);
                 lognameparam = xwoptarg;
             break;
             case L'o':
@@ -3451,8 +3448,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (svclogfname) {
             wchar_t *s;
 
-            if (wcschr(svclogfname, L'@')) {
-                s = svclogfname;
+            if (wcspbrk(svclogfname, L"/\\:<>?*|\""))
+                return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                   L"Invalid -n command option value", svclogfname);
+
+            s = wcschr(svclogfname, L'@');
+            if (s) {
                 /**
                  * Name is strftime formated
                  * replace @ with % so it can be used by strftime
@@ -3464,7 +3465,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 }
             }
             s = wcschr(svclogfname, L';');
-
             if (s) {
                 *(s++) = WNUL;
                 if (_wcsicmp(s, L"NUL"))
