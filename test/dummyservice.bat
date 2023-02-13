@@ -145,9 +145,9 @@ rem set "SERVICE_LOG_REDIR=-e \"rotatelogs.exe -l @@logfile@@ 120\""
 rem
 rem Set log file names instead defaut SvcBatch.log
 rem and SvcBatch.shutdown.log
-set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log;%SERVICE_NAME%.stop.log\""
+rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log;%SERVICE_NAME%.stop.log\""
 rem
-rem set "SERVICE_LOG_FNAME=-n %SERVICE_NAME%.@Y-@m-@d.@H@M@S.log;%SERVICE_NAME%.@Y-@m-@d.shutdown.log"
+set "SERVICE_LOG_FNAME=-n %SERVICE_NAME%.@Y-@m-@d.@H@M@S.log;%SERVICE_NAME%.@F.shutdown.log"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line

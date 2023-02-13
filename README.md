@@ -250,6 +250,7 @@ make sure to get familiar with `sc.exe` utility.
     @a  Abbreviated weekday name in the locale
     @b  Abbreviated month name in the locale
     @d  Day of month as a decimal number (01 - 31)
+    @F  Equivalent to @Y-@m-@d
     @H  Hour in 24-hour format (00 - 23)
     @j  Day of the year as a decimal number (001 - 366)
     @m  Month as a decimal number (01 - 12)
@@ -263,15 +264,15 @@ make sure to get familiar with `sc.exe` utility.
   The following are reserved characters:
 
   ```no-highlight
-    < (less than)
-    > (greater than)
-    : (colon)
-    " (double quote)
-    / (forward slash)
-    \ (backslash)
-    | (vertical bar or pipe)
-    ? (question mark)
-    * (asterisk)
+    <  (less than)
+    >  (greater than)
+    :  (colon)
+    "  (double quote)
+    /  (forward slash)
+    \  (backslash)
+    |  (vertical bar or pipe)
+    ?  (question mark)
+    *  (asterisk)
   ```
 
 * **-w [path]**
