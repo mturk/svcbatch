@@ -341,9 +341,8 @@ make sure to get familiar with `sc.exe` utility.
   the logic defined in [Log Rotation](#log-rotation) section.
 
   Intead rotating Svcbatch.log from `1...9` it will rename
-  exiting `SvcBatch.log` to `SvcBatch.log.nnnnnnnnnn `.
-  The `nnnnnnnnnn` is the number of seconds since
-  `Unix epoch (Jan. 1, 1970)`.
+  exiting `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`.
+  The `YYYYMMDDhhmmss` is the currrent local or system time.
 
 * **-m [number]**
 

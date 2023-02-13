@@ -654,34 +654,18 @@ static wchar_t *xuuidstring(void)
     return b;
 }
 
-static void xmktimedstr(int mod, wchar_t *buf, int siz, const wchar_t *pfx)
+static void xmktimedstr(wchar_t *buf, int siz, const wchar_t *pfx)
 {
+    SYSTEMTIME st;
     int bsz = siz - 1;
 
-    if (mod) {
-        SYSTEMTIME st;
-
+    if (uselocaltime)
+        GetLocalTime(&st);
+    else
         GetSystemTime(&st);
-        _snwprintf(buf, bsz, L"%s%.4d%.2d%.2d%.2d%2d%.2d",
-                   pfx, st.wYear, st.wMonth, st.wDay,
-                   st.wHour, st.wMinute, st.wSecond);
-    }
-    else {
-        FILETIME       ft;
-        ULARGE_INTEGER ui;
-
-        GetSystemTimeAsFileTime(&ft);
-        ui.HighPart  = ft.dwHighDateTime;
-        ui.LowPart   = ft.dwLowDateTime;
-        ui.QuadPart /= 10;
-        /** Number of micro-seconds between the beginning of the Windows epoch
-         *  (Jan. 1, 1601) and the Unix epoch (Jan. 1, 1970)
-         */
-        ui.QuadPart -= CPP_UINT64_C(11644473600000000);
-        ui.QuadPart /= CPP_UINT64_C(1000000);
-
-        _snwprintf(buf, bsz, L"%s%.10llu", pfx, ui.QuadPart);
-    }
+    _snwprintf(buf, bsz, L"%s%.4d%.2d%.2d%.2d%.2d%.2d",
+               pfx, st.wYear, st.wMonth, st.wDay,
+               st.wHour, st.wMinute, st.wSecond);
 
     buf[bsz] = WNUL;
 }
@@ -810,7 +794,7 @@ static FILE *xmkdbgtemp(void)
             return NULL;
         }
     }
-    xmktimedstr(1, rb, TBUFSIZ, L"\\" SVCBATCH_DBGNAME);
+    xmktimedstr(rb, TBUFSIZ, L"\\" SVCBATCH_DBGNAME);
     xwcslcat(bb, BBUFSIZ, rb);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb);
     xwcslcat(bb, BBUFSIZ, SVCBATCH_LOGFEXT);
@@ -1639,7 +1623,7 @@ static DWORD openlogfile(BOOL ssp)
             else {
                 wchar_t sb[TBUFSIZ];
 
-                xmktimedstr(0, sb, TBUFSIZ, L".");
+                xmktimedstr(sb, TBUFSIZ, L".");
                 logpb = xwcsconcat(logfilename, sb);
             }
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
@@ -3187,21 +3171,21 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
                 cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
             }
+            else {
+                /**
+                 * Services current directory is always
+                 * set to SystemDirectory
+                 *
+                 * hard coded for now
+                 */
+                SetCurrentDirectoryW(L"C:\\Windows\\System32");
+            }
             wargv[2] = wargv[0];
             argc    -= 2;
             wargv   += 2;
         }
     }
     if (consolemode) {
-        if (servicemode) {
-            /**
-             * Services current directory is always
-             * set to SystemDirectory
-             *
-             * hard coded for now
-             */
-            SetCurrentDirectoryW(L"C:\\Windows\\System32");
-        }
         DBG_PRINTF("Running %S in console mode\n", servicename);
     }
 # if (_DEBUG > 1)
@@ -3484,7 +3468,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             s = wcschr(svclogfname, L';');
             if (s) {
                 *(s++) = WNUL;
-                if (_wcsicmp(s, L"NUL") == 0)
+                if ((*s == WNUL) || (_wcsicmp(s, L"NUL") == 0))
                     svcendlogfn = NULL;
                 else
                     svcendlogfn = s;
