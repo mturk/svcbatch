@@ -1542,8 +1542,7 @@ static DWORD makelogfile(BOOL ssp)
     struct  tm *ctm;
     time_t  ctt;
     DWORD   rc;
-    DWORD   cm = OPEN_ALWAYS;
-
+    DWORD   cm;
     HANDLE  h;
 
     if (ssp)
@@ -1560,6 +1559,8 @@ static DWORD makelogfile(BOOL ssp)
     logfilename = xwcsmkpath(servicelogs, ewb);
     if (servicemode || truncatelogs)
         cm = CREATE_ALWAYS;
+    else
+        cm = OPEN_ALWAYS;
     h = CreateFileW(logfilename, GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, cm,
                     FILE_ATTRIBUTE_NORMAL, NULL);
@@ -1600,7 +1601,7 @@ static DWORD openlogfile(BOOL ssp)
     HANDLE h       = NULL;
     int    rotateprev;
     DWORD  rc;
-    DWORD  cm = truncatelogs ? CREATE_ALWAYS : OPEN_ALWAYS;
+    DWORD  cm;
 
     if (wcschr(svclogfname, L'%'))
         return makelogfile(ssp);
@@ -1687,6 +1688,10 @@ static DWORD openlogfile(BOOL ssp)
             xfree(logpn);
         }
     }
+    if (truncatelogs)
+        cm = CREATE_ALWAYS;
+    else
+        cm = OPEN_ALWAYS;
 
     h = CreateFileW(logfilename, GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, cm,
