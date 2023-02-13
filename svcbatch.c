@@ -2001,7 +2001,7 @@ static DWORD runshutdown(DWORD rt)
 #if defined(_DEBUG)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
-        cmdline = xappendarg(0, cmdline, NULL, L"--");
+        cmdline = xappendarg(0, cmdline, NULL, L"-- console");
     }
 #endif
     rp[ip++] = L'-';
@@ -3182,20 +3182,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if ((p[0] == L'-') && (p[1] == L'-') && (p[2] == WNUL)) {
             dbgoutstream = stdout;
             consolemode  = TRUE;
-            if (servicename) {
-                i = 1;
-            }
-            else {
-                i = 2;
+            if (servicename == NULL) {
                 servicename = xwcsdup(wargv[2]);
                 if (wcschr(servicename, L'\\')) {
                     DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
                     return ERROR_INVALID_PARAMETER;
                 }
             }
-            wargv[i] = wargv[0];
-            argc    -= i;
-            wargv   += i;
+            wargv[2] = wargv[0];
+            argc    -= 2;
+            wargv   += 2;
         }
     }
     if (consolemode) {
