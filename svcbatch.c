@@ -670,24 +670,6 @@ static void xmktimedstr(wchar_t *buf, int siz, const wchar_t *pfx)
     buf[bsz] = WNUL;
 }
 
-static int xisbatchfile(const wchar_t *s)
-{
-    int n = xwcslen(s);
-    /* a.bat */
-    if (n > 4) {
-        const wchar_t *e = s + n - 5;
-
-        if ((wcschr(L"/\\:<>?*|\"", e[0]) == NULL) && (e[1] == L'.')) {
-            e += 2;
-            if (_wcsicmp(e, L"bat") == 0)
-                return 1;
-            if (_wcsicmp(e, L"cmd") == 0)
-                return 1;
-        }
-    }
-    return 0;
-}
-
 static int xtimehdr(char *wb, int sz)
 {
     LARGE_INTEGER ct;
@@ -3348,8 +3330,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             svcbatchargs = xappendarg(1, svcbatchargs,  NULL, wargv[i]);
         }
     }
-    if (!xisbatchfile(batchparam))
-        return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid batch file", batchparam);
+    if (IS_EMPTY_WCS(batchparam))
+        return svcsyserror(__FUNCTION__, __LINE__, 0, L"Missing batch file", NULL);
     if (IS_EMPTY_WCS(serviceuuid)) {
         if (servicemode)
             serviceuuid = xuuidstring();
@@ -3448,9 +3430,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (svcmaxlogs > 0)
             haslogrotate = TRUE;
         if (svcendparam) {
-            if (!xisbatchfile(svcendparam))
-                return svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid batch file", svcendparam);
-
             shutdownfile = getrealpathname(svcendparam, 0);
             if (IS_EMPTY_WCS(shutdownfile))
                 return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
