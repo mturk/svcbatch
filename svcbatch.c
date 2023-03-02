@@ -3299,7 +3299,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
              * Private options
              */
             case L'u':
-                serviceuuid  = xwcsdup(xwoptarg);
+                if (servicemode)
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"The -u option cannot be used in service mode", NULL);
+                else
+                    serviceuuid  = xwcsdup(xwoptarg);
             break;
             /**
              * Invalid option
