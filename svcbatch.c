@@ -429,7 +429,7 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
         return s1;
 
     if (nq) {
-        if (wcspbrk(s3, L" \n\r\t\"")) {
+        if (wcspbrk(s3, L" \t\"")) {
             int n = 2;
             for (c = s3; ; c++) {
                 int b = 0;
