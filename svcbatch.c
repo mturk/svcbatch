@@ -809,6 +809,20 @@ doopen:
     return ds;
 }
 # endif
+
+# if defined(_MSC_VER) && (_MSC_VER > 1800)
+static void xiphandler(const wchar_t *e,
+                       const wchar_t *w, const wchar_t *f,
+                       unsigned int n, uintptr_t r)
+{
+    e = NULL;
+    w = NULL;
+    f = NULL;
+    n = 0;
+    r = 0;
+    DBG_PRINTS("invalid parameter handler called");
+}
+# endif
 #endif
 
 static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
@@ -2623,20 +2637,6 @@ finished:
     DBG_PRINTS("done");
     XENDTHREAD(0);
 }
-
-#if defined(_MSC_VER) && (_MSC_VER > 1800)
-static void xiphandler(const wchar_t *e,
-    const wchar_t *w, const wchar_t *f,
-    unsigned int n, uintptr_t r)
-{
-    e = NULL;
-    w = NULL;
-    f = NULL;
-    n = 0;
-    r = 0;
-    DBG_PRINTS("invalid parameter handler called");
-}
-#endif
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
