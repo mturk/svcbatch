@@ -309,6 +309,22 @@ static int xwcslen(const wchar_t *s)
         return (int)wcslen(s);
 }
 
+static int xwcstoi(const wchar_t *s)
+{
+    long     v;
+    wchar_t *e = NULL;
+
+    if (IS_EMPTY_WCS(s))
+        return -1;
+    v = wcstol(s, &e, 10);
+    if ((v == 0) && (e == s))
+        return -1;
+    if ((v < 0)  || (v > INT_MAX))
+        return -1;
+    else
+        return (int)v;
+}
+
 /**
  * Appends src to string dst of size siz where
  * siz is the full size of dst.
@@ -1949,20 +1965,20 @@ static int resolverotate(const wchar_t *str)
             int hh, mm, ss;
 
             *(p++) = WNUL;
-            hh = _wtoi(rp);
-            if ((hh < 0) || (hh > 23) || (errno == ERANGE))
+            hh = xwcstoi(rp);
+            if ((hh < 0) || (hh > 23))
                 return __LINE__;
             rp = p;
             p  = wcschr(rp, L':');
             if (p == NULL)
                 return __LINE__;
             *(p++) = WNUL;
-            mm = _wtoi(rp);
-            if ((mm < 0) || (mm > 59) || (errno == ERANGE))
+            mm = xwcstoi(rp);
+            if ((mm < 0) || (mm > 59))
                 return __LINE__;
             rp = p;
-            ss = _wtoi(rp);
-            if ((ss < 0) || (ss > 59) || (errno == ERANGE))
+            ss = xwcstoi(rp);
+            if ((ss < 0) || (ss > 59))
                 return __LINE__;
             DBG_PRINTF("rotate each day at %.2d:%.2d:%.2d",
                       hh, mm, ss);
@@ -2731,7 +2747,7 @@ static DWORD scmsendctrl(const wchar_t *msg)
     if (_wcsicmp(msg, L"stop") == 0)
         mid.LowPart = SERVICE_CONTROL_STOP;
     else
-        mid.LowPart = _wtoi(msg);
+        mid.LowPart = xwcstoi(msg);
 
     if ((mid.LowPart < 1) || (mid.LowPart > 255)) {
         svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid control message", msg);
@@ -3254,7 +3270,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 logpipeparam = xwoptarg;
             break;
             case L'm':
-                svcmaxlogs   = _wtoi(xwoptarg);
+                svcmaxlogs   = xwcstoi(xwoptarg);
                 if ((svcmaxlogs < 0) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Invalid -m command option value", xwoptarg);
