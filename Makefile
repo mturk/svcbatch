@@ -23,6 +23,7 @@ SRCDIR = .
 
 BLDARCH = x64
 PROJECT = svcbatch
+PIPELOG = pipedlog
 !INCLUDE <Version.mk>
 
 VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_MICRO)
@@ -34,7 +35,7 @@ WORKDIR = $(WORKTOP)\rel
 !ENDIF
 PPREFIX = $(SRCDIR)\$(PROJECT)
 OUTPUT  = $(WORKDIR)\$(PROJECT).exe
-PIPELOG = $(WORKDIR)\pipedlog.exe
+PLOGOUT = $(WORKDIR)\$(PIPELOG).exe
 
 !IF DEFINED(_STATIC_MSVCRT)
 CRT_CFLAGS = -MT
@@ -84,16 +85,15 @@ RFLAGS = $(RFLAGS) /d _BUILD_TIMESTAMP=$(_BUILD_TIMESTAMP)
 !ENDIF
 
 !IF DEFINED(_DEBUG)
-CFLAGS = $(CFLAGS) -Fd$(WORKDIR)\$(PROJECT)
-LFLAGS = $(LFLAGS) /DEBUG /pdb:$(WORKDIR)\$(PROJECT).pdb
+LFLAGS = $(LFLAGS) /DEBUG
 !ENDIF
 
 OBJECTS = \
 	$(WORKDIR)\$(PROJECT).obj \
 	$(WORKDIR)\$(PROJECT).res
 
-PIPEOBJ = \
-	$(WORKDIR)\pipedlog.obj
+PLOGOBJ = \
+	$(WORKDIR)\$(PIPELOG).obj
 
 
 all : $(WORKDIR) $(OUTPUT)
@@ -120,21 +120,21 @@ $(WORKDIR)\$(PROJECT).h: $(PPREFIX).h.in
 	Set-Content -Path $@"
 
 {$(SRCDIR)}.c{$(WORKDIR)}.obj:
-	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
+	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PROJECT) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
 
 {$(SRCDIR)\test\pipedlog}.c{$(WORKDIR)}.obj:
-	$(CC) $(CLOPTS) $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
+	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PIPELOG) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
 
 {$(SRCDIR)}.rc{$(WORKDIR)}.res:
 	$(RC) $(RCOPTS) $(RFLAGS) /i $(SRCDIR) /i $(WORKDIR) /fo $@ $<
 
 $(OUTPUT): $(WORKDIR) $(WORKDIR)\$(PROJECT).h $(WORKDIR)\$(PROJECT).manifest $(OBJECTS)
-	$(LN) $(LFLAGS) /out:$(OUTPUT) $(OBJECTS) $(LDLIBS)
+	$(LN) $(LFLAGS) /pdb:$(WORKDIR)\$(PROJECT).pdb /out:$(OUTPUT) $(OBJECTS) $(LDLIBS)
 
-$(PIPELOG): $(OUTPUT) $(PIPEOBJ)
-	$(LN) $(LFLAGS) /out:$(PIPELOG) $(PIPEOBJ) $(LDLIBS)
+$(PLOGOUT): $(OUTPUT) $(PLOGOBJ)
+	$(LN) $(LFLAGS) /pdb:$(WORKDIR)\$(PIPELOG).pdb /out:$(PLOGOUT) $(PLOGOBJ) $(LDLIBS)
 
-tests: $(PIPELOG)
+tests: $(PLOGOUT)
 
 clean:
 	@-rd /S /Q $(WORKDIR) 2>NUL
