@@ -675,9 +675,10 @@ static int xisbatchfile(const wchar_t *s)
     int n = xwcslen(s);
     /* a.bat */
     if (n > 4) {
-        const wchar_t *e = s + n - 4;
+        const wchar_t *e = s + n - 5;
 
-        if (*(e++) == L'.') {
+        if ((wcschr(L"/\\:<>?*|\"", e[0]) == NULL) && (e[1] == L'.')) {
+            e += 2;
             if (_wcsicmp(e, L"bat") == 0)
                 return 1;
             if (_wcsicmp(e, L"cmd") == 0)
