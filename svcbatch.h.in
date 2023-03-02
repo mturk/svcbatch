@@ -55,7 +55,6 @@
 #if defined(_DEBUG)
 #define SVCBATCH_SCMNAME       L"\\\\.\\pipe\\SvcBatch-ScmPipe-"
 #define SVCBATCH_SCSNAME       L"Global\\SvcBatch-ScmSignal-"
-#define SVCBATCH_DBGNAME       L"sb_debug_2_"
 #endif
 /**
  * Maximum number of SvcBatch.log.N files

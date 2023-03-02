@@ -670,7 +670,7 @@ static wchar_t *xuuidstring(void)
     return b;
 }
 
-static void xmktimedstr(wchar_t *buf, int siz, const wchar_t *pfx)
+static void xmktimedext(wchar_t *buf, int siz)
 {
     SYSTEMTIME st;
     int bsz = siz - 1;
@@ -679,8 +679,8 @@ static void xmktimedstr(wchar_t *buf, int siz, const wchar_t *pfx)
         GetLocalTime(&st);
     else
         GetSystemTime(&st);
-    _snwprintf(buf, bsz, L"%s%.4d%.2d%.2d%.2d%.2d%.2d",
-               pfx, st.wYear, st.wMonth, st.wDay,
+    _snwprintf(buf, bsz, L".%.4d%.2d%.2d%.2d%.2d%.2d",
+               st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
 
     buf[bsz] = WNUL;
@@ -769,45 +769,6 @@ static void dbgprintf(const char *funcname, const char *format, ...)
         OutputDebugStringA(b);
     }
 }
-
-# if (_DEBUG > 1)
-static FILE *xmkdbgtemp(void)
-{
-    FILE *ds = NULL;
-    DWORD rc;
-    wchar_t bb[BBUFSIZ];
-    wchar_t rb[TBUFSIZ];
-
-    rc = GetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb, _MAX_FNAME);
-    if (rc != 0) {
-        xwcslcat(bb, BBUFSIZ, SHUTDOWN_LOGFEXT);
-        goto doopen;
-    }
-    rc = GetEnvironmentVariableW(L"TEMP", bb, _MAX_FNAME);
-    if ((rc == 0) || (rc >= _MAX_FNAME)) {
-        rc = GetEnvironmentVariableW(L"TMP", bb, _MAX_FNAME);
-        if ((rc == 0) || (rc >= _MAX_FNAME)) {
-            OutputDebugStringW(L">>> SvcBatch");
-            OutputDebugStringW(L"    Missing TEMP and TMP environment variables");
-            OutputDebugStringW(L"<<< SvcBatch");
-            return NULL;
-        }
-    }
-    xmktimedstr(rb, TBUFSIZ, L"\\" SVCBATCH_DBGNAME);
-    xwcslcat(bb, BBUFSIZ, rb);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_DDBG", bb);
-    xwcslcat(bb, BBUFSIZ, SVCBATCH_LOGFEXT);
-
-doopen:
-    ds = _wfsopen(bb, L"wtc", _SH_DENYWR);
-    if (ds == NULL) {
-        OutputDebugStringW(L">>> SvcBatch cannot create debug file");
-        OutputDebugStringW(bb);
-        OutputDebugStringW(L"<<< SvcBatch");
-    }
-    return ds;
-}
-# endif
 
 # if defined(_MSC_VER) && (_MSC_VER > 1800)
 static void xiphandler(const wchar_t *e,
@@ -1638,7 +1599,7 @@ static DWORD openlogfile(BOOL ssp)
             else {
                 wchar_t sb[TBUFSIZ];
 
-                xmktimedstr(sb, TBUFSIZ, L".");
+                xmktimedext(sb, TBUFSIZ);
                 logpb = xwcsconcat(logfilename, sb);
             }
             if (!MoveFileExW(logfilename, logpb, MOVEFILE_REPLACE_EXISTING)) {
@@ -3212,13 +3173,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         DBG_PRINTF("Running %S in console mode\n", servicename);
     }
-# if (_DEBUG > 1)
-    else {
-        dbgoutstream = xmkdbgtemp();
-        if (dbgoutstream == NULL)
-            return ERROR_ACCESS_DENIED;
-    }
-# endif
 #endif
 
     if (argc == 1) {
