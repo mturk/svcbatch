@@ -80,7 +80,7 @@ static DWORD     pipedprocpid     = 0;
 
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
 static int       xwoptind         = 1;
-static int       xwoption         = 0;
+static wchar_t   xwoption         = WNUL;
 static int       logredirargc     = 0;
 
 #if defined(_DEBUG)
@@ -533,7 +533,7 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     xwoption = *(place++);
 
     if (xwoption != L':') {
-        oli = wcschr(opts, towlower((wchar_t)xwoption));
+        oli = wcschr(opts, towlower(xwoption));
     }
     if (oli == NULL) {
         place = zerostring;
