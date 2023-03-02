@@ -2719,7 +2719,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
  * Debug helper code
  */
 
-static DWORD scmsendcontol(const wchar_t *msg)
+static DWORD scmsendctrl(const wchar_t *msg)
 {
     ULARGE_INTEGER mid;
     DWORD          rc  = 0;
@@ -3244,7 +3244,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DEBUG)
             case L'c':
                 if (consolemode)
-                    return scmsendcontol(xwoptarg);
+                    return scmsendctrl(xwoptarg);
                 else
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Cannot use -c command option when running as service", NULL);
