@@ -1904,7 +1904,7 @@ static int resolverotate(const wchar_t *str)
         wchar_t *ep  = zerostring;
 
         siz = _wcstoi64(rp, &ep, 10);
-        if ((siz < 0) || (ep == rp) || (errno == ERANGE))
+        if ((siz < 1) || (siz > INT_MAX))
             return __LINE__;
         switch (ep[0]) {
             case L'B':
