@@ -1945,31 +1945,32 @@ static int resolverotate(const wchar_t *str)
 
         p = wcschr(rp, L':');
         if (p == NULL) {
-            wchar_t *ep = zerostring;
+            wchar_t *ep = NULL;
             long     mm = wcstol(rp, &ep, 10);
 
-            if ((mm < 0) || (errno == ERANGE) || (*ep != WNUL)) {
-                DBG_PRINTF("invalid rotate timeout %S", rp);
+            if ((mm < 0) || (mm > INT_MAX)) {
+                DBG_PRINTF("rotate timeout overflow %S", rp);
                 return __LINE__;
             }
             if (mm == 0) {
-                DBG_PRINTS("rotate at midnight");
-                resolvetimeout(0, 0, 0, 1);
+                if (ep == rp) {
+                    DBG_PRINTF("invalid rotate timeout %S", rp);
+                    return __LINE__;
+                }
+                else {
+                    DBG_PRINTS("rotate at midnight");
+                    resolvetimeout(0, 0, 0, 1);
+                }
             }
             else if (mm == 60) {
                 DBG_PRINTS("rotate on each full hour");
                 resolvetimeout(0, 0, 0, 0);
             }
             else {
-                if (mm > 1) {
-                    rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
-                    DBG_PRINTF("rotate each %ld minutes", mm);
-                    rotatetmo.QuadPart = rotateint;
-                    rotatebytime = TRUE;
-                }
-                else {
-                    DBG_PRINTS("rotate by time disabled");
-                }
+                rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
+                DBG_PRINTF("rotate each %ld minutes", mm);
+                rotatetmo.QuadPart = rotateint;
+                rotatebytime = TRUE;
             }
         }
         else {
