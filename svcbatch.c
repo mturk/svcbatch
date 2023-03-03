@@ -207,16 +207,6 @@ static wchar_t *xwmalloc(size_t size)
     return p;
 }
 
-static wchar_t *xwcalloc(size_t size)
-{
-    wchar_t *p = (wchar_t *)calloc(size + 2, sizeof(wchar_t));
-    if (p == NULL) {
-        _wperror(L"xwcalloc");
-        _exit(1);
-    }
-    return p;
-}
-
 static void *xcalloc(size_t number, size_t size)
 {
     void *p = calloc(number + 2, size);
@@ -227,20 +217,20 @@ static void *xcalloc(size_t number, size_t size)
     return p;
 }
 
-static void xfree(void *m)
+static wchar_t *xwcalloc(size_t size)
 {
-    if (m != NULL)
-        free(m);
+    return (wchar_t *)xcalloc(size, sizeof(wchar_t));
 }
 
 static wchar_t **xwaalloc(size_t size)
 {
-    wchar_t **p = (wchar_t **)calloc(size + 2, sizeof(wchar_t *));
-    if (p == NULL) {
-        _wperror(L"xwaalloc");
-        _exit(1);
-    }
-    return p;
+    return (wchar_t **)xcalloc(size, sizeof(wchar_t *));
+}
+
+static void xfree(void *m)
+{
+    if (m != NULL)
+        free(m);
 }
 
 static void xwaafree(wchar_t **a)
