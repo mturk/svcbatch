@@ -950,14 +950,12 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
 
 static DWORD xcreatedir(const wchar_t *path)
 {
-    DWORD rc = 0;
-
     if (!CreateDirectoryW(path, NULL)) {
-        rc = GetLastError();
-        if (rc == ERROR_ALREADY_EXISTS)
-            rc = 0;
+        DWORD rc = GetLastError();
+        if (rc != ERROR_ALREADY_EXISTS)
+            return rc;
     }
-    return rc;
+    return 0;
 }
 
 static DWORD xmdparent(wchar_t *path)
