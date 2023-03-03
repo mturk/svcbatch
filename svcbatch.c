@@ -3082,11 +3082,6 @@ static void __cdecl objectscleanup(void)
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
-#if defined(_DEBUG)
-    if ((dbgoutstream != NULL) && (dbgoutstream != stdout)) {
-        fclose(dbgoutstream);
-    }
-#endif
 }
 
 static int xwmaininit(const wchar_t **wenv)
