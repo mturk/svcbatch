@@ -1897,13 +1897,13 @@ static int resolverotate(const wchar_t *str)
 
     sp = xwcsdup(str);
     if (wcspbrk(sp, L"BKMG")) {
+        long     siz;
         LONGLONG len;
-        LONGLONG siz;
         LONGLONG mux = 0;
         wchar_t *rp  = sp;
         wchar_t *ep  = zerostring;
 
-        siz = _wcstoi64(rp, &ep, 10);
+        siz = wcstol(rp, &ep, 10);
         if ((siz < 1) || (siz > INT_MAX))
             return __LINE__;
         switch (ep[0]) {
