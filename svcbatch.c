@@ -368,32 +368,31 @@ static wchar_t *xwcsreplace(const wchar_t *s, const wchar_t *src, const wchar_t 
     const wchar_t *p;
     wchar_t *d;
     wchar_t *r;
-    int b[32];
-    int n = 0;
-    int x;
-    int i;
-    int z;
-    int c;
-    int w;
+    size_t   b[32];
+    size_t   w;
+    size_t   c;
+    size_t   x;
+    size_t   z;
+    int   i, n = 0;
 
-    x = xwcslen(src);
+    x = wcslen(src);
     p = wcsstr(s, src);
 
     while (p != NULL) {
-        b[n++] = (int)(p - s);
+        b[n++] = p - s;
         p = wcsstr(p + x, src);
         if (n > 30)
             return NULL;
     }
     if (n == 0)
         return NULL;
-    z = xwcslen(rep);
-    c = xwcslen(s);
+    z = wcslen(rep);
+    c = wcslen(s);
     r = xwmalloc(c + (n * z));
     p = s;
     d = r;
     for (i = 0; i < n; i++) {
-        w = b[i] - (int)(p - s);
+        w = b[i] - (p - s);
         wmemcpy(d, p, w);
         p += w;
         p += x;
@@ -401,7 +400,7 @@ static wchar_t *xwcsreplace(const wchar_t *s, const wchar_t *src, const wchar_t 
         wmemcpy(d, rep, z);
         d += z;
     }
-    w = c - (int)(p - s);
+    w = c - (p - s);
     if (w > 0) {
         wmemcpy(d, p, w);
         d += w;
