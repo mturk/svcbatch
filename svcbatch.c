@@ -373,6 +373,54 @@ static size_t xwcslcat(wchar_t *dst, size_t siz, const wchar_t *src)
     return r;
 }
 
+static wchar_t *xwcsreplace(const wchar_t *s, const wchar_t *src, const wchar_t *rep)
+{
+    const wchar_t *p;
+    wchar_t *d;
+    wchar_t *r;
+    int b[32];
+    int n = 0;
+    int x;
+    int i;
+    int z;
+    int c;
+    int w;
+
+    x = xwcslen(src);
+    p = wcsstr(s, src);
+
+    while (p != NULL) {
+        b[n++] = (int)(p - s);
+        p = wcsstr(p + x, src);
+        if (n > 30)
+            return NULL;
+    }
+    if (n == 0)
+        return NULL;
+    z = xwcslen(rep);
+    c = xwcslen(s);
+    r = xwmalloc(c + (n * z));
+    p = s;
+    d = r;
+    for (i = 0; i < n; i++) {
+        w = b[i] - (int)(p - s);
+        wmemcpy(d, p, w);
+        p += w;
+        p += x;
+        d += w;
+        wmemcpy(d, rep, z);
+        d += z;
+    }
+    w = c - (int)(p - s);
+    if (w > 0) {
+        wmemcpy(d, p, w);
+        d += w;
+    }
+    *(d++) = WNUL;
+    *(d)   = WNUL;
+    return r;
+}
+
 static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
 {
     wchar_t *cp;
@@ -1458,10 +1506,12 @@ static DWORD openlogpipe(BOOL ssp)
     else {
         int i;
         for (i = 1; i < logredirargc; i++) {
-            if (wcscmp(logredirargv[i], L"@@logfile@@") == 0)
-                cmdline = xappendarg(1, cmdline, NULL, svclogfname);
+            wchar_t *rp = xwcsreplace(logredirargv[i], L"@@logfile@@", svclogfname);
+            if (rp)
+                cmdline = xappendarg(1, cmdline, NULL, rp);
             else
                 cmdline = xappendarg(1, cmdline, NULL, logredirargv[i]);
+            xfree(rp);
         }
     }
     LocalFree(logredirargv);
