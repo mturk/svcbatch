@@ -97,10 +97,10 @@ detailed usage.
   its own child processes, ensure you setup the following
   privileges to the service:
 
-```cmd
-> sc privs myservice SeDebugPrivilege
+  ```cmd
+  > sc privs myservice SeDebugPrivilege
 
-```
+  ```
 
   This will allow SvcBatch to terminate the entire
   descendant process tree on shutdown.
@@ -310,18 +310,18 @@ make sure to get familiar with `sc.exe` utility.
   is run each day at `17:00:00` hours or if log files gets
   larger then `100K` bytes.
 
-```cmd
-> sc create ... -r 17:00:00 -r 100K
+  ```cmd
+  > sc create ... -r 17:00:00 -r 100K
 
-```
+  ```
 
   If time is given without a colons, SvcBatch will use it
   as minutes between log rotation.
 
-```cmd
->sc create ... -r 90 - r 200K
+  ```cmd
+  >sc create ... -r 90 - r 200K
 
-```
+  ```
 
   The upper example will rotate logs each `90` minutes. In case
   log file gets larger the 200Kbytes within that interval,
@@ -358,10 +358,10 @@ make sure to get familiar with `sc.exe` utility.
   In case the **number** contains a single decimal number
   between `0 and 9` it will be used instead default `1...9`.
 
-```cmd
-> sc create ... -m 4
+  ```cmd
+  > sc create ... -m 4
 
-```
+  ```
   Instead rotating Svcbatch.log from `1...9` it will rotate
   exiting log files from `1...4.`. In case that number is `0`,
   log rotation will be disabled.
@@ -469,25 +469,25 @@ make sure to get familiar with `sc.exe` utility.
   country/region codes, and code pages include all the
   ones supported by the Windows NLS API.
 
-```cmd
-> sc create ... -c en-US.1250 ...
+  ```cmd
+  > sc create ... -c en-US.1250 ...
 
-```
+  ```
 
   This option can be used in combination with **-n** option
   to produce locale specific formatted log filenames.
 
-```cmd
-> sc create ... -c en-US -n service.@#x.log ...
+  ```cmd
+  > sc create ... -c en-US -n service.@#x.log ...
 
-```
+  ```
   Will create **service.Monday, March 6, 2023.log**,
   while the:
 
-```cmd
-> sc create ... -c de-DE -n service.@#x.log ...
+  ```cmd
+  > sc create ... -c de-DE -n service.@#x.log ...
 
-```
+  ```
   Will create **service.Montag, 6. März 2023.log**
 
 
@@ -600,12 +600,12 @@ that originated from svcbatch.exe.
 An easy way to get SvcBatch version and build information
 is to open command prompt and type
 
-```cmd
-> svcbatch.exe
-SvcBatch 1.3.0 (dev) (20221110175032 gcc 12.2.0)
+  ```cmd
+  > svcbatch.exe
+  SvcBatch 1.3.0 (dev) (20221110175032 gcc 12.2.0)
 
->
-```
+  >
+  ```
 
 The same information can be obtained by inspecting the top
 of the `SvcBatch.log` file.
