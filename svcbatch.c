@@ -2991,17 +2991,17 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
 
         qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), xenvsort);
+        /**
+         * Convert environment array to environment block
+         */
+        wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp, &wenvbsize);
+        if (wenvblock == NULL) {
+            svcsyserror(__FUNCTION__, __LINE__, 0, L"bad environment", NULL);
+            reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
+            return;
+        }
+        xwaafree(dupwenvp);
     }
-    /**
-     * Convert environment array to environment block
-     */
-    wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp, &wenvbsize);
-    if (wenvblock == NULL) {
-        svcsyserror(__FUNCTION__, __LINE__, 0, L"bad environment", NULL);
-        reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
-        return;
-    }
-    xwaafree(dupwenvp);
 
     if (havelogging) {
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -3513,12 +3513,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
 
-    dupwenvp = xwaalloc(envc + 6);
-    for (i = 0; i < envc; i++) {
-        if (!servicemode || !xwstartswith(wenv[i], L"SVCBATCH_SERVICE_"))
-            dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
+    if (servicemode) {
+        dupwenvp = xwaalloc(envc + 6);
+        for (i = 0; i < envc; i++) {
+            if (!xwstartswith(wenv[i], L"SVCBATCH_SERVICE_"))
+                dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
+        }
     }
-
     memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
     memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
