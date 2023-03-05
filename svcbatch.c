@@ -201,9 +201,9 @@ static wchar_t *xwmalloc(size_t size)
 {
     wchar_t *p = (wchar_t *)malloc((size + 2) * sizeof(wchar_t));
     if (p == NULL) {
-        OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_TXT);
+        OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR " -- fatal error");
         OutputDebugStringA("    malloc failed");
-        OutputDebugStringA("<<<");;
+        OutputDebugStringA("<<<\n");
         _exit(1);
     }
     p[size++] = WNUL;
@@ -215,9 +215,9 @@ static void *xcalloc(size_t number, size_t size)
 {
     void *p = calloc(number + 2, size);
     if (p == NULL) {
-        OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_TXT);
+        OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR " -- fatal error");
         OutputDebugStringA("    calloc failed");
-        OutputDebugStringA("<<<");;
+        OutputDebugStringA("<<<\n");
         _exit(1);
     }
     return p;
