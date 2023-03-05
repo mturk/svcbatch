@@ -3221,23 +3221,23 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
 
 #if defined(_DEBUG)
-    if (argc > 2) {
-        const wchar_t *p = wargv[1];
-        if ((p[0] == L'-') && (p[1] == L'-') && (p[2] == WNUL)) {
-            dbgoutstream = stdout;
-            consolemode  = TRUE;
-            servicename  = xwcsdup(wargv[2]);
-            if (wcschr(servicename, L'\\')) {
-                DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
-                return ERROR_INVALID_PARAMETER;
+    if (servicemode) {
+        if (argc > 2) {
+            const wchar_t *p = wargv[1];
+            if ((p[0] == L'-') && (p[1] == L'-') && (p[2] == WNUL)) {
+                dbgoutstream = stdout;
+                consolemode  = TRUE;
+                servicename  = xwcsdup(wargv[2]);
+                if (wcschr(servicename, L'\\')) {
+                    DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
+                    return ERROR_INVALID_PARAMETER;
+                }
+                wargv[2] = wargv[0];
+                argc    -= 2;
+                wargv   += 2;
             }
-            wargv[2] = wargv[0];
-            argc    -= 2;
-            wargv   += 2;
         }
-    }
-    if (consolemode) {
-        if (servicemode) {
+        if (consolemode) {
             DWORD   rc;
             wchar_t eb[BBUFSIZ];
             /**
@@ -3253,6 +3253,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             xwcslcat(eb, BBUFSIZ, L"\\System32");
             SetCurrentDirectoryW(eb);
         }
+    }
+    if (consolemode) {
         DBG_PRINTF("Running %S in console mode\n", servicename);
     }
 #endif
