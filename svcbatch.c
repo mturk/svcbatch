@@ -1459,6 +1459,7 @@ static DWORD openlogpipe(BOOL ssp)
     STARTUPINFOW si;
     HANDLE wr = NULL;
     wchar_t *cmdline = NULL;
+    wchar_t *wenvblk = NULL;
 
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
@@ -1511,15 +1512,19 @@ static DWORD openlogpipe(BOOL ssp)
     }
     LocalFree(logredirargv);
     DBG_PRINTF("cmdline %S", cmdline);
+
+    wenvblk = xwmalloc(wenvbsize);
+    wmemcpy(wenvblk, wenvblock, wenvbsize);
     if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
-                        wenvblock,
+                        wenvblk,
                         servicelogs,
                        &si, &cp)) {
         rc = GetLastError();
         svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", logredirect);
         goto failed;
     }
+
     pipedprocess = cp.hProcess;
     pipedprocpid = cp.dwProcessId;
     /**
@@ -1543,10 +1548,12 @@ static DWORD openlogpipe(BOOL ssp)
     InterlockedExchangePointer(&logfhandle, wr);
     DBG_PRINTF("running pipe log process %lu", pipedprocpid);
     xfree(cmdline);
+    xfree(wenvblk);
 
     return 0;
 failed:
     xfree(cmdline);
+    xfree(wenvblk);
     SAFE_CLOSE_HANDLE(wr);
     SAFE_CLOSE_HANDLE(pipedprocout);
     SAFE_CLOSE_HANDLE(pipedprocess);
@@ -2002,8 +2009,8 @@ static int resolverotate(const wchar_t *str)
 static DWORD runshutdown(DWORD rt)
 {
     wchar_t  rp[TBUFSIZ];
-    wchar_t *cmdline;
-    wchar_t *wenvblk;
+    wchar_t *cmdline = NULL;
+    wchar_t *wenvblk = NULL;
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc = 0;
@@ -2083,7 +2090,7 @@ static DWORD runshutdown(DWORD rt)
         svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", NULL);
         goto finished;
     }
-    xfree(wenvblk);
+
     if (!AssignProcessToJobObject(job, cp.hProcess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
@@ -2132,6 +2139,7 @@ static DWORD runshutdown(DWORD rt)
 
 finished:
     xfree(cmdline);
+    xfree(wenvblk);
     SAFE_CLOSE_HANDLE(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hProcess);
     SAFE_CLOSE_HANDLE(job);
