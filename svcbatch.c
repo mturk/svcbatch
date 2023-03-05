@@ -201,7 +201,11 @@ static wchar_t *xwmalloc(size_t size)
 {
     wchar_t *p = (wchar_t *)malloc((size + 2) * sizeof(wchar_t));
     if (p == NULL) {
-        _wperror(L"xwmalloc");
+#if defined(_DEBUG)
+        OutputDebugStringA(">>> " SVCBATCH_NAME);
+        OutputDebugStringA("    xwmalloc failed");
+        OutputDebugStringA("<<<");;
+#endif
         _exit(1);
     }
     p[size++] = WNUL;
@@ -213,7 +217,11 @@ static void *xcalloc(size_t number, size_t size)
 {
     void *p = calloc(number + 2, size);
     if (p == NULL) {
-        _wperror(L"xcalloc");
+#if defined(_DEBUG)
+        OutputDebugStringA(">>> " SVCBATCH_NAME);
+        OutputDebugStringA("    xcalloc failed");
+        OutputDebugStringA("<<<");;
+#endif
         _exit(1);
     }
     return p;
