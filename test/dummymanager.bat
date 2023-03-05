@@ -80,6 +80,10 @@ rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log;%SERVICE_NAME%.stop.log\""
 rem
 set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log;%SERVICE_NAME%.@F.shutdown.log\""
 rem
+rem set "SERVICE_LOG_FNAME=-c en-US -n \"%SERVICE_NAME%.@#x.log\""
+rem Use German locale
+rem set "SERVICE_LOG_FNAME=-c de-DE -n \"%SERVICE_NAME%.@#x.log\""
+rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem

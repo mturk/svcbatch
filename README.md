@@ -466,8 +466,27 @@ make sure to get familiar with `sc.exe` utility.
   ones supported by the Windows NLS API.
 
   ```no-highlight
-      sc create ... -c en-US.1250
+      sc create ... -c en-US.1250 ...
   ```
+
+  This option can be used in combination with **-n** option
+  to produce locale specific formatted log filenames.
+
+  ```no-highlight
+      sc create ... -c en-US -n service.@#x.log ...
+
+  ```
+  Will create **service.Monday, March 6, 2023.log**,
+  while the:
+
+  ```no-highlight
+      sc create ... -c de-DE -n service.@#x.log ...
+
+  ```
+  Will create **service.Montag, 6. März 2023.log**
+
+
+
 
 * **-t**
 
