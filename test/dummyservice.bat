@@ -35,7 +35,7 @@ echo.
 rem
 :runService
 rem
-echo %~nx0: [%TIME%] ... running
+echo %~nx0: [%TIME%] ... running 😀
 rem Simulate work by sleeping for 5 seconds
 ping -n 6 127.0.0.1 >NUL
 rem Uncomment to write more data to SvcBatch.log

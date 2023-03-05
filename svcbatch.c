@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <share.h>
 #if defined(_DEBUG)
+#include <locale.h>
 #include <crtdbg.h>
 #endif
 #include "svcbatch.h"
@@ -3152,6 +3153,27 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
 
+    h = GetStdHandle(STD_INPUT_HANDLE);
+    if (IS_INVALID_HANDLE(h)) {
+       if (AllocConsole()) {
+            /**
+             * AllocConsole should create new set of
+             * standard i/o handles
+             */
+            atexit(cconsolecleanup);
+            h = GetStdHandle(STD_INPUT_HANDLE);
+            if (IS_INVALID_HANDLE(h))
+                return ERROR_DEV_NOT_EXIST;
+        }
+        else {
+            return GetLastError();
+        }
+    }
+#if defined(_DEBUG)
+    setlocale(LC_ALL, "en-US.1252");
+    SetConsoleCP(CP_UTF8);
+    SetConsoleOutputCP(CP_UTF8);
+#endif
     /**
      * Check if running as service or as a child process.
      */
@@ -3217,7 +3239,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     wnamestamp = xcwiden(cnamestamp);
     DBG_PRINTS(cnamestamp);
-
     while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tu:vw:")) != EOF) {
         switch (opt) {
             case L'b':
@@ -3540,23 +3561,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
 
-    h = GetStdHandle(STD_INPUT_HANDLE);
-    if (IS_INVALID_HANDLE(h)) {
-       if (AllocConsole()) {
-            /**
-             * AllocConsole should create new set of
-             * standard i/o handles
-             */
-            atexit(cconsolecleanup);
-            h = GetStdHandle(STD_INPUT_HANDLE);
-            if (IS_INVALID_HANDLE(h))
-                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"GetStdHandle", NULL);
-            DBG_PRINTS("allocated new console");
-        }
-        else {
-            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"AllocConsole", NULL);
-        }
-    }
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
     se[1].lpServiceName = NULL;
