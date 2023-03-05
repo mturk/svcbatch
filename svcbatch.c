@@ -62,6 +62,7 @@ static LARGE_INTEGER         pcstarttime;
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
+static int       wenvbsize        = 0;
 static wchar_t  *wenvblock        = NULL;
 
 static BOOL      haslogstatus     = FALSE;
@@ -634,7 +635,7 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     return oli[0];
 }
 
-static wchar_t *xenvblock(int cnt, const wchar_t **arr)
+static wchar_t *xenvblock(int cnt, const wchar_t **arr, int *len)
 {
     int      i;
     int      blen = 0;
@@ -657,6 +658,7 @@ static wchar_t *xenvblock(int cnt, const wchar_t **arr)
         e += n;
     }
     xfree(s);
+    *len = blen;
     return b;
 }
 
@@ -2001,6 +2003,7 @@ static DWORD runshutdown(DWORD rt)
 {
     wchar_t  rp[TBUFSIZ];
     wchar_t *cmdline;
+    wchar_t *wenvblk;
     HANDLE   wh[2];
     HANDLE   job = NULL;
     DWORD    rc = 0;
@@ -2040,9 +2043,7 @@ static DWORD runshutdown(DWORD rt)
     rp[ip++] = WNUL;
     if (ip > 2)
         cmdline = xappendarg(0, cmdline, NULL,  rp);
-    cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
     cmdline = xappendarg(0, cmdline, L"-c", localeparam);
-    cmdline = xappendarg(1, cmdline, L"-w", servicehome);
     if (havelogging && svcendlogfn) {
         cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
         cmdline = xappendarg(1, cmdline, L"-n", svcendlogfn);
@@ -2073,15 +2074,16 @@ static DWORD runshutdown(DWORD rt)
         svcsyserror(__FUNCTION__, __LINE__, rc, L"SetInformationJobObject", NULL);
         goto finished;
     }
-
+    wenvblk = xwmalloc(wenvbsize);
+    wmemcpy(wenvblk, wenvblock, wenvbsize);
     if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, FALSE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | cf,
-                        NULL, NULL, &si, &cp)) {
+                        wenvblk, NULL, &si, &cp)) {
         rc = GetLastError();
         svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", NULL);
         goto finished;
     }
-
+    xfree(wenvblk);
     if (!AssignProcessToJobObject(job, cp.hProcess)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
@@ -2978,20 +2980,22 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         DBG_PRINTF("shutting down %S", servicename);
         servicelogs = xwcsdup(outdirparam);
     }
-    /**
-     * Add additional environment variables
-     * They are unique to this service instance
-     */
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
-    dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
+    if (servicemode) {
+        /**
+         * Add additional environment variables
+         * They are unique to this service instance
+         */
+        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
+        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
+        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
+        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
 
-    qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), xenvsort);
+        qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), xenvsort);
+    }
     /**
      * Convert environment array to environment block
      */
-    wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp);
+    wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp, &wenvbsize);
     if (wenvblock == NULL) {
         svcsyserror(__FUNCTION__, __LINE__, 0, L"bad environment", NULL);
         reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
@@ -3245,7 +3249,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     wnamestamp = xcwiden(cnamestamp);
     DBG_PRINTS(cnamestamp);
-    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:k:lm:n:o:pqr:s:tu:vw:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:k:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = TRUE;
@@ -3312,16 +3316,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 svchomeparam = xwoptarg;
             break;
             /**
-             * Private options
-             */
-            case L'u':
-                if (servicemode)
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"The -u option cannot be used in service mode", NULL);
-                else
-                    serviceuuid  = xwcsdup(xwoptarg);
-            break;
-            /**
              * Invalid option
              */
             case ENOENT:
@@ -3369,13 +3363,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     if (IS_EMPTY_WCS(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"Missing batch file", NULL);
-    if (IS_EMPTY_WCS(serviceuuid)) {
-        if (servicemode)
-            serviceuuid = xuuidstring();
-        else
-            return svcsyserror(__FUNCTION__, __LINE__, 0,
-                               L"Missing -u <SVCBATCH_SERVICE_UUID> parameter", NULL);
-    }
+    if (servicemode)
+        serviceuuid = xuuidstring();
+    else
+        serviceuuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
     if (IS_EMPTY_WCS(serviceuuid))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"xuuidstring", NULL);
     comspec = xgetenv(L"COMSPEC");
@@ -3455,7 +3446,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          }
     }
     else {
-        servicehome  = xwcsdup(svchomeparam);
+        servicehome  = xgetenv(L"SVCBATCH_SERVICE_HOME");
         svcmaxlogs   = 0;
         haslogrotate = FALSE;
     }
@@ -3524,7 +3515,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     dupwenvp = xwaalloc(envc + 6);
     for (i = 0; i < envc; i++) {
-        if (!xwstartswith(wenv[i], L"SVCBATCH_SERVICE_"))
+        if (!servicemode || !xwstartswith(wenv[i], L"SVCBATCH_SERVICE_"))
             dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
     }
 
