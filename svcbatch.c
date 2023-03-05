@@ -820,19 +820,13 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 }
 
 #endif
-#if defined(_MSC_VER) && (_MSC_VER > 1800)
+
 static void xiphandler(const wchar_t *e,
                        const wchar_t *w, const wchar_t *f,
                        unsigned int n, uintptr_t r)
 {
-    e = NULL;
-    w = NULL;
-    f = NULL;
-    n = 0;
-    r = 0;
     DBG_PRINTS("invalid parameter handler called");
 }
-#endif
 
 static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
 {
@@ -3154,7 +3148,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     const wchar_t *lognameparam = SVCBATCH_LOGNAME;
     const wchar_t *rparam[2];
 
-#if defined(_MSC_VER) && (_MSC_VER > 1800)
+#if defined(_MSC_VER) && (_MSC_VER < 1900)
+    /* Not supported */
+#else
     _set_invalid_parameter_handler(xiphandler);
 #endif
 #if defined(_DEBUG)
