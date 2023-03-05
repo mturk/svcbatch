@@ -3255,7 +3255,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
     }
     if (consolemode) {
-        DBG_PRINTF("Running %S in console mode\n", servicename);
+        DBG_PRINTF("Running %S %S in console mode\n", cwsappname, servicename);
     }
 #endif
 
