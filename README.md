@@ -458,7 +458,7 @@ make sure to get familiar with `sc.exe` utility.
   This option causes all logging and rotation
   to use local instead system time.
 
-* **-c [locale]**
+* **-c [locale][.code page]**
 
   **Sets run-time locale**
 
@@ -467,8 +467,8 @@ make sure to get familiar with `sc.exe` utility.
 
   The **locale** argument can take a locale name, a language
   string, a language string and country/region code,
-  a code page, or a language string, country/region code,
-  and code page. The available locale names, languages,
+  a **code page**, or a language string, country/region code,
+  and **code page**. The available locale names, languages,
   country/region codes, and code pages include all the
   ones supported by the Windows NLS API.
 
@@ -484,14 +484,17 @@ make sure to get familiar with `sc.exe` utility.
   > sc create ... -c en-US -n service.@#x.log ...
 
   ```
-  Will create **service.Monday, March 6, 2023.log**,
+
+  This will create something like **service.Monday, March 6, 2023.log**,
   while the:
 
   ```cmd
   > sc create ... -c de-DE -n service.@#x.log ...
 
   ```
-  Will create **service.Montag, 6. März 2023.log**
+
+  This will create **service.Montag, 6. März 2023.log** using
+  German **locale** date representation.
 
 
 * **-t**
