@@ -3236,7 +3236,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     wnamestamp = xcwiden(cnamestamp);
     DBG_PRINTS(cnamestamp);
-    while ((opt = xwgetopt(argc, wargv, L"a:bc:d:e:lm:n:o:pqr:s:tu:vw:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:k:lm:n:o:pqr:s:tu:vw:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = TRUE;
@@ -3266,12 +3266,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 localeparam  = xwoptarg;
             break;
 #if defined(_DEBUG)
-            case L'd':
+            case L'k':
                 if (consolemode)
                     return scmsendctrl(xwoptarg);
                 else
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Cannot use -d command option when running as service", NULL);
+                                       L"Cannot use -k command option when running as service", NULL);
             break;
 #endif
             case L'e':

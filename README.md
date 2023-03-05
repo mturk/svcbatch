@@ -455,7 +455,7 @@ make sure to get familiar with `sc.exe` utility.
 
   **Sets run-time locale**
 
-  This option allows to change the locale used for
+  This option allows to change default locale used for
   string formatting.
 
   The **locale** argument can take a locale name, a language
