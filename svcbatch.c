@@ -310,18 +310,6 @@ static wchar_t *xgetenv(const wchar_t *s)
     return d;
 }
 
-static BOOL xhasenv(const wchar_t *s)
-{
-    DWORD    n;
-    wchar_t  e[2];
-
-    n = GetEnvironmentVariableW(s, e, 2);
-    if ((n == 0) && (GetLastError() == ERROR_ENVVAR_NOT_FOUND))
-        return FALSE;
-    else
-        return TRUE;
-}
-
 static int xwcslen(const wchar_t *s)
 {
     if (IS_EMPTY_WCS(s))
@@ -2052,12 +2040,16 @@ static DWORD runshutdown(DWORD rt)
     si.cb = DSIZEOF(STARTUPINFOW);
 
     cmdline = xappendarg(1, NULL,    NULL, svcbatchexe);
-    cmdline = xappendarg(0, cmdline, NULL, L"++");
 #if defined(_DEBUG)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
+        cmdline = xappendarg(0, cmdline, NULL, L"::$");
     }
+    else
 #endif
+    {
+        cmdline = xappendarg(0, cmdline, NULL, L"::!");
+    }
     rp[ip++] = L'-';
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
@@ -3020,10 +3012,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
         dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
         dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
-#if defined(_DEBUG)
-        if (consolemode)
-            dupwenvp[dupwenvc++] = xwcsdup(L"SVCBATCH_SERVICE_$CON=1");
-#endif
+
         qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), xenvsort);
         /**
          * Convert environment array to environment block
@@ -3223,7 +3212,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     if (argc > 1) {
         const wchar_t *p = wargv[1];
-        if ((p[0] == L'+') && (p[1] == L'+') && (p[2] == WNUL)) {
+        if ((p[0] == L':') && (p[1] == L':')  &&
+           ((p[2] == L'!') || (p[2] == L'$')) && (p[3] == WNUL)) {
             servicemode = FALSE;
             servicename = xgetenv(L"SVCBATCH_SERVICE_NAME");
             if (servicename == NULL)
@@ -3231,7 +3221,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
             cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
-            if (xhasenv(L"SVCBATCH_SERVICE_$CON")) {
+            if (p[2] == L'$') {
                 dbgoutstream = stdout;
                 consolemode  = TRUE;
             }
