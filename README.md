@@ -279,6 +279,9 @@ make sure to get familiar with `sc.exe` utility.
     *  (asterisk)
   ```
 
+  In case the result from `strftime` contains any of the reserved
+  characters they will be removed.
+
 * **-w [path]**
 
   **Set service working directory**
@@ -489,8 +492,6 @@ make sure to get familiar with `sc.exe` utility.
 
   ```
   Will create **service.Montag, 6. März 2023.log**
-
-
 
 
 * **-t**
