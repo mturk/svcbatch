@@ -22,6 +22,7 @@ For a full list of changes, see the [git commit log][log]
 
 ### New Features
 
+ * Add -c command option for changing run-time locale
  * Add -q command option to disable logging
  * Add -t command option that will truncate log file
  * Use -m command option to replace previous -r0...9

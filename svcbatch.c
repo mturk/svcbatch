@@ -15,6 +15,7 @@
 
 #include <windows.h>
 #include <wincrypt.h>
+#include <locale.h>
 #include <shellapi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,7 +26,6 @@
 #include <errno.h>
 #include <share.h>
 #if defined(_DEBUG)
-#include <locale.h>
 #include <crtdbg.h>
 #endif
 #include "svcbatch.h"
@@ -130,6 +130,7 @@ static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
 static const wchar_t *svcendlogfn = SHUTDOWN_LOGNAME;
+static const wchar_t *localeparam = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
 static const wchar_t *xwcsiid(int i, DWORD c)
@@ -2033,6 +2034,7 @@ static DWORD runshutdown(DWORD rt)
     if (ip > 2)
         cmdline = xappendarg(0, cmdline, NULL,  rp);
     cmdline = xappendarg(0, cmdline, L"-u", serviceuuid);
+    cmdline = xappendarg(0, cmdline, L"-c", localeparam);
     cmdline = xappendarg(1, cmdline, L"-w", servicehome);
     if (havelogging && svcendlogfn) {
         cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
@@ -3169,11 +3171,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return GetLastError();
         }
     }
-#if defined(_DEBUG)
-    setlocale(LC_ALL, "en-US.1252");
-    SetConsoleCP(CP_UTF8);
-    SetConsoleOutputCP(CP_UTF8);
-#endif
     /**
      * Check if running as service or as a child process.
      */
@@ -3239,7 +3236,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     wnamestamp = xcwiden(cnamestamp);
     DBG_PRINTS(cnamestamp);
-    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:lm:n:o:pqr:s:tu:vw:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"a:bc:d:e:lm:n:o:pqr:s:tu:vw:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = TRUE;
@@ -3265,13 +3262,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             case L'a':
                 svcendargs   = xappendarg(1, svcendargs,  NULL, xwoptarg);
             break;
-#if defined(_DEBUG)
             case L'c':
+                localeparam  = xwoptarg;
+            break;
+#if defined(_DEBUG)
+            case L'd':
                 if (consolemode)
                     return scmsendctrl(xwoptarg);
                 else
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Cannot use -c command option when running as service", NULL);
+                                       L"Cannot use -d command option when running as service", NULL);
             break;
 #endif
             case L'e':
@@ -3327,7 +3327,11 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
         }
     }
-
+    if (localeparam) {
+        if (_wsetlocale(LC_ALL, localeparam) == NULL)
+            return svcsyserror(__FUNCTION__, __LINE__, 0,
+                               L"Invalid -c command option value", localeparam);
+    }
     if (!havelogging) {
         /**
          * The -q option was defined

@@ -451,6 +451,24 @@ make sure to get familiar with `sc.exe` utility.
   This option causes all logging and rotation
   to use local instead system time.
 
+* **-c [locale]**
+
+  **Sets run-time locale**
+
+  This option allows to change the locale used for
+  string formatting.
+
+  The **locale** argument can take a locale name, a language
+  string, a language string and country/region code,
+  a code page, or a language string, country/region code,
+  and code page. The available locale names, languages,
+  country/region codes, and code pages include all the
+  ones supported by the Windows NLS API.
+
+  ```no-highlight
+      sc create ... -c en-US.1250
+  ```
+
 * **-t**
 
   **Truncate log file instead reusing**
