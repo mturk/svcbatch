@@ -310,6 +310,18 @@ static wchar_t *xgetenv(const wchar_t *s)
     return d;
 }
 
+static BOOL xhasenv(const wchar_t *s)
+{
+    DWORD    n;
+    wchar_t  e[2];
+
+    n = GetEnvironmentVariableW(s, e, 2);
+    if ((n == 0) && (GetLastError() == ERROR_ENVVAR_NOT_FOUND))
+        return FALSE;
+    else
+        return TRUE;
+}
+
 static int xwcslen(const wchar_t *s)
 {
     if (IS_EMPTY_WCS(s))
@@ -2040,16 +2052,12 @@ static DWORD runshutdown(DWORD rt)
     si.cb = DSIZEOF(STARTUPINFOW);
 
     cmdline = xappendarg(1, NULL,    NULL, svcbatchexe);
+    cmdline = xappendarg(0, cmdline, NULL, L"++");
 #if defined(_DEBUG)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
-        cmdline = xappendarg(0, cmdline, NULL, L"++ .c");
     }
-    else
 #endif
-    {
-        cmdline = xappendarg(0, cmdline, NULL, L"++ .s");
-    }
     rp[ip++] = L'-';
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
@@ -3012,7 +3020,10 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
         dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
         dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
-
+#if defined(_DEBUG)
+        if (consolemode)
+            dupwenvp[dupwenvc++] = xwcsdup(L"SVCBATCH_SERVICE_$CON=1");
+#endif
         qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), xenvsort);
         /**
          * Convert environment array to environment block
@@ -3210,7 +3221,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Check if running as service or as a child process.
      */
-    if (argc > 2) {
+    if (argc > 1) {
         const wchar_t *p = wargv[1];
         if ((p[0] == L'+') && (p[1] == L'+') && (p[2] == WNUL)) {
             servicemode = FALSE;
@@ -3220,15 +3231,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
             cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
-            p = wargv[2];
-            if ((p[0] == L'.') && (p[1] == L'c') && (p[2] == WNUL)) {
+            if (xhasenv(L"SVCBATCH_SERVICE_$CON")) {
                 dbgoutstream = stdout;
                 consolemode  = TRUE;
             }
 #endif
-            wargv[2] = wargv[0];
-            argc    -= 2;
-            wargv   += 2;
+            wargv[1] = wargv[0];
+            argc    -= 1;
+            wargv   += 1;
         }
     }
 
