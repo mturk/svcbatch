@@ -2027,14 +2027,17 @@ static DWORD runshutdown(DWORD rt)
     memset(&si, 0, sizeof(STARTUPINFOW));
     si.cb = DSIZEOF(STARTUPINFOW);
 
-    cmdline = xappendarg(1, NULL,    NULL,  svcbatchexe);
-    cmdline = xappendarg(1, cmdline, L"++", servicename);
+    cmdline = xappendarg(1, NULL,    NULL, svcbatchexe);
 #if defined(_DEBUG)
     if (consolemode) {
         cf = CREATE_NEW_PROCESS_GROUP;
-        cmdline = xappendarg(0, cmdline, NULL, L"-- .s");
+        cmdline = xappendarg(0, cmdline, NULL, L"++ .c");
     }
+    else
 #endif
+    {
+        cmdline = xappendarg(0, cmdline, NULL, L"++ .s");
+    }
     rp[ip++] = L'-';
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
@@ -3199,13 +3202,21 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         const wchar_t *p = wargv[1];
         if ((p[0] == L'+') && (p[1] == L'+') && (p[2] == WNUL)) {
             servicemode = FALSE;
-            servicename = xwcsdup(wargv[2]);
+            servicename = xgetenv(L"SVCBATCH_SERVICE_NAME");
+            if (servicename == NULL)
+                return ERROR_BAD_ENVIRONMENT;
             cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
             cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
-
-            wargv[2]    = wargv[0];
-            argc       -= 2;
-            wargv      += 2;
+#if defined(_DEBUG)
+            p = wargv[2];
+            if ((p[0] == L'.') && (p[1] == L'c') && (p[2] == WNUL)) {
+                dbgoutstream = stdout;
+                consolemode  = TRUE;
+            }
+#endif
+            wargv[2] = wargv[0];
+            argc    -= 2;
+            wargv   += 2;
         }
     }
 
@@ -3215,12 +3226,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if ((p[0] == L'-') && (p[1] == L'-') && (p[2] == WNUL)) {
             dbgoutstream = stdout;
             consolemode  = TRUE;
-            if (servicename == NULL) {
-                servicename = xwcsdup(wargv[2]);
-                if (wcschr(servicename, L'\\')) {
-                    DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
-                    return ERROR_INVALID_PARAMETER;
-                }
+            servicename  = xwcsdup(wargv[2]);
+            if (wcschr(servicename, L'\\')) {
+                DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
+                return ERROR_INVALID_PARAMETER;
             }
             wargv[2] = wargv[0];
             argc    -= 2;
