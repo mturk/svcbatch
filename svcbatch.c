@@ -1563,6 +1563,7 @@ static DWORD makelogfile(BOOL ssp)
     DWORD   rc;
     DWORD   cm;
     HANDLE  h;
+    int     i;
 
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -1575,6 +1576,10 @@ static DWORD makelogfile(BOOL ssp)
     if (wcsftime(ewb, BBUFSIZ, svclogfname, ctm) == 0)
         return svcsyserror(__FUNCTION__, __LINE__, 0, L"invalid format code", svclogfname);
     xfree(logfilename);
+    for (i = 0; ewb[i] != WNUL; i++) {
+        if ((ewb[i] == L'/') || (ewb[i] == L':'))
+            ewb[i] = L'-';
+    }
     logfilename = xwcsmkpath(servicelogs, ewb);
     if (servicemode || truncatelogs)
         cm = CREATE_ALWAYS;
