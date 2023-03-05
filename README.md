@@ -282,6 +282,11 @@ make sure to get familiar with `sc.exe` utility.
   In case the result from `strftime` contains any of the reserved
   characters they will be removed.
 
+  For example if the **-n** argument contains `@D` it will be resolved
+  as equivalent to `@m/@d/@y`. Since `/` is invalid file name character,
+  all occurrences of the `/` character will be removed from the final result.
+  This means that resolved `03/06/23` will make final result as `030623`.
+
 * **-w [path]**
 
   **Set service working directory**
