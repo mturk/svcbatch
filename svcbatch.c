@@ -23,7 +23,6 @@
 #include <time.h>
 #include <process.h>
 #include <errno.h>
-#include <share.h>
 #if defined(_DEBUG)
 #include <crtdbg.h>
 #endif
@@ -79,7 +78,7 @@ static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
 static DWORD     pipedprocpid     = 0;
 
-static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
+static int       svcmaxlogs       = 0;
 static int       xwoptind         = 1;
 static wchar_t   xwoption         = WNUL;
 static int       logredirargc     = 0;
@@ -3121,6 +3120,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
+    const wchar_t *maxlogsparam = NULL;
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
     const wchar_t *rparam[2];
@@ -3258,15 +3258,19 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             case L'c':
                 localeparam  = xwoptarg;
             break;
-#if defined(_DEBUG)
-            case L'k':
-                if (consolemode)
-                    return scmsendctrl(xwoptarg);
-                else
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Cannot use -k command option when running as service", NULL);
+            case L'm':
+                maxlogsparam = xwoptarg;
             break;
-#endif
+            case L'o':
+                outdirparam  = xwoptarg;
+            break;
+            case L'w':
+                svchomeparam = xwoptarg;
+            break;
+            /**
+             * Options that can be defined
+             * multiple times
+             */
             case L'e':
                 if (logredirargv == NULL)
                     logredirargv = xwaalloc(SVCBATCH_MAX_ARGS);
@@ -3285,12 +3289,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Too many -s arguments", xwoptarg);
             break;
-            case L'm':
-                svcmaxlogs = xwcstoi(xwoptarg);
-                if ((svcmaxlogs < 0) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Invalid -m command option value", xwoptarg);
-            break;
             case L'n':
                 if (ncnt > 1)
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
@@ -3305,15 +3303,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 else
                     rparam[rcnt++] = xwoptarg;
             break;
-            case L'o':
-                outdirparam  = xwoptarg;
+#if defined(_DEBUG)
+            case L'k':
+                if (consolemode)
+                    return scmsendctrl(xwoptarg);
+                else
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Cannot use -k command option when running as service", NULL);
             break;
-            case L'w':
-                svchomeparam = xwoptarg;
-            break;
-            /**
-             * Invalid option
-             */
+#endif
             case ENOENT:
                 bb[1] = xwoption;
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
@@ -3356,39 +3354,49 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     if (havelogging) {
         if (servicemode) {
-            if (logredirargc && rcnt)
-                return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                   L"Options -r and -e are mutually exclusive", NULL);
+            if (logredirargc == 0) {
+                svcmaxlogs = SVCBATCH_MAX_LOGS;
+                if (maxlogsparam) {
+                    svcmaxlogs = xwcstoi(maxlogsparam);
+                    if ((svcmaxlogs < 0) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
+                        return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                           L"Invalid -m command option value", maxlogsparam);
+                }
+                if (svcmaxlogs)
+                    haslogrotate = TRUE;
+            }
             if (ncnt == 0)
                 nparam[ncnt++] = xwcsdup(SVCBATCH_LOGNAME);
             if (svcstopwargc && (ncnt < 2))
                 nparam[ncnt++] = xwcsdup(SHUTDOWN_LOGNAME);
         }
-        else {
-            svclogfname = nparam[0];
-        }
         if (outdirparam == NULL)
             outdirparam = SVCBATCH_LOGSDIR;
     }
     else {
+        wchar_t ob[TBUFSIZ];
+        /**
+         * Ensure that log related command options
+         * are not defined when -q is defined
+         */
+        ob[0] = WNUL;
         if (rcnt)
-            return svcsyserror(__FUNCTION__, __LINE__, 0,
-                               L"Options -r and -q are mutually exclusive", NULL);
+            xwcslcat(ob, TBUFSIZ, L"-r ");
         if (ncnt)
-            return svcsyserror(__FUNCTION__, __LINE__, 0,
-                               L"Options -n and -q are mutually exclusive", NULL);
+            xwcslcat(ob, TBUFSIZ, L"-n ");
         if (outdirparam)
-            return svcsyserror(__FUNCTION__, __LINE__, 0,
-                               L"Options -o and -q are mutually exclusive", NULL);
+            xwcslcat(ob, TBUFSIZ, L"-o ");
         if (logredirargc)
+            xwcslcat(ob, TBUFSIZ, L"-e ");
+        if (truncatelogs)
+            xwcslcat(ob, TBUFSIZ, L"-t ");
+        if (haslogstatus)
+            xwcslcat(ob, TBUFSIZ, L"-v ");
+        if (maxlogsparam)
+            xwcslcat(ob, TBUFSIZ, L"-m ");
+        if (ob[0])
             return svcsyserror(__FUNCTION__, __LINE__, 0,
-                               L"Options -e and -q are mutually exclusive", NULL);
-
-        truncatelogs = FALSE;
-        haslogstatus = FALSE;
-        haslogrotate = FALSE;
-        svcmaxlogs   = 0;
-        ncnt         = 0;
+                               L"Option -q is mutually exclusive with option(s)", ob);
     }
     if (servicemode) {
         /**
@@ -3464,18 +3472,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
          }
     }
     else {
-        servicehome  = xgetenv(L"SVCBATCH_SERVICE_HOME");
+        servicehome = xgetenv(L"SVCBATCH_SERVICE_HOME");
         if (servicehome == NULL)
             return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"SVCBATCH_SERVICE_HOME", NULL);
-        svcmaxlogs   = 0;
-        haslogrotate = FALSE;
     }
     if (resolvebatchname(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
     if (servicemode) {
-        if (svcmaxlogs > 0)
-            haslogrotate = TRUE;
         if (svcstopwargc) {
             wchar_t *p = svcstopwargv[0];
 
@@ -3518,8 +3522,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, p, NULL);
             xfree(p);
             haspipedlogs = TRUE;
-            haslogrotate = FALSE;
         }
+    }
+    else {
+        svclogfname = nparam[0];
     }
 
     if (servicemode) {
@@ -3599,6 +3605,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         servicemain(0, NULL);
         rv = ssvcstatus.dwServiceSpecificExitCode;
     }
-    DBG_PRINTF("done (%lu)", rv);
+    DBG_PRINTF("done (%lu)\n", rv);
     return rv;
 }
