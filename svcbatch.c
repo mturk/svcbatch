@@ -16,7 +16,6 @@
 #include <windows.h>
 #include <wincrypt.h>
 #include <locale.h>
-#include <shellapi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,6 +83,7 @@ static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
 static int       xwoptind         = 1;
 static wchar_t   xwoption         = WNUL;
 static int       logredirargc     = 0;
+static int       svcstopwargc     = 0;
 
 #if defined(_DEBUG)
 static BOOL      consolemode      = FALSE;
@@ -93,21 +93,21 @@ static FILE     *dbgoutstream     = NULL;
 static wchar_t  *svcbatchexe      = NULL;
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *svcbatchname     = NULL;
-static wchar_t  *shutdownfile     = NULL;
 static wchar_t  *exelocation      = NULL;
 static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
 static wchar_t  *svcbatchargs     = NULL;
-static wchar_t  *svcendargs       = NULL;
 
 static wchar_t  *servicelogs      = NULL;
 static wchar_t  *logfilename      = NULL;
-static wchar_t  *logredirect      = NULL;
-static wchar_t **logredirargv     = NULL;
 static wchar_t  *wnamestamp       = NULL;
 static wchar_t  *svclogfname      = NULL;
+static wchar_t  *svcendlogfn      = NULL;
+
+static wchar_t **logredirargv     = NULL;
+static wchar_t **svcstopwargv     = NULL;
 
 static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
@@ -129,8 +129,7 @@ static char         YYES[4]       = { 'Y',  '\r', '\n', '\0' };
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
-static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
-static const wchar_t *svcendlogfn = SHUTDOWN_LOGNAME;
+static const wchar_t *outdirparam = NULL;
 static const wchar_t *localeparam = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
@@ -291,6 +290,15 @@ static wchar_t *xcwiden(const char *s)
     return p;
 }
 
+static void xwchreplace(wchar_t *s, wchar_t c, wchar_t r)
+{
+    while (*s != WNUL) {
+        if (*s == c)
+            *s = r;
+        s++;
+    }
+}
+
 static wchar_t *xgetenv(const wchar_t *s)
 {
     DWORD    n;
@@ -307,6 +315,8 @@ static wchar_t *xgetenv(const wchar_t *s)
             wmemcpy(d, e, n);
         }
     }
+    if (d == NULL)
+        SetLastError( ERROR_ENVVAR_NOT_FOUND);
     return d;
 }
 
@@ -379,59 +389,6 @@ static size_t xwcslcat(wchar_t *dst, size_t siz, const wchar_t *src)
     else
         *d = WNUL;
 
-    return r;
-}
-
-static wchar_t *xwcsreplace(const wchar_t *str, const wchar_t *src, const wchar_t *rep)
-{
-    const wchar_t *p;
-    wchar_t *d;
-    wchar_t *r;
-    size_t   b[32];
-    size_t   w;
-    size_t   c;
-    size_t   x;
-    size_t   z;
-    int   i, n = 0;
-
-    if (IS_EMPTY_WCS(str))
-        return NULL;
-    if (IS_EMPTY_WCS(src))
-        return NULL;
-    if (IS_EMPTY_WCS(rep))
-        return NULL;
-    x = wcslen(src);
-    p = wcsstr(str, src);
-
-    while (p != NULL) {
-        b[n++] = p - str;
-        p = wcsstr(p + x, src);
-        if (n > 30)
-            return NULL;
-    }
-    if (n == 0)
-        return NULL;
-    z = wcslen(rep);
-    c = wcslen(str);
-    r = xwmalloc(c + (n * z));
-    p = str;
-    d = r;
-    for (i = 0; i < n; i++) {
-        w = b[i] - (p - str);
-        wmemcpy(d, p, w);
-        p += w;
-        p += x;
-        d += w;
-        wmemcpy(d, rep, z);
-        d += z;
-    }
-    w = c - (p - str);
-    if (w > 0) {
-        wmemcpy(d, p, w);
-        d += w;
-    }
-    *(d++) = WNUL;
-    *(d)   = WNUL;
     return r;
 }
 
@@ -1358,17 +1315,14 @@ static void logconfig(HANDLE h)
     logprintf(h, "Batch file       : %S", svcbatchfile);
     if (svcbatchargs)
         logprintf(h, "      arguments  : %S", svcbatchargs);
-    if (shutdownfile) {
-        logprintf(h, "Shutdown batch   : %S", shutdownfile);
-        if (svcendargs)
-            logprintf(h, "      arguments  : %S", svcendargs);
-    }
+    if (svcstopwargc)
+        logprintf(h, "Shutdown batch   : %S", svcstopwargv[0]);
     logprintf(h, "Program directory: %S", exelocation);
     logprintf(h, "Base directory   : %S", servicebase);
     logprintf(h, "Home directory   : %S", servicehome);
     logprintf(h, "Logs directory   : %S", servicelogs);
     if (haspipedlogs)
-        logprintf(h, "Log redirected to: %S", logredirect);
+        logprintf(h, "Log redirected to: %S", logredirargv[0]);
 
     logfflush(h);
 }
@@ -1507,33 +1461,28 @@ static DWORD openlogpipe(BOOL ssp)
     }
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    cmdline = xappendarg(1, NULL,    NULL, logredirect);
+    cmdline = xappendarg(1, NULL, NULL, logredirargv[0]);
     if (logredirargc == 1) {
         cmdline = xappendarg(1, cmdline, NULL, svclogfname);
     }
     else {
         int i;
         for (i = 1; i < logredirargc; i++) {
-            wchar_t *rp = xwcsreplace(logredirargv[i], L"@@logfile@@", svclogfname);
-            if (rp)
-                cmdline = xappendarg(1, cmdline, NULL, rp);
-            else
-                cmdline = xappendarg(1, cmdline, NULL, logredirargv[i]);
-            xfree(rp);
+            xwchreplace(logredirargv[i], L'@', L'%');
+            cmdline = xappendarg(1, cmdline, NULL, logredirargv[i]);
         }
     }
-    LocalFree(logredirargv);
     DBG_PRINTF("cmdline %S", cmdline);
 
     wenvblk = xwmalloc(wenvbsize);
     wmemcpy(wenvblk, wenvblock, wenvbsize);
-    if (!CreateProcessW(logredirect, cmdline, NULL, NULL, TRUE,
+    if (!CreateProcessW(logredirargv[0], cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
                         wenvblk,
                         servicelogs,
                        &si, &cp)) {
         rc = GetLastError();
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", logredirect);
+        svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", logredirargv[0]);
         goto failed;
     }
 
@@ -1561,11 +1510,13 @@ static DWORD openlogpipe(BOOL ssp)
     DBG_PRINTF("running pipe log process %lu", pipedprocpid);
     xfree(cmdline);
     xfree(wenvblk);
+    xwaafree(logredirargv);
 
     return 0;
 failed:
     xfree(cmdline);
     xfree(wenvblk);
+    xwaafree(logredirargv);
     SAFE_CLOSE_HANDLE(wr);
     SAFE_CLOSE_HANDLE(pipedprocout);
     SAFE_CLOSE_HANDLE(pipedprocess);
@@ -2027,7 +1978,7 @@ static DWORD runshutdown(DWORD rt)
     HANDLE   job = NULL;
     DWORD    rc = 0;
     DWORD    cf = CREATE_NEW_CONSOLE;
-    int      ip = 0;
+    int   i, ip = 0;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
@@ -2070,9 +2021,10 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
         cmdline = xappendarg(1, cmdline, L"-n", svcendlogfn);
     }
-    cmdline = xappendarg(1, cmdline, NULL, shutdownfile);
-    cmdline = xappendarg(0, cmdline, NULL, svcendargs);
+    for (i = 0; i < svcstopwargc; i++)
+        cmdline = xappendarg(1, cmdline, NULL, svcstopwargv[i]);
 
+    xwaafree(svcstopwargv);
     DBG_PRINTF("cmdline %S", cmdline);
 
     ji.BasicLimitInformation.LimitFlags =
@@ -2180,7 +2132,7 @@ static unsigned int __stdcall stopthread(void *param)
 #endif
 
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-    if (shutdownfile && param) {
+    if (svcstopwargc && param) {
         DWORD rc;
 
         DBG_PRINTS("creating shutdown process");
@@ -3073,7 +3025,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         DBG_PRINTS("waiting for stopthread to finish");
         ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
         if (ws == WAIT_TIMEOUT) {
-            if (shutdownfile) {
+            if (svcstopwargc) {
                 DBG_PRINTS("sending shutdown stop signal");
                 SetEvent(ssignalevent);
                 ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
@@ -3163,17 +3115,17 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int         i;
     int         opt;
     int         envc;
+    int         ncnt  = 0;
     int         rcnt  = 0;
     int         rv    = 0;
     wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
+    const wchar_t *cmdopts;
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
-    const wchar_t *svcendparam  = NULL;
-    const wchar_t *logpipeparam = NULL;
-    const wchar_t *lognameparam = SVCBATCH_LOGNAME;
     const wchar_t *rparam[2];
+    wchar_t       *nparam[2] = { NULL, NULL };
 
 #if defined(_MSC_VER) && (_MSC_VER < 1900)
     /* Not supported */
@@ -3280,7 +3232,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     wnamestamp = xcwiden(cnamestamp);
     DBG_PRINTS(cnamestamp);
-    while ((opt = xwgetopt(argc, wargv, L"a:bc:e:k:lm:n:o:pqr:s:tvw:")) != EOF) {
+
+    if (servicemode)
+        cmdopts = SVCBATCH_CMDOPTS;
+    else
+        cmdopts = SHUTDOWN_CMDOPTS;
+
+    while ((opt = xwgetopt(argc, wargv, cmdopts)) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = TRUE;
@@ -3303,9 +3261,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             /**
              * Options with arguments
              */
-            case L'a':
-                svcendargs   = xappendarg(1, svcendargs,  NULL, xwoptarg);
-            break;
             case L'c':
                 localeparam  = xwoptarg;
             break;
@@ -3319,19 +3274,35 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             break;
 #endif
             case L'e':
-                logpipeparam = xwoptarg;
+                if (logredirargv == NULL)
+                    logredirargv = xwaalloc(SVCBATCH_MAX_ARGS);
+                if (logredirargc < SVCBATCH_MAX_ARGS)
+                    logredirargv[logredirargc++] = xwcsdup(xwoptarg);
+                else
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Too many -e arguments", xwoptarg);
+            break;
+            case L's':
+                if (svcstopwargv == NULL)
+                    svcstopwargv = xwaalloc(SVCBATCH_MAX_ARGS);
+                if (svcstopwargc < SVCBATCH_MAX_ARGS)
+                    svcstopwargv[svcstopwargc++] = xwcsdup(xwoptarg);
+                else
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Too many -s arguments", xwoptarg);
             break;
             case L'm':
-                svcmaxlogs   = xwcstoi(xwoptarg);
+                svcmaxlogs = xwcstoi(xwoptarg);
                 if ((svcmaxlogs < 0) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Invalid -m command option value", xwoptarg);
             break;
             case L'n':
-                lognameparam = xwoptarg;
-            break;
-            case L'o':
-                outdirparam  = xwoptarg;
+                if (ncnt > 1)
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Too many -n options", xwoptarg);
+                else
+                    nparam[ncnt++] = xwcsdup(xwoptarg);
             break;
             case L'r':
                 if (rcnt > 1)
@@ -3340,8 +3311,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 else
                     rparam[rcnt++] = xwoptarg;
             break;
-            case L's':
-                svcendparam  = xwoptarg;
+            case L'o':
+                outdirparam  = xwoptarg;
             break;
             case L'w':
                 svchomeparam = xwoptarg;
@@ -3366,21 +3337,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             return svcsyserror(__FUNCTION__, __LINE__, 0,
                                L"Invalid -c command option value", localeparam);
     }
-    if (!havelogging) {
-        /**
-         * The -q option was defined
-         *
-         * Disable all log related options
-         */
-        outdirparam  = NULL;
-        logpipeparam = NULL;
-        lognameparam = NULL;
-        svcendlogfn  = NULL;
-        svcmaxlogs   = 0;
-        truncatelogs = FALSE;
-        haslogstatus = FALSE;
-        haslogrotate = FALSE;
-    }
     argc  -= xwoptind;
     wargv += xwoptind;
     if (argc > 0) {
@@ -3399,10 +3355,47 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     else
         serviceuuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
     if (IS_EMPTY_WCS(serviceuuid))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"xuuidstring", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
     comspec = xgetenv(L"COMSPEC");
     if (IS_EMPTY_WCS(comspec))
-        return svcsyserror(__FUNCTION__, __LINE__, ERROR_ENVVAR_NOT_FOUND, L"COMSPEC", NULL);
+        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"COMSPEC", NULL);
+
+    if (havelogging) {
+        if (servicemode) {
+            if (logredirargc && rcnt)
+                return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                   L"Options -r and -e are mutually exclusive", NULL);
+            if (ncnt == 0)
+                nparam[ncnt++] = xwcsdup(SVCBATCH_LOGNAME);
+            if (svcstopwargc && (ncnt < 2))
+                nparam[ncnt++] = xwcsdup(SHUTDOWN_LOGNAME);
+        }
+        else {
+            svclogfname = nparam[0];
+        }
+        if (outdirparam == NULL)
+            outdirparam = SVCBATCH_LOGSDIR;
+    }
+    else {
+        if (rcnt)
+            return svcsyserror(__FUNCTION__, __LINE__, 0,
+                               L"Options -r and -q are mutually exclusive", NULL);
+        if (ncnt)
+            return svcsyserror(__FUNCTION__, __LINE__, 0,
+                               L"Options -n and -q are mutually exclusive", NULL);
+        if (outdirparam)
+            return svcsyserror(__FUNCTION__, __LINE__, 0,
+                               L"Options -o and -q are mutually exclusive", NULL);
+        if (logredirargc)
+            return svcsyserror(__FUNCTION__, __LINE__, 0,
+                               L"Options -e and -q are mutually exclusive", NULL);
+
+        truncatelogs = FALSE;
+        haslogstatus = FALSE;
+        haslogrotate = FALSE;
+        svcmaxlogs   = 0;
+        ncnt         = 0;
+    }
     if (servicemode) {
         /**
          * Find the location of SVCBATCH_SERVICE_HOME
@@ -3478,67 +3471,58 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     else {
         servicehome  = xgetenv(L"SVCBATCH_SERVICE_HOME");
+        if (servicehome == NULL)
+            return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"SVCBATCH_SERVICE_HOME", NULL);
         svcmaxlogs   = 0;
         haslogrotate = FALSE;
     }
     if (resolvebatchname(batchparam))
         return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
-    svclogfname = xwcsdup(lognameparam);
     if (servicemode) {
         if (svcmaxlogs > 0)
             haslogrotate = TRUE;
-        if (svcendparam) {
-            shutdownfile = getrealpathname(svcendparam, 0);
-            if (IS_EMPTY_WCS(shutdownfile))
-                return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, svcendparam, NULL);
-        }
-        else if (svcendargs) {
-            /**
-             * Use the service batch file as shutdownfile
-             */
-            shutdownfile = svcbatchfile;
-        }
-        if (svclogfname) {
-            wchar_t *p = svclogfname;
-            wchar_t *s = NULL;
+        if (svcstopwargc) {
+            wchar_t *p = svcstopwargv[0];
 
-            if (wcspbrk(svclogfname, L"/\\:<>?*|\""))
+            svcstopwargv[0] = getrealpathname(p, 0);
+            if (svcstopwargv[0] == NULL)
+                return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, p, NULL);
+            xfree(p);
+        }
+        if (ncnt) {
+            if (_wcsicmp(nparam[0], L"NUL") == 0)
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                   L"Invalid -n command option value", svclogfname);
-
-            /**
-             * If name is strftime formated
-             * replace @ with % so it can be used by strftime
-             */
-            while (*p != WNUL) {
-                if (*p == L'@')
-                    *p = L'%';
-                else if (*p == ';')
-                    s = p;
-                p++;
+                                       L"Invalid log filename", nparam[0]);
+            for (i = 0; i < ncnt; i++) {
+                if (wcspbrk(nparam[i], L"/\\:;<>?*|\""))
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Invalid log filename", nparam[i]);
+                /**
+                 * If name is strftime formatted
+                 * replace @ with % so it can be used by strftime
+                 */
+                xwchreplace(nparam[i], L'@', L'%');
             }
-            if (s) {
-                *(s++) = WNUL;
-                if ((*s == WNUL) || (_wcsicmp(s, L"NUL") == 0))
-                    svcendlogfn = NULL;
-                else
-                    svcendlogfn = s;
-            }
-            if (svcendlogfn) {
-                if (_wcsicmp(svclogfname, svcendlogfn) == 0)
+            svclogfname = nparam[0];
+            if (ncnt > 1) {
+                if (_wcsicmp(nparam[0], nparam[1]) == 0) {
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Log and shutdown file names are the same", svclogfname);
+                }
+                else {
+                    if (_wcsicmp(nparam[1], L"NUL"))
+                        svcendlogfn = nparam[1];
+                }
             }
         }
-        if (logpipeparam) {
-            logredirargv = CommandLineToArgvW(logpipeparam, &logredirargc);
-            if (logredirargv == NULL)
-                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), logpipeparam, NULL);
+        if (logredirargc) {
+            wchar_t *p = logredirargv[0];
 
-            logredirect = getrealpathname(logredirargv[0], 0);
-            if (logredirect == NULL)
-                return svcsyserror(__FUNCTION__, __LINE__, ERROR_PATH_NOT_FOUND, logredirargv[0], NULL);
+            logredirargv[0] = getrealpathname(p, 0);
+            if (logredirargv[0] == NULL)
+                return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, p, NULL);
+            xfree(p);
             haspipedlogs = TRUE;
             haslogrotate = FALSE;
         }
@@ -3564,7 +3548,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     if (IS_INVALID_HANDLE(processended))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"processended");
     if (servicemode) {
-        if (shutdownfile) {
+        if (svcstopwargc) {
             wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
             ssignalevent = CreateEventW(&sazero, TRUE, FALSE, psn);
             if (IS_INVALID_HANDLE(ssignalevent))

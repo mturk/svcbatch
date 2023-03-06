@@ -51,11 +51,12 @@ set "SERVICE_LOG_FNAME="
 set "SHUTDOWN_ARGS="
 set "ROTATE_RULE="
 set "SERVICE_BATCH=dummyservice.bat"
+set "SERVICE_SHUTDOWN=-s %SERVICE_BATCH%"
 rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=-a shutdown /Aargument /a\"argument with spaces\""
+set "SHUTDOWN_ARGS=-s shutdown /Sargument /s\"argument with spaces\""
 rem
 rem
 set "SERVICE_LOG_DIR=-o \"Logs/%SERVICE_NAME%\""
@@ -69,16 +70,16 @@ rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-m 0"
 rem
 rem Write log to external program instead to log file
-rem set "SERVICE_LOG_REDIR=-e \"%_BUILD_DIR%\pipedlog.exe @@logfile@@ some \\\"dummy arguments\\\"\""
+rem set "SERVICE_LOG_REDIR=-e pipedlog.exe -e piped.log -e some -e \"dummy arguments\""
 rem
 rem Use Apache Httpd rotatelogs utility for logging
-rem set "SERVICE_LOG_REDIR=-e \"rotatelogs.exe -l @@logfile@@ 120\""
+rem set "SERVICE_LOG_REDIR=-e rotatelogs.exe -e -l -e logrotate.@Y-@m-@d.@H@M@S.log -e120\""
 rem
 rem Set log file names instead defaut SvcBatch.log
 rem and SvcBatch.shutdown.log
-rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log;%SERVICE_NAME%.stop.log\""
+rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log\" /n \"%SERVICE_NAME%.stop.log\""
 rem
-set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log;%SERVICE_NAME%.@F.shutdown.log\""
+set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log\" /N \"%SERVICE_NAME%.@F.shutdown.log\""
 rem
 rem set "SERVICE_LOG_FNAME=-c en-US -n \"%SERVICE_NAME%.@#c.log\""
 rem Use German locale
