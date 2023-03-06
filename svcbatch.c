@@ -3294,6 +3294,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 if (ncnt > 1)
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Too many -n options", xwoptarg);
+                if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
+                    return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                       L"Invalid log filename", xwoptarg);
                 else
                     nparam[ncnt++] = xwcsdup(xwoptarg);
             break;
@@ -3494,9 +3497,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Invalid log filename", nparam[0]);
             for (i = 0; i < ncnt; i++) {
-                if (wcspbrk(nparam[i], L"/\\:;<>?*|\""))
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Invalid log filename", nparam[i]);
                 /**
                  * If name is strftime formatted
                  * replace @ with % so it can be used by strftime
