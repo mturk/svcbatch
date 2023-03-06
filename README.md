@@ -195,7 +195,7 @@ make sure to get familiar with `sc.exe` utility.
   service will fail if another service already opened SvacBatch.log
   in that location.
 
-* **-e [program][arguments]**
+* **-e [program][argument]**
 
   **Set external log program**
 
@@ -207,16 +207,20 @@ make sure to get familiar with `sc.exe` utility.
   program instead of log file.
 
   The first argument to the **program** is always
-  log file name, unless **arguments** are not defined.
+  log file name, unless additional **argument** is not defined.
 
-  In case any of the **arguments** contains `@@logfile@@` it will
-  be replaced at runtime by `Svcbatch.log` or any name defined
-  by **-n** parameter option.
+  To define arguments for external **program** use
+  multiple **-e** command options.
+
+  ```cmd
+  > sc create ... -e program.exe -e external.log -e argument ...
+
+  ```
 
   The **program** current directory is always set
   to service output directory.
 
-* **-n [log name][;shutdown name]**
+* **-n [log name][shutdown name]**
 
   **Set log file name**
 
@@ -225,13 +229,17 @@ make sure to get familiar with `sc.exe` utility.
   By default SvcBatch will use `SvcBatch.log` as **log name**
   and `SvcBatch.shutdown.log` as **shutdown name**.
 
+  To redefine default log names use multiple **-n**
+  command options at service install:
 
-  If **-n** argument contains `;` character it will be used
-  as separator for **log name** and **shutdown name**.
+  ```cmd
+  > sc create ... -n MyService.log -n MyService.shutdown.log ...
+
+  ```
 
   In case **-s** option is defined the **shutdown name** will be
   used if provided instead default `SvcBatch.shutdown.log` file name.
-  In case **shutdown name** is `NUL` or empty, shutdown logging will be disabled.
+  In case **shutdown name** is `NUL`, shutdown logging will be disabled.
 
   If **-n** argument includes any `@` characters, they will be replaced
   with `%` character at runtime and treated as a format string
@@ -383,7 +391,7 @@ make sure to get familiar with `sc.exe` utility.
   The service control manager waits until the service stops or the specified
   preshutdown time-out value expires
 
-* **-s [batchfile]**
+* **-s [batchfile][argument]**
 
   **Execute batch file on service stop or shutdown**
 
@@ -395,19 +403,10 @@ make sure to get familiar with `sc.exe` utility.
   This is particularly useful for services that do not handle
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
-  If **-a** command line option is defined its parameter will
-  be used as additional arguments send to the **batchfile**.
+  If multiple **-s** command line option are defined the
+  first one will be used as **batchfile** and rest will
+  be used as additional **argument** send to the **batchfile**.
 
-* **-a [argument]**
-
-  **Provide additional arguments to shutdown batch file**
-
-  This option enables to add additional **argument** to shutdown batch file.
-  Use multiple **-a [argument]** command options if multiple arguments are required.
-
-  If **-s** option was not defined, SvcBatch will use service batch file as
-  shutdown file with provided **argument(s)**. In that case service batch
-  file should process those arguments and act accordingly.
 
 * **-q**
 
