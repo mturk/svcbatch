@@ -3294,12 +3294,19 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 if (ncnt > 1)
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Too many -n options", xwoptarg);
-                if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Invalid log filename", xwoptarg);
-                else
-                    nparam[ncnt] = xwcsdup(xwoptarg);
-                xwchreplace(nparam[ncnt++], L'@', L'%');
+
+                nparam[ncnt] = xwcsdup(xwoptarg);
+                if (servicemode) {
+                    if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
+                        return svcsyserror(__FUNCTION__, __LINE__, 0,
+                                           L"Found invalid filename characters", xwoptarg);
+                    /**
+                     * If name is strftime formatted
+                     * replace @ with % so it can be used by strftime
+                     */
+                    xwchreplace(nparam[ncnt], L'@', L'%');
+                }
+                ncnt++;
             break;
             case L'r':
                 if (rcnt > 1)
@@ -3496,12 +3503,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if (ncnt) {
             if (_wcsicmp(nparam[0], L"NUL") == 0)
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Invalid log filename", nparam[0]);
+                                   L"Invalid log filename", nparam[0]);
             svclogfname = nparam[0];
             if (ncnt > 1) {
                 if (_wcsicmp(nparam[0], nparam[1]) == 0) {
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Log and shutdown file names are the same", svclogfname);
+                                       L"Log and shutdown file cannot have the same name", svclogfname);
                 }
                 else {
                     if (_wcsicmp(nparam[1], L"NUL"))
