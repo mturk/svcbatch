@@ -55,9 +55,6 @@
 #define SVCBATCH_SCSNAME       L"Global\\SvcBatch-ScmSignal-"
 #endif
 
-#define SVCBATCH_CMDOPTS       L"bc:e:k:lm:n:o:pqr:s:tvw:"
-#define SHUTDOWN_CMDOPTS       L"c:ln:o:qtv"
-
 /**
  * Maximum number of SvcBatch.log.N files
  */

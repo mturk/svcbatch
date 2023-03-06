@@ -3121,7 +3121,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
-    const wchar_t *cmdopts;
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
     const wchar_t *rparam[2];
@@ -3233,12 +3232,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wnamestamp = xcwiden(cnamestamp);
     DBG_PRINTS(cnamestamp);
 
-    if (servicemode)
-        cmdopts = SVCBATCH_CMDOPTS;
-    else
-        cmdopts = SHUTDOWN_CMDOPTS;
-
-    while ((opt = xwgetopt(argc, wargv, cmdopts)) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bc:e:k:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = TRUE;
