@@ -3298,7 +3298,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                     return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Invalid log filename", xwoptarg);
                 else
-                    nparam[ncnt++] = xwcsdup(xwoptarg);
+                    nparam[ncnt] = xwcsdup(xwoptarg);
+                xwchreplace(nparam[ncnt++], L'@', L'%');
             break;
             case L'r':
                 if (rcnt > 1)
@@ -3496,13 +3497,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             if (_wcsicmp(nparam[0], L"NUL") == 0)
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
                                        L"Invalid log filename", nparam[0]);
-            for (i = 0; i < ncnt; i++) {
-                /**
-                 * If name is strftime formatted
-                 * replace @ with % so it can be used by strftime
-                 */
-                xwchreplace(nparam[i], L'@', L'%');
-            }
             svclogfname = nparam[0];
             if (ncnt > 1) {
                 if (_wcsicmp(nparam[0], nparam[1]) == 0) {
