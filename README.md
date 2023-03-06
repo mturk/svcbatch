@@ -510,6 +510,19 @@ make sure to get familiar with `sc.exe` utility.
   This is useful when a log is processed in real time by a command
   like tail, and there is no need for archived data.
 
+  If multiple **-t** options are defined only the service stop log file
+  will be truncated.
+
+  ```cmd
+  > sc create ... -tt ...
+
+  ```
+
+  This will truncate existing `SvcBatch.shutdown.log` instead
+  appending on service stop or shutdown. This feature is usable
+  only if **-s** option is defined.
+
+
 ## Private Environment Variables
 
 SvcBatch sets a few private environment variables that

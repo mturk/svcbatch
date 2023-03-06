@@ -71,6 +71,7 @@ static BOOL      rotatebysize     = FALSE;
 static BOOL      rotatebytime     = FALSE;
 static BOOL      uselocaltime     = FALSE;
 static BOOL      truncatelogs     = FALSE;
+static BOOL      truncateslog     = FALSE;
 static BOOL      havelogging      = TRUE;
 static BOOL      servicemode      = TRUE;
 
@@ -2007,7 +2008,7 @@ static DWORD runshutdown(DWORD rt)
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
             rp[ip++] = L'l';
-        if (truncatelogs)
+        if (truncatelogs || truncateslog)
             rp[ip++] = L't';
         if (haslogstatus)
             rp[ip++] = L'v';
@@ -3248,7 +3249,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 havelogging  = FALSE;
             break;
             case L't':
-                truncatelogs = TRUE;
+                truncateslog = TRUE;
+                if (truncatelogs)
+                    truncatelogs = FALSE;
+                else
+                    truncatelogs = TRUE;
+
             break;
             case L'v':
                 haslogstatus = TRUE;
