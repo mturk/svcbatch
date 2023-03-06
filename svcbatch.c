@@ -1594,15 +1594,18 @@ static DWORD makelogfile(BOOL ssp)
 
 static DWORD openlogfile(BOOL ssp)
 {
-    wchar_t *logpb = NULL;
-    HANDLE h       = NULL;
+    wchar_t *logpb    = NULL;
+    HANDLE h          = NULL;
+    int    renameprev = svcmaxlogs;
     int    rotateprev;
     DWORD  rc;
     DWORD  cm;
 
     if (wcschr(svclogfname, L'%'))
         return makelogfile(ssp);
-    if (rotatebysize || rotatebytime)
+    if (truncatelogs)
+        renameprev = 0;
+    if (rotatebysize || rotatebytime || truncatelogs)
         rotateprev = 0;
     else
         rotateprev = svcmaxlogs;
@@ -1612,7 +1615,7 @@ static DWORD openlogfile(BOOL ssp)
         return svcsyserror(__FUNCTION__, __LINE__,
                            ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
 
-    if (svcmaxlogs > 0) {
+    if (renameprev) {
         if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
             if (ssp)
                 reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -1644,7 +1647,7 @@ static DWORD openlogfile(BOOL ssp)
     if (rotateprev) {
         int i;
         /**
-         * Rename previous log files
+         * Rotate previous log files
          */
         for (i = svcmaxlogs; i > 0; i--) {
             wchar_t *logpn;
@@ -2947,8 +2950,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
                 return;
             }
         }
-        if (truncatelogs)
-            svcmaxlogs = 0;
     }
     else {
         DBG_PRINTF("shutting down %S", servicename);
