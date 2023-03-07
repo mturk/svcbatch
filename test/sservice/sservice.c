@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static volatile LONG ctrlcc = 0;
+static HANDLE stopsig = NULL;
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
@@ -27,22 +27,22 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
     switch (ctrl) {
         case CTRL_CLOSE_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_CLOSE_EVENT signaled\n\n", pid);
-            InterlockedIncrement(&ctrlcc);
+            SetEvent(stopsig);
         break;
         case CTRL_SHUTDOWN_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_SHUTDOWN_EVENT signaled\n\n", pid);
-            InterlockedIncrement(&ctrlcc);
+            SetEvent(stopsig);
         break;
         case CTRL_C_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_C_EVENT signaled\n\n", pid);
-            InterlockedIncrement(&ctrlcc);
+            SetEvent(stopsig);
         break;
         case CTRL_BREAK_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_BREAK_EVENT signaled\n\n", pid);
         break;
         case CTRL_LOGOFF_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_LOGOFF_EVENT signaled\n\n", pid);
-            InterlockedIncrement(&ctrlcc);
+            SetEvent(stopsig);
         break;
         default:
             fprintf(stdout, "\n\n[%.4lu] Unknown control '%lu' signaled\n\n", pid, ctrl);
@@ -56,9 +56,17 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int i;
     int e = 0;
     int r = 0;
+    DWORD pid;
 
     setvbuf(stdout, (char*)NULL, _IONBF, 0);
-    DWORD pid = GetCurrentProcessId();
+    pid = GetCurrentProcessId();
+
+    stopsig = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (stopsig == NULL) {
+        r = GetLastError();
+        fwprintf(stderr, L"\n\n[%.4lu] CreateEvent failed\n", pid);
+        return r;
+    }
     fwprintf(stdout, L"\n[%.4lu] Program '%s' started\n", pid, wargv[0]);
     if (argc > 1) {
         fwprintf(stdout, L"\n[%.4lu] Arguments\n\n", pid);
@@ -75,22 +83,23 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     fwprintf(stdout, L"\n\n[%.4lu] Program running\n", pid);
     i = 1;
     for(;;) {
-        Sleep(2000);
+        DWORD ws = WaitForSingleObject(stopsig, 2000);
+
+        if (ws == WAIT_OBJECT_0) {
+            fwprintf(stdout, L"\n\n[%.4lu] Stop signaled\n", pid);
+            fflush(stdout);
+            Sleep(2000);
+            break;
+        }
         fwprintf(stdout, L"[%.4lu] [%.4d] ... running\n", pid, i++);
         if (i > 1800) {
             fwprintf(stderr, L"\n\n[%.4lu] Timeout reached\n", pid);
             r = ERROR_PROCESS_ABORTED;
             break;
         }
-        if (InterlockedCompareExchange(&ctrlcc, 0, 0) > 0) {
-            fwprintf(stdout, L"\n\n[%.4lu] Stop signaled\n", pid);
-            fflush(stdout);
-            Sleep(1000);
-            break;
-        }
     }
     fwprintf(stdout, L"\n\n[%.4lu] Program done\n", pid);
     _flushall();
-
+    CloseHandle(stopsig);
     return r;
 }
