@@ -3524,10 +3524,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     /**
      * Create logic state events
      */
-    svcstopended = CreateEvent(&sazero, TRUE, TRUE,  NULL);
+    svcstopended = CreateEvent(NULL, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
         return xxfatal(__FUNCTION__, __LINE__);
-    processended = CreateEvent(&sazero, TRUE, FALSE, NULL);
+    processended = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
         return xxfatal(__FUNCTION__, __LINE__);
     if (servicemode) {
@@ -3544,7 +3544,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 if (rv != 0)
                     return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", rparam[i]);
             }
-            logrotatesig = CreateEvent(&sazero, TRUE, FALSE, NULL);
+            logrotatesig = CreateEvent(NULL, TRUE, FALSE, NULL);
             if (IS_INVALID_HANDLE(logrotatesig))
                 return xxfatal(__FUNCTION__, __LINE__);
         }
@@ -3557,7 +3557,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         xfree(psn);
     }
 
-    monitorevent = CreateEvent(&sazero, TRUE, FALSE, NULL);
+    monitorevent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return xxfatal(__FUNCTION__, __LINE__);
     InitializeCriticalSection(&servicelock);
