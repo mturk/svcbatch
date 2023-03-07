@@ -61,7 +61,7 @@ static LARGE_INTEGER         pcstarttime;
 static wchar_t  *comspec          = NULL;
 static wchar_t **dupwenvp         = NULL;
 static int       dupwenvc         = 0;
-static int       wenvbsize        = 0;
+static size_t    wenvbsize        = 0;
 static wchar_t  *wenvblock        = NULL;
 
 static BOOL      haslogstatus     = FALSE;
@@ -276,6 +276,17 @@ static wchar_t *xwcsdup(const wchar_t *s)
     if (IS_EMPTY_WCS(s))
         return NULL;
     n = wcslen(s);
+    p = xwmalloc(n);
+    wmemcpy(p, s, n);
+    return p;
+}
+
+static wchar_t *xwmemdup(const wchar_t *s, size_t n)
+{
+    wchar_t *p;
+
+    if ((s == NULL) || (n == 0))
+        return 0;
     p = xwmalloc(n);
     wmemcpy(p, s, n);
     return p;
@@ -610,7 +621,7 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     return oli[0];
 }
 
-static wchar_t *xenvblock(int cnt, const wchar_t **arr, int *len)
+static wchar_t *xenvblock(int cnt, const wchar_t **arr, size_t *len)
 {
     int      i;
     int      blen = 0;
@@ -1511,8 +1522,7 @@ static DWORD openlogpipe(BOOL ssp)
     }
     DBG_PRINTF("cmdline %S", cmdline);
 
-    wenvblk = xwmalloc(wenvbsize);
-    wmemcpy(wenvblk, wenvblock, wenvbsize);
+    wenvblk = xwmemdup(wenvblock, wenvbsize);
     if (!CreateProcessW(logredirargv[0], cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | cf,
                         wenvblk,
@@ -2057,8 +2067,7 @@ static DWORD runshutdown(DWORD rt)
 
     DBG_PRINTF("cmdline %S", cmdline);
 
-    wenvblk = xwmalloc(wenvbsize);
-    wmemcpy(wenvblk, wenvblock, wenvbsize);
+    wenvblk = xwmemdup(wenvblock, wenvbsize);
     if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, FALSE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | cf,
                         wenvblk, NULL, &si, &cp)) {
