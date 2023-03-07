@@ -2931,10 +2931,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
          * Convert environment array to environment block
          */
         wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp, &wenvbsize);
-        if (wenvblock == NULL) {
-            xxfatal(__FUNCTION__, __LINE__);
-            return;
-        }
         xwaafree(dupwenvp);
     }
     childprocjob = CreateJobObject(&sazero, NULL);
