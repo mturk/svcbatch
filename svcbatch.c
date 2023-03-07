@@ -106,7 +106,6 @@ static wchar_t  *logfilename      = NULL;
 static wchar_t  *wnamestamp       = NULL;
 static wchar_t  *svclogfname      = NULL;
 static wchar_t  *svcendlogfn      = NULL;
-static wchar_t  *logredirexe      = NULL;
 
 static wchar_t **logredirargv     = NULL;
 static wchar_t **svcstopwargv     = NULL;
@@ -1377,7 +1376,7 @@ static void logconfig(HANDLE h)
     logprintf(h, "Home directory   : %S", servicehome);
     logprintf(h, "Logs directory   : %S", servicelogs);
     if (haspipedlogs)
-        logprintf(h, "Log redirected to: %S", logredirexe);
+        logprintf(h, "Log redirected to: %S", logredirargv[0]);
 
     logfflush(h);
 }
@@ -1499,7 +1498,7 @@ static DWORD openlogpipe(BOOL ssp)
 
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    cmdline = xappendarg(1, NULL, NULL, logredirexe);
+    cmdline = xappendarg(1, NULL, NULL, logredirargv[0]);
     if (logredirargc == 1) {
         cmdline = xappendarg(1, cmdline, NULL, svclogfname);
     }
@@ -1514,7 +1513,7 @@ static DWORD openlogpipe(BOOL ssp)
 
     wenvblk = xwmalloc(wenvbsize);
     wmemcpy(wenvblk, wenvblock, wenvbsize);
-    if (!CreateProcessW(logredirexe, cmdline, NULL, NULL, TRUE,
+    if (!CreateProcessW(logredirargv[0], cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | cf,
                         wenvblk,
                         servicelogs,
@@ -1545,7 +1544,6 @@ static DWORD openlogpipe(BOOL ssp)
     DBG_PRINTF("running pipe log process %lu", pipedprocpid);
     xfree(cmdline);
     xfree(wenvblk);
-    xwaafree(logredirargv);
 
     return 0;
 failed:
@@ -2057,7 +2055,6 @@ static DWORD runshutdown(DWORD rt)
     for (i = 0; i < svcstopwargc; i++)
         cmdline = xappendarg(1, cmdline, NULL, svcstopwargv[i]);
 
-    xwaafree(svcstopwargv);
     DBG_PRINTF("cmdline %S", cmdline);
 
     wenvblk = xwmalloc(wenvbsize);
@@ -3501,10 +3498,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             }
         }
         if (logredirargc) {
-            logredirexe = getrealpathname(logredirargv[0], 0);
+            wchar_t *p = logredirargv[0];
+
+            logredirargv[0] = getrealpathname(p, 0);
             if (logredirargv[0] == NULL)
-                return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, logredirargv[0], NULL);
+                return svcsyserror(__FUNCTION__, __LINE__, ERROR_FILE_NOT_FOUND, p, NULL);
             haspipedlogs = TRUE;
+            xfree(p);
         }
     }
     else {
