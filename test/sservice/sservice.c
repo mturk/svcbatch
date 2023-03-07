@@ -49,6 +49,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             ctrlcc++;
         break;
     }
+    fflush(stdout);
     return TRUE;
 }
 
@@ -73,7 +74,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     SetConsoleCtrlHandler(consolehandler, TRUE);
     fwprintf(stdout, L"\n\n[%.4lu] Program running\n", pid);
+    fflush(stdout);
     i = 1;
+    e = 1;
     for(;;) {
         Sleep(1000);
         fwprintf(stdout, L"[%.4lu] [%.4d] ... running\n", pid, i++);
@@ -84,10 +87,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         }
         if (ctrlcc) {
             fwprintf(stdout, L"\n\n[%.4lu] Stop signaled\n", pid);
+            fflush(stdout);
             Sleep(1000);
             break;
         }
+        if (e++ > 10) {
+            fflush(stdout);
+            e = 1;
+        }
     }
     fwprintf(stdout, L"\n\n[%.4lu] Program done\n", pid);
+    fflush(stdout);
+    fflush(stderr);
+
     return r;
 }

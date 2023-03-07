@@ -24,10 +24,8 @@ goto End
 rem
 :doCreate
 rem
+rem Presume that svcbatch.exe is in this directory
+sc create sservice binPath= "%cd%\svcbatch.exe -vb sservice.bat run"
 rem
-sc create %~n0 binPath= "\"%cd%\svcbatch.exe\" -v %~nx0"
-rem Ensure networking is running
-sc config %~n0 depend= Tcpip/Afd
-
 :End
 exit /B 0
