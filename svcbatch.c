@@ -209,12 +209,12 @@ static const wchar_t *xwcsiid(int i, DWORD c)
     return r;
 }
 
-static void xxfatal(const char *reason)
+static void xxfatal(const char *func, int line)
 {
     OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR " -- fatal error");
-    OutputDebugStringA(reason);
+    OutputDebugStringA(func);
     OutputDebugStringA("<<<\n");
-    _exit(1);
+    _exit(line);
 }
 
 static wchar_t *xwmalloc(size_t size)
@@ -222,7 +222,7 @@ static wchar_t *xwmalloc(size_t size)
     wchar_t *p = (wchar_t *)malloc((size + 2) * sizeof(wchar_t));
 
     if (p == NULL) {
-        xxfatal("    malloc failed");
+        xxfatal(__FUNCTION__, __LINE__);
     }
     else {
         p[size++] = WNUL;
@@ -236,7 +236,7 @@ static void *xcalloc(size_t number, size_t size)
     void *p = calloc(number + 2, size);
 
     if (p == NULL)
-        xxfatal("    calloc failed");
+        xxfatal(__FUNCTION__, __LINE__);
     return p;
 }
 
@@ -2496,7 +2496,7 @@ static unsigned int __stdcall workerthread(void *unused)
 {
     wchar_t *cmdline;
     HANDLE   wh[4];
-    DWORD    rc;
+    DWORD    rc = 0;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
 
@@ -2516,7 +2516,7 @@ static unsigned int __stdcall workerthread(void *unused)
 
     rc = createiopipes(&si, &inputpipewrs, &outputpiperd);
     if (rc != 0) {
-        xxfatal("    createiopipes failed");
+        xxfatal(__FUNCTION__, __LINE__);
         setsvcstatusexit(rc);
         goto finished;
     }
@@ -2540,30 +2540,18 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
     if (!AssignProcessToJobObject(childprocjob, childprocess)) {
-        xxfatal("    AssignProcessToJobObject failed");
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"AssignProcessToJobObject", NULL);
-        TerminateProcess(childprocess, rc);
+        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     wh[0] = childprocess;
     wh[1] = xcreatethread(0, CREATE_SUSPENDED, &rdpipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
-        xxfatal("    xcreatethread failed");
-        rc = ERROR_TOO_MANY_TCBS;
-        setsvcstatusexit(rc);
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"rdpipethread", NULL);
-        TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
+        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     wh[2] = xcreatethread(0, CREATE_SUSPENDED, &wrpipethread, NULL);
     if (IS_INVALID_HANDLE(wh[2])) {
-        xxfatal("    xcreatethread failed");
-        rc = ERROR_TOO_MANY_TCBS;
-        setsvcstatusexit(rc);
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"wrpipethread", NULL);
-        TerminateProcess(childprocess, ERROR_OUTOFMEMORY);
+        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
 
@@ -2919,9 +2907,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         {
             hsvcstatus = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
             if (IS_INVALID_HANDLE(hsvcstatus)) {
-                xxfatal("    RegisterServiceCtrlHandlerEx failed");
-                svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx", NULL);
-                exit(ERROR_INVALID_HANDLE);
+                xxfatal(__FUNCTION__, __LINE__);
                 return;
             }
         }
@@ -2956,19 +2942,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
          */
         wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp, &wenvbsize);
         if (wenvblock == NULL) {
-            xxfatal("    xenvblock failed");
-            svcsyserror(__FUNCTION__, __LINE__, 0, L"bad environment", NULL);
-            reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
+            xxfatal(__FUNCTION__, __LINE__);
             return;
         }
         xwaafree(dupwenvp);
     }
     childprocjob = CreateJobObject(&sazero, NULL);
     if (IS_INVALID_HANDLE(childprocjob)) {
-        xxfatal("    CreateJobObject failed");
-        rv = GetLastError();
-        setsvcstatusexit(rv);
-        svcsyserror(__FUNCTION__, __LINE__, rv, L"CreateJobObject", NULL);
+        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
@@ -3012,18 +2993,12 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     wh[1] = xcreatethread(0, 0, &monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
-        xxfatal("    xcreatethread failed");
-        rv = ERROR_TOO_MANY_TCBS;
-        svcsyserror(__FUNCTION__, __LINE__, rv, L"monitorthread", NULL);
+        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     wh[0] = xcreatethread(0, 0, &workerthread, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
-        xxfatal("    xcreatethread failed");
-        SetEvent(monitorevent);
-        CloseHandle(wh[1]);
-        rv = ERROR_TOO_MANY_TCBS;
-        svcsyserror(__FUNCTION__, __LINE__, rv, L"workerthread", NULL);
+        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     DBG_PRINTS("running");
