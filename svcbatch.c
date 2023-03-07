@@ -1474,11 +1474,17 @@ static unsigned int __stdcall rdpipedlog(void *unused)
 static DWORD openlogpipe(BOOL ssp)
 {
     DWORD  rc;
+    DWORD  cf = CREATE_NEW_CONSOLE;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
     HANDLE wr = NULL;
     wchar_t *cmdline = NULL;
     wchar_t *wenvblk = NULL;
+
+#if defined(_DEBUG)
+    if (consolemode)
+        cf = CREATE_NEW_PROCESS_GROUP;
+#endif
 
     memset(&cp, 0, sizeof(PROCESS_INFORMATION));
     memset(&si, 0, sizeof(STARTUPINFOW));
@@ -1508,7 +1514,7 @@ static DWORD openlogpipe(BOOL ssp)
     wenvblk = xwmalloc(wenvbsize);
     wmemcpy(wenvblk, wenvblock, wenvbsize);
     if (!CreateProcessW(logredirargv[0], cmdline, NULL, NULL, TRUE,
-                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
+                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | cf,
                         wenvblk,
                         servicelogs,
                        &si, &cp)) {
@@ -2949,9 +2955,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
                                  JobObjectExtendedLimitInformation,
                                 &ji,
                                  DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
-        rv = GetLastError();
-        setsvcstatusexit(rv);
-        svcsyserror(__FUNCTION__, __LINE__, rv, L"SetInformationJobObject", NULL);
+        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
 
