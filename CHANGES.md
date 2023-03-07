@@ -10,16 +10,12 @@ For a full list of changes, see the [git commit log][log]
 
   * In development
 
-  ** This is major version upgrade due to incompatibility with 1.x versions **
+### This is major version upgrade incompatible with previous 1.x versions
 
-  * Drop external log application for shutdown batch file
-  * Change default log rotation extension
+  * Drop external log application support for shutdown batch file
   * Do not rotate shutdown log files
-  * Do not rotate each 90 days
   * Drop -d command option in favor of _DEBUG builds
   * Drop -a command option in favor of multiple -s options
-  * Enable separate shutdown.log file name with -n command option
-
 
 ### New Features
 
@@ -30,7 +26,7 @@ For a full list of changes, see the [git commit log][log]
  * Add -v command option that enables to log various internal messages
  * Add support for log rotation at each full hour
  * Add strftime support for log file names
- * Enable to run services in console mode for _DEBUG builds
+ * Enable to run services in console mode with _DEBUG builds
 
 
 ## v1.4.0
