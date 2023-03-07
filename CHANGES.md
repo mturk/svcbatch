@@ -8,7 +8,6 @@ For a full list of changes, see the [git commit log][log]
 
 ## v2.0.0
 
-  * In development
 
 ### This is major version upgrade incompatible with previous 1.x versions
 
