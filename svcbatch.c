@@ -1223,7 +1223,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
      * Create stdin pipe, with write side
      * of the pipe as non inheritable.
      */
-    if (!CreatePipe(&(si->hStdInput), &sh, &sa, 0))
+    if (!CreatePipe(&(si->hStdInput), &sh, &sa, HBUFSIZ))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreatePipe", NULL);
     if (!DuplicateHandle(cp, sh, cp,
                          iwrs, FALSE, 0,
@@ -1235,7 +1235,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
      * Create stdout/stderr pipe, with read side
      * of the pipe as non inheritable
      */
-    if (!CreatePipe(&sh, &(si->hStdError), &sa, 0))
+    if (!CreatePipe(&sh, &(si->hStdError), &sa, HBUFSIZ))
         return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreatePipe", NULL);
     if (!DuplicateHandle(cp, sh, cp,
                          ords, FALSE, 0,
