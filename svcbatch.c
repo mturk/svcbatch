@@ -15,6 +15,7 @@
 
 #include <windows.h>
 #include <wincrypt.h>
+#include <tlhelp32.h>
 #include <locale.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -919,6 +920,39 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     return ern;
 }
 
+static DWORD killproctree(DWORD pid, UINT err)
+{
+    DWORD  r = 0;
+    HANDLE h;
+    HANDLE p;
+    PROCESSENTRY32W e;
+
+    h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (IS_INVALID_HANDLE(h))
+        return GetLastError();
+
+    e.dwSize = DSIZEOF(PROCESSENTRY32W);
+    if (Process32FirstW(h, &e) == 0) {
+        r = GetLastError();
+        CloseHandle(h);
+        return r == ERROR_NO_MORE_FILES ? 0 : r;
+    }
+    do {
+        if (e.th32ParentProcessID == pid) {
+            p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, e.th32ProcessID);
+
+            if (IS_VALID_HANDLE(p)) {
+                TerminateProcess(p, err);
+                CloseHandle(p);
+            }
+        }
+
+    } while (Process32NextW(h, &e));
+    CloseHandle(h);
+
+    return r;
+}
+
 static DWORD xcreatedir(const wchar_t *path)
 {
     if (!CreateDirectoryW(path, NULL)) {
@@ -1816,6 +1850,7 @@ static void closelogfile(void)
         DBG_PRINTF("wait for log process %lu to finish", pipedprocpid);
         if (WaitForSingleObject(pipedprocess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
             DBG_PRINTF("terminating log process %lu", pipedprocpid);
+            killproctree(pipedprocpid, ERROR_PROCESS_ABORTED);
             TerminateProcess(pipedprocess, WAIT_TIMEOUT);
         }
 #if defined(_DEBUG)
@@ -2183,6 +2218,8 @@ static unsigned int __stdcall stopthread(void *param)
     DBG_PRINTS("process still running");
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
     DBG_PRINTS("child is still active ... terminating");
+
+    killproctree(childprocpid, ERROR_PROCESS_ABORTED);
     SAFE_CLOSE_HANDLE(childprocess);
     SAFE_CLOSE_HANDLE(childprocjob);
 
