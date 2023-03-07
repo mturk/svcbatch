@@ -919,7 +919,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     return ern;
 }
 
-static DWORD killproctree(DWORD pid, UINT err)
+static DWORD killproctree(HANDLE ph, DWORD pid, UINT err, int rc)
 {
     DWORD  r = 0;
     HANDLE h;
@@ -927,28 +927,42 @@ static DWORD killproctree(DWORD pid, UINT err)
     PROCESSENTRY32W e;
 
     h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (IS_INVALID_HANDLE(h))
-        return GetLastError();
-
+    if (IS_INVALID_HANDLE(h)) {
+        r = GetLastError();
+        goto finished;
+    }
     e.dwSize = DSIZEOF(PROCESSENTRY32W);
     if (Process32FirstW(h, &e) == 0) {
         r = GetLastError();
+        if (r == ERROR_NO_MORE_FILES)
+            r = 0;
         CloseHandle(h);
-        return r == ERROR_NO_MORE_FILES ? 0 : r;
+        goto finished;
     }
     do {
         if (e.th32ParentProcessID == pid) {
             p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, e.th32ProcessID);
 
             if (IS_VALID_HANDLE(p)) {
-                TerminateProcess(p, err);
+                if (rc) {
+                    DBG_PRINTF("killing child [%.4lu] of proc [%.4lu]", e.th32ProcessID, pid);
+                    killproctree(p, e.th32ProcessID, err, rc - 1);
+                }
+                else {
+                    DBG_PRINTF("terminating child [%.4lu] of proc [%.4lu]", e.th32ProcessID, pid);
+                    TerminateProcess(p, err);
+                }
                 CloseHandle(p);
             }
         }
 
     } while (Process32NextW(h, &e));
     CloseHandle(h);
-
+finished:
+    if (IS_VALID_HANDLE(ph)) {
+        DBG_PRINTF("terminating proc [%.4lu]", pid);
+        TerminateProcess(ph, err);
+    }
     return r;
 }
 
@@ -1825,8 +1839,7 @@ static void closelogfile(void)
         DBG_PRINTF("wait for log process %lu to finish", pipedprocpid);
         if (WaitForSingleObject(pipedprocess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
             DBG_PRINTF("terminating log process %lu", pipedprocpid);
-            killproctree(pipedprocpid, ERROR_PROCESS_ABORTED);
-            TerminateProcess(pipedprocess, WAIT_TIMEOUT);
+            killproctree(pipedprocess, pipedprocpid, WAIT_TIMEOUT, 0);
         }
 #if defined(_DEBUG)
         {
@@ -2081,7 +2094,7 @@ static DWORD runshutdown(DWORD rt)
         if (WaitForSingleObject(cp.hProcess, rt) != WAIT_OBJECT_0) {
             DBG_PRINTF("calling TerminateProcess for %lu",
                        cp.dwProcessId);
-            TerminateProcess(cp.hProcess, ERROR_BROKEN_PIPE);
+            killproctree(cp.hProcess, cp.dwProcessId, ERROR_BROKEN_PIPE, 1);
         }
     }
 #if defined(_DEBUG)
@@ -2168,8 +2181,7 @@ static unsigned int __stdcall stopthread(void *param)
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
     DBG_PRINTS("child is still active ... terminating");
 
-    killproctree(childprocpid, ERROR_PROCESS_ABORTED);
-    TerminateProcess(childprocess, WAIT_TIMEOUT);
+    killproctree(childprocess, childprocpid, WAIT_TIMEOUT, 0);
     SAFE_CLOSE_HANDLE(childprocess);
 
 finished:
