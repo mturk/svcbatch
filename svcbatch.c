@@ -209,12 +209,13 @@ static const wchar_t *xwcsiid(int i, DWORD c)
     return r;
 }
 
-static void xxfatal(const char *func, int line)
+static int xxfatal(const char *func, int line)
 {
     OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR " -- fatal error");
     OutputDebugStringA(func);
     OutputDebugStringA("<<<\n");
     _exit(line);
+    return line;
 }
 
 static wchar_t *xwmalloc(size_t size)
@@ -1229,11 +1230,12 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
      * of the pipe as non inheritable.
      */
     if (!CreatePipe(&(si->hStdInput), &sh, &sa, HBUFSIZ))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreatePipe", NULL);
+        return xxfatal(__FUNCTION__, __LINE__);
+
     if (!DuplicateHandle(cp, sh, cp,
                          iwrs, FALSE, 0,
                          DUPLICATE_SAME_ACCESS))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"DuplicateHandle", NULL);
+        return xxfatal(__FUNCTION__, __LINE__);
     SAFE_CLOSE_HANDLE(sh);
 
     /**
@@ -1241,11 +1243,11 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
      * of the pipe as non inheritable
      */
     if (!CreatePipe(&sh, &(si->hStdError), &sa, HBUFSIZ))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreatePipe", NULL);
+        return xxfatal(__FUNCTION__, __LINE__);
     if (!DuplicateHandle(cp, sh, cp,
                          ords, FALSE, 0,
                          DUPLICATE_SAME_ACCESS))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"DuplicateHandle", NULL);
+        return xxfatal(__FUNCTION__, __LINE__);
     si->hStdOutput = si->hStdError;
 
     SAFE_CLOSE_HANDLE(sh);
@@ -1522,12 +1524,9 @@ static DWORD openlogpipe(BOOL ssp)
      */
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
-    if (!AssignProcessToJobObject(childprocjob, pipedprocess)) {
-        rc = GetLastError();
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"AssignProcessToJobObject", NULL);
-        TerminateProcess(pipedprocess, rc);
-        goto failed;
-    }
+    if (!AssignProcessToJobObject(childprocjob, pipedprocess))
+        return xxfatal(__FUNCTION__, __LINE__);
+
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
     xcreatethread(1, 0, &rdpipedlog, NULL);
@@ -2064,13 +2063,9 @@ static DWORD runshutdown(DWORD rt)
         goto finished;
     }
 
-    if (!AssignProcessToJobObject(childprocjob, cp.hProcess)) {
-        rc = GetLastError();
-        setsvcstatusexit(rc);
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"AssignProcessToJobObject", NULL);
-        TerminateProcess(cp.hProcess, rc);
-        goto finished;
-    }
+    if (!AssignProcessToJobObject(childprocjob, cp.hProcess))
+        return xxfatal(__FUNCTION__, __LINE__);
+
     wh[0] = cp.hProcess;
     wh[1] = processended;
     ResumeThread(cp.hThread);
@@ -2421,15 +2416,11 @@ static unsigned int __stdcall rotatethread(void *unused)
     if (rotatetmo.QuadPart) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateWaitableTimer", NULL);
+            xxfatal(__FUNCTION__, __LINE__);
             goto finished;
         }
         if (!SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            svcsyserror(__FUNCTION__, __LINE__, rc, L"SetWaitableTimer", NULL);
+            xxfatal(__FUNCTION__, __LINE__);
             goto finished;
         }
         wh[nw++] = wt;
@@ -2515,11 +2506,8 @@ static unsigned int __stdcall workerthread(void *unused)
     si.dwFlags = STARTF_USESTDHANDLES;
 
     rc = createiopipes(&si, &inputpipewrs, &outputpiperd);
-    if (rc != 0) {
-        xxfatal(__FUNCTION__, __LINE__);
-        setsvcstatusexit(rc);
+    if (rc != 0)
         goto finished;
-    }
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     if (!CreateProcessW(comspec, cmdline, NULL, NULL, TRUE,
