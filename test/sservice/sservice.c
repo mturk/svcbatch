@@ -49,7 +49,6 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
             ctrlcc++;
         break;
     }
-    fflush(stdout);
     return TRUE;
 }
 
@@ -59,6 +58,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int e = 0;
     int r = 0;
 
+    setvbuf(stdout, (char*)NULL, _IONBF, 0);
     DWORD pid = GetCurrentProcessId();
     fwprintf(stdout, L"\n[%.4lu] Program '%s' started\n", pid, wargv[0]);
     if (argc > 1) {
@@ -74,9 +74,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     SetConsoleCtrlHandler(consolehandler, TRUE);
     fwprintf(stdout, L"\n\n[%.4lu] Program running\n", pid);
-    fflush(stdout);
     i = 1;
-    e = 1;
     for(;;) {
         Sleep(1000);
         fwprintf(stdout, L"[%.4lu] [%.4d] ... running\n", pid, i++);
@@ -91,14 +89,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             Sleep(1000);
             break;
         }
-        if (e++ > 10) {
-            fflush(stdout);
-            e = 1;
-        }
     }
     fwprintf(stdout, L"\n\n[%.4lu] Program done\n", pid);
-    fflush(stdout);
-    fflush(stderr);
+    _flushall();
 
     return r;
 }
