@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int ctrlcc = 0;
+static volatile LONG ctrlcc = 0;
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
 {
@@ -27,26 +27,25 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
     switch (ctrl) {
         case CTRL_CLOSE_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_CLOSE_EVENT signaled\n\n", pid);
-            ctrlcc++;
+            InterlockedIncrement(&ctrlcc);
         break;
         case CTRL_SHUTDOWN_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_SHUTDOWN_EVENT signaled\n\n", pid);
-            ctrlcc++;
+            InterlockedIncrement(&ctrlcc);
         break;
         case CTRL_C_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_C_EVENT signaled\n\n", pid);
-            ctrlcc++;
+            InterlockedIncrement(&ctrlcc);
         break;
         case CTRL_BREAK_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_BREAK_EVENT signaled\n\n", pid);
         break;
         case CTRL_LOGOFF_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_LOGOFF_EVENT signaled\n\n", pid);
-            ctrlcc++;
+            InterlockedIncrement(&ctrlcc);
         break;
         default:
             fprintf(stdout, "\n\n[%.4lu] Unknown control '%lu' signaled\n\n", pid, ctrl);
-            ctrlcc++;
         break;
     }
     return TRUE;
@@ -76,14 +75,14 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     fwprintf(stdout, L"\n\n[%.4lu] Program running\n", pid);
     i = 1;
     for(;;) {
-        Sleep(1000);
+        Sleep(2000);
         fwprintf(stdout, L"[%.4lu] [%.4d] ... running\n", pid, i++);
-        if (i > 3600) {
+        if (i > 1800) {
             fwprintf(stderr, L"\n\n[%.4lu] Timeout reached\n", pid);
             r = ERROR_PROCESS_ABORTED;
             break;
         }
-        if (ctrlcc) {
+        if (InterlockedCompareExchange(&ctrlcc, 0, 0) > 0) {
             fwprintf(stdout, L"\n\n[%.4lu] Stop signaled\n", pid);
             fflush(stdout);
             Sleep(1000);
