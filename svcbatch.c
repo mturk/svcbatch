@@ -2573,6 +2573,10 @@ static unsigned int __stdcall workerthread(void *unused)
 
     DBG_PRINTF("finished %S with pid %lu",
               svcbatchname, childprocpid);
+    if (IS_INVALID_HANDLE(childprocess)) {
+        DBG_PRINTF("%S child process is closed", svcbatchname);
+        goto finished;
+    }
     if (GetExitCodeProcess(childprocess, &rc)) {
         DBG_PRINTF("%S exited with %lu", svcbatchname, rc);
     }
