@@ -55,6 +55,7 @@ int wmain(int argc, const wchar_t **wargv)
         fprintf(stderr, "Missing stdin handle %lu", e);
         return e;
     }
+    setvbuf(stdout, (char*)NULL, _IONBF, 0);
     if (argc < 2) {
         fputs("Missing logfile argument\n", stderr);
         return ERROR_INVALID_PARAMETER;
@@ -67,7 +68,6 @@ int wmain(int argc, const wchar_t **wargv)
         }
         fputs("]]\n", stdout);
     }
-    fflush(stdout);
     memset(&sa, 0, sizeof(SECURITY_ATTRIBUTES));
     sa.nLength = (DWORD)sizeof(SECURITY_ATTRIBUTES);
 
@@ -105,7 +105,6 @@ int wmain(int argc, const wchar_t **wargv)
 #if SIMULATE_FAILURE
     CloseHandle(CreateThread(NULL, 0, failurethread, NULL, 0, &e));
 #endif
-    fflush(stdout);
     e = 0;
     while (e == 0) {
         DWORD rd = 0;
@@ -124,7 +123,6 @@ int wmain(int argc, const wchar_t **wargv)
                         c += wr;
                         if (c > 16384) {
                             fputs("flushing...\n", stdout);
-                            fflush(stdout);
                             FlushFileBuffers(w);
                             c = 0;
                         }
@@ -155,6 +153,5 @@ int wmain(int argc, const wchar_t **wargv)
     else {
         fputs("done\n", stdout);
     }
-    fflush(stdout);
     return e;
 }
