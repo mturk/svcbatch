@@ -2420,7 +2420,9 @@ static unsigned int __stdcall rotatethread(void *unused)
             goto finished;
         }
         if (!SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE)) {
-            xxfatal(__FUNCTION__, __LINE__);
+            rc = GetLastError();
+            setsvcstatusexit(rc);
+            svcsyserror(__FUNCTION__, __LINE__, rc, L"SetWaitableTimer", NULL);
             goto finished;
         }
         wh[nw++] = wt;
