@@ -209,29 +209,34 @@ static const wchar_t *xwcsiid(int i, DWORD c)
     return r;
 }
 
+static void xxfatal(const char *reason)
+{
+    OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR " -- fatal error");
+    OutputDebugStringA(reason);
+    OutputDebugStringA("<<<\n");
+    _exit(1);
+}
+
 static wchar_t *xwmalloc(size_t size)
 {
     wchar_t *p = (wchar_t *)malloc((size + 2) * sizeof(wchar_t));
+
     if (p == NULL) {
-        OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR " -- fatal error");
-        OutputDebugStringA("    malloc failed");
-        OutputDebugStringA("<<<\n");
-        _exit(1);
+        xxfatal("    malloc failed");
     }
-    p[size++] = WNUL;
-    p[size]   = WNUL;
+    else {
+        p[size++] = WNUL;
+        p[size]   = WNUL;
+    }
     return p;
 }
 
 static void *xcalloc(size_t number, size_t size)
 {
     void *p = calloc(number + 2, size);
-    if (p == NULL) {
-        OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR " -- fatal error");
-        OutputDebugStringA("    calloc failed");
-        OutputDebugStringA("<<<\n");
-        _exit(1);
-    }
+
+    if (p == NULL)
+        xxfatal("    calloc failed");
     return p;
 }
 
@@ -919,7 +924,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     return ern;
 }
 
-static DWORD killproctree(HANDLE ph, DWORD pid, UINT err, int rc)
+static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
 {
     DWORD  r = 0;
     HANDLE h;
@@ -946,11 +951,11 @@ static DWORD killproctree(HANDLE ph, DWORD pid, UINT err, int rc)
             if (IS_VALID_HANDLE(p)) {
                 if (rc) {
                     DBG_PRINTF("killing child [%.4lu] of proc [%.4lu]", e.th32ProcessID, pid);
-                    killproctree(p, e.th32ProcessID, err, rc - 1);
+                    killproctree(p, e.th32ProcessID, rc - 1);
                 }
                 else {
                     DBG_PRINTF("terminating child [%.4lu] of proc [%.4lu]", e.th32ProcessID, pid);
-                    TerminateProcess(p, err);
+                    TerminateProcess(p, 1);
                 }
                 CloseHandle(p);
             }
@@ -961,7 +966,7 @@ static DWORD killproctree(HANDLE ph, DWORD pid, UINT err, int rc)
 finished:
     if (IS_VALID_HANDLE(ph)) {
         DBG_PRINTF("terminating proc [%.4lu]", pid);
-        TerminateProcess(ph, err);
+        TerminateProcess(ph, 1);
     }
     return r;
 }
@@ -1839,7 +1844,7 @@ static void closelogfile(void)
         DBG_PRINTF("wait for log process %lu to finish", pipedprocpid);
         if (WaitForSingleObject(pipedprocess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
             DBG_PRINTF("terminating log process %lu", pipedprocpid);
-            killproctree(pipedprocess, pipedprocpid, WAIT_TIMEOUT, 0);
+            killproctree(pipedprocess, pipedprocpid, 0);
         }
 #if defined(_DEBUG)
         {
@@ -2094,7 +2099,7 @@ static DWORD runshutdown(DWORD rt)
         if (WaitForSingleObject(cp.hProcess, rt) != WAIT_OBJECT_0) {
             DBG_PRINTF("calling TerminateProcess for %lu",
                        cp.dwProcessId);
-            killproctree(cp.hProcess, cp.dwProcessId, ERROR_BROKEN_PIPE, 1);
+            killproctree(cp.hProcess, cp.dwProcessId, 1);
         }
     }
 #if defined(_DEBUG)
@@ -2181,7 +2186,7 @@ static unsigned int __stdcall stopthread(void *param)
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
     DBG_PRINTS("child is still active ... terminating");
 
-    killproctree(childprocess, childprocpid, WAIT_TIMEOUT, 0);
+    killproctree(childprocess, childprocpid, 0);
     SAFE_CLOSE_HANDLE(childprocess);
 
 finished:
@@ -2511,6 +2516,7 @@ static unsigned int __stdcall workerthread(void *unused)
 
     rc = createiopipes(&si, &inputpipewrs, &outputpiperd);
     if (rc != 0) {
+        xxfatal("    createiopipes failed");
         setsvcstatusexit(rc);
         goto finished;
     }
@@ -2534,6 +2540,7 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
     if (!AssignProcessToJobObject(childprocjob, childprocess)) {
+        xxfatal("    AssignProcessToJobObject failed");
         rc = GetLastError();
         setsvcstatusexit(rc);
         svcsyserror(__FUNCTION__, __LINE__, rc, L"AssignProcessToJobObject", NULL);
@@ -2543,6 +2550,7 @@ static unsigned int __stdcall workerthread(void *unused)
     wh[0] = childprocess;
     wh[1] = xcreatethread(0, CREATE_SUSPENDED, &rdpipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
+        xxfatal("    xcreatethread failed");
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
         svcsyserror(__FUNCTION__, __LINE__, rc, L"rdpipethread", NULL);
@@ -2551,6 +2559,7 @@ static unsigned int __stdcall workerthread(void *unused)
     }
     wh[2] = xcreatethread(0, CREATE_SUSPENDED, &wrpipethread, NULL);
     if (IS_INVALID_HANDLE(wh[2])) {
+        xxfatal("    xcreatethread failed");
         rc = ERROR_TOO_MANY_TCBS;
         setsvcstatusexit(rc);
         svcsyserror(__FUNCTION__, __LINE__, rc, L"wrpipethread", NULL);
@@ -2910,6 +2919,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         {
             hsvcstatus = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
             if (IS_INVALID_HANDLE(hsvcstatus)) {
+                xxfatal("    RegisterServiceCtrlHandlerEx failed");
                 svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"RegisterServiceCtrlHandlerEx", NULL);
                 exit(ERROR_INVALID_HANDLE);
                 return;
@@ -2946,6 +2956,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
          */
         wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp, &wenvbsize);
         if (wenvblock == NULL) {
+            xxfatal("    xenvblock failed");
             svcsyserror(__FUNCTION__, __LINE__, 0, L"bad environment", NULL);
             reportsvcstatus(SERVICE_STOPPED, ERROR_OUTOFMEMORY);
             return;
@@ -2954,6 +2965,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     childprocjob = CreateJobObject(&sazero, NULL);
     if (IS_INVALID_HANDLE(childprocjob)) {
+        xxfatal("    CreateJobObject failed");
         rv = GetLastError();
         setsvcstatusexit(rv);
         svcsyserror(__FUNCTION__, __LINE__, rv, L"CreateJobObject", NULL);
@@ -3000,12 +3012,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     wh[1] = xcreatethread(0, 0, &monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
+        xxfatal("    xcreatethread failed");
         rv = ERROR_TOO_MANY_TCBS;
         svcsyserror(__FUNCTION__, __LINE__, rv, L"monitorthread", NULL);
         goto finished;
     }
     wh[0] = xcreatethread(0, 0, &workerthread, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
+        xxfatal("    xcreatethread failed");
         SetEvent(monitorevent);
         CloseHandle(wh[1]);
         rv = ERROR_TOO_MANY_TCBS;
