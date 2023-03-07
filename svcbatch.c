@@ -3526,10 +3526,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     svcstopended = CreateEvent(&sazero, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"svcstopended");
+        return xxfatal(__FUNCTION__, __LINE__);
     processended = CreateEvent(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"processended");
+        return xxfatal(__FUNCTION__, __LINE__);
     if (servicemode) {
         if (svcstopwargc) {
             wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
@@ -3546,7 +3546,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             }
             logrotatesig = CreateEvent(&sazero, TRUE, FALSE, NULL);
             if (IS_INVALID_HANDLE(logrotatesig))
-                return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"logrotatesig");
+                return xxfatal(__FUNCTION__, __LINE__);
         }
     }
     else {
@@ -3559,7 +3559,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     monitorevent = CreateEvent(&sazero, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", L"monitorevent");
+        return xxfatal(__FUNCTION__, __LINE__);
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
