@@ -18,15 +18,12 @@
 CC = cl.exe
 LN = link.exe
 RC = rc.exe
-PS = powershell.exe
 SRCDIR = .
 
 BLDARCH = x64
 PROJECT = svcbatch
 PIPELOG = pipedlog
-!INCLUDE <Version.mk>
 
-VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_MICRO)
 WORKTOP = $(SRCDIR)\.build
 !IF DEFINED(_DEBUG)
 WORKDIR = $(WORKTOP)\dbg
@@ -48,7 +45,7 @@ CRT_CFLAGS = $(CRT_CFLAGS)d
 !ENDIF
 
 WINVER = 0x0601
-EXEVER = $(VERSION_MAJOR).$(VERSION_MINOR)
+EXEVER = 2.0
 
 CFLAGS = -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN
 CFLAGS = $(CFLAGS) -D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE
@@ -101,34 +98,16 @@ all : $(WORKDIR) $(OUTPUT)
 $(WORKDIR):
 	@-md $(WORKDIR) 2>NUL
 
-$(WORKDIR)\$(PROJECT).manifest: $(PPREFIX).manifest.in
-	$(PS) -NoProfile -ExecutionPolicy Bypass \
-	"((Get-Content -Path $(PPREFIX).manifest.in -Raw) | Foreach-Object {$$_ \
-	-replace '@@version@@','$(VERSION)' \
-	}) |\
-	Set-Content -Path $@"
-
-$(WORKDIR)\$(PROJECT).h: $(PPREFIX).h.in
-	$(PS) -NoProfile -ExecutionPolicy Bypass \
-	"((Get-Content -Path $(PPREFIX).h.in -Raw) | Foreach-Object {$$_ \
-	-replace '@@version_major@@','$(VERSION_MAJOR)' \
-	-replace '@@version_minor@@','$(VERSION_MINOR)' \
-	-replace '@@version_micro@@','$(VERSION_MICRO)' \
-	-replace '@@version_patch@@','$(VERSION_PATCH)' \
-	-replace '@@version_devel@@','$(VERSION_DEVEL)' \
-	}) |\
-	Set-Content -Path $@"
-
 {$(SRCDIR)}.c{$(WORKDIR)}.obj:
-	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PROJECT) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
+	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PROJECT) -I$(SRCDIR) -Fo$(WORKDIR)\ $<
 
 {$(SRCDIR)\test\pipedlog}.c{$(WORKDIR)}.obj:
-	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PIPELOG) -I$(SRCDIR) -I$(WORKDIR) -Fo$(WORKDIR)\ $<
+	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PIPELOG) -I$(SRCDIR) -Fo$(WORKDIR)\ $<
 
 {$(SRCDIR)}.rc{$(WORKDIR)}.res:
 	$(RC) $(RCOPTS) $(RFLAGS) /i $(SRCDIR) /i $(WORKDIR) /fo $@ $<
 
-$(OUTPUT): $(WORKDIR) $(WORKDIR)\$(PROJECT).h $(WORKDIR)\$(PROJECT).manifest $(OBJECTS)
+$(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LFLAGS) /pdb:$(WORKDIR)\$(PROJECT).pdb /out:$(OUTPUT) $(OBJECTS) $(LDLIBS)
 
 $(PLOGOUT): $(OUTPUT) $(PLOGOBJ)

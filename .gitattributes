@@ -5,3 +5,4 @@ Makefile eol=crlf
 *.mak eol=crlf
 *.bat eol=crlf
 *.manifest.in eol=crlf
+*.manifest eol=crlf

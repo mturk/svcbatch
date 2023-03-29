@@ -38,10 +38,6 @@ RL = strip
 endif
 LN = $(CC)
 
-include Version.mk
-
-VERSION = $(VERSION_MAJOR).$(VERSION_MINOR).$(VERSION_PATCH).$(VERSION_MICRO)
-
 SRCDIR  = .
 PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
@@ -95,8 +91,6 @@ OBJECTS = \
 PIPEOBJ = \
 	$(WORKDIR)/pipedlog.o
 
-MANIFEST = $(WORKDIR)/$(PROJECT).manifest
-FINCLUDE = $(WORKDIR)/$(PROJECT).h
 
 all : $(WORKDIR) $(OUTPUT)
 	@:
@@ -104,26 +98,17 @@ all : $(WORKDIR) $(OUTPUT)
 $(WORKDIR):
 	@mkdir -p $@
 
-$(MANIFEST): $(SRCDIR)/$(PROJECT).manifest.in
-	sed 's/@@version@@/$(VERSION)/g' $< >$@
 
-$(FINCLUDE): $(SRCDIR)/$(PROJECT).h.in
-	sed -e 's/@@version_major@@/$(VERSION_MAJOR)/g' \
-	-e 's/@@version_minor@@/$(VERSION_MINOR)/g' \
-	-e 's/@@version_patch@@/$(VERSION_PATCH)/g' \
-	-e 's/@@version_micro@@/$(VERSION_MICRO)/g' \
-	-e 's/@@version_devel@@/$(VERSION_DEVEL)/g' $< >$@
+$(WORKDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) $<
 
-$(WORKDIR)/%.o: $(SRCDIR)/%.c $(FINCLUDE)
+$(WORKDIR)/%.o: $(SRCDIR)/test/pipedlog/%.c
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) $<
 
-$(WORKDIR)/%.o: $(SRCDIR)/test/pipedlog/%.c $(FINCLUDE)
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) $<
+$(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
+	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -I $(SRCDIR) $<
 
-$(WORKDIR)/%.res: $(SRCDIR)/%.rc $(FINCLUDE) $(MANIFEST)
-	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -I $(SRCDIR) -I $(WORKDIR) $<
-
-$(OUTPUT): $(WORKDIR) $(MANIFEST) $(OBJECTS)
+$(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
 	$(RL) $(RLOPTS) $@
 
