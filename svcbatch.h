@@ -157,6 +157,13 @@
 
 
 /**
+ * Error macros
+ */
+#define SVCBATCH_FATAL(_e)      xfatalerr("    Fatal error in " __FUNCTION__        \
+                                          " at line #" CPP_TOSTR(__LINE__), (_e))
+
+
+/**
  * Construct build stamp
  */
 #if defined(_MSC_VER)

@@ -209,46 +209,55 @@ static const wchar_t *xwcsiid(int i, DWORD c)
     return r;
 }
 
-static int xxfatal(const char *func, int line)
+static int xfatalerr(const char *func, int err)
 {
-    OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR " -- fatal error");
+    OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR);
     OutputDebugStringA(func);
-    OutputDebugStringA("<<<\n");
-    _exit(line);
-    return line;
+    OutputDebugStringA("<<<\n\n");
+    _exit(err);
+    TerminateProcess(GetCurrentProcess(), err);
+    return err;
 }
 
-static wchar_t *xwmalloc(size_t size)
+static void *xmmalloc(size_t number, size_t size)
 {
-    wchar_t *p = (wchar_t *)malloc((size + 2) * sizeof(wchar_t));
+    void *p;
 
+    p = malloc(number * size);
     if (p == NULL) {
-        xxfatal(__FUNCTION__, __LINE__);
-    }
-    else {
-        p[size++] = WNUL;
-        p[size]   = WNUL;
+        SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
     return p;
 }
 
-static void *xcalloc(size_t number, size_t size)
+static void *xmcalloc(size_t number, size_t size)
 {
-    void *p = calloc(number + 2, size);
+    void *p;
 
-    if (p == NULL)
-        xxfatal(__FUNCTION__, __LINE__);
+    p = calloc(number,  size);
+    if (p == NULL) {
+        SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
+    }
+    return p;
+}
+
+static wchar_t *xwmalloc(size_t size)
+{
+    wchar_t *p = (wchar_t *)xmmalloc(size + 1, sizeof(wchar_t));
+
+    p[0]    = WNUL;
+    p[size] = WNUL;
     return p;
 }
 
 static wchar_t *xwcalloc(size_t size)
 {
-    return (wchar_t *)xcalloc(size, sizeof(wchar_t));
+    return (wchar_t *)xmcalloc(size + 1, sizeof(wchar_t));
 }
 
 static wchar_t **xwaalloc(size_t size)
 {
-    return (wchar_t **)xcalloc(size, sizeof(wchar_t *));
+    return (wchar_t **)xmcalloc(size + 2, sizeof(wchar_t *));
 }
 
 static void xfree(void *m)
@@ -266,6 +275,12 @@ static void xwaafree(wchar_t **a)
             xfree(*(p++));
         free(a);
     }
+}
+
+static void xmemzero(void *mem, size_t number, size_t size)
+{
+    if (mem && number && size)
+        memset(mem, 0, number * size);
 }
 
 static wchar_t *xwcsdup(const wchar_t *s)
@@ -629,7 +644,7 @@ static wchar_t *xenvblock(int cnt, const wchar_t **arr, size_t *len)
     wchar_t *e;
     wchar_t *b;
 
-    s = (int *)xcalloc(cnt, sizeof(int));
+    s = (int *)xmcalloc(cnt + 2, sizeof(int));
     for (i = 0; i < cnt; i++) {
         int n = xwcslen(arr[i]);
         s[i]  = n++;
@@ -1241,12 +1256,12 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
      * of the pipe as non inheritable.
      */
     if (!CreatePipe(&(si->hStdInput), &sh, &sa, HBUFSIZ))
-        return xxfatal(__FUNCTION__, __LINE__);
+        return GetLastError();
 
     if (!DuplicateHandle(cp, sh, cp,
                          iwrs, FALSE, 0,
                          DUPLICATE_SAME_ACCESS))
-        return xxfatal(__FUNCTION__, __LINE__);
+        return GetLastError();
     SAFE_CLOSE_HANDLE(sh);
 
     /**
@@ -1254,11 +1269,11 @@ static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
      * of the pipe as non inheritable
      */
     if (!CreatePipe(&sh, &(si->hStdError), &sa, HBUFSIZ))
-        return xxfatal(__FUNCTION__, __LINE__);
+        return GetLastError();
     if (!DuplicateHandle(cp, sh, cp,
                          ords, FALSE, 0,
                          DUPLICATE_SAME_ACCESS))
-        return xxfatal(__FUNCTION__, __LINE__);
+        return GetLastError();
     si->hStdOutput = si->hStdError;
 
     SAFE_CLOSE_HANDLE(sh);
@@ -1497,8 +1512,8 @@ static DWORD openlogpipe(BOOL ssp)
         cf = CREATE_NEW_PROCESS_GROUP;
 #endif
 
-    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
-    memset(&si, 0, sizeof(STARTUPINFOW));
+    xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
+    xmemzero(&si, 0, sizeof(STARTUPINFOW));
 
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
@@ -1541,7 +1556,7 @@ static DWORD openlogpipe(BOOL ssp)
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
     if (!AssignProcessToJobObject(childprocjob, pipedprocess))
-        return xxfatal(__FUNCTION__, __LINE__);
+        goto failed;
 
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
@@ -2027,8 +2042,8 @@ static DWORD runshutdown(DWORD rt)
 
     DBG_PRINTS("started");
 
-    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
-    memset(&si, 0, sizeof(STARTUPINFOW));
+    xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
+    xmemzero(&si, 1, sizeof(STARTUPINFOW));
     si.cb = DSIZEOF(STARTUPINFOW);
 
     cmdline = xappendarg(1, NULL,    NULL, svcbatchexe);
@@ -2077,7 +2092,7 @@ static DWORD runshutdown(DWORD rt)
     }
 
     if (!AssignProcessToJobObject(childprocjob, cp.hProcess))
-        return xxfatal(__FUNCTION__, __LINE__);
+        goto finished;
 
     wh[0] = cp.hProcess;
     wh[1] = processended;
@@ -2429,7 +2444,6 @@ static unsigned int __stdcall rotatethread(void *unused)
     if (rotatetmo.QuadPart) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
-            xxfatal(__FUNCTION__, __LINE__);
             goto finished;
         }
         if (!SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE)) {
@@ -2514,8 +2528,8 @@ static unsigned int __stdcall workerthread(void *unused)
     cmdline = xappendarg(0, cmdline, NULL,     svcbatchargs);
 
     DBG_PRINTF("cmdline %S", cmdline);
-    memset(&cp, 0, sizeof(PROCESS_INFORMATION));
-    memset(&si, 0, sizeof(STARTUPINFOW));
+    xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
+    xmemzero(&si, 1, sizeof(STARTUPINFOW));
 
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
@@ -2543,18 +2557,15 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
     if (!AssignProcessToJobObject(childprocjob, childprocess)) {
-        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     wh[0] = childprocess;
     wh[1] = xcreatethread(0, CREATE_SUSPENDED, &rdpipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
-        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     wh[2] = xcreatethread(0, CREATE_SUSPENDED, &wrpipethread, NULL);
     if (IS_INVALID_HANDLE(wh[2])) {
-        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
 
@@ -2914,7 +2925,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         {
             hsvcstatus = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
             if (IS_INVALID_HANDLE(hsvcstatus)) {
-                xxfatal(__FUNCTION__, __LINE__);
                 return;
             }
         }
@@ -2952,10 +2962,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     childprocjob = CreateJobObject(&sazero, NULL);
     if (IS_INVALID_HANDLE(childprocjob)) {
-        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
-    memset(&ji, 0, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
+    xmemzero(&ji, 1, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
     ji.BasicLimitInformation.LimitFlags =
         JOB_OBJECT_LIMIT_BREAKAWAY_OK |
         JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
@@ -2966,7 +2975,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
                                  JobObjectExtendedLimitInformation,
                                 &ji,
                                  DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
-        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
 
@@ -2994,12 +3002,10 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     wh[1] = xcreatethread(0, 0, &monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
-        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     wh[0] = xcreatethread(0, 0, &workerthread, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
-        xxfatal(__FUNCTION__, __LINE__);
         goto finished;
     }
     DBG_PRINTS("running");
@@ -3531,18 +3537,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
         }
     }
-    memset(&ssvcstatus, 0, sizeof(SERVICE_STATUS));
-    memset(&sazero,     0, sizeof(SECURITY_ATTRIBUTES));
+    xmemzero(&ssvcstatus, 1, sizeof(SERVICE_STATUS));
+    xmemzero(&sazero,     1, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
     /**
      * Create logic state events
      */
     svcstopended = CreateEvent(NULL, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
-        return xxfatal(__FUNCTION__, __LINE__);
+        return GetLastError();
     processended = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
-        return xxfatal(__FUNCTION__, __LINE__);
+        return GetLastError();
     if (servicemode) {
         if (svcstopwargc) {
             wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
@@ -3559,7 +3565,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             }
             logrotatesig = CreateEvent(NULL, TRUE, FALSE, NULL);
             if (IS_INVALID_HANDLE(logrotatesig))
-                return xxfatal(__FUNCTION__, __LINE__);
+                return GetLastError();
         }
     }
     else {
@@ -3572,7 +3578,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 
     monitorevent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
-        return xxfatal(__FUNCTION__, __LINE__);
+        return GetLastError();
     InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
