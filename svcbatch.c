@@ -394,25 +394,49 @@ static int xwcstoi(const wchar_t *sp, wchar_t **ep)
  * In that case call the function again with dst
  * string buffer resized to at least retval+1.
  */
-static size_t xwcslcat(wchar_t *dst, size_t siz, const wchar_t *src)
+int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
 {
     const wchar_t *s = src;
     wchar_t *p;
     wchar_t *d = dst;
+    size_t   z = siz;
     size_t   n = siz;
     size_t   c;
     size_t   r;
 
-    if (IS_EMPTY_WCS(s))
-        return 0;
+    ASSERT_ZERO(siz, 0);
+    ASSERT_WSTR(src, 0);
     while ((n-- != 0) && (*d != WNUL))
         d++;
     c = d - dst;
-    n = siz - c;
+    n = z - c;
 
-    if (n == 0)
-        return (c + wcslen(s));
+    if (n-- == 0)
+        return ((int)c + xwcslen(s));
     p = dst + c;
+    while (*s != WNUL) {
+        if (n != 0) {
+            *d++ = *s;
+            n--;
+        }
+        s++;
+    }
+    r = c + (s - src);
+    if (r >= z)
+        *p = WNUL;
+    else
+        *d = WNUL;
+
+    return (int)r;
+}
+
+int xwcslcpy(wchar_t *dst, int siz, const wchar_t *src)
+{
+    const wchar_t *s = src;
+    wchar_t *d = dst;
+    int      n = siz;
+
+    ASSERT_WSTR(s, 0);
     while (*s != WNUL) {
         if (n != 1) {
             *d++ = *s;
@@ -420,13 +444,75 @@ static size_t xwcslcat(wchar_t *dst, size_t siz, const wchar_t *src)
         }
         s++;
     }
-    r = c + (s - src);
-    if (r >= siz)
-        *p = WNUL;
-    else
-        *d = WNUL;
+    *d = WNUL;
 
-    return r;
+    return (int)(s - src);
+}
+
+static int xvsnwprintf(wchar_t *dst, int siz,
+                       const wchar_t *fmt, va_list ap)
+{
+    int  c = siz - 1;
+    int  n;
+
+    ASSERT_WSTR(fmt, 0);
+    ASSERT_NULL(dst, 0);
+    ASSERT_SIZE(siz, 4, 0);
+
+    n = _vsnwprintf(dst, c, fmt, ap);
+    if (n < 0 || n > c)
+        n = c;
+    dst[n] = WNUL;
+    return n;
+}
+
+static int xsnwprintf(wchar_t *dst, int siz, const wchar_t *fmt, ...)
+{
+    int     rv;
+    va_list ap;
+
+    ASSERT_WSTR(fmt, 0);
+    ASSERT_NULL(dst, 0);
+    ASSERT_SIZE(siz, 4, 0);
+
+    va_start(ap, fmt);
+    rv = xvsnwprintf(dst, siz, fmt, ap);
+    va_end(ap);
+    return rv;
+
+}
+
+static int xvsnprintf(char *dst, int siz,
+                      const char *fmt, va_list ap)
+{
+    int c = siz - 1;
+    int n;
+
+    ASSERT_CSTR(fmt, 0);
+    ASSERT_NULL(dst, 0);
+    ASSERT_SIZE(siz, 4, 0);
+
+    n = _vsnprintf(dst, c, fmt, ap);
+    if (n < 0 || n > c)
+        n = c;
+    dst[n] = '\0';
+    return n;
+}
+
+static int xsnprintf(char *dst, int siz, const char *fmt, ...)
+{
+    int     rv;
+    va_list ap;
+
+    ASSERT_CSTR(fmt, 0);
+    ASSERT_NULL(dst, 0);
+    ASSERT_SIZE(siz, 4, 0);
+
+    va_start(ap, fmt);
+    rv = xvsnprintf(dst, siz, fmt, ap);
+    va_end(ap);
+    return rv;
+
 }
 
 static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
@@ -704,7 +790,7 @@ static void xmktimedext(wchar_t *buf, int siz)
         GetLocalTime(&st);
     else
         GetSystemTime(&st);
-    _snwprintf(buf, bsz, L".%.4d%.2d%.2d%.2d%.2d%.2d",
+    xsnwprintf(buf, bsz, L".%.4d%.2d%.2d%.2d%.2d%.2d",
                st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
 
@@ -733,11 +819,8 @@ static int xtimehdr(char *wb, int sz)
     mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % 60);
     hh = (DWORD)((ct.QuadPart / MS_IN_HOUR));
 
-    nc = _snprintf(wb, sz, "[%.2lu:%.2lu:%.2lu.%.6lu] ",
+    nc = xsnprintf(wb, sz, "[%.2lu:%.2lu:%.2lu.%.6lu] ",
                    hh, mm, ss, us);
-    wb[sz] = '\0';
-    if (nc < 0)
-        nc = sz;
     return nc;
 }
 
@@ -747,31 +830,26 @@ static int xtimehdr(char *wb, int sz)
  */
 static void dbgprints(const char *funcname, const char *string)
 {
-    int  c = MBUFSIZ - 1;
     char b[MBUFSIZ];
 
-    _snprintf(b, c, "[%.4lu] %d %-16s %s",
+    xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s %s",
               GetCurrentThreadId(),
               servicemode, funcname, string);
-     b[c] = '\0';
-     OutputDebugStringA(b);
+    OutputDebugStringA(b);
 }
 
 static void dbgprintf(const char *funcname, const char *format, ...)
 {
     int     n;
-    int     c = MBUFSIZ - 1;
     char    b[MBUFSIZ];
     va_list ap;
 
-    n = _snprintf(b, c, "[%.4lu] %d %-16s ",
+    n = xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s ",
                   GetCurrentThreadId(),
                   servicemode, funcname);
-    b[c] = '\0';
     va_start(ap, format);
-    _vsnprintf(b + n, c - n, format, ap);
+    xvsnprintf(b + n, MBUFSIZ - n, format, ap);
     va_end(ap);
-    b[c] = '\0';
 
     OutputDebugStringA(b);
 }
@@ -806,7 +884,7 @@ static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
         }
     }
     else {
-        _snwprintf(buf, c,
+        xsnwprintf(buf, c,
                    L"Unknown Windows error code (%lu)", statcode);
     }
     buf[c] = WNUL;
@@ -859,7 +937,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     errarg[i++] = CRLFW;
     errarg[i++] = L"reported the following error:\r\n";
 
-    _snwprintf(hdr, n, L"svcbatch.c(%.4d, %S) %s", line, fn, err);
+    xsnwprintf(hdr, n, L"svcbatch.c(%.4d, %S) %s", line, fn, err);
     hdr[n] = WNUL;
     if (eds) {
         xwcslcat(hdr, MBUFSIZ, L": ");
@@ -868,9 +946,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     errarg[i++] = hdr;
 
     if (ern) {
-        c = _snwprintf(erb, 32, L"error(%lu) ", ern);
-        if (c < 0)
-            c = 0;
+        c = xsnwprintf(erb, 32, L"error(%lu) ", ern);
         xwinapierror(erb + c, n - c, ern);
         erb[n] = WNUL;
         errarg[i++] = CRLFW;
@@ -1308,12 +1384,10 @@ static DWORD logprintf(HANDLE h, const char *format, ...)
     va_list ap;
 
     va_start(ap, format);
-    c = _vsnprintf(buf, MBUFSIZ - 1, format, ap);
+    c = xvsnprintf(buf, MBUFSIZ, format, ap);
     va_end(ap);
-    if (c > 0) {
-        buf[c] = '\0';
+    if (c > 0)
         return logwrline(h, buf);
-    }
     else
         return 0;
 }
