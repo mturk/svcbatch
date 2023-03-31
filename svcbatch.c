@@ -59,10 +59,6 @@ static LARGE_INTEGER         pcfrequency;
 static LARGE_INTEGER         pcstarttime;
 
 static wchar_t  *comspec          = NULL;
-static wchar_t **dupwenvp         = NULL;
-static int       dupwenvc         = 0;
-static size_t    wenvbsize        = 0;
-static wchar_t  *wenvblock        = NULL;
 
 static BOOL      haslogstatus     = FALSE;
 static BOOL      hasctrlbreak     = FALSE;
@@ -286,17 +282,6 @@ static wchar_t *xwcsdup(const wchar_t *s)
     if (IS_EMPTY_WCS(s))
         return NULL;
     n = wcslen(s);
-    p = xwmalloc(n);
-    wmemcpy(p, s, n);
-    return p;
-}
-
-static wchar_t *xwmemdup(const wchar_t *s, size_t n)
-{
-    wchar_t *p;
-
-    if ((s == NULL) || (n == 0))
-        return 0;
     p = xwmalloc(n);
     wmemcpy(p, s, n);
     return p;
@@ -629,38 +614,6 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
         }
     }
     return oli[0];
-}
-
-static wchar_t *xenvblock(int cnt, const wchar_t **arr, size_t *len)
-{
-    int      i;
-    int      blen = 0;
-    int     *s;
-    wchar_t *e;
-    wchar_t *b;
-
-    s = (int *)xmcalloc(cnt + 2, sizeof(int));
-    for (i = 0; i < cnt; i++) {
-        int n = xwcslen(arr[i]);
-        s[i]  = n++;
-        blen += n;
-    }
-
-    b = xwcalloc(blen);
-    e = b;
-    for (i = 0; i < cnt; i++) {
-        int n = s[i];
-        wmemcpy(e, arr[i], n++);
-        e += n;
-    }
-    xfree(s);
-    *len = blen;
-    return b;
-}
-
-static int xenvsort(const void *arg1, const void *arg2)
-{
-    return _wcsicoll(*((wchar_t **)arg1), *((wchar_t **)arg2));
 }
 
 static void xcleanwinpath(wchar_t *s, int isdir)
@@ -1472,7 +1425,6 @@ static DWORD openlogpipe(BOOL ssp)
     STARTUPINFOW si;
     HANDLE wr = NULL;
     wchar_t *cmdline = NULL;
-    wchar_t *wenvblk = NULL;
 
     xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
     xmemzero(&si, 0, sizeof(STARTUPINFOW));
@@ -1499,10 +1451,9 @@ static DWORD openlogpipe(BOOL ssp)
     }
     DBG_PRINTF("cmdline %S", cmdline);
 
-    wenvblk = xwmemdup(wenvblock, wenvbsize);
     if (!CreateProcessW(logredirargv[0], cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | cf,
-                        wenvblk,
+                        NULL,
                         servicelogs,
                        &si, &cp)) {
         rc = GetLastError();
@@ -1530,12 +1481,10 @@ static DWORD openlogpipe(BOOL ssp)
     InterlockedExchangePointer(&logfhandle, wr);
     DBG_PRINTF("running pipe log process %lu", pipedprocpid);
     xfree(cmdline);
-    xfree(wenvblk);
 
     return 0;
 failed:
     xfree(cmdline);
-    xfree(wenvblk);
     xwaafree(logredirargv);
     SAFE_CLOSE_HANDLE(wr);
     SAFE_CLOSE_HANDLE(pipedprocout);
@@ -1994,7 +1943,6 @@ static DWORD runshutdown(DWORD rt)
 {
     wchar_t  rp[TBUFSIZ];
     wchar_t *cmdline = NULL;
-    wchar_t *wenvblk = NULL;
     HANDLE   wh[2];
     DWORD    rc = 0;
     DWORD    cf = CREATE_NEW_CONSOLE;
@@ -2035,10 +1983,9 @@ static DWORD runshutdown(DWORD rt)
 
     DBG_PRINTF("cmdline %S", cmdline);
 
-    wenvblk = xwmemdup(wenvblock, wenvbsize);
     if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, FALSE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | cf,
-                        wenvblk, NULL, &si, &cp)) {
+                        NULL, NULL, &si, &cp)) {
         rc = GetLastError();
         svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateProcess", NULL);
         goto finished;
@@ -2088,7 +2035,6 @@ static DWORD runshutdown(DWORD rt)
 
 finished:
     xfree(cmdline);
-    xfree(wenvblk);
     SAFE_CLOSE_HANDLE(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hProcess);
 
@@ -2490,7 +2436,7 @@ static unsigned int __stdcall workerthread(void *unused)
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     if (!CreateProcessW(comspec, cmdline, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
-                        wenvblock,
+                        NULL,
                         servicehome,
                        &si, &cp)) {
         rc = GetLastError();
@@ -2698,17 +2644,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
          * Add additional environment variables
          * They are unique to this service instance
          */
-        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_BASE=", servicebase);
-        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_HOME=", servicehome);
-        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_NAME=", servicename);
-        dupwenvp[dupwenvc++] = xwcsconcat(L"SVCBATCH_SERVICE_UUID=", serviceuuid);
+        SetEnvironmentVariableW(L"SVCBATCH_SERVICE_BASE", servicebase);
+        SetEnvironmentVariableW(L"SVCBATCH_SERVICE_HOME", servicehome);
+        SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", servicename);
+        SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", serviceuuid);
 
-        qsort((void *)dupwenvp, dupwenvc, sizeof(wchar_t *), xenvsort);
-        /**
-         * Convert environment array to environment block
-         */
-        wenvblock = xenvblock(dupwenvc, (const wchar_t **)dupwenvp, &wenvbsize);
-        xwaafree(dupwenvp);
     }
     childprocjob = CreateJobObject(&sazero, NULL);
     if (IS_INVALID_HANDLE(childprocjob)) {
@@ -2811,19 +2751,18 @@ static void __cdecl objectscleanup(void)
     DeleteCriticalSection(&servicelock);
 }
 
-static int xwmaininit(const wchar_t **wenv)
+static int xwmaininit(void)
 {
     wchar_t *bb;
     DWORD    sm = FBUFSIZ;
     DWORD    sz;
     DWORD    nn;
-    int      ec = 0;
 
     sz = sm - 2;
     bb = xwmalloc(sz);
     nn = GetModuleFileNameW(NULL, bb, sz);
     if (nn == 0)
-        return 0;
+        return GetLastError();
     while (nn >= sz) {
         sm = sm * 2;
         sz = sm - 2;
@@ -2831,7 +2770,7 @@ static int xwmaininit(const wchar_t **wenv)
         bb = xwmalloc(sz);
         nn = GetModuleFileNameW(NULL, bb, sz);
         if (nn == 0)
-            return 0;
+            return GetLastError();
     }
     while (--nn > 2) {
         if (bb[nn] == L'\\') {
@@ -2842,24 +2781,18 @@ static int xwmaininit(const wchar_t **wenv)
         }
     }
     if (exelocation == NULL)
-        return 0;
+        return ERROR_BAD_PATHNAME;
     svcbatchexe = bb;
     QueryPerformanceFrequency(&pcfrequency);
     QueryPerformanceCounter(&pcstarttime);
 
-    if (wenv) {
-        while (wenv[ec])
-            ++ec;
-    }
-
-    return ec;
+    return 0;
 }
 
-int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
+int wmain(int argc, const wchar_t **wargv)
 {
     int         i;
     int         opt;
-    int         envc;
     int         ncnt  = 0;
     int         rcnt  = 0;
     int         rv    = 0;
@@ -2880,9 +2813,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 #if defined(_DEBUG)
    _CrtSetReportMode(_CRT_ASSERT, 0);
 #endif
-    envc = xwmaininit(wenv);
-    if (envc == 0)
-        return ERROR_BAD_ENVIRONMENT;
+    rv = xwmaininit();
+    if (rv)
+        return rv;
     /**
      * Make sure children (cmd.exe) are kept quiet.
      */
@@ -3225,13 +3158,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         svclogfname = nparam[0];
     }
 
-    if (servicemode) {
-        dupwenvp = xwaalloc(envc + 6);
-        for (i = 0; i < envc; i++) {
-            if (!xwstartswith(wenv[i], L"SVCBATCH_SERVICE_"))
-                dupwenvp[dupwenvc++] = xwcsdup(wenv[i]);
-        }
-    }
     xmemzero(&ssvcstatus, 1, sizeof(SERVICE_STATUS));
     xmemzero(&sazero,     1, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
