@@ -86,11 +86,6 @@ static wchar_t   xwoption         = WNUL;
 static int       logredirargc     = 0;
 static int       svcstopwargc     = 0;
 
-#if defined(_DEBUG)
-static BOOL      consolemode      = FALSE;
-static FILE     *dbgoutstream     = NULL;
-#endif
-
 static wchar_t  *svcbatchexe      = NULL;
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *svcbatchname     = NULL;
@@ -781,16 +776,7 @@ static void dbgprints(const char *funcname, const char *string)
               GetCurrentThreadId(),
               servicemode, funcname, string);
      b[c] = '\0';
-     if (dbgoutstream) {
-         char tb[TBUFSIZ];
-
-         xtimehdr(tb, TBUFSIZ);
-         fprintf(dbgoutstream, "%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
-         fflush(dbgoutstream);
-     }
-     else {
-        OutputDebugStringA(b);
-     }
+     OutputDebugStringA(b);
 }
 
 static void dbgprintf(const char *funcname, const char *format, ...)
@@ -809,17 +795,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_end(ap);
     b[c] = '\0';
 
-    if (dbgoutstream) {
-        char tb[TBUFSIZ];
-
-        xtimehdr(tb, TBUFSIZ);
-        fprintf(dbgoutstream, "%s[%.4lu] %s\n", tb, GetCurrentProcessId(), b);
-        fflush(dbgoutstream);
-
-    }
-    else {
-        OutputDebugStringA(b);
-    }
+    OutputDebugStringA(b);
 }
 
 #endif
@@ -931,11 +907,6 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     while (i < 10) {
         errarg[i++] = L"";
     }
-#if defined(_DEBUG)
-    if (consolemode) {
-        return ern;
-    }
-#endif
     if (setupeventlog()) {
         HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_NAME));
         if (IS_VALID_HANDLE(es)) {
@@ -1230,10 +1201,6 @@ static void reportsvcstatus(DWORD status, DWORD param)
     }
     ssvcstatus.dwCurrentState = status;
     InterlockedExchange(&sscstate, status);
-#if defined(_DEBUG)
-    if (consolemode)
-        goto finished;
-#endif
     if (!SetServiceStatus(hsvcstatus, &ssvcstatus)) {
         svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"SetServiceStatus", NULL);
         InterlockedExchange(&sscstate, SERVICE_STOPPED);
@@ -1506,11 +1473,6 @@ static DWORD openlogpipe(BOOL ssp)
     HANDLE wr = NULL;
     wchar_t *cmdline = NULL;
     wchar_t *wenvblk = NULL;
-
-#if defined(_DEBUG)
-    if (consolemode)
-        cf = CREATE_NEW_PROCESS_GROUP;
-#endif
 
     xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
     xmemzero(&si, 0, sizeof(STARTUPINFOW));
@@ -2047,16 +2009,7 @@ static DWORD runshutdown(DWORD rt)
     si.cb = DSIZEOF(STARTUPINFOW);
 
     cmdline = xappendarg(1, NULL,    NULL, svcbatchexe);
-#if defined(_DEBUG)
-    if (consolemode) {
-        cf = CREATE_NEW_PROCESS_GROUP;
-        cmdline = xappendarg(0, cmdline, NULL, L"::$");
-    }
-    else
-#endif
-    {
-        cmdline = xappendarg(0, cmdline, NULL, L"::!");
-    }
+    cmdline = xappendarg(0, cmdline, NULL, L"::");
     rp[ip++] = L'-';
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
@@ -2149,10 +2102,6 @@ static unsigned int __stdcall stopthread(void *param)
     DWORD pg = 0;
 
 #if defined(_DEBUG)
-    if (consolemode && !servicemode) {
-        ce = CTRL_BREAK_EVENT;
-        pg = GetCurrentProcessId();
-    }
     if (servicemode)
         DBG_PRINTS("service stop");
     else
@@ -2707,197 +2656,6 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
     return 0;
 }
 
-#if defined(_DEBUG)
-/**
- * Debug helper code
- */
-
-static DWORD scmsendctrl(const wchar_t *msg)
-{
-    ULARGE_INTEGER mid;
-    DWORD          rc  = 0;
-    DWORD          sz  = DSIZEOF(ULARGE_INTEGER);
-    HANDLE         cse = NULL;
-    HANDLE         csp = NULL;
-    wchar_t       *psn;
-
-    if (_wcsicmp(msg, L"stop") == 0)
-        mid.LowPart = SERVICE_CONTROL_STOP;
-    else
-        mid.LowPart = xwcstoi(msg);
-
-    if ((mid.LowPart < 1) || (mid.LowPart > 255)) {
-        svcsyserror(__FUNCTION__, __LINE__, 0, L"Invalid control message", msg);
-        return ERROR_INVALID_PARAMETER;
-    }
-    mid.HighPart = GetCurrentProcessId();
-
-    psn = xwcsconcat(SVCBATCH_SCSNAME, servicename);
-    cse = OpenEventW(EVENT_MODIFY_STATE, FALSE, psn);
-
-    if (IS_INVALID_HANDLE(cse))
-        return svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"OpenEvent", psn);
-    xfree(psn);
-
-    if (!SetEvent(cse)) {
-        rc = GetLastError();
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"SetEvent", servicename);
-        goto finished;
-    }
-    psn = xwcsconcat(SVCBATCH_SCMNAME, servicename);
-    do {
-        rc  = ERROR_PIPE_CONNECTED;
-        csp = CreateFileW(psn, GENERIC_READ | GENERIC_WRITE,
-                          0, NULL, OPEN_EXISTING, 0, NULL);
-        if (IS_INVALID_HANDLE(csp)) {
-            rc = GetLastError();
-
-            if (rc == ERROR_PIPE_BUSY) {
-                rc = 0;
-                if (!WaitNamedPipe(psn, 10000)) {
-                    DBG_PRINTS("could not open pipe within 10 seconds");
-                    rc = ERROR_PIPE_BUSY;
-                }
-            }
-        }
-    } while (rc == 0);
-
-    xfree(psn);
-    if (rc == ERROR_PIPE_CONNECTED) {
-        DWORD wr;
-        DWORD pm = PIPE_READMODE_MESSAGE;
-
-        DBG_PRINTF("connected to service %S", servicename);
-        rc = 0;
-        if (!SetNamedPipeHandleState(csp, &pm, NULL, NULL)) {
-            rc = GetLastError();
-            svcsyserror(__FUNCTION__, __LINE__, rc, L"SetNamedPipeHandleState", servicename);
-            goto finished;
-        }
-        if (WriteFile(csp, (LPCVOID)&mid, sz, &wr, NULL) && (wr != 0)) {
-            if (wr != sz) {
-                rc = ERROR_INVALID_DATA;
-                DBG_PRINTF("wrote %lu instead %lu bytes", wr, sz);
-            }
-            else {
-                DBG_PRINTF("send %S to %S", xwcsiid(II_SERVICE, mid.LowPart), servicename);
-            }
-        }
-        else {
-            rc = GetLastError();
-        }
-    }
-finished:
-    SAFE_CLOSE_HANDLE(cse);
-    SAFE_CLOSE_HANDLE(csp);
-
-    return rc;
-}
-
-static DWORD scmhandlectrl(HANDLE csp)
-{
-    DWORD rc = 0;
-    DWORD rd;
-    DWORD sz = DSIZEOF(ULARGE_INTEGER);
-    ULARGE_INTEGER mid;
-
-    if (ReadFile(csp, (LPVOID)&mid, sz, &rd, NULL) && (rd != 0)) {
-        if (rd != sz) {
-             DBG_PRINTF("read %lu insted %lu bytes", rd, sz);
-             rc = ERROR_INVALID_DATA;
-        }
-        else {
-            DBG_PRINTF("sending %S to servicehandler from %lu",
-                      xwcsiid(II_SERVICE, mid.LowPart), mid.HighPart);
-            rc = servicehandler(mid.LowPart, 0, NULL, NULL);
-            DBG_PRINTF("servicehandler returned %lu", rc);
-        }
-    }
-    else {
-        rc = GetLastError();
-        svcsyserror(__FUNCTION__, __LINE__, rc, L"ReadFile", servicename);
-    }
-    DisconnectNamedPipe(csp);
-    return rc;
-}
-
-static unsigned int __stdcall scmctrlthread(void *unused)
-{
-    HANDLE   wh[2];
-    HANDLE   cse = NULL;
-    HANDLE   csp = NULL;
-    wchar_t *psn = NULL;
-    DWORD    rc  = 0;
-
-    DBG_PRINTS("started");
-
-    psn = xwcsconcat(SVCBATCH_SCSNAME, servicename);
-    cse = CreateEventW(&sazero, TRUE, FALSE, psn);
-    if (IS_INVALID_HANDLE(cse)) {
-        svcsyserror(__FUNCTION__, __LINE__, GetLastError(), L"CreateEvent", psn);
-        goto finished;
-    }
-    DBG_PRINTF("created scm event %S", psn);
-    xfree(psn);
-    psn = xwcsconcat(SVCBATCH_SCMNAME, servicename);
-
-    wh[0] = processended;
-    wh[1] = cse;
-
-    do {
-        DWORD ws;
-        DWORD pc;
-
-        DBG_PRINTS("waiting for scm signal");
-        csp = CreateNamedPipeW(psn,
-                              PIPE_ACCESS_DUPLEX,
-                              PIPE_TYPE_MESSAGE |
-                              PIPE_READMODE_MESSAGE |
-                              PIPE_WAIT,
-                              1,
-                              BBUFSIZ,
-                              BBUFSIZ,
-                              0,
-                              NULL);
-        if (IS_INVALID_HANDLE(csp)) {
-            rc = GetLastError();
-            svcsyserror(__FUNCTION__, __LINE__, rc, L"CreateNamedPipe", psn);
-            goto finished;
-        }
-        DBG_PRINTF("created pipe %S", psn);;
-        ws = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
-        switch (ws) {
-            case WAIT_OBJECT_0:
-                DBG_PRINTS("processended signaled");
-                rc = 1;
-            break;
-            case WAIT_OBJECT_1:
-                DBG_PRINTS("scm signaled");
-
-                pc = ERROR_PIPE_CONNECTED;
-                if (!ConnectNamedPipe(csp, NULL))
-                    pc = GetLastError();
-                if (pc == ERROR_PIPE_CONNECTED)
-                    scmhandlectrl(csp);
-                else
-                    DBG_PRINTF("client could not connect %lu", pc);
-                SAFE_CLOSE_HANDLE(csp);
-                ResetEvent(cse);
-            break;
-        }
-    } while (rc == 0);
-
-finished:
-    xfree(psn);
-    SAFE_CLOSE_HANDLE(cse);
-    SAFE_CLOSE_HANDLE(csp);
-
-    DBG_PRINTS("done");
-    XENDTHREAD(0);
-}
-
-#endif
-
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
     DWORD  rv = 0;
@@ -2916,17 +2674,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         return;
     }
     if (servicemode) {
-#if defined(_DEBUG)
-        if (consolemode) {
-            xcreatethread(1, 0, &scmctrlthread, NULL);
-        }
-        else
-#endif
-        {
-            hsvcstatus = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
-            if (IS_INVALID_HANDLE(hsvcstatus)) {
-                return;
-            }
+        hsvcstatus = RegisterServiceCtrlHandlerExW(servicename, servicehandler, NULL);
+        if (IS_INVALID_HANDLE(hsvcstatus)) {
+            return;
         }
         DBG_PRINTF("started %S", servicename);
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -3159,64 +2909,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
      */
     if (argc > 1) {
         const wchar_t *p = wargv[1];
-        if ((p[0] == L':') && (p[1] == L':')  &&
-           ((p[2] == L'!') || (p[2] == L'$')) && (p[3] == WNUL)) {
+        if ((p[0] == L':') && (p[1] == L':') && (p[2] == WNUL)) {
             servicemode = FALSE;
             servicename = xgetenv(L"SVCBATCH_SERVICE_NAME");
             if (servicename == NULL)
                 return ERROR_BAD_ENVIRONMENT;
             cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
             cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
-#if defined(_DEBUG)
-            if (p[2] == L'$') {
-                dbgoutstream = stdout;
-                consolemode  = TRUE;
-            }
-#endif
             wargv[1] = wargv[0];
             argc    -= 1;
             wargv   += 1;
         }
     }
-
-#if defined(_DEBUG)
-    if (servicemode) {
-        if (argc > 2) {
-            const wchar_t *p = wargv[1];
-            if ((p[0] == L'-') && (p[1] == L'-') && (p[2] == WNUL)) {
-                dbgoutstream = stdout;
-                consolemode  = TRUE;
-                servicename  = xwcsdup(wargv[2]);
-                if (wcschr(servicename, L'\\')) {
-                    DBG_PRINTF("Service name '%S' cannot have backslash character", servicename);
-                    return ERROR_INVALID_PARAMETER;
-                }
-                wargv[2] = wargv[0];
-                argc    -= 2;
-                wargv   += 2;
-            }
-        }
-        if (consolemode) {
-            DWORD   rc;
-            wchar_t eb[BBUFSIZ];
-            /**
-             * Services current directory is always
-             * set to SystemDirectory
-             *
-             */
-            rc = GetEnvironmentVariableW(L"SystemRoot", eb, _MAX_FNAME);
-            if ((rc == 0) || (rc >= _MAX_FNAME)) {
-                DBG_PRINTS("Cannot get 'SystemRoot' environment variable");
-                return ERROR_BAD_ENVIRONMENT;
-            }
-            xwcslcat(eb, BBUFSIZ, L"\\System32");
-            SetCurrentDirectoryW(eb);
-        }
-    }
-    if (consolemode) {
-        DBG_PRINTF("Running %S %S in console mode\n", cwsappname, servicename);
-    }
-#endif
 
     if (argc == 1) {
         fprintf(stdout, "%s\n\n", cnamestamp);
@@ -3228,7 +2932,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     wnamestamp = xcwiden(cnamestamp);
     DBG_PRINTS(cnamestamp);
 
-    while ((opt = xwgetopt(argc, wargv, L"bc:e:k:lm:n:o:pqr:s:tvw:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = TRUE;
@@ -3315,15 +3019,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
                 else
                     rparam[rcnt++] = xwoptarg;
             break;
-#if defined(_DEBUG)
-            case L'k':
-                if (consolemode)
-                    return scmsendctrl(xwoptarg);
-                else
-                    return svcsyserror(__FUNCTION__, __LINE__, 0,
-                                       L"Cannot use -k command option when running as service", NULL);
-            break;
-#endif
             case ENOENT:
                 bb[1] = xwoption;
                 return svcsyserror(__FUNCTION__, __LINE__, 0,
@@ -3589,18 +3284,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     se[1].lpServiceProc = NULL;
     if (servicemode) {
         DBG_PRINTS("starting service");
-#if defined(_DEBUG)
-        if (consolemode) {
-            servicemain(0, NULL);
-            rv = ssvcstatus.dwWin32ExitCode;
-        }
-        else
-#endif
-        {
-            if (!StartServiceCtrlDispatcherW(se))
-                rv = svcsyserror(__FUNCTION__, __LINE__, GetLastError(),
-                                 L"StartServiceCtrlDispatcher", NULL);
-        }
+        if (!StartServiceCtrlDispatcherW(se))
+            rv = svcsyserror(__FUNCTION__, __LINE__, GetLastError(),
+                             L"StartServiceCtrlDispatcher", NULL);
     }
     else {
         DBG_PRINTS("starting shutdown");

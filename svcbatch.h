@@ -53,10 +53,6 @@
 #define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
 #define SHUTDOWN_IPCNAME       L"Local\\SvcBatch-Shutdown-"
 #define SVCBATCH_LOGSDIR       L"Logs"
-#if defined(_DEBUG)
-#define SVCBATCH_SCMNAME       L"\\\\.\\pipe\\SvcBatch-ScmPipe-"
-#define SVCBATCH_SCSNAME       L"Global\\SvcBatch-ScmSignal-"
-#endif
 
 /**
  * Maximum number of SvcBatch.log.N files

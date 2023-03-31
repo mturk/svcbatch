@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v2.0.1
 
   * In development
+  * Drop experimental console mode with _DEBUG builds
 
 
 ## v2.0.0
