@@ -296,9 +296,9 @@ static wchar_t *xcwiden(const char *s)
         return NULL;
     n = strlen(s);
     p = xwmalloc(n);
-    for (i = 0; i < n; i++) {
-        p[i] = (wchar_t)(s[i]);
-    }
+    for (i = 0; i < n; i++)
+        p[i] = s[i] < 128 ? (wchar_t)s[i] : L'?';
+
     return p;
 }
 
@@ -1001,8 +1001,8 @@ static wchar_t *getfullpathname(const wchar_t *src, int isdir)
 {
     wchar_t *cp;
 
-    if (IS_EMPTY_WCS(src))
-        return NULL;
+    ASSERT_WSTR(src, NULL);
+
     cp = xwcsdup(src);
     xcleanwinpath(cp, isdir);
 
@@ -1254,8 +1254,7 @@ static DWORD logwrline(HANDLE h, const char *s)
     DWORD   wr;
     DWORD   nw;
 
-    if ((s == NULL) || (*s == '\0'))
-        return 0;
+    ASSERT_CSTR(s, 0);
     nw = xtimehdr(wb, TBUFSIZ);
 
     if (nw > 0) {

@@ -130,6 +130,53 @@
 #define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == WNUL))
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 
+/**
+ * Assertion macros
+ */
+#define ASSERT_WSTR(_s, _r)                                 \
+    if (((_s) == NULL) || (*(_s) == WNUL)) {                \
+        SetLastError(ERROR_INVALID_PARAMETER);              \
+        return (_r);                                        \
+    } (void)0
+
+#define ASSERT_CSTR(_s, _r)                                 \
+    if (((_s) == NULL) || (*(_s) == 0)) {                   \
+        SetLastError(ERROR_INVALID_PARAMETER);              \
+        return (_r);                                        \
+    } (void)0
+
+#define ASSERT_ZERO(_v, _r)                                 \
+    if ((_v) <= 0) {                                        \
+        SetLastError(ERROR_INVALID_PARAMETER);              \
+        return (_r);                                        \
+    } (void)0
+
+#define ASSERT_SPAN(_v, _m, _x, _r)                         \
+    if (((_v) < (_m)) || ((_v) > (_x))) {                   \
+        SetLastError(ERROR_NO_RANGES_PROCESSED);            \
+        return (_r);                                        \
+    } (void)0
+
+#define ASSERT_NULL(_p, _r)                                 \
+    if ((_p) == NULL) {                                     \
+        SetLastError(ERROR_INVALID_ADDRESS);                \
+        return (_r);                                        \
+    } (void)0
+
+#define ASSERT_SIZE(_s, _m, _r)                             \
+    if ((_s) < (_m)) {                                      \
+        SetLastError(ERROR_INSUFFICIENT_BUFFER);            \
+        return (_r);                                        \
+    } (void)0
+
+#define ASSERT_HANDLE(_h, _r)                               \
+    if (((_h) == NULL) || ((_h) == INVALID_HANDLE_VALUE)) { \
+        SetLastError(ERROR_INVALID_HANDLE);                 \
+        return (_r);                                        \
+    } (void)0
+
+
+
 #define SAFE_CLOSE_HANDLE(_h)                                       \
     if (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))           \
         CloseHandle((_h));                                          \
