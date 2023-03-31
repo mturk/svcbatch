@@ -340,21 +340,46 @@ static int xwcslen(const wchar_t *s)
         return (int)wcslen(s);
 }
 
-static int xwcstoi(const wchar_t *s)
+/**
+ * Simple atoi with range between 0 and 2147483639.
+ * Leading white space characters are ignored.
+ * Returns negative value on error.
+ */
+static int xwcstoi(const wchar_t *sp, wchar_t **ep)
 {
-    long     v;
-    wchar_t *e = NULL;
+    int rv = 0;
+    int dc = 0;
 
-    if (IS_EMPTY_WCS(s))
+    ASSERT_WSTR(sp, -1);
+    while(iswspace(*sp))
+        sp++;
+
+    while(iswdigit(*sp)) {
+        int dv = *sp - L'0';
+
+        /* Check if accumulated value is smaller then
+         * INT_MAX/10, otherwise overflow would occur.
+         */
+        if (rv > 214748363) {
+            SetLastError(ERROR_INVALID_DATA);
+            return -1;
+        }
+        if (dv || rv) {
+            rv *= 10;
+            rv += dv;
+        }
+        dc++;
+        sp++;
+    }
+    if (dc == 0) {
+        SetLastError(ERROR_INVALID_PARAMETER);
         return -1;
-    v = wcstol(s, &e, 10);
-    if ((v == 0) && (e == s))
-        return -1;
-    if ((v < 0)  || (v > INT_MAX))
-        return -1;
-    else
-        return (int)v;
+    }
+    if (ep != NULL)
+        *ep = (wchar_t *)sp;
+    return rv;
 }
+
 
 /**
  * Appends src to string dst of size siz where
@@ -1830,26 +1855,22 @@ static void resolvetimeout(int hh, int mm, int ss, int od)
     rotatebytime = TRUE;
 }
 
-static int resolverotate(const wchar_t *str)
+static int resolverotate(const wchar_t *rp)
 {
-    wchar_t *sp;
+    wchar_t *ep;
 
-    if (IS_EMPTY_WCS(str)) {
+    if (IS_EMPTY_WCS(rp))
         return 0;
-    }
 
-    sp = xwcsdup(str);
-    if (wcspbrk(sp, L"BKMG")) {
-        long     siz;
+    if (wcspbrk(rp, L"BKMG")) {
+        int      siz;
         LONGLONG len;
-        LONGLONG mux = 0;
-        wchar_t *rp  = sp;
-        wchar_t *ep  = zerostring;
+        LONGLONG mux = CPP_INT64_C(0);
 
-        siz = wcstol(rp, &ep, 10);
-        if ((siz < 1) || (siz > INT_MAX))
+        siz = xwcstoi(rp, &ep);
+        if (siz < 1)
             return __LINE__;
-        switch (ep[0]) {
+        switch (*ep) {
             case L'B':
                 mux = CPP_INT64_C(1);
             break;
@@ -1879,19 +1900,19 @@ static int resolverotate(const wchar_t *str)
         }
     }
     else {
-        wchar_t *rp  = sp;
-        wchar_t *p;
-
         rotateint    = 0;
         rotatebytime = FALSE;
         rotatetmo.QuadPart = 0;
 
-        p = wcschr(rp, L':');
-        if (p == NULL) {
+        if (wcschr(rp, L':') == NULL) {
             int mm;
 
-            mm = xwcstoi(rp);
-            if (mm < 0) {
+            mm = xwcstoi(rp, &ep);
+            if (*ep) {
+                DBG_PRINTF("invalid rotate timeout %S", rp);
+                return __LINE__;
+            }
+            else if (mm < 0) {
                 DBG_PRINTF("invalid rotate timeout %S", rp);
                 return __LINE__;
             }
@@ -1913,28 +1934,29 @@ static int resolverotate(const wchar_t *str)
         else {
             int hh, mm, ss;
 
-            *(p++) = WNUL;
-            hh = xwcstoi(rp);
+            hh = xwcstoi(rp, &ep);
             if ((hh < 0) || (hh > 23))
                 return __LINE__;
-            rp = p;
-            p  = wcschr(rp, L':');
-            if (p == NULL)
+            if (*ep != L':')
                 return __LINE__;
-            *(p++) = WNUL;
-            mm = xwcstoi(rp);
+            rp = ep + 1;
+            mm = xwcstoi(rp, &ep);
             if ((mm < 0) || (mm > 59))
                 return __LINE__;
-            rp = p;
-            ss = xwcstoi(rp);
+            if (*ep != L':')
+                return __LINE__;
+            rp = ep + 1;
+            ss = xwcstoi(rp, &ep);
             if ((ss < 0) || (ss > 59))
                 return __LINE__;
+            if (*ep)
+                return __LINE__;
+
             DBG_PRINTF("rotate each day at %.2d:%.2d:%.2d",
-                      hh, mm, ss);
+                       hh, mm, ss);
             resolvetimeout(hh, mm, ss, 1);
         }
     }
-    xfree(sp);
     return 0;
 }
 
@@ -2996,7 +3018,7 @@ int wmain(int argc, const wchar_t **wargv)
             if (logredirargc == 0) {
                 svcmaxlogs = SVCBATCH_MAX_LOGS;
                 if (maxlogsparam) {
-                    svcmaxlogs = xwcstoi(maxlogsparam);
+                    svcmaxlogs = xwcstoi(maxlogsparam, NULL);
                     if ((svcmaxlogs < 0) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
                         return svcsyserror(__FUNCTION__, __LINE__, 0,
                                            L"Invalid -m command option value", maxlogsparam);
