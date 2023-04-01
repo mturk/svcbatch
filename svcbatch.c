@@ -41,11 +41,17 @@ static void dbgprints(const char *, const char *);
 
 #define xsyserror(_n, _e, _d)   svcsyserror(__FUNCTION__, __LINE__, (_n), (_e), (_d))
 
+typedef union _UI_BYTES {
+    unsigned char  b[16];
+    ULARGE_INTEGER u;
+} UI_BYTES;
+
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         rotatesig   = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
+static volatile LONG         numserial   = 0;
 static volatile LONG64       logwritten  = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
@@ -758,22 +764,32 @@ static void xcleanwinpath(wchar_t *s, int isdir)
     }
 }
 
-static wchar_t *xuuidstring(void)
+static wchar_t *xuuidstring(wchar_t *b)
 {
     int i, x;
-    wchar_t      *b;
-    HCRYPTPROV    h;
+    UI_BYTES      u;
     unsigned char d[16];
     const wchar_t xb16[] = L"0123456789abcdef";
 
+#if 1
+    HCRYPTPROV    h;
     if (!CryptAcquireContext(&h, NULL, NULL, PROV_RSA_FULL,
                              CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
         return NULL;
     if (!CryptGenRandom(h, 16, d))
         return NULL;
     CryptReleaseContext(h, 0);
-    b = xwmalloc(38);
+#else
+    if (BCryptGenRandom(NULL, d, 16,
+                        BCRYPT_USE_SYSTEM_PREFERRED_RNG) != STATUS_SUCCESS)
+        return NULL;
+#endif
+    u.u.LowPart  = GetCurrentProcessId();
+    u.u.HighPart = InterlockedIncrement(&numserial);
+    if (b == NULL)
+        b = xwmalloc(TBUFSIZ - 1);
     for (i = 0, x = 0; i < 16; i++) {
+        d[i] ^= u.b[i];
         if (i == 4 || i == 6 || i == 8 || i == 10)
             b[x++] = '-';
         b[x++] = xb16[d[i] >> 4];
@@ -3036,7 +3052,7 @@ int wmain(int argc, const wchar_t **wargv)
     if (IS_EMPTY_WCS(batchparam))
         return xsyserror(0, L"Missing batch file", NULL);
     if (servicemode)
-        serviceuuid = xuuidstring();
+        serviceuuid = xuuidstring(NULL);
     else
         serviceuuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
     if (IS_EMPTY_WCS(serviceuuid))
