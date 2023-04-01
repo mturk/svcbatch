@@ -106,6 +106,7 @@
 #define MS_IN_HOUR              3600000
 
 #define TBUFSIZ                 64
+#define RBUFSIZ                 128
 #define FBUFSIZ                 256
 #define BBUFSIZ                 512
 #define SBUFSIZ                 1024

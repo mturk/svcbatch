@@ -2879,7 +2879,8 @@ int wmain(int argc, const wchar_t **wargv)
     int         ncnt  = 0;
     int         rcnt  = 0;
     int         rv    = 0;
-    wchar_t     bb[4] = { L'-', WNUL, WNUL, WNUL };
+    wchar_t     bb[BBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
+
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
     const wchar_t *maxlogsparam = NULL;
@@ -3088,28 +3089,27 @@ int wmain(int argc, const wchar_t **wargv)
             outdirparam = SVCBATCH_LOGSDIR;
     }
     else {
-        wchar_t ob[TBUFSIZ];
         /**
          * Ensure that log related command options
          * are not defined when -q is defined
          */
-        ob[0] = WNUL;
+        bb[0] = WNUL;
         if (rcnt)
-            xwcslcat(ob, TBUFSIZ, L"-r ");
+            xwcslcat(bb, TBUFSIZ, L"-r ");
         if (ncnt)
-            xwcslcat(ob, TBUFSIZ, L"-n ");
+            xwcslcat(bb, TBUFSIZ, L"-n ");
         if (outdirparam)
-            xwcslcat(ob, TBUFSIZ, L"-o ");
+            xwcslcat(bb, TBUFSIZ, L"-o ");
         if (logredirargc)
-            xwcslcat(ob, TBUFSIZ, L"-e ");
+            xwcslcat(bb, TBUFSIZ, L"-e ");
         if (truncatelogs)
-            xwcslcat(ob, TBUFSIZ, L"-t ");
+            xwcslcat(bb, TBUFSIZ, L"-t ");
         if (haslogstatus)
-            xwcslcat(ob, TBUFSIZ, L"-v ");
+            xwcslcat(bb, TBUFSIZ, L"-v ");
         if (maxlogsparam)
-            xwcslcat(ob, TBUFSIZ, L"-m ");
-        if (ob[0])
-            return xsyserror(0, L"Option -q is mutually exclusive with option(s)", ob);
+            xwcslcat(bb, TBUFSIZ, L"-m ");
+        if (bb[0])
+            return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
     }
     if (servicemode) {
         /**
@@ -3243,11 +3243,11 @@ int wmain(int argc, const wchar_t **wargv)
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
     if (servicemode) {
         if (svcstopwargc) {
-            wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
-            ssignalevent = CreateEventW(&sazero, TRUE, FALSE, psn);
+            xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
+            xwcslcat(bb, RBUFSIZ, serviceuuid);
+            ssignalevent = CreateEventW(&sazero, TRUE, FALSE, bb);
             if (IS_INVALID_HANDLE(ssignalevent))
-                return xsyserror(GetLastError(), L"CreateEvent", psn);
-            xfree(psn);
+                return xsyserror(GetLastError(), L"CreateEvent", bb);
         }
         if (haslogrotate) {
             for (i = 0; i < rcnt; i++) {
@@ -3260,11 +3260,11 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     else {
-        wchar_t *psn = xwcsconcat(SHUTDOWN_IPCNAME, serviceuuid);
-        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, psn);
+        xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
+        xwcslcat(bb, RBUFSIZ, serviceuuid);
+        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, bb);
         if (IS_INVALID_HANDLE(ssignalevent))
-            return xsyserror(GetLastError(), L"OpenEvent", psn);
-        xfree(psn);
+            return xsyserror(GetLastError(), L"OpenEvent", bb);
     }
 
     monitorevent = CreateEvent(NULL, TRUE, FALSE, NULL);
