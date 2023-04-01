@@ -54,6 +54,15 @@ typedef union _UI_BYTES {
     unsigned int   u;
 } UI_BYTES;
 
+typedef DWORD (WINAPI *SB_THREAD_ROUTINE)(DWORD d);
+typedef struct SB_THREAD_PARAM_T {
+    SB_THREAD_ROUTINE run;
+    DWORD   d;
+
+} SB_THREAD_PARAM;
+
+
+
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         rotatesig   = 0;
 static volatile LONG         sstarted    = 0;
@@ -1096,23 +1105,47 @@ static DWORD xcreatepath(const wchar_t *path)
     return rc;
 }
 
-static HANDLE xcreatethread(int detach, unsigned initflag,
-                            unsigned int (__stdcall *threadfn)(void *),
-                            void *param)
+static DWORD WINAPI xrunthread(LPVOID param)
 {
-    unsigned u;
-    HANDLE   h;
+    DWORD r;
+    SB_THREAD_PARAM *p = (SB_THREAD_PARAM *)param;
 
-    h = (HANDLE)_beginthreadex(NULL, 0, threadfn, param, initflag, &u);
-
-    if (IS_INVALID_HANDLE(h))
-        return NULL;
-    if (detach) {
-        CloseHandle(h);
-        h = NULL;
-    }
-    return h;
+    r = (*p->run)(p->d);
+    xfree(p);
+    ExitThread(r);
+    return r;
 }
+
+static HANDLE xcreatethread(int detached, int suspended,
+                            SB_THREAD_ROUTINE threadfn,
+                            DWORD dparam)
+{
+    DWORD  id;
+    HANDLE th;
+    SB_THREAD_PARAM *tp;
+
+    tp = (SB_THREAD_PARAM *)xmmalloc(1, sizeof(SB_THREAD_PARAM));
+    tp->run = threadfn;
+    tp->d   = dparam;
+
+    th = CreateThread(NULL, 0, xrunthread, tp, CREATE_SUSPENDED, &id);
+    if (th == NULL) {
+        xfree(tp);
+        DBG_PRINTS("CreateThread failed");
+        return NULL;
+    }
+    if (detached) {
+        ResumeThread(th);
+        CloseHandle(th);
+        return NULL;
+    }
+    else {
+        if (!suspended)
+            ResumeThread(th);
+        return th;
+    }
+}
+
 
 static BOOL isrelativepath(const wchar_t *p)
 {
@@ -1478,7 +1511,7 @@ static DWORD createlogsdir(void)
     return 0;
 }
 
-static unsigned int __stdcall rdpipedlog(void *unused)
+static DWORD WINAPI rdpipedlog(DWORD unused)
 {
     DWORD rc = 0;
 #if defined(_DEBUG)
@@ -1534,7 +1567,7 @@ static unsigned int __stdcall rdpipedlog(void *unused)
     }
     DBG_PRINTS("done");
 #endif
-    XENDTHREAD(0);
+    return 0;
 }
 
 static DWORD openlogpipe(BOOL ssp)
@@ -1591,7 +1624,7 @@ static DWORD openlogpipe(BOOL ssp)
 
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
-    xcreatethread(1, 0, &rdpipedlog, NULL);
+    xcreatethread(1, 0, rdpipedlog, 0);
 
     if (haslogstatus) {
         logwrline(wr, cnamestamp);
@@ -2153,7 +2186,7 @@ finished:
     return rc;
 }
 
-static unsigned int __stdcall stopthread(void *param)
+static DWORD WINAPI stopthread(DWORD rs)
 {
 
 #if defined(_DEBUG)
@@ -2164,7 +2197,7 @@ static unsigned int __stdcall stopthread(void *param)
 #endif
 
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-    if (svcstopwargc && param) {
+    if (svcstopwargc && rs == 0) {
         DWORD rc;
 
         DBG_PRINTS("creating shutdown process");
@@ -2218,20 +2251,17 @@ finished:
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
     SetEvent(svcstopended);
     DBG_PRINTS("done");
-    XENDTHREAD(0);
+    return 0;
 }
 
 static void createstopthread(DWORD rv)
 {
-    void *sp = INVALID_HANDLE_VALUE;
-
     if (rv) {
         setsvcstatusexit(rv);
-        sp = NULL;
     }
     if (InterlockedIncrement(&sstarted) == 1) {
         ResetEvent(svcstopended);
-        xcreatethread(1, 0, &stopthread, sp);
+        xcreatethread(1, 0, stopthread, rv);
     }
     else {
         InterlockedDecrement(&sstarted);
@@ -2239,7 +2269,7 @@ static void createstopthread(DWORD rv)
     }
 }
 
-static unsigned int __stdcall rdpipethread(void *unused)
+static DWORD WINAPI rdpipethread(DWORD unused)
 {
     DWORD rc = 0;
     BYTE  rb[HBUFSIZ];
@@ -2290,10 +2320,10 @@ static unsigned int __stdcall rdpipethread(void *unused)
     }
     DBG_PRINTS("done");
 #endif
-    XENDTHREAD(0);
+    return 0;
 }
 
-static unsigned int __stdcall wrpipethread(void *unused)
+static DWORD WINAPI wrpipethread(DWORD unused)
 {
     DWORD wr;
 
@@ -2311,7 +2341,7 @@ static unsigned int __stdcall wrpipethread(void *unused)
     }
     DBG_PRINTS("done");
 #endif
-    XENDTHREAD(0);
+    return 0;
 }
 
 static void monitorshutdown(void)
@@ -2419,18 +2449,18 @@ static void monitorservice(void)
     DBG_PRINTS("done");
 }
 
-static unsigned int __stdcall monitorthread(void *unused)
+static DWORD WINAPI monitorthread(DWORD unused)
 {
     if (servicemode)
         monitorservice();
     else
         monitorshutdown();
 
-    XENDTHREAD(0);
+    return 0;
 }
 
 
-static unsigned int __stdcall rotatethread(void *unused)
+static DWORD WINAPI rotatethread(DWORD unused)
 {
     HANDLE wh[4];
     HANDLE wt = NULL;
@@ -2511,10 +2541,10 @@ static unsigned int __stdcall rotatethread(void *unused)
 finished:
     DBG_PRINTS("done");
     SAFE_CLOSE_HANDLE(wt);
-    XENDTHREAD(0);
+    return 0;
 }
 
-static unsigned int __stdcall workerthread(void *unused)
+static DWORD WINAPI workerthread(DWORD unused)
 {
     wchar_t *cmdline;
     HANDLE   wh[4];
@@ -2560,11 +2590,11 @@ static unsigned int __stdcall workerthread(void *unused)
     SAFE_CLOSE_HANDLE(si.hStdError);
 
     wh[0] = childprocess;
-    wh[1] = xcreatethread(0, CREATE_SUSPENDED, &rdpipethread, NULL);
+    wh[1] = xcreatethread(0, 1, rdpipethread, 0);
     if (IS_INVALID_HANDLE(wh[1])) {
         goto finished;
     }
-    wh[2] = xcreatethread(0, CREATE_SUSPENDED, &wrpipethread, NULL);
+    wh[2] = xcreatethread(0, 1, wrpipethread, 0);
     if (IS_INVALID_HANDLE(wh[2])) {
         goto finished;
     }
@@ -2576,7 +2606,7 @@ static unsigned int __stdcall workerthread(void *unused)
     reportsvcstatus(SERVICE_RUNNING, 0);
     DBG_PRINTF("running child with pid %lu", childprocpid);
     if (haslogrotate) {
-        xcreatethread(1, 0, &rotatethread, NULL);
+        xcreatethread(1, 0, rotatethread, 0);
     }
     WaitForMultipleObjects(3, wh, TRUE, INFINITE);
     CloseHandle(wh[1]);
@@ -2611,7 +2641,7 @@ finished:
     SetEvent(processended);
 
     DBG_PRINTS("done");
-    XENDTHREAD(0);
+    return 0;
 }
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
@@ -2737,6 +2767,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
                 reportsvcstatus(SERVICE_STOPPED, rv);
                 return;
             }
+            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", servicelogs);
         }
     }
     else {
@@ -2775,12 +2806,13 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-    wh[1] = xcreatethread(0, 0, &monitorthread, NULL);
+    wh[1] = xcreatethread(0, 0, monitorthread, 0);
     if (IS_INVALID_HANDLE(wh[1])) {
         goto finished;
     }
-    wh[0] = xcreatethread(0, 0, &workerthread, NULL);
+    wh[0] = xcreatethread(0, 0, workerthread, 0);
     if (IS_INVALID_HANDLE(wh[0])) {
+        SetEvent(processended);
         goto finished;
     }
     DBG_PRINTS("running");
