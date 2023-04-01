@@ -231,11 +231,11 @@ static int xfatalerr(const char *func, int err)
     return err;
 }
 
-static void *xmmalloc(size_t number, size_t size)
+static void *xmmalloc(size_t size)
 {
     void *p;
 
-    p = malloc(number * size);
+    p = malloc(size);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
@@ -246,7 +246,7 @@ static void *xmcalloc(size_t number, size_t size)
 {
     void *p;
 
-    p = calloc(number,  size);
+    p = calloc(number, size);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
@@ -255,16 +255,15 @@ static void *xmcalloc(size_t number, size_t size)
 
 static wchar_t *xwmalloc(size_t size)
 {
-    wchar_t *p = (wchar_t *)xmmalloc(size + 1, sizeof(wchar_t));
+    wchar_t *p = (wchar_t *)xmmalloc(size * sizeof(wchar_t));
 
-    p[0]    = WNUL;
-    p[size] = WNUL;
+    p[size - 1] = WNUL;
     return p;
 }
 
 static wchar_t *xwcalloc(size_t size)
 {
-    return (wchar_t *)xmcalloc(size + 1, sizeof(wchar_t));
+    return (wchar_t *)xmcalloc(size, sizeof(wchar_t));
 }
 
 static wchar_t **xwaalloc(size_t size)
@@ -297,15 +296,9 @@ static void xmemzero(void *mem, size_t number, size_t size)
 
 static wchar_t *xwcsdup(const wchar_t *s)
 {
-    wchar_t *p;
-    size_t   n;
-
     if (IS_EMPTY_WCS(s))
         return NULL;
-    n = wcslen(s);
-    p = xwmalloc(n);
-    wmemcpy(p, s, n);
-    return p;
+    return _wcsdup(s);
 }
 
 static wchar_t *xcwiden(const char *s)
@@ -316,7 +309,7 @@ static wchar_t *xcwiden(const char *s)
     if (s == NULL)
         return NULL;
     n = strlen(s);
-    p = xwmalloc(n);
+    p = xwmalloc(n + 1);
     for (i = 0; i < n; i++)
         p[i] = s[i] < 128 ? (wchar_t)s[i] : L'?';
 
@@ -340,7 +333,7 @@ static wchar_t *xgetenv(const wchar_t *s)
 
     n = GetEnvironmentVariableW(s, e, BBUFSIZ);
     if (n != 0) {
-        d = xwmalloc(n);
+        d = xwmalloc(n + 1);
         if (n > BBUFSIZ) {
             GetEnvironmentVariableW(s, d, n);
         }
@@ -545,7 +538,7 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     if ((l1 + l2) == 0)
         return NULL;
 
-    cp = xwmalloc(l1 + l2);
+    cp = xwmalloc(l1 + l2 + 1);
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
     if(l2 > 0)
@@ -570,7 +563,7 @@ static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs)
         fs += 2;
         nf -= 2;
     }
-    cp = xwmalloc(nd + nf + 1);
+    cp = xwmalloc(nd + nf + 2);
 
     wmemcpy(cp, ds, nd);
     cp[nd++] = L'\\';
@@ -623,7 +616,7 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
     }
     l1 = xwcslen(s1);
     l2 = xwcslen(s2);
-    e  = xwmalloc(l1 + l2 + l3 + 4);
+    e  = xwmalloc(l1 + l2 + l3 + 5);
     d  = e;
 
     if(l1) {
@@ -798,7 +791,7 @@ static wchar_t *xuuidstring(wchar_t *b)
         return NULL;
 #endif
     if (b == NULL)
-        b = xwmalloc(TBUFSIZ - 1);
+        b = xwmalloc(TBUFSIZ);
     u.hi = (WORD)GetCurrentProcessId();
     u.lo = (WORD)InterlockedIncrement(&numserial) << 8;
     for (i = 3; i > 0; i--) {
@@ -1119,7 +1112,7 @@ static HANDLE xcreatethread(int detached, int suspended,
     HANDLE th;
     LPSVCBATCH_THREAD tp;
 
-    tp = (LPSVCBATCH_THREAD)xmmalloc(1, sizeof(SVCBATCH_THREAD));
+    tp = (LPSVCBATCH_THREAD)xmmalloc(sizeof(SVCBATCH_THREAD));
     tp->threadfn = threadfn;
     tp->param    = suspended ? NULL : INVALID_HANDLE_VALUE;
 
@@ -2859,18 +2852,15 @@ static void __cdecl objectscleanup(void)
 static int xwmaininit(void)
 {
     wchar_t *bb;
-    DWORD    sm = FBUFSIZ;
-    DWORD    sz;
+    DWORD    sz = FBUFSIZ;
     DWORD    nn;
 
-    sz = sm - 1;
     bb = xwmalloc(sz);
     nn = GetModuleFileNameW(NULL, bb, sz);
     if (nn == 0)
         return GetLastError();
     while (nn >= sz) {
-        sm = sm * 2;
-        sz = sm - 1;
+        sz = sz * 2;
         xfree(bb);
         bb = xwmalloc(sz);
         nn = GetModuleFileNameW(NULL, bb, sz);
