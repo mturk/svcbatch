@@ -1933,12 +1933,11 @@ static void resolvetimeout(int hh, int mm, int ss, int od)
     rotatebytime = TRUE;
 }
 
-static int resolverotate(const wchar_t *rp)
+static BOOL resolverotate(const wchar_t *rp)
 {
     wchar_t *ep;
 
-    if (IS_EMPTY_WCS(rp))
-        return 0;
+    ASSERT_WSTR(rp, FALSE);
 
     if (wcspbrk(rp, L"BKMG")) {
         int      siz;
@@ -1947,7 +1946,7 @@ static int resolverotate(const wchar_t *rp)
 
         siz = xwcstoi(rp, &ep);
         if (siz < 1)
-            return __LINE__;
+            return FALSE;
         switch (*ep) {
             case L'B':
                 mux = CPP_INT64_C(1);
@@ -1962,7 +1961,7 @@ static int resolverotate(const wchar_t *rp)
                 mux = MEGABYTES(1024);
             break;
             default:
-                return __LINE__;
+                return FALSE;
             break;
         }
         len = siz * mux;
@@ -1988,11 +1987,11 @@ static int resolverotate(const wchar_t *rp)
             mm = xwcstoi(rp, &ep);
             if (*ep) {
                 DBG_PRINTF("invalid rotate timeout %S", rp);
-                return __LINE__;
+                return FALSE;
             }
             else if (mm < 0) {
                 DBG_PRINTF("invalid rotate timeout %S", rp);
-                return __LINE__;
+                return FALSE;
             }
             else if (mm == 0) {
                 DBG_PRINTS("rotate at midnight");
@@ -2014,28 +2013,28 @@ static int resolverotate(const wchar_t *rp)
 
             hh = xwcstoi(rp, &ep);
             if ((hh < 0) || (hh > 23))
-                return __LINE__;
+                return FALSE;
             if (*ep != L':')
-                return __LINE__;
+                return FALSE;
             rp = ep + 1;
             mm = xwcstoi(rp, &ep);
             if ((mm < 0) || (mm > 59))
-                return __LINE__;
+                return FALSE;
             if (*ep != L':')
-                return __LINE__;
+                return FALSE;
             rp = ep + 1;
             ss = xwcstoi(rp, &ep);
             if ((ss < 0) || (ss > 59))
-                return __LINE__;
+                return FALSE;
             if (*ep)
-                return __LINE__;
+                return FALSE;
 
             DBG_PRINTF("rotate each day at %.2d:%.2d:%.2d",
                        hh, mm, ss);
             resolvetimeout(hh, mm, ss, 1);
         }
     }
-    return 0;
+    return TRUE;
 }
 
 static DWORD runshutdown(DWORD rt)
@@ -3267,9 +3266,8 @@ int wmain(int argc, const wchar_t **wargv)
         }
         if (haslogrotate) {
             for (i = 0; i < rcnt; i++) {
-                rv = resolverotate(rparam[i]);
-                if (rv != 0)
-                    return svcsyserror(__FUNCTION__, rv, 0, L"Cannot resolve", rparam[i]);
+                if (!resolverotate(rparam[i]))
+                    return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
             }
             logrotatesig = CreateEvent(NULL, TRUE, FALSE, NULL);
             if (IS_INVALID_HANDLE(logrotatesig))
