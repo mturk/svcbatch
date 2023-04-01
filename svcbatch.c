@@ -142,31 +142,31 @@ static const char xfnchartype[128] =
 };
 
 
-static const wchar_t *xwcsiid(int i, DWORD c)
+static const char *xwcsiid(int i, DWORD c)
 {
-    const wchar_t *r;
+    const char *r = "UNKNOWN";
 
     switch (i) {
         case II_CONSOLE:
             {
                 switch (c) {
                     case CTRL_CLOSE_EVENT:
-                        r = L"CTRL_CLOSE_EVENT";
+                        r = "CTRL_CLOSE_EVENT";
                     break;
                     case CTRL_SHUTDOWN_EVENT:
-                        r = L"CTRL_SHUTDOWN_EVENT";
+                        r = "CTRL_SHUTDOWN_EVENT";
                     break;
                     case CTRL_C_EVENT:
-                        r = L"CTRL_C_EVENT";
+                        r = "CTRL_C_EVENT";
                     break;
                     case CTRL_BREAK_EVENT:
-                        r = L"CTRL_BREAK_EVENT";
+                        r = "CTRL_BREAK_EVENT";
                     break;
                     case CTRL_LOGOFF_EVENT:
-                        r = L"CTRL_LOGOFF_EVENT";
+                        r = "CTRL_LOGOFF_EVENT";
                     break;
                     default:
-                        r = L"CTRL_UNKNOWN";
+                        r = "CTRL_UNKNOWN";
                     break;
                 }
             }
@@ -175,31 +175,28 @@ static const wchar_t *xwcsiid(int i, DWORD c)
             {
                 switch (c) {
                     case SERVICE_CONTROL_PRESHUTDOWN:
-                        r = L"SERVICE_CONTROL_PRESHUTDOWN";
+                        r = "SERVICE_CONTROL_PRESHUTDOWN";
                     break;
                     case SERVICE_CONTROL_SHUTDOWN:
-                        r = L"SERVICE_CONTROL_SHUTDOWN";
+                        r = "SERVICE_CONTROL_SHUTDOWN";
                     break;
                     case SERVICE_CONTROL_STOP:
-                        r = L"SERVICE_CONTROL_STOP";
+                        r = "SERVICE_CONTROL_STOP";
                     break;
                     case SERVICE_CONTROL_INTERROGATE:
-                        r = L"SERVICE_CONTROL_INTERROGATE";
+                        r = "SERVICE_CONTROL_INTERROGATE";
                     break;
                     case SVCBATCH_CTRL_BREAK:
-                        r = L"SVCBATCH_CTRL_BREAK";
+                        r = "SVCBATCH_CTRL_BREAK";
                     break;
                     case SVCBATCH_CTRL_ROTATE:
-                        r = L"SVCBATCH_CTRL_ROTATE";
+                        r = "SVCBATCH_CTRL_ROTATE";
                     break;
                     default:
-                        r = L"SERVICE_CONTROL_UNKNOWN";
+                        r = "SERVICE_CONTROL_UNKNOWN";
                     break;
                 }
             }
-        break;
-        default:
-            r = L"UNKNOWN";
         break;
     }
 
@@ -2142,8 +2139,6 @@ finished:
 
 static unsigned int __stdcall stopthread(void *param)
 {
-    DWORD ce = CTRL_C_EVENT;
-    DWORD pg = 0;
 
 #if defined(_DEBUG)
     if (servicemode)
@@ -2181,24 +2176,22 @@ static unsigned int __stdcall stopthread(void *param)
         DWORD ws;
 
 #if defined(_DEBUG)
-        if (pg)
-            DBG_PRINTF("generating %S for process group %lu",
-                        xwcsiid(II_CONSOLE, ce), pg);
-        else
-            DBG_PRINTF("generating %S", xwcsiid(II_CONSOLE, ce));
+        DBG_PRINTS("generating CTRL_C_EVENT");
 #endif
-        GenerateConsoleCtrlEvent(ce, pg);
+        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         ws = WaitForSingleObject(processended, SVCBATCH_STOP_STEP);
         SetConsoleCtrlHandler(NULL, FALSE);
         if (ws == WAIT_OBJECT_0) {
-            DBG_PRINTF("processended by %S", xwcsiid(II_CONSOLE, ce));
+            DBG_PRINTS("processended by CTRL_C_EVENT");
             goto finished;
         }
     }
+#if defined(_DEBUG)
     else {
         DBG_PRINTF("SetConsoleCtrlHandler failed err=%lu", GetLastError());
     }
     DBG_PRINTS("process still running");
+#endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
     DBG_PRINTS("child is still active ... terminating");
 
@@ -2372,7 +2365,7 @@ static void monitorservice(void)
                     rc = FALSE;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
-                    DBG_PRINTF("service %S signaled", xwcsiid(II_SERVICE, cc));
+                    DBG_PRINTF("service %s signaled", xwcsiid(II_SERVICE, cc));
                     if (haslogstatus) {
                         HANDLE h;
 
@@ -2381,7 +2374,7 @@ static void monitorservice(void)
 
                         if (h) {
                             logfflush(h);
-                            logprintf(h, "Signaled %S", xwcsiid(II_SERVICE, cc));
+                            logprintf(h, "Signaled %s", xwcsiid(II_SERVICE, cc));
                         }
                         InterlockedExchangePointer(&logfhandle, h);
                         LeaveCriticalSection(&logfilelock);
@@ -2647,7 +2640,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             /* fall through */
         case SERVICE_CONTROL_STOP:
             InterlockedIncrement(&sstarted);
-            DBG_PRINTF("%S", xwcsiid(II_SERVICE, ctrl));
+            DBG_PRINTS(xwcsiid(II_SERVICE, ctrl));
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
             if (haslogstatus) {
                 HANDLE h;
@@ -2655,7 +2648,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 h = InterlockedExchangePointer(&logfhandle, NULL);
                 if (h) {
                     logfflush(h);
-                    logprintf(h, "Service signaled : %S",  xwcsiid(II_SERVICE, ctrl));
+                    logprintf(h, "Service signaled : %s",  xwcsiid(II_SERVICE, ctrl));
                 }
                 InterlockedExchangePointer(&logfhandle, h);
                 LeaveCriticalSection(&logfilelock);
