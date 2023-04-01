@@ -802,17 +802,14 @@ static wchar_t *xuuidstring(wchar_t *b)
 static void xmktimedext(wchar_t *buf, int siz)
 {
     SYSTEMTIME st;
-    int bsz = siz - 1;
 
     if (uselocaltime)
         GetLocalTime(&st);
     else
         GetSystemTime(&st);
-    xsnwprintf(buf, bsz, L".%.4d%.2d%.2d%.2d%.2d%.2d",
+    xsnwprintf(buf, siz, L".%.4d%.2d%.2d%.2d%.2d%.2d",
                st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
-
-    buf[bsz] = WNUL;
 }
 
 static int xtimehdr(char *wb, int sz)
@@ -820,9 +817,7 @@ static int xtimehdr(char *wb, int sz)
     LARGE_INTEGER ct;
     LARGE_INTEGER et;
     DWORD   ss, us, mm, hh;
-    int     nc;
 
-    sz--;
     QueryPerformanceCounter(&ct);
     et.QuadPart = ct.QuadPart - pcstarttime.QuadPart;
     /**
@@ -837,9 +832,8 @@ static int xtimehdr(char *wb, int sz)
     mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % 60);
     hh = (DWORD)((ct.QuadPart / MS_IN_HOUR));
 
-    nc = xsnprintf(wb, sz, "[%.2lu:%.2lu:%.2lu.%.6lu] ",
-                   hh, mm, ss, us);
-    return nc;
+    return xsnprintf(wb, sz, "[%.2lu:%.2lu:%.2lu.%.6lu] ",
+                     hh, mm, ss, us);
 }
 
 #if defined(_DEBUG)
