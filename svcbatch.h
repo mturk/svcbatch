@@ -23,7 +23,7 @@
  *   C4702: unreachable code
  *   C4244: int to char/short - precision loss
  */
-# pragma warning(disable: 4100 4244 4702)
+# pragma warning(disable: 4100 4201 4244 4702)
 #endif
 
 #if defined(_MSC_VER)

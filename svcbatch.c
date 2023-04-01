@@ -42,8 +42,16 @@ static void dbgprints(const char *, const char *);
 #define xsyserror(_n, _e, _d)   svcsyserror(__FUNCTION__, __LINE__, (_n), (_e), (_d))
 
 typedef union _UI_BYTES {
-    unsigned char  b[16];
-    ULARGE_INTEGER u;
+    unsigned char  b[4];
+    struct {
+        WORD       lo;
+        WORD       hi;
+    } DUMMYSTRUCTNAME;
+    struct {
+        WORD       lo;
+        WORD       hi;
+    } w;
+    unsigned int   u;
 } UI_BYTES;
 
 static volatile LONG         monitorsig  = 0;
@@ -766,7 +774,7 @@ static void xcleanwinpath(wchar_t *s, int isdir)
 
 static wchar_t *xuuidstring(wchar_t *b)
 {
-    int i, x;
+    int i, x = 0;
     UI_BYTES      u;
     unsigned char d[16];
     const wchar_t xb16[] = L"0123456789abcdef";
@@ -784,12 +792,16 @@ static wchar_t *xuuidstring(wchar_t *b)
                         BCRYPT_USE_SYSTEM_PREFERRED_RNG) != STATUS_SUCCESS)
         return NULL;
 #endif
-    u.u.LowPart  = GetCurrentProcessId();
-    u.u.HighPart = InterlockedIncrement(&numserial);
     if (b == NULL)
         b = xwmalloc(TBUFSIZ - 1);
-    for (i = 0, x = 0; i < 16; i++) {
-        d[i] ^= u.b[i];
+    u.hi = (WORD)GetCurrentProcessId();
+    u.lo = (WORD)InterlockedIncrement(&numserial) << 8;
+    for (i = 3; i > 0; i--) {
+        b[x++] = xb16[u.b[i] >> 4];
+        b[x++] = xb16[u.b[i] & 0x0F];
+    }
+    b[x++] = '-';
+    for (i = 0; i < 16; i++) {
         if (i == 4 || i == 6 || i == 8 || i == 10)
             b[x++] = '-';
         b[x++] = xb16[d[i] >> 4];
