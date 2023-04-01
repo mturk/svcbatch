@@ -102,7 +102,6 @@ static wchar_t  *svcendlogfn      = NULL;
 static wchar_t **logredirargv     = NULL;
 static wchar_t **svcstopwargv     = NULL;
 
-static HANDLE    childprocjob     = NULL;
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
@@ -1567,8 +1566,6 @@ static DWORD openlogpipe(BOOL ssp)
      */
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
-    if (!AssignProcessToJobObject(childprocjob, pipedprocess))
-        goto failed;
 
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
@@ -2086,9 +2083,6 @@ static DWORD runshutdown(DWORD rt)
         goto finished;
     }
 
-    if (!AssignProcessToJobObject(childprocjob, cp.hProcess))
-        goto finished;
-
     wh[0] = cp.hProcess;
     wh[1] = processended;
     ResumeThread(cp.hThread);
@@ -2542,9 +2536,7 @@ static unsigned int __stdcall workerthread(void *unused)
      */
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
-    if (!AssignProcessToJobObject(childprocjob, childprocess)) {
-        goto finished;
-    }
+
     wh[0] = childprocess;
     wh[1] = xcreatethread(0, CREATE_SUSPENDED, &rdpipethread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
@@ -2698,7 +2690,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     DWORD  rv = 0;
     HANDLE wh[4] = { NULL, NULL, NULL, NULL };
     DWORD  ws;
-    JOBOBJECT_EXTENDED_LIMIT_INFORMATION ji;
 
     ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
@@ -2741,25 +2732,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", serviceuuid);
 
     }
-    childprocjob = CreateJobObject(&sazero, NULL);
-    if (IS_INVALID_HANDLE(childprocjob)) {
-        goto finished;
-    }
-    xmemzero(&ji, 1, sizeof(JOBOBJECT_EXTENDED_LIMIT_INFORMATION));
-    ji.BasicLimitInformation.LimitFlags =
-        JOB_OBJECT_LIMIT_BREAKAWAY_OK |
-        JOB_OBJECT_LIMIT_SILENT_BREAKAWAY_OK |
-        JOB_OBJECT_LIMIT_DIE_ON_UNHANDLED_EXCEPTION |
-        JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
-
-    if (!SetInformationJobObject(childprocjob,
-                                 JobObjectExtendedLimitInformation,
-                                &ji,
-                                 DSIZEOF(JOBOBJECT_EXTENDED_LIMIT_INFORMATION))) {
-        goto finished;
-    }
-
-
     if (havelogging) {
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         if (haspipedlogs)
@@ -2817,7 +2789,6 @@ finished:
     SAFE_CLOSE_HANDLE(childprocess);
 
     closelogfile();
-    SAFE_CLOSE_HANDLE(childprocjob);
 
     reportsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");
@@ -2836,7 +2807,6 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(logrotatesig);
-    SAFE_CLOSE_HANDLE(childprocjob);
 
     DeleteCriticalSection(&logfilelock);
     DeleteCriticalSection(&servicelock);
