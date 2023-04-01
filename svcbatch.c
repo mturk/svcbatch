@@ -1983,12 +1983,12 @@ static BOOL resolverotate(const wchar_t *rp)
     ASSERT_WSTR(rp, FALSE);
 
     if (wcspbrk(rp, L"BKMG")) {
-        int      siz;
-        LONGLONG len;
+        int      val;
+        LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(0);
 
-        siz = xwcstoi(rp, &ep);
-        if (siz < 1)
+        val = xwcstoi(rp, &ep);
+        if (val < 1)
             return FALSE;
         switch (*ep) {
             case L'B':
@@ -2007,15 +2007,15 @@ static BOOL resolverotate(const wchar_t *rp)
                 return FALSE;
             break;
         }
-        len = siz * mux;
-        if (len < KILOBYTES(1)) {
+        siz = val * mux;
+        if (siz < KILOBYTES(1)) {
             DBG_PRINTF("rotate size %S is less then 1K", rp);
             rotatesiz.QuadPart = CPP_INT64_C(0);
             rotatebysize = FALSE;
         }
         else {
             DBG_PRINTF("rotate if larger then %S", rp);
-            rotatesiz.QuadPart = len;
+            rotatesiz.QuadPart = siz;
             rotatebysize = TRUE;
         }
     }
@@ -2024,34 +2024,7 @@ static BOOL resolverotate(const wchar_t *rp)
         rotatebytime = FALSE;
         rotatetmo.QuadPart = 0;
 
-        if (wcschr(rp, L':') == NULL) {
-            int mm;
-
-            mm = xwcstoi(rp, &ep);
-            if (*ep) {
-                DBG_PRINTF("invalid rotate timeout %S", rp);
-                return FALSE;
-            }
-            else if (mm < 0) {
-                DBG_PRINTF("invalid rotate timeout %S", rp);
-                return FALSE;
-            }
-            else if (mm == 0) {
-                DBG_PRINTS("rotate at midnight");
-                resolvetimeout(0, 0, 0, 1);
-            }
-            else if (mm == 60) {
-                DBG_PRINTS("rotate on each full hour");
-                resolvetimeout(0, 0, 0, 0);
-            }
-            else {
-                rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
-                DBG_PRINTF("rotate each %ld minutes", mm);
-                rotatetmo.QuadPart = rotateint;
-                rotatebytime = TRUE;
-            }
-        }
-        else {
+        if (wcschr(rp, L':')) {
             int hh, mm, ss;
 
             hh = xwcstoi(rp, &ep);
@@ -2075,6 +2048,29 @@ static BOOL resolverotate(const wchar_t *rp)
             DBG_PRINTF("rotate each day at %.2d:%.2d:%.2d",
                        hh, mm, ss);
             resolvetimeout(hh, mm, ss, 1);
+        }
+        else {
+            int mm;
+
+            mm = xwcstoi(rp, &ep);
+            if (*ep || mm < 0) {
+                DBG_PRINTF("invalid rotate timeout %S", rp);
+                return FALSE;
+            }
+            else if (mm == 0) {
+                DBG_PRINTS("rotate at midnight");
+                resolvetimeout(0, 0, 0, 1);
+            }
+            else if (mm == 60) {
+                DBG_PRINTS("rotate on each full hour");
+                resolvetimeout(0, 0, 0, 0);
+            }
+            else {
+                rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
+                DBG_PRINTF("rotate each %ld minutes", mm);
+                rotatetmo.QuadPart = rotateint;
+                rotatebytime = TRUE;
+            }
         }
     }
     return TRUE;
