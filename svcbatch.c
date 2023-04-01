@@ -124,17 +124,22 @@ static const wchar_t *outdirparam = NULL;
 static const wchar_t *localeparam = NULL;
 static const wchar_t *xwoptarg    = NULL;
 
-const char xvalidfname[128] =
+/**
+ * (element & 1) == valid file name character
+ * (element & 2) == character should be escaped in command line
+ */
+static const char xfnchartype[128] =
 {
     /** Reject all ctrl codes...                                          */
-        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        0,0,0,0,0,0,0,0,0,2,2,2,2,2,2,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
     /**   ! " # $ % & ' ( ) * + , - . /  0 1 2 3 4 5 6 7 8 9 : ; < = > ?  */
-        1,1,0,1,1,1,1,1,1,1,0,1,1,1,1,0, 1,1,1,1,1,1,1,1,1,1,0,0,0,1,0,0,
+        3,1,2,1,1,1,1,1,1,1,0,1,1,1,1,0, 1,1,1,1,1,1,1,1,1,1,0,0,0,1,0,0,
     /** @ A B C D E F G H I J K L M N O  P Q R S T U V W X Y Z [ \ ] ^ _  */
-        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,0,1,0,1,
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,
     /** ` a b c d e f g h i j k l m n o  p q r s t u v w x y z { | } ~    */
-        0,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,0
+        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1
 };
+
 
 static const wchar_t *xwcsiid(int i, DWORD c)
 {
@@ -863,31 +868,34 @@ static void xiphandler(const wchar_t *e,
     DBG_PRINTS("invalid parameter handler called");
 }
 
-static void xwinapierror(wchar_t *buf, int bufsize, DWORD statcode)
+static BOOL xwinapierror(wchar_t *buf, int siz, DWORD err)
 {
-    int c = bufsize - 1;
-    int n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
-                           FORMAT_MESSAGE_IGNORE_INSERTS,
-                           NULL,
-                           statcode,
-                           MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-                           buf,
-                           c,
-                           NULL);
+    int n;
+
+    n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
+                       FORMAT_MESSAGE_IGNORE_INSERTS,
+                       NULL,
+                       err,
+                       MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                       buf,
+                       siz - 1,
+                       NULL);
     if (n) {
         do {
             buf[n--] = WNUL;
-        } while ((n > 0) && ((buf[n] == L'.') || (buf[n] <= L' ')));
+        } while ((n > 0) && ((buf[n] == L'.') || iswspace(buf[n])));
+
         while (n-- > 0) {
             if (iswspace(buf[n]))
                 buf[n] = L' ';
         }
+        return TRUE;
     }
     else {
-        xsnwprintf(buf, c,
-                   L"Unknown Windows error code (%lu)", statcode);
+        xsnwprintf(buf, siz,
+                   L"Unknown system error code: %u", err);
+        return FALSE;
     }
-    buf[c] = WNUL;
 }
 
 static BOOL setupeventlog(void)
@@ -928,7 +936,6 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     wchar_t        hdr[MBUFSIZ];
     wchar_t        erb[MBUFSIZ];
     const wchar_t *errarg[10];
-    int            n = MBUFSIZ - 1;
     int            c, i = 0;
 
     errarg[i++] = wnamestamp;
@@ -937,8 +944,8 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     errarg[i++] = CRLFW;
     errarg[i++] = L"reported the following error:\r\n";
 
-    xsnwprintf(hdr, n, L"svcbatch.c(%.4d, %S) %s", line, fn, err);
-    hdr[n] = WNUL;
+    xsnwprintf(hdr, MBUFSIZ,
+               L"svcbatch.c(%.4d, %S) %s", line, fn, err);
     if (eds) {
         xwcslcat(hdr, MBUFSIZ, L": ");
         xwcslcat(hdr, MBUFSIZ, eds);
@@ -946,9 +953,8 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     errarg[i++] = hdr;
 
     if (ern) {
-        c = xsnwprintf(erb, 32, L"error(%lu) ", ern);
-        xwinapierror(erb + c, n - c, ern);
-        erb[n] = WNUL;
+        c = xsnwprintf(erb, TBUFSIZ, L"error(%lu) ", ern);
+        xwinapierror(erb + c, MBUFSIZ - c, ern);
         errarg[i++] = CRLFW;
         errarg[i++] = erb;
         DBG_PRINTF("%S, %S", hdr, erb);
@@ -1616,7 +1622,7 @@ static DWORD makelogfile(BOOL ssp)
     for (i = 0, x = 0; ewb[i] != WNUL; i++) {
         wchar_t c = ewb[i];
 
-        if ((c > 127) || xvalidfname[c])
+        if ((c > 127) || (xfnchartype[c] & 1))
             ewb[x++] = c;
     }
     ewb[x] = WNUL;
