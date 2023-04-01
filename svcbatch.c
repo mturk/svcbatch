@@ -253,6 +253,17 @@ static void *xmcalloc(size_t number, size_t size)
     return p;
 }
 
+static void *xrealloc(void *m, size_t size)
+{
+    void *p;
+
+    p = realloc(m, size);
+    if (p == NULL) {
+        SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
+    }
+    return p;
+}
+
 static wchar_t *xwmalloc(size_t size)
 {
     wchar_t *p = (wchar_t *)xmmalloc(size * sizeof(wchar_t));
@@ -334,15 +345,17 @@ static wchar_t *xgetenv(const wchar_t *s)
     n = GetEnvironmentVariableW(s, e, BBUFSIZ);
     if (n != 0) {
         d = xwmalloc(n + 1);
-        if (n > BBUFSIZ) {
-            GetEnvironmentVariableW(s, d, n);
+        if (n >= BBUFSIZ) {
+            n = GetEnvironmentVariableW(s, d, n);
+            if (n == 0) {
+                xfree(d);
+                return NULL;
+            }
         }
         else {
             wmemcpy(d, e, n);
         }
     }
-    if (d == NULL)
-        SetLastError( ERROR_ENVVAR_NOT_FOUND);
     return d;
 }
 
@@ -578,7 +591,7 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
     wchar_t *e;
     wchar_t *d;
 
-    int l1, l2, l3;
+    int l1, l2, l3, nn;
 
     l3 = xwcslen(s3);
     if (l3 == 0)
@@ -614,13 +627,17 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
             nq = 0;
         }
     }
+    nn = l3 + 1;
     l1 = xwcslen(s1);
     l2 = xwcslen(s2);
-    e  = xwmalloc(l1 + l2 + l3 + 5);
+    if (l1)
+        nn += (l1 + 1);
+    if (l2)
+        nn += (l2 + 1);
+    e  = (wchar_t *)xrealloc(s1, nn * sizeof(wchar_t));
     d  = e;
 
     if(l1) {
-        wmemcpy(d, s1, l1);
         d += l1;
         *(d++) = L' ';
     }
@@ -640,8 +657,10 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
             }
 
             if (*c == WNUL) {
-                wmemset(d, L'\\', b * 2);
-                d += b * 2;
+                if (b) {
+                    wmemset(d, L'\\', b * 2);
+                    d += b * 2;
+                }
                 break;
             }
             else if (*c == L'"') {
@@ -650,8 +669,10 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
                 *(d++) = *c;
             }
             else {
-                wmemset(d, L'\\', b);
-                d += b;
+                if (b) {
+                    wmemset(d, L'\\', b);
+                    d += b;
+                }
                 *(d++) = *c;
             }
         }
@@ -662,8 +683,6 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
         d += l3;
     }
     *d = WNUL;
-    xfree(s1);
-
     return e;
 }
 
