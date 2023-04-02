@@ -67,6 +67,12 @@
 #define SVCBATCH_MAX_ARGS       8
 
 /**
+ * Maximum number of threads
+ * SvcBatch can create
+ */
+#define SVCBATCH_MAX_THREADS    8
+
+/**
  * Custom SCM control code that
  * sends CTRL_BREAK_EVENT to the child processes.
  *

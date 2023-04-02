@@ -58,6 +58,7 @@ static volatile LONG         rotatesig   = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
+static volatile LONG         svcnthreads = 0;
 static volatile LONG64       logwritten  = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
@@ -121,6 +122,8 @@ static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
 static HANDLE    pipedprocess     = NULL;
+
+static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
 
 static wchar_t      wnamestamp[RBUFSIZ];
 static wchar_t      zerostring[4] = { WNUL,  WNUL,  WNUL, WNUL };
@@ -1105,7 +1108,6 @@ static DWORD WINAPI xrunthread(LPVOID param)
     LPSVCBATCH_THREAD tp = (LPSVCBATCH_THREAD)param;
 
     r = (*tp->threadfn)(tp->param);
-    xfree(tp);
     ExitThread(r);
     return r;
 }
@@ -1115,19 +1117,23 @@ static HANDLE xcreatethread(int detached, int suspended,
                             LPVOID param)
 {
     DWORD  id;
+    DWORD  ix;
     HANDLE th;
-    LPSVCBATCH_THREAD tp;
 
-    tp = (LPSVCBATCH_THREAD)xmmalloc(sizeof(SVCBATCH_THREAD));
-    tp->threadfn = threadfn;
-    tp->param    = param;
-
-    th = CreateThread(NULL, 0, xrunthread, tp, CREATE_SUSPENDED, &id);
-    if (th == NULL) {
-        DBG_PRINTS("CreateThread failed");
-        xfree(tp);
+    ix = (DWORD)InterlockedIncrement(&svcnthreads) - 1;
+    if (ix >= SVCBATCH_MAX_THREADS) {
+        SetLastError(ERROR_OUTOFMEMORY);
         return NULL;
     }
+    svcthread[ix].threadfn = threadfn;
+    svcthread[ix].param    = param;
+
+    th = CreateThread(NULL, 0, xrunthread, &svcthread[ix], CREATE_SUSPENDED, &id);
+    if (th == NULL) {
+        DBG_PRINTS("CreateThread failed");
+        return NULL;
+    }
+    DBG_PRINTF("index %lu", ix);
     if (detached) {
         ResumeThread(th);
         CloseHandle(th);
