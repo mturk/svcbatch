@@ -154,68 +154,6 @@ static const char xfnchartype[128] =
         1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1
 };
 
-
-static const char *xwcsiid(int i, DWORD c)
-{
-    const char *r = "UNKNOWN";
-
-    switch (i) {
-        case II_CONSOLE:
-            {
-                switch (c) {
-                    case CTRL_CLOSE_EVENT:
-                        r = "CTRL_CLOSE_EVENT";
-                    break;
-                    case CTRL_SHUTDOWN_EVENT:
-                        r = "CTRL_SHUTDOWN_EVENT";
-                    break;
-                    case CTRL_C_EVENT:
-                        r = "CTRL_C_EVENT";
-                    break;
-                    case CTRL_BREAK_EVENT:
-                        r = "CTRL_BREAK_EVENT";
-                    break;
-                    case CTRL_LOGOFF_EVENT:
-                        r = "CTRL_LOGOFF_EVENT";
-                    break;
-                    default:
-                        r = "CTRL_UNKNOWN";
-                    break;
-                }
-            }
-        break;
-        case II_SERVICE:
-            {
-                switch (c) {
-                    case SERVICE_CONTROL_PRESHUTDOWN:
-                        r = "SERVICE_CONTROL_PRESHUTDOWN";
-                    break;
-                    case SERVICE_CONTROL_SHUTDOWN:
-                        r = "SERVICE_CONTROL_SHUTDOWN";
-                    break;
-                    case SERVICE_CONTROL_STOP:
-                        r = "SERVICE_CONTROL_STOP";
-                    break;
-                    case SERVICE_CONTROL_INTERROGATE:
-                        r = "SERVICE_CONTROL_INTERROGATE";
-                    break;
-                    case SVCBATCH_CTRL_BREAK:
-                        r = "SVCBATCH_CTRL_BREAK";
-                    break;
-                    case SVCBATCH_CTRL_ROTATE:
-                        r = "SVCBATCH_CTRL_ROTATE";
-                    break;
-                    default:
-                        r = "SERVICE_CONTROL_UNKNOWN";
-                    break;
-                }
-            }
-        break;
-    }
-
-    return r;
-}
-
 static int xfatalerr(const char *func, int err)
 {
     OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR);
@@ -2404,7 +2342,7 @@ static void monitorservice(void)
                     rc = FALSE;
                 }
                 else if (cc == SVCBATCH_CTRL_BREAK) {
-                    DBG_PRINTF("service %s signaled", xwcsiid(II_SERVICE, cc));
+                    DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
                     if (haslogstatus) {
                         HANDLE h;
 
@@ -2413,7 +2351,7 @@ static void monitorservice(void)
 
                         if (h) {
                             logfflush(h);
-                            logprintf(h, "Signaled %s", xwcsiid(II_SERVICE, cc));
+                            logwrline(h, "Signaled SVCBATCH_CTRL_BREAK");
                         }
                         InterlockedExchangePointer(&logfhandle, h);
                         LeaveCriticalSection(&logfilelock);
@@ -2745,17 +2683,17 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
         case SERVICE_CONTROL_STOP:
+            DBG_PRINTF("service stop control code: 0x%08X", ctrl);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
             if (InterlockedIncrement(&sstarted) == 1) {
                 ResetEvent(svcstopended);
-                DBG_PRINTS(xwcsiid(II_SERVICE, ctrl));
                 if (haslogstatus) {
                     HANDLE h;
                     EnterCriticalSection(&logfilelock);
                     h = InterlockedExchangePointer(&logfhandle, NULL);
                     if (h) {
                         logfflush(h);
-                        logprintf(h, "Service signaled : %s",  xwcsiid(II_SERVICE, ctrl));
+                        logwrline(h, "Service signaled : SERVICE_CONTROL_STOP");
                     }
                     InterlockedExchangePointer(&logfhandle, h);
                     LeaveCriticalSection(&logfilelock);
@@ -2796,7 +2734,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             DBG_PRINTS("SERVICE_CONTROL_INTERROGATE");
         break;
         default:
-            DBG_PRINTF("unknown control %lu", ctrl);
+            DBG_PRINTF("unknown control 0x%08X", ctrl);
             return ERROR_CALL_NOT_IMPLEMENTED;
         break;
     }

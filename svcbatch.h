@@ -23,7 +23,7 @@
  *   C4702: unreachable code
  *   C4244: int to char/short - precision loss
  */
-# pragma warning(disable: 4100 4201 4244 4702)
+# pragma warning(disable: 4100 4244 4702)
 #endif
 
 #if defined(_MSC_VER)
@@ -33,6 +33,18 @@
 # define CPP_INT64_C(_v)    (_v##LL)
 # define CPP_UINT64_C(_v)   (_v##ULL)
 #endif
+
+/**
+ * Helper macros for properly quoting a value as a
+ * string in the C preprocessor
+ */
+#define CPP_TOSTR_HELPER(n)     #n
+#define CPP_TOSTR(n)            CPP_TOSTR_HELPER(n)
+
+#define CPP_WIDEN_HELPER(n)     L ## n
+#define CPP_WIDEN(n)            CPP_WIDEN_HELPER(n)
+
+
 
 /**
  * Version info
@@ -45,6 +57,7 @@
  * Set to zero for release versions
  */
 #define SVCBATCH_ISDEV_VERSION  1
+
 
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
@@ -68,7 +81,7 @@
 
 /**
  * Maximum number of threads
- * SvcBatch can create
+ * that SvcBatch can create
  */
 #define SVCBATCH_MAX_THREADS    8
 
@@ -127,9 +140,6 @@
 #define ONE_DAY                 CPP_INT64_C(864000000000)
 #define KILOBYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1024))
 #define MEGABYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1048576))
-
-#define II_CONSOLE              1
-#define II_SERVICE              2
 
 /**
  * Helper macros
@@ -193,25 +203,14 @@
 
 
 
-#define SAFE_CLOSE_HANDLE(_h)                                       \
-    if (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))           \
-        CloseHandle((_h));                                          \
+#define SAFE_CLOSE_HANDLE(_h)                               \
+    if (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))   \
+        CloseHandle((_h));                                  \
     (_h) = NULL
 
 #define WAIT_OBJECT_1          (WAIT_OBJECT_0 + 1)
 #define WAIT_OBJECT_2          (WAIT_OBJECT_0 + 2)
 #define WAIT_OBJECT_3          (WAIT_OBJECT_0 + 3)
-
-
-/**
- * Helper macros for properly quoting a value as a
- * string in the C preprocessor
- */
-#define CPP_TOSTR_HELPER(n)     #n
-#define CPP_TOSTR(n)            CPP_TOSTR_HELPER(n)
-
-#define CPP_WIDEN_HELPER(n)     L ## n
-#define CPP_WIDEN(n)            CPP_WIDEN_HELPER(n)
 
 
 /**
