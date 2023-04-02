@@ -51,8 +51,9 @@
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
 #define SVCBATCH_LOGNAME       L"SvcBatch.log"
 #define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
-#define SHUTDOWN_IPCNAME       L"Local\\SvcBatch-Shutdown-"
+#define SHUTDOWN_IPCNAME       L"Local\\se-"
 #define SVCBATCH_LOGSDIR       L"Logs"
+#define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sp-"
 
 /**
  * Maximum number of SvcBatch.log.N files
@@ -152,6 +153,12 @@
         return (_r);                                        \
     } (void)0
 
+#define ASSERT_TRUE(_v, _r)                                 \
+    if ((_v) != 0) {                                        \
+        SetLastError(ERROR_INVALID_PARAMETER);              \
+        return (_r);                                        \
+    } (void)0
+
 #define ASSERT_SPAN(_v, _m, _x, _r)                         \
     if (((_v) < (_m)) || ((_v) > (_x))) {                   \
         SetLastError(ERROR_NO_RANGES_PROCESSED);            \
@@ -202,7 +209,7 @@
 /**
  * Error macros
  */
-#define SVCBATCH_FATAL(_e)      xfatalerr("    Fatal error in " __FUNCTION__        \
+#define SVCBATCH_FATAL(_e)      xfatalerr("    Fatal error in svcbatch.c"   \
                                           " at line #" CPP_TOSTR(__LINE__), (_e))
 
 

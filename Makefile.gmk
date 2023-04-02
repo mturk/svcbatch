@@ -55,8 +55,8 @@ PIPELOG = $(WORKDIR)/pipedlog.exe
 WINVER  = 0x0601
 
 ifdef _DEBUG
-CFLAGS  = -D_DEBUG=$(_DEBUG)
-RFLAGS  = -D _DEBUG=$(_DEBUG)
+CFLAGS  = -D_DEBUG
+RFLAGS  = -D _DEBUG
 RL      = @true
 else
 CFLAGS  = -DNDEBUG
@@ -70,7 +70,7 @@ LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno
 RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
 RFLAGS += -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER)
 CLOPTS  = $(LNOPTS) -c
-LDLIBS  = -lkernel32 -ladvapi32 -luser32
+LDLIBS  = -lkernel32 -ladvapi32 -lbcrypt
 RLOPTS  = --strip-unneeded
 
 
@@ -100,13 +100,13 @@ $(WORKDIR):
 
 
 $(WORKDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) $<
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) $<
 
 $(WORKDIR)/%.o: $(SRCDIR)/test/pipedlog/%.c
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) -I$(SRCDIR) -I$(WORKDIR) $<
+	$(CC) $(CLOPTS) -o $@ $(CFLAGS) $<
 
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
-	$(RC) $(RCOPTS) -o $@ $(RFLAGS) -I $(SRCDIR) $<
+	$(RC) $(RCOPTS) -o $@ $(RFLAGS) $<
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)

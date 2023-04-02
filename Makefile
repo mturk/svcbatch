@@ -53,9 +53,9 @@ CFLAGS = $(CFLAGS) -DUNICODE -D_UNICODE
 
 CLOPTS = /c /nologo $(CRT_CFLAGS) -W4 -O2 -Ob2
 !IF DEFINED(_DEBUG)
-CFLAGS = $(CFLAGS) -D_DEBUG=$(_DEBUG)
+CFLAGS = $(CFLAGS) -D_DEBUG
 CLOPTS = $(CLOPTS) -Zi
-RFLAGS = /d _DEBUG=$(_DEBUG)
+RFLAGS = /d _DEBUG
 !ELSE
 CFLAGS = $(CFLAGS) -DNDEBUG
 RFLAGS = /d NDEBUG
@@ -65,7 +65,7 @@ RCOPTS = /l 0x409 /n
 RFLAGS = $(RFLAGS) /d WINVER=$(WINVER) /d _WIN32_WINNT=$(WINVER)
 
 LFLAGS = /nologo /INCREMENTAL:NO /OPT:REF /SUBSYSTEM:CONSOLE /MACHINE:$(BLDARCH) /VERSION:$(EXEVER)
-LDLIBS = kernel32.lib advapi32.lib user32.lib $(EXTRA_LIBS)
+LDLIBS = kernel32.lib advapi32.lib bcrypt.lib $(EXTRA_LIBS)
 
 !IF DEFINED(VSCMD_VER)
 RCOPTS = /nologo $(RCOPTS)
@@ -99,13 +99,13 @@ $(WORKDIR):
 	@-md $(WORKDIR) 2>NUL
 
 {$(SRCDIR)}.c{$(WORKDIR)}.obj:
-	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PROJECT) -I$(SRCDIR) -Fo$(WORKDIR)\ $<
+	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PROJECT) -Fo$(WORKDIR)\ $<
 
 {$(SRCDIR)\test\pipedlog}.c{$(WORKDIR)}.obj:
-	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PIPELOG) -I$(SRCDIR) -Fo$(WORKDIR)\ $<
+	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PIPELOG) -Fo$(WORKDIR)\ $<
 
 {$(SRCDIR)}.rc{$(WORKDIR)}.res:
-	$(RC) $(RCOPTS) $(RFLAGS) /i $(SRCDIR) /i $(WORKDIR) /fo $@ $<
+	$(RC) $(RCOPTS) $(RFLAGS) /fo $@ $<
 
 $(OUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LFLAGS) /pdb:$(WORKDIR)\$(PROJECT).pdb /out:$(OUTPUT) $(OBJECTS) $(LDLIBS)

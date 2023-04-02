@@ -14,7 +14,7 @@
  */
 
 #include <windows.h>
-#include <wincrypt.h>
+#include <bcrypt.h>
 #include <tlhelp32.h>
 #include <locale.h>
 #include <stdio.h>
@@ -41,30 +41,23 @@ static void dbgprints(const char *, const char *);
 
 #define xsyserror(_n, _e, _d)   svcsyserror(__FUNCTION__, __LINE__, (_n), (_e), (_d))
 
-typedef union _UI_BYTES {
-    unsigned char  b[4];
-    struct {
-        WORD       lo;
-        WORD       hi;
-    } DUMMYSTRUCTNAME;
-    struct {
-        WORD       lo;
-        WORD       hi;
-    } w;
-    unsigned int   u;
-} UI_BYTES;
-
 typedef struct _SVCBATCH_THREAD {
     LPTHREAD_START_ROUTINE threadfn;
     LPVOID                 param;
 } SVCBATCH_THREAD, *LPSVCBATCH_THREAD;
+
+typedef struct _SVCBATCH_PIPE {
+    OVERLAPPED  o;
+    HANDLE      pipe;
+    DWORD       stat;
+    BYTE        buff[HBUFSIZ];
+} SVCBATCH_PIPE, *LPSVCBATCH_PIPE;
 
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         rotatesig   = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
-static volatile LONG         numserial   = 0;
 static volatile LONG64       logwritten  = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
@@ -95,6 +88,7 @@ static BOOL      servicemode      = TRUE;
 static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
 static DWORD     pipedprocpid     = 0;
+static DWORD     curprosessid     = 0;
 
 static int       svcmaxlogs       = 0;
 static int       xwoptind         = 1;
@@ -114,7 +108,6 @@ static wchar_t  *svcbatchargs     = NULL;
 
 static wchar_t  *servicelogs      = NULL;
 static wchar_t  *logfilename      = NULL;
-static wchar_t  *wnamestamp       = NULL;
 static wchar_t  *svclogfname      = NULL;
 static wchar_t  *svcendlogfn      = NULL;
 
@@ -127,11 +120,9 @@ static HANDLE    ssignalevent     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
-static HANDLE    outputpiperd     = NULL;
-static HANDLE    inputpipewrs     = NULL;
 static HANDLE    pipedprocess     = NULL;
-static HANDLE    pipedprocout     = NULL;
 
+static wchar_t      wnamestamp[RBUFSIZ];
 static wchar_t      zerostring[4] = { WNUL,  WNUL,  WNUL, WNUL };
 static wchar_t      CRLFW[4]      = { L'\r', L'\n', WNUL, WNUL };
 static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
@@ -228,6 +219,7 @@ static int xfatalerr(const char *func, int err)
     OutputDebugStringA("<<<\n\n");
     _exit(err);
     TerminateProcess(GetCurrentProcess(), err);
+
     return err;
 }
 
@@ -312,19 +304,25 @@ static wchar_t *xwcsdup(const wchar_t *s)
     return _wcsdup(s);
 }
 
-static wchar_t *xcwiden(const char *s)
+static wchar_t *xcwiden(wchar_t *wcs, int siz, const char *src)
 {
-    wchar_t *p;
-    size_t   i, n;
+    int i;
+    int n;
 
-    if (s == NULL)
+    if (src == NULL)
         return NULL;
-    n = strlen(s);
-    p = xwmalloc(n + 1);
-    for (i = 0; i < n; i++)
-        p[i] = s[i] < 128 ? (wchar_t)s[i] : L'?';
-
-    return p;
+    if (wcs == NULL) {
+        siz = strlen(src) + 1;
+        wcs = xwmalloc(siz);
+    }
+    n = siz - 1;
+    for (i = 0; *src; src++, i++) {
+        if (i == n)
+            break;
+        wcs[i] = (BYTE)*src < 128 ? (wchar_t)*src : L'?';
+    }
+    wcs[i] = '\0';
+    return wcs;
 }
 
 static void xwchreplace(wchar_t *s, wchar_t c, wchar_t r)
@@ -791,35 +789,23 @@ static void xcleanwinpath(wchar_t *s, int isdir)
 
 static wchar_t *xuuidstring(wchar_t *b)
 {
-    int i, x = 0;
-    UI_BYTES      u;
-    unsigned char d[16];
-    const wchar_t xb16[] = L"0123456789abcdef";
+    static volatile LONG n = 0;
+    static wchar_t s[TBUFSIZ];
+    unsigned char  d[20];
+    const wchar_t  xb16[] = L"0123456789abcdef";
+    int i, x;
 
-#if 1
-    HCRYPTPROV    h;
-    if (!CryptAcquireContext(&h, NULL, NULL, PROV_RSA_FULL,
-                             CRYPT_VERIFYCONTEXT | CRYPT_SILENT))
+    if (BCryptGenRandom(NULL, d + 4, 16,
+                        BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
         return NULL;
-    if (!CryptGenRandom(h, 16, d))
-        return NULL;
-    CryptReleaseContext(h, 0);
-#else
-    if (BCryptGenRandom(NULL, d, 16,
-                        BCRYPT_USE_SYSTEM_PREFERRED_RNG) != STATUS_SUCCESS)
-        return NULL;
-#endif
+
     if (b == NULL)
-        b = xwmalloc(TBUFSIZ);
-    u.hi = (WORD)GetCurrentProcessId();
-    u.lo = (WORD)InterlockedIncrement(&numserial) << 8;
-    for (i = 3; i > 0; i--) {
-        b[x++] = xb16[u.b[i] >> 4];
-        b[x++] = xb16[u.b[i] & 0x0F];
-    }
-    b[x++] = '-';
-    for (i = 0; i < 16; i++) {
-        if (i == 4 || i == 6 || i == 8 || i == 10)
+        b = s;
+    d[1] = HIBYTE(curprosessid);
+    d[2] = LOBYTE(curprosessid);
+    d[3] = LOBYTE(InterlockedIncrement(&n));
+    for (i = 1, x = 0; i < 20; i++) {
+        if (i == 4 || i == 8 || i == 10 || i == 12 || i == 14)
             b[x++] = '-';
         b[x++] = xb16[d[i] >> 4];
         b[x++] = xb16[d[i] & 0x0F];
@@ -1125,7 +1111,8 @@ static DWORD WINAPI xrunthread(LPVOID param)
 }
 
 static HANDLE xcreatethread(int detached, int suspended,
-                            LPTHREAD_START_ROUTINE threadfn)
+                            LPTHREAD_START_ROUTINE threadfn,
+                            LPVOID param)
 {
     DWORD  id;
     HANDLE th;
@@ -1133,7 +1120,7 @@ static HANDLE xcreatethread(int detached, int suspended,
 
     tp = (LPSVCBATCH_THREAD)xmmalloc(sizeof(SVCBATCH_THREAD));
     tp->threadfn = threadfn;
-    tp->param    = suspended ? NULL : INVALID_HANDLE_VALUE;
+    tp->param    = param;
 
     th = CreateThread(NULL, 0, xrunthread, tp, CREATE_SUSPENDED, &id);
     if (th == NULL) {
@@ -1326,41 +1313,77 @@ finished:
     LeaveCriticalSection(&servicelock);
 }
 
-static DWORD createiopipes(LPSTARTUPINFOW si, LPHANDLE iwrs, LPHANDLE ords)
+static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
 {
+    wchar_t  name[TBUFSIZ];
     SECURITY_ATTRIBUTES sa;
-    HANDLE sh = NULL;
-    HANDLE cp = GetCurrentProcess();
 
     sa.nLength              = DSIZEOF(SECURITY_ATTRIBUTES);
     sa.lpSecurityDescriptor = NULL;
     sa.bInheritHandle       = TRUE;
+
+    xwcslcpy(name, TBUFSIZ, SVCBATCH_PIPEPFX);
+    xuuidstring(name + _countof(SVCBATCH_PIPEPFX) - 1);
+
+    *rd = CreateNamedPipeW(name,
+                           PIPE_ACCESS_INBOUND | mode,
+                           PIPE_TYPE_BYTE,
+                           1,
+                           0,
+                           HBUFSIZ,
+                           0,
+                           &sa);
+    if (IS_INVALID_HANDLE(*rd))
+        return FALSE;
+
+    *wr = CreateFileW(name,
+                      GENERIC_WRITE,
+                      0,
+                      &sa,
+                      OPEN_EXISTING,
+                      FILE_ATTRIBUTE_NORMAL,
+                      NULL);
+    if (IS_INVALID_HANDLE(*wr))
+        return FALSE;
+
+    DBG_PRINTF("0x%08x %S", mode, name);
+    return TRUE;
+}
+
+static DWORD createiopipes(LPSTARTUPINFOW si,
+                           LPHANDLE iwrs,
+                           LPHANDLE ords,
+                           DWORD mode)
+{
+    HANDLE cp = GetCurrentProcess();
+    HANDLE rd;
+    HANDLE wr;
+
     /**
      * Create stdin pipe, with write side
      * of the pipe as non inheritable.
      */
-    if (!CreatePipe(&(si->hStdInput), &sh, &sa, HBUFSIZ))
+    if (!createiopipe(&rd, &wr, 0))
         return GetLastError();
-
-    if (!DuplicateHandle(cp, sh, cp,
+    if (!DuplicateHandle(cp, wr, cp,
                          iwrs, FALSE, 0,
-                         DUPLICATE_SAME_ACCESS))
+                         DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS))
         return GetLastError();
-    SAFE_CLOSE_HANDLE(sh);
-
+    si->hStdInput = rd;
     /**
      * Create stdout/stderr pipe, with read side
      * of the pipe as non inheritable
      */
-    if (!CreatePipe(&sh, &(si->hStdError), &sa, HBUFSIZ))
+    if (!createiopipe(&rd, &wr, mode))
         return GetLastError();
-    if (!DuplicateHandle(cp, sh, cp,
+    if (!DuplicateHandle(cp, rd, cp,
                          ords, FALSE, 0,
-                         DUPLICATE_SAME_ACCESS))
+                         DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS))
         return GetLastError();
-    si->hStdOutput = si->hStdError;
 
-    SAFE_CLOSE_HANDLE(sh);
+    si->hStdOutput = wr;
+    si->hStdError  = wr;
+
     return 0;
 }
 
@@ -1517,7 +1540,7 @@ static DWORD createlogsdir(void)
     return 0;
 }
 
-static DWORD WINAPI rdpipedlog(void *unused)
+static DWORD WINAPI rdpipedlog(void *ph)
 {
     DWORD rc = 0;
 #if defined(_DEBUG)
@@ -1536,7 +1559,7 @@ static DWORD WINAPI rdpipedlog(void *unused)
     while (rc == 0) {
         DWORD rd = 0;
 
-        if (ReadFile(pipedprocout, rb, rs, &rd, NULL) && (rd != 0)) {
+        if (ReadFile(ph, rb, rs, &rd, NULL) && (rd != 0)) {
 #if defined(_DEBUG)
             if (rb[0] == '\r') {
                 /* Skip */
@@ -1560,6 +1583,7 @@ static DWORD WINAPI rdpipedlog(void *unused)
             rc = GetLastError();
         }
     }
+    CloseHandle(ph);
 #if defined(_DEBUG)
     if (rn) {
         rl[rn] = '\0';
@@ -1580,9 +1604,10 @@ static DWORD openlogpipe(BOOL ssp)
 {
     DWORD  rc;
     DWORD  cf = CREATE_NEW_CONSOLE;
+    HANDLE wr = NULL;
+    HANDLE rd = NULL;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
-    HANDLE wr = NULL;
     wchar_t *cmdline = NULL;
 
     xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
@@ -1591,7 +1616,8 @@ static DWORD openlogpipe(BOOL ssp)
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    rc = createiopipes(&si, &wr, &pipedprocout);
+    DBG_PRINTS("started");
+    rc = createiopipes(&si, &wr, &rd, 0);
     if (rc)
         return rc;
 
@@ -1619,7 +1645,6 @@ static DWORD openlogpipe(BOOL ssp)
         xsyserror(rc, L"CreateProcess", logredirargv[0]);
         goto failed;
     }
-
     pipedprocess = cp.hProcess;
     pipedprocpid = cp.dwProcessId;
     /**
@@ -1630,7 +1655,7 @@ static DWORD openlogpipe(BOOL ssp)
 
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
-    xcreatethread(1, 0, rdpipedlog);
+    xcreatethread(1, 0, rdpipedlog, rd);
 
     if (haslogstatus) {
         logwrline(wr, cnamestamp);
@@ -1644,7 +1669,7 @@ failed:
     xfree(cmdline);
     xwaafree(logredirargv);
     SAFE_CLOSE_HANDLE(wr);
-    SAFE_CLOSE_HANDLE(pipedprocout);
+    SAFE_CLOSE_HANDLE(rd);
     SAFE_CLOSE_HANDLE(pipedprocess);
 
     return rc;
@@ -1952,7 +1977,6 @@ static void closelogfile(void)
             }
         }
 #endif
-        SAFE_CLOSE_HANDLE(pipedprocout);
         SAFE_CLOSE_HANDLE(pipedprocess);
     }
     DBG_PRINTS("closed");
@@ -2094,7 +2118,6 @@ static DWORD runshutdown(DWORD rt)
     wchar_t *cmdline = NULL;
     HANDLE   wh[2];
     DWORD    rc = 0;
-    DWORD    cf = CREATE_NEW_CONSOLE;
     int   i, ip = 0;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
@@ -2103,10 +2126,13 @@ static DWORD runshutdown(DWORD rt)
 
     xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
     xmemzero(&si, 1, sizeof(STARTUPINFOW));
-    si.cb = DSIZEOF(STARTUPINFOW);
+    si.cb      = DSIZEOF(STARTUPINFOW);
+    si.dwFlags = STARTF_USESTDHANDLES;
 
     cmdline = xappendarg(1, NULL,    NULL, svcbatchexe);
-    cmdline = xappendarg(0, cmdline, NULL, L"::");
+    rp[ip++] = L':';
+    rp[ip++] = L':';
+    rp[ip++] = L' ';
     rp[ip++] = L'-';
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
@@ -2120,8 +2146,9 @@ static DWORD runshutdown(DWORD rt)
         rp[ip++] = L'q';
     }
     rp[ip++] = WNUL;
-    if (ip > 2)
-        cmdline = xappendarg(0, cmdline, NULL,  rp);
+    if (ip < 6)
+        rp[2] = WNUL;
+    cmdline = xappendarg(0, cmdline, NULL,  rp);
     cmdline = xappendarg(0, cmdline, L"-c", localeparam);
     if (havelogging && svcendlogfn) {
         cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
@@ -2133,7 +2160,7 @@ static DWORD runshutdown(DWORD rt)
     DBG_PRINTF("cmdline %S", cmdline);
 
     if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, FALSE,
-                        CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | cf,
+                        CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_CONSOLE,
                         NULL, NULL, &si, &cp)) {
         rc = GetLastError();
         xsyserror(rc, L"CreateProcess", NULL);
@@ -2258,12 +2285,14 @@ finished:
 
 static void createstopthread(DWORD rv)
 {
+    HANDLE sp = INVALID_HANDLE_VALUE;
     if (rv) {
         setsvcstatusexit(rv);
+        sp = NULL;
     }
     if (InterlockedIncrement(&sstarted) == 1) {
         ResetEvent(svcstopended);
-        xcreatethread(1, rv, stopthread);
+        xcreatethread(1, rv, stopthread, sp);
     }
     else {
         InterlockedDecrement(&sstarted);
@@ -2271,67 +2300,44 @@ static void createstopthread(DWORD rv)
     }
 }
 
-static DWORD WINAPI rdpipethread(void *unused)
+static DWORD logwrdata(BYTE *buf, DWORD len)
 {
-    DWORD rc = 0;
-    BYTE  rb[HBUFSIZ];
+    DWORD  rc;
+    HANDLE h;
 
-    DBG_PRINTS("started");
-    while (rc == 0) {
-        DWORD rd = 0;
+    EnterCriticalSection(&logfilelock);
+    h = InterlockedExchangePointer(&logfhandle, NULL);
 
-        if (ReadFile(outputpiperd, rb, HBUFSIZ, &rd, NULL) && (rd != 0)) {
-            EnterCriticalSection(&logfilelock);
-            if (havelogging) {
-                HANDLE h = InterlockedExchangePointer(&logfhandle, NULL);
+    if (h)
+        rc = logappend(h, buf, len);
+    else
+        rc = ERROR_NO_MORE_FILES;
 
-                if (h)
-                    rc = logappend(h, rb, rd);
-                else
-                    rc = ERROR_NO_MORE_FILES;
-
-                InterlockedExchangePointer(&logfhandle, h);
-                if ((rc == 0) && rotatebysize) {
-                    if (InterlockedCompareExchange64(&logwritten, 0, 0) >= rotatesiz.QuadPart) {
-                        InterlockedExchange64(&logwritten, 0);
-                        InterlockedExchange(&rotatesig, 1);
-                        SetEvent(logrotatesig);
-                    }
-                }
-            }
-            LeaveCriticalSection(&logfilelock);
-            if (rc) {
-                if (rc != ERROR_NO_MORE_FILES) {
-                    xsyserror(rc, L"logappend", NULL);
-                    createstopthread(rc);
-                }
-            }
-        }
-        else {
-            rc = GetLastError();
+    InterlockedExchangePointer(&logfhandle, h);
+    if (rc == 0 && rotatebysize) {
+        if (InterlockedCompareExchange64(&logwritten, 0, 0) >= rotatesiz.QuadPart) {
+            InterlockedExchange64(&logwritten, 0);
+            InterlockedExchange(&rotatesig, 1);
+            SetEvent(logrotatesig);
         }
     }
-#if defined(_DEBUG)
+    LeaveCriticalSection(&logfilelock);
     if (rc) {
-        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
-            DBG_PRINTS("pipe closed");
-        else if (rc == ERROR_NO_MORE_FILES)
-            DBG_PRINTS("logfile closed");
-        else
-            DBG_PRINTF("err=%lu", rc);
+        if (rc != ERROR_NO_MORE_FILES) {
+            xsyserror(rc, L"logappend", NULL);
+            createstopthread(rc);
+        }
     }
-    DBG_PRINTS("done");
-#endif
-    return 0;
+    return rc;
 }
 
-static DWORD WINAPI wrpipethread(void *unused)
+static DWORD WINAPI wrpipethread(void *wh)
 {
     DWORD wr;
 
     DBG_PRINTS("started");
-    if (WriteFile(inputpipewrs, YYES, 3, &wr, NULL) && (wr != 0)) {
-        FlushFileBuffers(inputpipewrs);
+    if (WriteFile(wh, YYES, 3, &wr, NULL) && (wr != 0)) {
+        FlushFileBuffers(wh);
     }
 #if defined(_DEBUG)
     else {
@@ -2549,10 +2555,15 @@ finished:
 static DWORD WINAPI workerthread(void *unused)
 {
     wchar_t *cmdline;
-    HANDLE   wh[4];
+    HANDLE   wh[2];
+    HANDLE   wrthread;
+    HANDLE   wr = NULL;
+    HANDLE   rd = NULL;
     DWORD    rc = 0;
+    DWORD    nw = 2;
     PROCESS_INFORMATION cp;
-    STARTUPINFOW si;
+    STARTUPINFOW  si;
+    SVCBATCH_PIPE op;
 
     DBG_PRINTS("started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -2564,12 +2575,17 @@ static DWORD WINAPI workerthread(void *unused)
     DBG_PRINTF("cmdline %S", cmdline);
     xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
     xmemzero(&si, 1, sizeof(STARTUPINFOW));
+    xmemzero(&op, 1, sizeof(SVCBATCH_PIPE));
 
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
 
-    rc = createiopipes(&si, &inputpipewrs, &outputpiperd);
+    rc = createiopipes(&si, &wr, &rd, FILE_FLAG_OVERLAPPED);
     if (rc != 0)
+        goto finished;
+    op.pipe     = rd;
+    op.o.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
+    if (IS_INVALID_HANDLE(op.o.hEvent))
         goto finished;
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -2591,28 +2607,83 @@ static DWORD WINAPI workerthread(void *unused)
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
 
+    wrthread = xcreatethread(0, 1, wrpipethread, wr);
+    if (IS_INVALID_HANDLE(wrthread)) {
+        goto finished;
+    }
     wh[0] = childprocess;
-    wh[1] = xcreatethread(0, 1, rdpipethread);
-    if (IS_INVALID_HANDLE(wh[1])) {
-        goto finished;
-    }
-    wh[2] = xcreatethread(0, 1, wrpipethread);
-    if (IS_INVALID_HANDLE(wh[2])) {
-        goto finished;
-    }
+    wh[1] = op.o.hEvent;
 
     ResumeThread(cp.hThread);
-    ResumeThread(wh[1]);
-    ResumeThread(wh[2]);
+    ResumeThread(wrthread);
+
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     DBG_PRINTF("running child with pid %lu", childprocpid);
-    if (haslogrotate) {
-        xcreatethread(1, 0, rotatethread);
-    }
-    WaitForMultipleObjects(3, wh, TRUE, INFINITE);
-    CloseHandle(wh[1]);
-    CloseHandle(wh[2]);
+    if (haslogrotate)
+        xcreatethread(1, 0, rotatethread, NULL);
+
+    do {
+        DWORD ws;
+        DWORD rr;
+
+        ws = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
+        switch (ws) {
+            case WAIT_OBJECT_0:
+                nw = 0;
+                DBG_PRINTF("childprocess %lu done", childprocpid);
+            break;
+            case WAIT_OBJECT_1:
+                if (op.stat == ERROR_IO_PENDING) {
+                    if (!GetOverlappedResult(op.pipe,
+                                             (LPOVERLAPPED)&op,
+                                             &rr,
+                                             FALSE)) {
+                        op.stat = GetLastError();
+                    }
+                    else {
+                        op.stat = 0;
+                        if (havelogging)
+                            rc = logwrdata(op.buff, rr);
+                    }
+                    break;
+                }
+                if (ReadFile(op.pipe, op.buff, HBUFSIZ,
+                             &rr, (LPOVERLAPPED)&op) && rr) {
+                    op.stat = 0;
+                    if (havelogging)
+                        rc = logwrdata(op.buff, rr);
+                    SetEvent(op.o.hEvent);
+                }
+                else {
+                    op.stat = GetLastError();
+                    if (op.stat != ERROR_IO_PENDING) {
+                        SAFE_CLOSE_HANDLE(op.pipe);
+                        ResetEvent(op.o.hEvent);
+                        rc = op.stat;
+                        nw = 1;
+                    }
+                }
+#if defined(_DEBUG)
+                if (rc) {
+                    if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+                        DBG_PRINTS("pipe closed");
+                    else if (rc == ERROR_NO_MORE_FILES)
+                        DBG_PRINTS("logfile closed");
+                    else
+                        DBG_PRINTF("err=%lu", rc);
+                }
+#endif
+            break;
+            default:
+                DBG_PRINTF("wait failed %lu with %lu", ws, GetLastError());
+                nw = 0;
+            break;
+
+        }
+    } while (nw);
+    WaitForSingleObject(wrthread, INFINITE);
+    CloseHandle(wrthread);
 
     DBG_PRINTF("finished %S with pid %lu",
               svcbatchname, childprocpid);
@@ -2640,6 +2711,9 @@ finished:
     SAFE_CLOSE_HANDLE(cp.hThread);
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
+    SAFE_CLOSE_HANDLE(wr);
+    SAFE_CLOSE_HANDLE(op.pipe);
+    SAFE_CLOSE_HANDLE(op.o.hEvent);
     SetEvent(processended);
 
     DBG_PRINTS("done");
@@ -2771,6 +2845,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             }
             SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", servicelogs);
         }
+        else {
+            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", NULL);
+        }
     }
     else {
         DBG_PRINTF("shutting down %S", servicename);
@@ -2808,11 +2885,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-    wh[1] = xcreatethread(0, 0, monitorthread);
+    wh[1] = xcreatethread(0, 0, monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
         goto finished;
     }
-    wh[0] = xcreatethread(0, 0, workerthread);
+    wh[0] = xcreatethread(0, 0, workerthread, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
         SetEvent(processended);
         goto finished;
@@ -2840,10 +2917,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
 finished:
 
-    SAFE_CLOSE_HANDLE(inputpipewrs);
-    SAFE_CLOSE_HANDLE(outputpiperd);
     SAFE_CLOSE_HANDLE(childprocess);
-
     closelogfile();
 
     reportsvcstatus(SERVICE_STOPPED, rv);
@@ -2899,6 +2973,7 @@ static int xwmaininit(void)
     svcbatchexe = bb;
     QueryPerformanceFrequency(&pcfrequency);
     QueryPerformanceCounter(&pcstarttime);
+    curprosessid = GetCurrentProcessId();
 
     return 0;
 }
@@ -2909,7 +2984,7 @@ int wmain(int argc, const wchar_t **wargv)
     int         opt;
     int         ncnt  = 0;
     int         rcnt  = 0;
-    int         rv    = 0;
+    int         rv;
     wchar_t     bb[BBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
 
     HANDLE      h;
@@ -2928,13 +3003,21 @@ int wmain(int argc, const wchar_t **wargv)
 #if defined(_DEBUG)
    _CrtSetReportMode(_CRT_ASSERT, 0);
 #endif
-    rv = xwmaininit();
-    if (rv)
-        return rv;
     /**
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
+    if (argc == 1) {
+#if defined(_DEBUG)
+        fprintf(stdout, "%s\n\n", cnamestamp);
+        fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
+        return 0;
+#else
+        return ERROR_INVALID_PARAMETER;
+#endif
+    }
+    rv = xwmaininit();
+    ASSERT_TRUE(rv, rv);
 
     h = GetStdHandle(STD_INPUT_HANDLE);
     if (IS_INVALID_HANDLE(h)) {
@@ -2945,8 +3028,7 @@ int wmain(int argc, const wchar_t **wargv)
              */
             atexit(cconsolecleanup);
             h = GetStdHandle(STD_INPUT_HANDLE);
-            if (IS_INVALID_HANDLE(h))
-                return ERROR_DEV_NOT_EXIST;
+            ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
         }
         else {
             return GetLastError();
@@ -2969,15 +3051,9 @@ int wmain(int argc, const wchar_t **wargv)
             wargv   += 1;
         }
     }
+    ASSERT_SIZE(argc, 2, ERROR_INVALID_PARAMETER);
 
-    if (argc == 1) {
-        fprintf(stdout, "%s\n\n", cnamestamp);
-        fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
-
-        return 0;
-    }
-
-    wnamestamp = xcwiden(cnamestamp);
+    xcwiden(wnamestamp, RBUFSIZ, cnamestamp);
     DBG_PRINTS(cnamestamp);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
