@@ -51,8 +51,8 @@
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
 #define SVCBATCH_LOGNAME       L"SvcBatch.log"
 #define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
-#define SHUTDOWN_IPCNAME       L"Local\\se-"
 #define SVCBATCH_LOGSDIR       L"Logs"
+#define SHUTDOWN_IPCNAME       L"Local\\se-"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sp-"
 
 /**
@@ -114,11 +114,13 @@
 
 #define TBUFSIZ                 64
 #define RBUFSIZ                 128
-#define FBUFSIZ                 256
+#define NBUFSIZ                 256
 #define BBUFSIZ                 512
 #define SBUFSIZ                 1024
 #define MBUFSIZ                 2048
-#define HBUFSIZ                 8192
+#define FBUFSIZ                 8192
+#define HBUFSIZ                 16384
+#define EBUFSIZ                 32768
 
 #define ONE_MINUTE              CPP_INT64_C(600000000)
 #define ONE_HOUR                CPP_INT64_C(36000000000)

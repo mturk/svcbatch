@@ -44,6 +44,8 @@ static void dbgprints(const char *, const char *);
 typedef struct _SVCBATCH_THREAD {
     LPTHREAD_START_ROUTINE threadfn;
     LPVOID                 param;
+    HANDLE                 h;
+    DWORD                  id;
 } SVCBATCH_THREAD, *LPSVCBATCH_THREAD;
 
 typedef struct _SVCBATCH_PIPE {
@@ -58,7 +60,6 @@ static volatile LONG         rotatesig   = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
-static volatile LONG         svcnthreads = 0;
 static volatile LONG64       logwritten  = 0;
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
@@ -315,7 +316,7 @@ static wchar_t *xcwiden(wchar_t *wcs, int siz, const char *src)
     if (src == NULL)
         return NULL;
     if (wcs == NULL) {
-        siz = strlen(src) + 1;
+        siz = (int)strlen(src) + 1;
         wcs = xwmalloc(siz);
     }
     n = siz - 1;
@@ -792,23 +793,21 @@ static void xcleanwinpath(wchar_t *s, int isdir)
 
 static wchar_t *xuuidstring(wchar_t *b)
 {
-    static volatile LONG n = 0;
     static wchar_t s[TBUFSIZ];
     unsigned char  d[20];
     const wchar_t  xb16[] = L"0123456789abcdef";
     int i, x;
 
-    if (BCryptGenRandom(NULL, d + 4, 16,
+    if (BCryptGenRandom(NULL, d + 2, 16,
                         BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
         return NULL;
 
     if (b == NULL)
         b = s;
-    d[1] = HIBYTE(curprosessid);
-    d[2] = LOBYTE(curprosessid);
-    d[3] = LOBYTE(InterlockedIncrement(&n));
-    for (i = 1, x = 0; i < 20; i++) {
-        if (i == 4 || i == 8 || i == 10 || i == 12 || i == 14)
+    d[0] = HIBYTE(curprosessid);
+    d[1] = LOBYTE(curprosessid);
+    for (i = 0, x = 0; i < 18; i++) {
+        if (i == 2 || i == 6 || i == 8 || i == 10 || i == 12)
             b[x++] = '-';
         b[x++] = xb16[d[i] >> 4];
         b[x++] = xb16[d[i] & 0x0F];
@@ -884,14 +883,15 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     OutputDebugStringA(b);
 }
 
-#endif
-
 static void xiphandler(const wchar_t *e,
                        const wchar_t *w, const wchar_t *f,
                        unsigned int n, uintptr_t r)
 {
-    DBG_PRINTS("invalid parameter handler called");
+    dbgprints(__FUNCTION__,
+              "invalid parameter handler called");
 }
+
+#endif
 
 static BOOL xwinapierror(wchar_t *buf, int siz, DWORD err)
 {
@@ -1116,11 +1116,10 @@ static HANDLE xcreatethread(int detached, int suspended,
                             LPTHREAD_START_ROUTINE threadfn,
                             LPVOID param)
 {
-    DWORD  id;
+    static volatile LONG tc = 0;
     DWORD  ix;
-    HANDLE th;
 
-    ix = (DWORD)InterlockedIncrement(&svcnthreads) - 1;
+    ix = (DWORD)InterlockedIncrement(&tc);
     if (ix >= SVCBATCH_MAX_THREADS) {
         SetLastError(ERROR_OUTOFMEMORY);
         return NULL;
@@ -1128,21 +1127,20 @@ static HANDLE xcreatethread(int detached, int suspended,
     svcthread[ix].threadfn = threadfn;
     svcthread[ix].param    = param;
 
-    th = CreateThread(NULL, 0, xrunthread, &svcthread[ix], CREATE_SUSPENDED, &id);
-    if (th == NULL) {
-        DBG_PRINTS("CreateThread failed");
+    svcthread[ix].h = CreateThread(NULL, 0, xrunthread,
+                                   &svcthread[ix], CREATE_SUSPENDED,
+                                   &svcthread[ix].id);
+    if (svcthread[ix].h == NULL)
         return NULL;
-    }
-    DBG_PRINTF("index %lu", ix);
     if (detached) {
-        ResumeThread(th);
-        CloseHandle(th);
+        ResumeThread(svcthread[ix].h);
+        CloseHandle( svcthread[ix].h);
         return NULL;
     }
     else {
         if (!suspended)
-            ResumeThread(th);
-        return th;
+            ResumeThread(svcthread[ix].h);
+        return svcthread[ix].h;
     }
 }
 
@@ -1166,8 +1164,8 @@ static wchar_t *getfullpathname(const wchar_t *src, int isdir)
 
     if (isrelativepath(cp)) {
         DWORD   nn;
-        DWORD   sz = HBUFSIZ - 1;
-        wchar_t bb[HBUFSIZ];
+        DWORD   sz = FBUFSIZ - 1;
+        wchar_t bb[FBUFSIZ];
 
         nn = GetFullPathNameW(cp, sz, bb, NULL);
         if ((nn == 0) || (nn >= sz)) {
@@ -1183,29 +1181,20 @@ static wchar_t *getfullpathname(const wchar_t *src, int isdir)
 
 static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
 {
-    wchar_t    *buf  = NULL;
-    DWORD       siz  = _MAX_FNAME;
-    DWORD       len  = 0;
-    HANDLE      fh;
-    DWORD       atr  = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
+    wchar_t buf[FBUFSIZ];
+    DWORD   len;
+    HANDLE  fh;
+    DWORD   atr  = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
     fh = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, atr, NULL);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
-    while (buf == NULL) {
-        buf = xwmalloc(siz);
-        len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
-        if (len == 0) {
-            CloseHandle(fh);
-            xfree(buf);
-            return NULL;
-        }
-        if (len > siz) {
-            xfree(buf);
-            buf = NULL;
-            siz = len;
-        }
+    len = GetFinalPathNameByHandleW(fh, buf, HBUFSIZ, VOLUME_NAME_DOS);
+    CloseHandle(fh);
+    if (len >= FBUFSIZ) {
+
+        return NULL;
     }
     CloseHandle(fh);
     if ((len > 5) && (len < _MAX_FNAME)) {
@@ -1221,7 +1210,7 @@ static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
             wmemmove(buf, buf + 4, len - 3);
         }
     }
-    return buf;
+    return xwcsdup(buf);
 }
 
 static wchar_t *getrealpathname(const wchar_t *src, int isdir)
@@ -2120,11 +2109,11 @@ static BOOL resolverotate(const wchar_t *rp)
 
 static DWORD runshutdown(DWORD rt)
 {
-    wchar_t  rp[TBUFSIZ];
+    wchar_t  rp[TBUFSIZ] = { L':', L':', L' ', L'-' };
     wchar_t *cmdline = NULL;
     HANDLE   wh[2];
     DWORD    rc = 0;
-    int   i, ip = 0;
+    int   i, ip = 4;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
 
@@ -2136,10 +2125,6 @@ static DWORD runshutdown(DWORD rt)
     si.dwFlags = STARTF_USESTDHANDLES;
 
     cmdline = xappendarg(1, NULL,    NULL, svcbatchexe);
-    rp[ip++] = L':';
-    rp[ip++] = L':';
-    rp[ip++] = L' ';
-    rp[ip++] = L'-';
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
             rp[ip++] = L'l';
@@ -2221,7 +2206,7 @@ finished:
     return rc;
 }
 
-static DWORD WINAPI stopthread(void *param)
+static DWORD WINAPI stopthread(void *unused)
 {
 
 #if defined(_DEBUG)
@@ -2232,7 +2217,7 @@ static DWORD WINAPI stopthread(void *param)
 #endif
 
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-    if (svcstopwargc && param) {
+    if (svcstopwargc) {
         DWORD rc;
 
         DBG_PRINTS("creating shutdown process");
@@ -2291,18 +2276,12 @@ finished:
 
 static void createstopthread(DWORD rv)
 {
-    HANDLE sp = INVALID_HANDLE_VALUE;
-    if (rv) {
-        setsvcstatusexit(rv);
-        sp = NULL;
-    }
     if (InterlockedIncrement(&sstarted) == 1) {
+        if (rv)
+            setsvcstatusexit(rv);
+
         ResetEvent(svcstopended);
-        xcreatethread(1, rv, stopthread, sp);
-    }
-    else {
-        InterlockedDecrement(&sstarted);
-        DBG_PRINTS("already started");
+        xcreatethread(1, 0, stopthread, NULL);
     }
 }
 
@@ -2615,6 +2594,7 @@ static DWORD WINAPI workerthread(void *unused)
 
     wrthread = xcreatethread(0, 1, wrpipethread, wr);
     if (IS_INVALID_HANDLE(wrthread)) {
+        xsyserror(GetLastError(), L"xcreatethread", NULL);
         goto finished;
     }
     wh[0] = childprocess;
@@ -2765,22 +2745,26 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
         case SERVICE_CONTROL_STOP:
-            InterlockedIncrement(&sstarted);
-            DBG_PRINTS(xwcsiid(II_SERVICE, ctrl));
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-            if (haslogstatus) {
-                HANDLE h;
-                EnterCriticalSection(&logfilelock);
-                h = InterlockedExchangePointer(&logfhandle, NULL);
-                if (h) {
-                    logfflush(h);
-                    logprintf(h, "Service signaled : %s",  xwcsiid(II_SERVICE, ctrl));
+            if (InterlockedIncrement(&sstarted) == 1) {
+                ResetEvent(svcstopended);
+                DBG_PRINTS(xwcsiid(II_SERVICE, ctrl));
+                if (haslogstatus) {
+                    HANDLE h;
+                    EnterCriticalSection(&logfilelock);
+                    h = InterlockedExchangePointer(&logfhandle, NULL);
+                    if (h) {
+                        logfflush(h);
+                        logprintf(h, "Service signaled : %s",  xwcsiid(II_SERVICE, ctrl));
+                    }
+                    InterlockedExchangePointer(&logfhandle, h);
+                    LeaveCriticalSection(&logfilelock);
                 }
-                InterlockedExchangePointer(&logfhandle, h);
-                LeaveCriticalSection(&logfilelock);
+                xcreatethread(1, 0, stopthread, NULL);
             }
-            InterlockedDecrement(&sstarted);
-            createstopthread(0);
+            else {
+                DBG_PRINTS("service stop is already running");
+            }
         break;
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak) {
@@ -2893,10 +2877,12 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     wh[1] = xcreatethread(0, 0, monitorthread, NULL);
     if (IS_INVALID_HANDLE(wh[1])) {
+        xsyserror(GetLastError(), L"xcreatethread", NULL);
         goto finished;
     }
     wh[0] = xcreatethread(0, 0, workerthread, NULL);
     if (IS_INVALID_HANDLE(wh[0])) {
+        xsyserror(GetLastError(), L"xcreatethread", NULL);
         SetEvent(processended);
         goto finished;
     }
@@ -2951,7 +2937,7 @@ static void __cdecl objectscleanup(void)
 static int xwmaininit(void)
 {
     wchar_t *bb;
-    DWORD    sz = FBUFSIZ;
+    DWORD    sz = NBUFSIZ;
     DWORD    nn;
 
     bb = xwmalloc(sz);
@@ -3001,12 +2987,12 @@ int wmain(int argc, const wchar_t **wargv)
     const wchar_t *rparam[2];
     wchar_t       *nparam[2] = { NULL, NULL };
 
+#if defined(_DEBUG)
 #if defined(_MSC_VER) && (_MSC_VER < 1900)
     /* Not supported */
 #else
     _set_invalid_parameter_handler(xiphandler);
 #endif
-#if defined(_DEBUG)
    _CrtSetReportMode(_CRT_ASSERT, 0);
 #endif
     /**
