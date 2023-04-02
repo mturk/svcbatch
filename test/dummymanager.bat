@@ -79,7 +79,7 @@ rem Set log file names instead defaut SvcBatch.log
 rem and SvcBatch.shutdown.log
 rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log\" /n \"%SERVICE_NAME%.stop.log\""
 rem
-set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log\" /N \"%SERVICE_NAME%.@F.shutdown.log\""
+set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log\" /N \"%SERVICE_NAME%.@Y-@m-@d.shutdown.log\""
 rem
 rem set "SERVICE_LOG_FNAME=-c en-US -n \"%SERVICE_NAME%.@#c.log\""
 rem Use German locale

@@ -256,17 +256,18 @@ make sure to get familiar with `sc.exe` utility.
 
   **Supported formatting codes**
 
-  Here are listed some of the most common formatting codes:
+  Here are listed the supported formatting codes:
 
   ```no-highlight
     @a  Abbreviated weekday name in the locale
     @b  Abbreviated month name in the locale
     @d  Day of month as a decimal number (01 - 31)
-    @F  Equivalent to @Y-@m-@d
     @H  Hour in 24-hour format (00 - 23)
+    @I  Hour in 12-hour format (01 - 12)
     @j  Day of the year as a decimal number (001 - 366)
     @m  Month as a decimal number (01 - 12)
     @M  Minute as a decimal number (00 - 59)
+    @p  The locale's A.M./P.M. indicator for 12-hour clock
     @S  Second as a decimal number (00 - 59)
     @y  Year without century, as decimal number (00 - 99)
     @Y  Year with century, as decimal number
