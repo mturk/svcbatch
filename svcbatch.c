@@ -67,11 +67,11 @@ static SERVICE_STATUS        ssvcstatus;
 static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
 static SECURITY_ATTRIBUTES   sazero;
-static LONGLONG              rotateint   = 0;
+static LONGLONG              rotateint   = CPP_INT64_C(0);
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
 static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
-static LARGE_INTEGER         pcfrequency;
-static LARGE_INTEGER         pcstarttime;
+static LARGE_INTEGER         pcfrequency = {{ 0, 0 }};
+static LARGE_INTEGER         pcstarttime = {{ 0, 0 }};
 
 static wchar_t  *comspec          = NULL;
 
@@ -1918,21 +1918,19 @@ static void closelogfile(void)
 {
     HANDLE h;
     DWORD  r;
-    BOOL   w = TRUE;
 
     DBG_PRINTS("started");
     EnterCriticalSection(&logfilelock);
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h) {
+        BOOL f = TRUE;
+
         DBG_PRINTS("closing");
         if (IS_VALID_HANDLE(pipedprocess)) {
-            w = FALSE;
-            if (GetExitCodeProcess(pipedprocess, &r)) {
-                if (r == STILL_ACTIVE)
-                    w = TRUE;
-            }
+            if (!GetExitCodeProcess(pipedprocess, &r) || (r != STILL_ACTIVE))
+                f = FALSE;
         }
-        if (w) {
+        if (f) {
             DBG_PRINTS("flushing");
             if (haslogstatus) {
                 logfflush(h);
@@ -2033,9 +2031,9 @@ static BOOL resolverotate(const wchar_t *rp)
         }
     }
     else {
-        rotateint    = 0;
+        rotateint    = CPP_INT64_C(0);
         rotatebytime = FALSE;
-        rotatetmo.QuadPart = 0;
+        rotatetmo.QuadPart = CPP_INT64_C(0);
 
         if (wcschr(rp, L':')) {
             int hh, mm, ss;
