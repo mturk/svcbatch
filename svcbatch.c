@@ -3215,20 +3215,20 @@ int wmain(int argc, const wchar_t **wargv)
          * are not defined when -q is defined
          */
         bb[0] = WNUL;
-        if (rcnt)
-            xwcslcat(bb, TBUFSIZ, L"-r ");
+        if (logredirargc)
+            xwcslcat(bb, TBUFSIZ, L"-e ");
+        if (maxlogsparam)
+            xwcslcat(bb, TBUFSIZ, L"-m ");
         if (ncnt)
             xwcslcat(bb, TBUFSIZ, L"-n ");
         if (outdirparam)
             xwcslcat(bb, TBUFSIZ, L"-o ");
-        if (logredirargc)
-            xwcslcat(bb, TBUFSIZ, L"-e ");
+        if (rcnt)
+            xwcslcat(bb, TBUFSIZ, L"-r ");
         if (truncatelogs)
             xwcslcat(bb, TBUFSIZ, L"-t ");
         if (haslogstatus)
             xwcslcat(bb, TBUFSIZ, L"-v ");
-        if (maxlogsparam)
-            xwcslcat(bb, TBUFSIZ, L"-m ");
         if (bb[0])
             return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
     }
