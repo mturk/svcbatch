@@ -1565,7 +1565,7 @@ static DWORD openlogpipe(BOOL ssp)
     wchar_t *cmdline = NULL;
 
     xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
-    xmemzero(&si, 0, sizeof(STARTUPINFOW));
+    xmemzero(&si, 1, sizeof(STARTUPINFOW));
 
     si.cb      = DSIZEOF(STARTUPINFOW);
     si.dwFlags = STARTF_USESTDHANDLES;
