@@ -97,7 +97,8 @@ static int       xwoptind         = 1;
 static wchar_t   xwoption         = WNUL;
 static int       logredirargc     = 0;
 static int       svcstopwargc     = 0;
-
+static int       svccodepage      = 0;
+static _locale_t localeobject     = NULL;
 static wchar_t  *svcbatchexe      = NULL;
 static wchar_t  *svcbatchfile     = NULL;
 static wchar_t  *svcbatchname     = NULL;
@@ -1438,7 +1439,7 @@ static void logwransi(HANDLE h, const char *hdr, const wchar_t *wcs)
 
     n = (int)strlen(hdr);
     memcpy(buf, hdr, n);
-    xwcstombs(0, buf + n, FBUFSIZ - n, wcs);
+    xwcstombs(svccodepage, buf + n, FBUFSIZ - n, wcs);
     logwrline(h, buf);
 }
 
@@ -1646,7 +1647,7 @@ static DWORD makelogfile(BOOL ssp)
         ctm = localtime(&ctt);
     else
         ctm = gmtime(&ctt);
-    if (wcsftime(ewb, BBUFSIZ, svclogfname, ctm) == 0)
+    if (_wcsftime_l(ewb, BBUFSIZ, svclogfname, ctm, localeobject) == 0)
         return xsyserror(0, L"invalid format code", svclogfname);
     xfree(logfilename);
 
@@ -3108,10 +3109,29 @@ int wmain(int argc, const wchar_t **wargv)
             break;
         }
     }
+
+    localeobject = _get_current_locale();
     if (localeparam) {
-        if (_wsetlocale(LC_ALL, localeparam) == NULL)
-            return xsyserror(0, L"Invalid -c command option value", localeparam);
+        if (*localeparam == L'.') {
+            if (xwstartswith(localeparam + 1, L"UTF")) {
+                svccodepage = 65001;
+            }
+            else {
+                svccodepage = xwcstoi(localeparam + 1, NULL);
+                if (svccodepage < 0)
+                    return xsyserror(0, L"Invalid -c command option value", localeparam);
+            }
+            DBG_PRINTF("using codepage %d", svccodepage);
+        }
+#if defined(_MSC_VER)
+        else {
+            localeobject = _wcreate_locale(LC_ALL, localeparam);
+            if (localeobject == NULL)
+                return xsyserror(0, L"Invalid -c command option value", localeparam);
+        }
+#endif
     }
+
     argc  -= xwoptind;
     wargv += xwoptind;
     if (argc > 0) {
