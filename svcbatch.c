@@ -3018,19 +3018,19 @@ int wmain(int argc, const wchar_t **wargv)
 # if (_DEBUG > 1)
     {
         SYSTEMTIME st;
-        wchar_t  dbgnb[TBUFSIZ];
+        wchar_t  dbgnb[_MAX_FNAME];
         wchar_t *dbgfn;
 
         GetSystemTime(&st);
-        xsnwprintf(dbgnb, TBUFSIZ,
+        xsnwprintf(dbgnb, _MAX_FNAME,
                    L"sb-%.4lu-%.4d%.2d%.2d%.2d%.2d%.2d-",
                    GetCurrentProcessId(),
                    st.wYear, st.wMonth, st.wDay,
                    st.wHour, st.wMinute, st.wSecond);
-        dbgfn = _wtempnam(_wgetcwd(NULL, 0), dbgnb);
+        dbgfn = _wtempnam(NULL, dbgnb);
         if (dbgfn) {
-            xwcslcpy(dbgnb, BBUFSIZ, dbgfn);
-            xwcslcat(dbgnb, BBUFSIZ, L".log");
+            xwcslcpy(dbgnb, _MAX_FNAME, dbgfn);
+            xwcslcat(dbgnb, _MAX_FNAME, L".log");
             dbgfile = _wfopen(dbgnb, L"w");
         }
     }
