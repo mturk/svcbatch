@@ -3052,22 +3052,11 @@ int wmain(int argc, const wchar_t **wargv)
    _CrtSetReportMode(_CRT_ASSERT, 0);
 # if (_DEBUG > 1)
     {
-        SYSTEMTIME st;
-        wchar_t  dbgnb[_MAX_FNAME];
-        wchar_t *dbgfn;
+        wchar_t dbgnb[BBUFSIZ] = L"";
 
-        GetSystemTime(&st);
-        xsnwprintf(dbgnb, _MAX_FNAME,
-                   L"sb-%.4lu-%.4d%.2d%.2d%.2d%.2d%.2d-",
-                   GetCurrentProcessId(),
-                   st.wYear, st.wMonth, st.wDay,
-                   st.wHour, st.wMinute, st.wSecond);
-        dbgfn = _wtempnam(NULL, dbgnb);
-        if (dbgfn) {
-            xwcslcpy(dbgnb, _MAX_FNAME, dbgfn);
-            xwcslcat(dbgnb, _MAX_FNAME, L".log");
-            dbgfile = _wfopen(dbgnb, L"w");
-        }
+        GetTempPathW(BBUFSIZ - TBUFSIZ, dbgnb);
+        xwcslcat(dbgnb, BBUFSIZ, L"svcbatch_debug.log");
+        dbgfile = _wfopen(dbgnb, L"at");
     }
 # endif
 #endif
@@ -3491,8 +3480,10 @@ int wmain(int argc, const wchar_t **wargv)
     }
     DBG_PRINTF("done (%lu)\n", rv);
 #if defined(_DEBUG) && (_DEBUG > 1)
-    if (dbgfile)
+    if (dbgfile) {
+        fflush(dbgfile);
         fclose(dbgfile);
+    }
 #endif
     return rv;
 }
