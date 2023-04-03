@@ -241,7 +241,7 @@ static __inline int xwcslen(const wchar_t *s)
 
 static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
 {
-    int r;
+    int r = 0;
     int n = siz - 1;
 
     ASSERT_NULL(dst, NULL);
@@ -251,7 +251,11 @@ static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
     if (!*src)
         return dst;
 
-    if (cp == 0) {
+    if (cp) {
+        r = WideCharToMultiByte(cp, 0, src, -1, dst, siz, NULL, NULL);
+        dst[n] = 0;
+    }
+    if (r == 0) {
         for (r = 0; *src; src++, r++) {
             if (r == n)
                 break;
@@ -259,17 +263,13 @@ static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
         }
         dst[r] = 0;
     }
-    else {
-        r = WideCharToMultiByte(cp, 0, src, -1, dst, siz, NULL, NULL);
-        dst[n] = 0;
-    }
 
     return dst;
 }
 
 static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
 {
-    int r;
+    int r = 0;
     int n = siz - 1;
 
     ASSERT_NULL(dst, NULL);
@@ -278,7 +278,11 @@ static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
 
     if (!*src)
         return dst;
-    if (cp == 0) {
+    if (cp) {
+        r = MultiByteToWideChar(cp, 0, src, -1, dst, siz);
+        dst[n] = 0;
+    }
+    if (r == 0) {
         for (r = 0; *src; src++, r++) {
             if (r == n)
                 break;
@@ -286,11 +290,6 @@ static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
         }
         dst[r] = 0;
     }
-    else {
-        r = MultiByteToWideChar(cp, 0, src, -1, dst, siz);
-        dst[n] = 0;
-    }
-
     return dst;
 }
 
