@@ -1730,8 +1730,7 @@ static DWORD openlogfile(BOOL ssp)
     if (logfilename == NULL)
         logfilename = xwcsmkpath(servicelogs, svclogfname);
     if (logfilename == NULL)
-        return svcsyserror(__FUNCTION__, __LINE__,
-                           ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
+        return xsyserror(ERROR_FILE_NOT_FOUND, L"logfilename", NULL);
 
     if (renameprev) {
         if (GetFileAttributesW(logfilename) != INVALID_FILE_ATTRIBUTES) {
