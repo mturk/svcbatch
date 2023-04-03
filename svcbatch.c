@@ -127,10 +127,10 @@ static wchar_t  *svcstopwargv[SVCBATCH_MAX_ARGS];
 static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
 
 static wchar_t      wnamestamp[RBUFSIZ];
-static wchar_t      zerostring[4] = { WNUL,  WNUL,  WNUL, WNUL };
-static wchar_t      CRLFW[4]      = { L'\r', L'\n', WNUL, WNUL };
-static char         CRLFA[4]      = { '\r', '\n', '\0', '\0' };
-static char         YYES[4]       = { 'Y',  '\r', '\n', '\0' };
+static wchar_t      zerostring[2] = { WNUL, WNUL };
+static const wchar_t *CRLFW       = L"\r\n";
+static const char    *CRLFA       =  "\r\n";
+static const char    *YYES        =  "Y";
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
@@ -2263,14 +2263,18 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
 static DWORD WINAPI wrpipethread(void *wh)
 {
     DWORD wr;
+    DWORD rc = 0;
 
     DBG_PRINTS("started");
-    if (WriteFile(wh, YYES, 3, &wr, NULL) && (wr != 0)) {
-        FlushFileBuffers(wh);
+    if (WriteFile(wh, YYES, 1, &wr, NULL) && (wr != 0)) {
+        if (!FlushFileBuffers(wh))
+            rc = GetLastError();
+    }
+    else {
+        rc = GetLastError();
     }
 #if defined(_DEBUG)
-    else {
-        DWORD rc = GetLastError();
+    if (rc) {
         if (rc == ERROR_BROKEN_PIPE)
             DBG_PRINTS("pipe closed");
         else
@@ -2278,7 +2282,7 @@ static DWORD WINAPI wrpipethread(void *wh)
     }
     DBG_PRINTS("done");
 #endif
-    return 0;
+    return rc;
 }
 
 static void monitorshutdown(void)
