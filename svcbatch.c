@@ -1237,7 +1237,7 @@ static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
     len = GetFinalPathNameByHandleW(fh, buf, HBUFSIZ, VOLUME_NAME_DOS);
     CloseHandle(fh);
     if (len >= FBUFSIZ) {
-
+        SetLastError(ERROR_BUFFER_OVERFLOW);
         return NULL;
     }
     CloseHandle(fh);
@@ -1567,18 +1567,22 @@ static DWORD createlogsdir(void)
     }
     servicelogs = getfinalpathname(dp, 1);
     if (servicelogs == NULL) {
-        DWORD rc = xcreatepath(dp);
+        DWORD rc = GetLastError();
+
+        if (rc != ERROR_PATH_NOT_FOUND)
+            return xsyserror(rc, L"getfinalpathname", dp);
+
+        rc = xcreatepath(dp);
         if (rc != 0)
             return xsyserror(rc, L"xcreatepath", dp);
         servicelogs = getfinalpathname(dp, 1);
         if (servicelogs == NULL)
-            return xsyserror(ERROR_PATH_NOT_FOUND,
-                             L"getfinalpathname", dp);
+            return xsyserror(GetLastError(), L"getfinalpathname", dp);
     }
     if (_wcsicmp(servicelogs, servicehome) == 0) {
         xsyserror(0, L"Logs directory cannot be the same as home directory",
                   servicelogs);
-        return ERROR_BAD_PATHNAME;
+        return ERROR_INVALID_PARAMETER;
     }
     return 0;
 }
