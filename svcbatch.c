@@ -3306,8 +3306,6 @@ int wmain(int argc, const wchar_t **wargv)
             xfree(p);
         }
         if (ncnt) {
-            if (_wcsicmp(nparam[0], L"NUL") == 0)
-                return xsyserror(0, L"Invalid log filename", nparam[0]);
             svclogfname = nparam[0];
             if (ncnt > 1) {
                 if (_wcsicmp(nparam[0], nparam[1]) == 0) {
