@@ -251,11 +251,11 @@ static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
     int r;
     int n = siz - 1;
 
-    ASSERT_NULL(src, NULL);
     ASSERT_NULL(dst, NULL);
+    *dst = 0;
+    ASSERT_NULL(src, dst);
 
-    *dst = '\0';
-    if (*src == WNUL)
+    if (!*src)
         return dst;
 
     if (cp == 0) {
@@ -264,10 +264,11 @@ static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
                 break;
             dst[r] = *src < 128 ? (char)*src : '?';
         }
-        dst[r] = '\0';
+        dst[r] = 0;
     }
     else {
         r = WideCharToMultiByte(cp, 0, src, -1, dst, siz, NULL, NULL);
+        dst[n] = 0;
     }
 
     return dst;
@@ -278,11 +279,11 @@ static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
     int r;
     int n = siz - 1;
 
-    ASSERT_NULL(src, NULL);
     ASSERT_NULL(dst, NULL);
+    *dst = 0;
+    ASSERT_NULL(src, dst);
 
-    *dst = L'\0';
-    if (*src == 0)
+    if (!*src)
         return dst;
     if (cp == 0) {
         for (r = 0; *src; src++, r++) {
@@ -290,10 +291,11 @@ static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
                 break;
             dst[r] = (BYTE)*src < 128 ? (wchar_t)*src : L'?';
         }
-        dst[r] = L'\0';
+        dst[r] = 0;
     }
     else {
         r = MultiByteToWideChar(cp, 0, src, -1, dst, siz);
+        dst[n] = 0;
     }
 
     return dst;
@@ -301,7 +303,7 @@ static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
 
 static void xwchreplace(wchar_t *s, wchar_t c, wchar_t r)
 {
-    while (*s != WNUL) {
+    while (*s) {
         if (*s == c)
             *s = r;
         s++;
@@ -393,7 +395,7 @@ static int xwcstoi(const wchar_t *sp, wchar_t **ep)
  * In that case call the function again with dst
  * string buffer resized to at least retval+1.
  */
-int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
+static int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
 {
     const wchar_t *s = src;
     wchar_t *p;
@@ -403,7 +405,6 @@ int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
     size_t   c;
     size_t   r;
 
-    ASSERT_ZERO(siz, 0);
     ASSERT_WSTR(src, 0);
     while ((n-- != 0) && (*d != WNUL))
         d++;
@@ -411,9 +412,9 @@ int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
     n = z - c;
 
     if (n-- == 0)
-        return ((int)c + xwcslen(s));
+        return (int)(c + wcslen(s));
     p = dst + c;
-    while (*s != WNUL) {
+    while (*s) {
         if (n != 0) {
             *d++ = *s;
             n--;
@@ -429,14 +430,14 @@ int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
     return (int)r;
 }
 
-int xwcslcpy(wchar_t *dst, int siz, const wchar_t *src)
+static int xwcslcpy(wchar_t *dst, int siz, const wchar_t *src)
 {
     const wchar_t *s = src;
     wchar_t *d = dst;
     int      n = siz;
 
     ASSERT_WSTR(s, 0);
-    while (*s != WNUL) {
+    while (*s) {
         if (n != 1) {
             *d++ = *s;
             n--;
@@ -660,12 +661,12 @@ static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t
 
 static int xwstartswith(const wchar_t *str, const wchar_t *src)
 {
-    while (*str != WNUL) {
+    while (*str) {
         if (towupper(*str) != *src)
             break;
         str++;
         src++;
-        if (*src == WNUL)
+        if (!*src)
             return 1;
     }
     return 0;
@@ -709,7 +710,7 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
          * Option-argument is either the rest of this argument
          * or the entire next argument.
          */
-        if (*place != WNUL) {
+        if (*place) {
             xwoptarg = place;
         }
         else if (nargc > ++xwoptind) {
@@ -739,7 +740,7 @@ static void xcleanwinpath(wchar_t *s, int isdir)
     if (IS_EMPTY_WCS(s))
         return;
 
-    for (i = 0; s[i] != WNUL; i++) {
+    for (i = 0; s[i]; i++) {
         if (s[i] == L'/')
             s[i] =  L'\\';
     }
@@ -1352,83 +1353,63 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
     return 0;
 }
 
-static int xseekfend(HANDLE h)
+static BOOL xseekfend(HANDLE h)
 {
     if (!haspipedlogs) {
         LARGE_INTEGER ee = {{ 0, 0 }};
-
-        if (!SetFilePointerEx(h, ee, NULL, FILE_END))
-            return 1;
+        return SetFilePointerEx(h, ee, NULL, FILE_END);
     }
-    return 0;
+    return TRUE;
 }
 
 static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
 {
     DWORD wr;
 
-
-    if (xseekfend(h))
-        return GetLastError();
-
-    if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0)) {
-        InterlockedAdd64(&logwritten, wr);
-        return 0;
+    if (xseekfend(h)) {
+        if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0)) {
+            InterlockedAdd64(&logwritten, wr);
+            return 0;
+        }
     }
-    else {
-        return GetLastError();
-    }
+    return GetLastError();
 }
 
-static DWORD logfflush(HANDLE h)
+static BOOL logfflush(HANDLE h)
 {
     DWORD wr;
 
-    if (xseekfend(h))
-        return GetLastError();
-    if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0)) {
-        InterlockedAdd64(&logwritten, wr);
-        if (!haspipedlogs)
-            FlushFileBuffers(h);
+    if (xseekfend(h)) {
+        if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0)) {
+            InterlockedAdd64(&logwritten, wr);
+            if (!haspipedlogs)
+                FlushFileBuffers(h);
+            return xseekfend(h);
+        }
     }
-    else {
-        return GetLastError();
-    }
-    if (xseekfend(h))
-        return GetLastError();
-    else
-        return 0;
+    return FALSE;
 }
 
-static DWORD logwrline(HANDLE h, const char *s)
+static void logwrline(HANDLE h, const char *s)
 {
     char    wb[TBUFSIZ];
     DWORD   wr;
     DWORD   nw;
 
-    ASSERT_CSTR(s, 0);
     nw = xtimehdr(wb, TBUFSIZ);
 
     if (nw > 0) {
         if (WriteFile(h, wb, nw, &wr, NULL) && (wr != 0))
             InterlockedAdd64(&logwritten, wr);
-        else
-            return GetLastError();
+        nw = (DWORD)strlen(s);
+        if (WriteFile(h, s, nw, &wr, NULL) && (wr != 0))
+            InterlockedAdd64(&logwritten, wr);
+        if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0))
+            InterlockedAdd64(&logwritten, wr);
     }
-    nw = (DWORD)strlen(s);
-    if (WriteFile(h, s, nw, &wr, NULL) && (wr != 0))
-        InterlockedAdd64(&logwritten, wr);
-    else
-        return GetLastError();
-    if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0))
-        InterlockedAdd64(&logwritten, wr);
-    else
-        return GetLastError();
-
-    return 0;
 }
 
-static DWORD logprintf(HANDLE h, const char *format, ...)
+static void logprintf(HANDLE h, const char *format, ...)
 {
     int     c;
     char    buf[FBUFSIZ];
@@ -1438,12 +1419,10 @@ static DWORD logprintf(HANDLE h, const char *format, ...)
     c = xvsnprintf(buf, FBUFSIZ, format, ap);
     va_end(ap);
     if (c > 0)
-        return logwrline(h, buf);
-    else
-        return 0;
+        logwrline(h, buf);
 }
 
-static DWORD logwransi(HANDLE h, const char *hdr, const wchar_t *wcs)
+static void logwransi(HANDLE h, const char *hdr, const wchar_t *wcs)
 {
     int     n;
     char    buf[FBUFSIZ];
@@ -1451,10 +1430,10 @@ static DWORD logwransi(HANDLE h, const char *hdr, const wchar_t *wcs)
     n = (int)strlen(hdr);
     memcpy(buf, hdr, n);
     xwcstombs(0, buf + n, FBUFSIZ - n, wcs);
-    return logwrline(h, buf);
+    logwrline(h, buf);
 }
 
-static DWORD logwrtime(HANDLE h, const char *hdr)
+static void logwrtime(HANDLE h, const char *hdr)
 {
     SYSTEMTIME tt;
 
@@ -1462,9 +1441,9 @@ static DWORD logwrtime(HANDLE h, const char *hdr)
         GetLocalTime(&tt);
     else
         GetSystemTime(&tt);
-    return logprintf(h, "%-16s : %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
-                     hdr, tt.wYear, tt.wMonth, tt.wDay,
-                     tt.wHour, tt.wMinute, tt.wSecond);
+    logprintf(h, "%-16s : %.4d-%.2d-%.2d %.2d:%.2d:%.2d",
+              hdr, tt.wYear, tt.wMonth, tt.wDay,
+              tt.wHour, tt.wMinute, tt.wSecond);
 }
 
 static void logconfig(HANDLE h)
@@ -1632,9 +1611,9 @@ static DWORD openlogpipe(BOOL ssp)
     SAFE_CLOSE_HANDLE(cp.hThread);
     xcreatethread(1, 0, rdpipedlog, rd);
 
-    if (haslogstatus) {
+    if (haslogstatus)
         logwrline(wr, cnamestamp);
-    }
+
     InterlockedExchangePointer(&logfhandle, wr);
     DBG_PRINTF("running pipe log process %lu", pipedprocpid);
     xfree(cmdline);
@@ -1672,7 +1651,7 @@ static DWORD makelogfile(BOOL ssp)
         return xsyserror(0, L"invalid format code", svclogfname);
     xfree(logfilename);
 
-    for (i = 0, x = 0; ewb[i] != WNUL; i++) {
+    for (i = 0, x = 0; ewb[i]; i++) {
         wchar_t c = ewb[i];
 
         if ((c > 127) || (xfnchartype[c] & 1))
