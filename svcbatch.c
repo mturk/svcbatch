@@ -3048,8 +3048,8 @@ int wmain(int argc, const wchar_t **wargv)
     h = GetStdHandle(STD_INPUT_HANDLE);
     if (argc == 1) {
         if (IS_VALID_HANDLE(h)) {
-            fprintf(stdout, "%s\n\n", cnamestamp);
-            fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
+            fputs(cnamestamp, stdout);
+            fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
             return 0;
         }
         else {
