@@ -2963,8 +2963,10 @@ static int xwmaininit(void)
     if (exelocation == NULL)
         return ERROR_BAD_PATHNAME;
     svcbatchexe = bb;
-    QueryPerformanceFrequency(&pcfrequency);
-    QueryPerformanceCounter(&pcstarttime);
+    if (!QueryPerformanceFrequency(&pcfrequency))
+        return GetLastError();
+    if (!QueryPerformanceCounter(&pcstarttime))
+        return GetLastError();
 
     return 0;
 }
