@@ -1174,31 +1174,31 @@ static wchar_t *getrealpathname(const wchar_t *src, int isdir)
     return getfinalpathname(fpn, isdir);
 }
 
-static int resolvebatchname(const wchar_t *a)
+static BOOL resolvebatchname(const wchar_t *a)
 {
-    int i;
+    wchar_t *p;
 
     if (svcbatchfile)
-        return 0;
+        return TRUE;
     svcbatchfile = getrealpathname(a, 0);
     if (IS_EMPTY_WCS(svcbatchfile))
-        return 1;
+        return FALSE;
 
-    i = xwcslen(svcbatchfile);
-    while (--i > 0) {
-        if (svcbatchfile[i] == L'\\') {
-            svcbatchfile[i] = WNUL;
-            svcbatchname = svcbatchfile + i + 1;
-            servicebase  = xwcsdup(svcbatchfile);
-            svcbatchfile[i] = L'\\';
-            return 0;
-        }
+    p = wcsrchr(svcbatchfile, L'\\');
+    if (p) {
+        *p = WNUL;
+        svcbatchname = p + 1;
+        servicebase  = xwcsdup(svcbatchfile);
+        *p = L'\\';
+        return TRUE;
     }
-    xfree(svcbatchfile);
-    svcbatchfile = NULL;
-    servicebase  = NULL;
-    svcbatchname = NULL;
-    return 1;
+    else {
+        xfree(svcbatchfile);
+        svcbatchfile = NULL;
+        servicebase  = NULL;
+        svcbatchname = NULL;
+        return FALSE;
+    }
 }
 
 static void setsvcstatusexit(DWORD e)
@@ -3185,7 +3185,7 @@ int wmain(int argc, const wchar_t **wargv)
                  */
             }
             else {
-                if (resolvebatchname(batchparam))
+                if (!resolvebatchname(batchparam))
                     return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
                 if (svchomeparam == NULL) {
@@ -3212,7 +3212,7 @@ int wmain(int argc, const wchar_t **wargv)
          }
          SetCurrentDirectoryW(servicehome);
          if (svcbatchfile == NULL) {
-            if (resolvebatchname(batchparam))
+            if (!resolvebatchname(batchparam))
                 return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
          }
     }
@@ -3221,7 +3221,7 @@ int wmain(int argc, const wchar_t **wargv)
         if (servicehome == NULL)
             return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_HOME", NULL);
     }
-    if (resolvebatchname(batchparam))
+    if (!resolvebatchname(batchparam))
         return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
     if (servicemode) {
