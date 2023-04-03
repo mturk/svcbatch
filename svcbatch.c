@@ -113,9 +113,6 @@ static wchar_t  *logfilename      = NULL;
 static wchar_t  *svclogfname      = NULL;
 static wchar_t  *svcendlogfn      = NULL;
 
-static wchar_t **logredirargv     = NULL;
-static wchar_t **svcstopwargv     = NULL;
-
 static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
@@ -123,6 +120,9 @@ static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
 static HANDLE    pipedprocess     = NULL;
+
+static wchar_t  *logredirargv[SVCBATCH_MAX_ARGS];
+static wchar_t  *svcstopwargv[SVCBATCH_MAX_ARGS];
 
 static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
 
@@ -187,11 +187,11 @@ static void *xmcalloc(size_t number, size_t size)
     return p;
 }
 
-static void *xrealloc(void *m, size_t size)
+static void *xrealloc(void *mem, size_t size)
 {
     void *p;
 
-    p = realloc(m, size);
+    p = realloc(mem, size);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
@@ -206,44 +206,35 @@ static wchar_t *xwmalloc(size_t size)
     return p;
 }
 
-static wchar_t *xwcalloc(size_t size)
+static __inline wchar_t *xwcalloc(size_t size)
 {
     return (wchar_t *)xmcalloc(size, sizeof(wchar_t));
 }
 
-static wchar_t **xwaalloc(size_t size)
+static __inline void xfree(void *mem)
 {
-    return (wchar_t **)xmcalloc(size + 2, sizeof(wchar_t *));
+    if (mem)
+        free(mem);
 }
 
-static void xfree(void *m)
+static __inline void xmemzero(void *mem, size_t number, size_t size)
 {
-    if (m != NULL)
-        free(m);
+    memset(mem, 0, number * size);
 }
 
-static void xwaafree(wchar_t **a)
-{
-    if (a != NULL) {
-        wchar_t **p = a;
-
-        while (*p != NULL)
-            xfree(*(p++));
-        free(a);
-    }
-}
-
-static void xmemzero(void *mem, size_t number, size_t size)
-{
-    if (mem && number && size)
-        memset(mem, 0, number * size);
-}
-
-static wchar_t *xwcsdup(const wchar_t *s)
+static __inline wchar_t *xwcsdup(const wchar_t *s)
 {
     if (IS_EMPTY_WCS(s))
         return NULL;
     return _wcsdup(s);
+}
+
+static __inline int xwcslen(const wchar_t *s)
+{
+    if (IS_EMPTY_WCS(s))
+        return 0;
+    else
+        return (int)wcslen(s);
 }
 
 static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
@@ -331,14 +322,6 @@ static wchar_t *xgetenv(const wchar_t *s)
         }
     }
     return d;
-}
-
-static int xwcslen(const wchar_t *s)
-{
-    if (IS_EMPTY_WCS(s))
-        return 0;
-    else
-        return (int)wcslen(s);
 }
 
 /**
@@ -1620,8 +1603,6 @@ static DWORD openlogpipe(BOOL ssp)
 
     return 0;
 failed:
-    xfree(cmdline);
-    xwaafree(logredirargv);
     SAFE_CLOSE_HANDLE(wr);
     SAFE_CLOSE_HANDLE(rd);
     SAFE_CLOSE_HANDLE(pipedprocess);
@@ -3052,16 +3033,12 @@ int wmain(int argc, const wchar_t **wargv)
              * multiple times
              */
             case L'e':
-                if (logredirargv == NULL)
-                    logredirargv = xwaalloc(SVCBATCH_MAX_ARGS);
                 if (logredirargc < SVCBATCH_MAX_ARGS)
                     logredirargv[logredirargc++] = xwcsdup(xwoptarg);
                 else
                     return xsyserror(0, L"Too many -e arguments", xwoptarg);
             break;
             case L's':
-                if (svcstopwargv == NULL)
-                    svcstopwargv = xwaalloc(SVCBATCH_MAX_ARGS);
                 if (svcstopwargc < SVCBATCH_MAX_ARGS)
                     svcstopwargv[svcstopwargc++] = xwcsdup(xwoptarg);
                 else
