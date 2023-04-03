@@ -64,7 +64,8 @@ static volatile LONG         rotateruns  = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
-static volatile LONG64       logwritten  = 0;
+static volatile LONG64       logwritten  = CPP_INT64_C(0);
+static volatile LONG64       logwopened  = CPP_INT64_C(0);
 static volatile HANDLE       logfhandle  = NULL;
 static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
 static SERVICE_STATUS        ssvcstatus;
@@ -118,6 +119,7 @@ static wchar_t  *svclogfname      = NULL;
 static wchar_t  *svcendlogfn      = NULL;
 
 static HANDLE    childprocess     = NULL;
+static HANDLE    svcstopstart     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
 static HANDLE    processended     = NULL;
@@ -1557,6 +1559,20 @@ static void logconfig(HANDLE h)
     logfflush(h);
 }
 
+static BOOL canrotatelogs(void)
+{
+    ULONGLONG cm;
+    ULONGLONG pm;
+
+    cm = GetTickCount64();
+    pm = InterlockedCompareExchange64(&logwopened, 0, 0);
+
+    if ((cm - pm) > (SVCBATCH_MIN_ROTATE_T * MS_IN_MINUTE))
+        return TRUE;
+    else
+        return FALSE;
+}
+
 static DWORD createlogsdir(void)
 {
     wchar_t dp[FBUFSIZ];
@@ -1792,6 +1808,7 @@ static DWORD openlogfile(BOOL ssp)
     DWORD  rc;
     DWORD  cm;
 
+    InterlockedExchange64(&logwopened, GetTickCount64());
     if (wcschr(svclogfname, L'%'))
         return makelogfile(ssp);
     if (truncatelogs)
@@ -1933,6 +1950,8 @@ static DWORD rotatelogs(void)
 
     EnterCriticalSection(&logfilelock);
     InterlockedExchange(&rotateruns, 1);
+    InterlockedExchange64(&logwopened, GetTickCount64());
+
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h == NULL) {
         InterlockedExchange64(&logwritten, 0);
@@ -1983,6 +2002,7 @@ static DWORD rotatelogs(void)
 
 finished:
     InterlockedExchange(&rotateruns, 0);
+    InterlockedExchange64(&logwopened, GetTickCount64());
     LeaveCriticalSection(&logfilelock);
     return rc;
 }
@@ -2092,8 +2112,9 @@ static BOOL resolverotate(const wchar_t *rp)
             break;
         }
         siz = val * mux;
-        if (siz < KILOBYTES(1)) {
-            DBG_PRINTF("rotate size %S is less then 1K", rp);
+        if (siz < KILOBYTES(SVCBATCH_MIN_ROTATE_S)) {
+            DBG_PRINTF("rotate size %S is less then %dK",
+                       rp, SVCBATCH_MIN_ROTATE_S);
             rotatesiz.QuadPart = CPP_INT64_C(0);
             rotatebysize = FALSE;
         }
@@ -2150,8 +2171,13 @@ static BOOL resolverotate(const wchar_t *rp)
                 resolvetimeout(0, 0, 0, 0);
             }
             else {
+                if (mm < SVCBATCH_MIN_ROTATE_T) {
+                    DBG_PRINTF("rotate time %d is less then %d minutes",
+                               mm, SVCBATCH_MIN_ROTATE_T);
+                    return FALSE;
+                }
                 rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);
-                DBG_PRINTF("rotate each %ld minutes", mm);
+                DBG_PRINTF("rotate each %d minutes", mm);
                 rotatetmo.QuadPart = rotateint;
                 rotatebytime = TRUE;
             }
@@ -2273,6 +2299,7 @@ static DWORD WINAPI stopthread(void *unused)
         DBG_PRINTS("shutdown stop");
 #endif
 
+    SetEvent(svcstopstart);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
     if (svcstopwargc) {
         DWORD rc;
@@ -2358,10 +2385,12 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
     InterlockedExchangePointer(&logfhandle, h);
     if (rc == 0 && rotatebysize) {
         if (InterlockedCompareExchange64(&logwritten, 0, 0) >= rotatesiz.QuadPart) {
-            InterlockedExchange64(&logwritten, 0);
-            if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
-                DBG_PRINTS("rotating by size");
-                SetEvent(logrotatesig);
+            if (canrotatelogs()) {
+                InterlockedExchange64(&logwritten, 0);
+                if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
+                    DBG_PRINTS("rotating by size");
+                    SetEvent(logrotatesig);
+                }
             }
         }
     }
@@ -2521,13 +2550,14 @@ static DWORD WINAPI rotatethread(void *unused)
     HANDLE wh[4];
     HANDLE wt = NULL;
     DWORD  rc = 0;
-    DWORD  nw = 2;
+    DWORD  nw = 3;
 
     DBG_PRINTF("started");
 
     wh[0] = processended;
-    wh[1] = logrotatesig;
-    wh[2] = NULL;
+    wh[1] = svcstopstart;
+    wh[2] = logrotatesig;
+    wh[3] = NULL;
 
     if (rotatetmo.QuadPart) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
@@ -2546,17 +2576,17 @@ static DWORD WINAPI rotatethread(void *unused)
     while (rc == 0) {
         DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
 
-        if ((InterlockedCompareExchange(&sstarted, 0, 0) > 0) && (wc != WAIT_OBJECT_0)) {
-            DBG_PRINTS("service stop is running");
-            wc = ERROR_NO_MORE_FILES;
-        }
         switch (wc) {
             case WAIT_OBJECT_0:
-                rc = ERROR_PROCESS_ABORTED;
+                rc = 1;
                 DBG_PRINTS("processended signaled");
             break;
             case WAIT_OBJECT_1:
-                DBG_PRINTS("rotate by signal");
+                rc = 1;
+                DBG_PRINTS("servicestop signaled");
+            break;
+            case WAIT_OBJECT_2:
+                DBG_PRINTS("logrotatesig signaled");
                 rc = rotatelogs();
                 if (rc == 0) {
                     if (IS_VALID_HANDLE(wt) && (rotateint < 0)) {
@@ -2570,8 +2600,9 @@ static DWORD WINAPI rotatethread(void *unused)
                 }
                 ResetEvent(logrotatesig);
             break;
-            case WAIT_OBJECT_2:
-                if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
+            case WAIT_OBJECT_3:
+                DBG_PRINTS("rotatetimer signaled");
+                if (canrotatelogs() && (InterlockedCompareExchange(&rotateruns, 1, 0) == 0)) {
                     DBG_PRINTS("rotate by time");
                     rc = rotatelogs();
                     if (rc) {
@@ -2810,6 +2841,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_STOP:
             DBG_PRINTF("service stop control code: 0x%08X", ctrl);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
+            SetEvent(svcstopstart);
             if (InterlockedIncrement(&sstarted) == 1) {
                 ResetEvent(svcstopended);
                 if (haslogstatus) {
@@ -2846,6 +2878,10 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                  * Signal to rotatethread that
                  * user send custom service control
                  */
+                if (!canrotatelogs()) {
+                    DBG_PRINTS("rotatelogs not ready");
+                    return ERROR_NOT_READY;
+                }
                 if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
                     DBG_PRINTS("signaling SVCBATCH_CTRL_ROTATE");
                     SetEvent(logrotatesig);
@@ -3002,6 +3038,7 @@ static void __cdecl objectscleanup(void)
 {
     SAFE_CLOSE_HANDLE(processended);
     SAFE_CLOSE_HANDLE(svcstopended);
+    SAFE_CLOSE_HANDLE(svcstopstart);
     SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(logrotatesig);
@@ -3453,6 +3490,9 @@ int wmain(int argc, const wchar_t **wargv)
      */
     svcstopended = CreateEvent(NULL, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
+        return xsyserror(GetLastError(), L"CreateEvent", NULL);
+    svcstopstart = CreateEvent(NULL, TRUE, FALSE,  NULL);
+    if (IS_INVALID_HANDLE(svcstopstart))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
     processended = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))

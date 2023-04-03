@@ -119,6 +119,8 @@
 #define SVCBATCH_STOP_SYNC      2000
 #define SVCBATCH_PENDING_WAIT   1000
 #define SVCBATCH_PENDING_INIT   200
+#define SVCBATCH_MIN_ROTATE_S   1
+#define SVCBATCH_MIN_ROTATE_T   2
 
 #define MS_IN_DAY               86400000
 #define MS_IN_SECOND            1000
