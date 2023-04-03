@@ -23,6 +23,7 @@
 #include <wchar.h>
 #include <time.h>
 #include <process.h>
+#include <io.h>
 #include <errno.h>
 #if defined(_DEBUG)
 #include <crtdbg.h>
@@ -845,12 +846,11 @@ static void dbgprints(const char *funcname, const char *string)
     }
 #if (_DEBUG > 1)
     if (dbgfile) {
-        char h[TBUFSIZ];
+        SYSTEMTIME st;
 
-        xtimehdr(h, TBUFSIZ);
-        fputs(h,    dbgfile);
-        fputs(b,    dbgfile);
-        fputc('\n', dbgfile);
+        GetSystemTime(&st);
+        fprintf(dbgfile, "[%.2d:%.2d:%.2d] %s\n",
+                st.wHour, st.wMinute, st.wSecond, b);
         fflush(dbgfile);
     }
     else
@@ -886,12 +886,11 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_end(ap);
 #if (_DEBUG > 1)
     if (dbgfile) {
-        char h[TBUFSIZ];
+        SYSTEMTIME st;
 
-        xtimehdr(h, TBUFSIZ);
-        fputs(h,    dbgfile);
-        fputs(b,    dbgfile);
-        fputc('\n', dbgfile);
+        GetSystemTime(&st);
+        fprintf(dbgfile, "[%.2d:%.2d:%.2d] %s\n",
+                st.wHour, st.wMinute, st.wSecond, b);
         fflush(dbgfile);
     }
     else
@@ -3056,7 +3055,16 @@ int wmain(int argc, const wchar_t **wargv)
 
         GetTempPathW(BBUFSIZ - TBUFSIZ, dbgnb);
         xwcslcat(dbgnb, BBUFSIZ, L"svcbatch_debug.log");
-        dbgfile = _wfopen(dbgnb, L"at");
+        dbgfile = _wfopen(dbgnb, L"atc");
+        if (dbgfile) {
+            long sz;
+
+            sz = _filelength(_fileno(dbgfile));
+            if (sz > 0) {
+                fputs("\n\n", dbgfile);
+                fflush(dbgfile);
+            }
+        }
     }
 # endif
 #endif
@@ -3064,7 +3072,6 @@ int wmain(int argc, const wchar_t **wargv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
-    DBG_PRINTS(cnamestamp);
 
     rv = xwmaininit();
     ASSERT_TRUE(rv, rv);
@@ -3113,6 +3120,7 @@ int wmain(int argc, const wchar_t **wargv)
     }
     ASSERT_SIZE(argc, 2, ERROR_INVALID_PARAMETER);
     xmbstowcs(0, wnamestamp, RBUFSIZ, cnamestamp);
+    DBG_PRINTS(cnamestamp);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
