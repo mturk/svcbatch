@@ -19,7 +19,12 @@ setlocal
 rem
 if /i "x%~1" == "xcreate" goto doCreate
 rem
+echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Arguments [%*]
+echo.
+rem
 sservice.exe %*
+rem
 goto End
 rem
 :doCreate
