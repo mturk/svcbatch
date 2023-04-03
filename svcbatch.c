@@ -56,7 +56,7 @@ typedef struct _SVCBATCH_PIPE {
 } SVCBATCH_PIPE, *LPSVCBATCH_PIPE;
 
 static volatile LONG         monitorsig  = 0;
-static volatile LONG         rotatesig   = 0;
+static volatile LONG         rotateruns  = 0;
 static volatile LONG         sstarted    = 0;
 static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
@@ -1828,6 +1828,7 @@ static DWORD rotatelogs(void)
     HANDLE h  = NULL;
 
     EnterCriticalSection(&logfilelock);
+    InterlockedExchange(&rotateruns, 1);
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h == NULL) {
         InterlockedExchange64(&logwritten, 0);
@@ -1877,6 +1878,7 @@ static DWORD rotatelogs(void)
     }
 
 finished:
+    InterlockedExchange(&rotateruns, 0);
     LeaveCriticalSection(&logfilelock);
     return rc;
 }
@@ -2242,8 +2244,10 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
     if (rc == 0 && rotatebysize) {
         if (InterlockedCompareExchange64(&logwritten, 0, 0) >= rotatesiz.QuadPart) {
             InterlockedExchange64(&logwritten, 0);
-            InterlockedExchange(&rotatesig, 1);
-            SetEvent(logrotatesig);
+            if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
+                DBG_PRINTS("rotating by size");
+                SetEvent(logrotatesig);
+            }
         }
     }
     LeaveCriticalSection(&logfilelock);
@@ -2433,37 +2437,34 @@ static DWORD WINAPI rotatethread(void *unused)
                 DBG_PRINTS("processended signaled");
             break;
             case WAIT_OBJECT_1:
-                if (InterlockedExchange(&rotatesig, 0) == 1)
-                    DBG_PRINTS("rotate by size");
-                else
-                    DBG_PRINTS("rotate by signal");
+                DBG_PRINTS("rotate by signal");
                 rc = rotatelogs();
                 if (rc == 0) {
                     if (IS_VALID_HANDLE(wt) && (rotateint < 0)) {
                         CancelWaitableTimer(wt);
                         SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
                     }
-                    ResetEvent(logrotatesig);
                 }
                 else {
                     xsyserror(rc, L"rotatelogs", NULL);
                     createstopthread(rc);
                 }
+                ResetEvent(logrotatesig);
             break;
             case WAIT_OBJECT_2:
-                DBG_PRINTS("rotate by time");
-                rc = rotatelogs();
-                if (rc == 0) {
-                    CancelWaitableTimer(wt);
-                    if (rotateint > 0)
-                        rotatetmo.QuadPart += rotateint;
-                    SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
-                    ResetEvent(logrotatesig);
+                if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
+                    DBG_PRINTS("rotate by time");
+                    rc = rotatelogs();
+                    if (rc) {
+                        xsyserror(rc, L"rotatelogs", NULL);
+                        createstopthread(rc);
+                    }
                 }
-                else {
-                    xsyserror(rc, L"rotatelogs", NULL);
-                    createstopthread(rc);
-                }
+                CancelWaitableTimer(wt);
+                if (rotateint > 0)
+                    rotatetmo.QuadPart += rotateint;
+                SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
+                ResetEvent(logrotatesig);
             break;
             default:
                 rc = wc;
@@ -2723,9 +2724,14 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                  * Signal to rotatethread that
                  * user send custom service control
                  */
-                DBG_PRINTS("signaling SVCBATCH_CTRL_ROTATE");
-                InterlockedExchange(&rotatesig, 0);
-                SetEvent(logrotatesig);
+                if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
+                    DBG_PRINTS("signaling SVCBATCH_CTRL_ROTATE");
+                    SetEvent(logrotatesig);
+                }
+                else {
+                    DBG_PRINTS("rotatelogs already running");
+                    return ERROR_ALREADY_EXISTS;
+                }
             }
             else {
                 DBG_PRINTS("log rotation is disabled");
