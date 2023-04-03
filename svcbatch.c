@@ -3023,14 +3023,16 @@ int wmain(int argc, const wchar_t **wargv)
 
         GetSystemTime(&st);
         xsnwprintf(dbgnb, TBUFSIZ,
-                   L"sb-%.4lu-%.4d%.2d%.2d%.2d%.2d%.2d.",
+                   L"sb-%.4lu-%.4d%.2d%.2d%.2d%.2d%.2d-",
                    GetCurrentProcessId(),
                    st.wYear, st.wMonth, st.wDay,
                    st.wHour, st.wMinute, st.wSecond);
-        dbgfn = _wtempnam(NULL, dbgnb);
-        if (dbgfn)
-            dbgfile = _wfopen(dbgfn, L"w");
-
+        dbgfn = _wtempnam(_wgetcwd(NULL, 0), dbgnb);
+        if (dbgfn) {
+            xwcslcpy(dbgnb, BBUFSIZ, dbgfn);
+            xwcslcat(dbgnb, BBUFSIZ, L".log");
+            dbgfile = _wfopen(dbgnb, L"w");
+        }
     }
 # endif
 #endif
@@ -3038,19 +3040,22 @@ int wmain(int argc, const wchar_t **wargv)
      * Make sure children (cmd.exe) are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
-    if (argc == 1) {
-#if defined(_DEBUG)
-        fprintf(stdout, "%s\n\n", cnamestamp);
-        fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
-        return 0;
-#else
-        return ERROR_INVALID_PARAMETER;
-#endif
-    }
+    DBG_PRINTS(cnamestamp);
+
     rv = xwmaininit();
     ASSERT_TRUE(rv, rv);
 
     h = GetStdHandle(STD_INPUT_HANDLE);
+    if (argc == 1) {
+        if (IS_VALID_HANDLE(h)) {
+            fprintf(stdout, "%s\n\n", cnamestamp);
+            fprintf(stdout, "Visit " SVCBATCH_PROJECT_URL " for more details\n");
+            return 0;
+        }
+        else {
+            return ERROR_INVALID_PARAMETER;
+        }
+    }
     if (IS_INVALID_HANDLE(h)) {
        if (AllocConsole()) {
             /**
@@ -3083,9 +3088,7 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     ASSERT_SIZE(argc, 2, ERROR_INVALID_PARAMETER);
-
     xmbstowcs(0, wnamestamp, RBUFSIZ, cnamestamp);
-    DBG_PRINTS(cnamestamp);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
