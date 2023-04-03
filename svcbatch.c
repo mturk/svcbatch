@@ -1913,16 +1913,29 @@ finished:
 static void closelogfile(void)
 {
     HANDLE h;
+    DWORD  r;
+    BOOL   w = TRUE;
 
+    DBG_PRINTS("started");
     EnterCriticalSection(&logfilelock);
     h = InterlockedExchangePointer(&logfhandle, NULL);
     if (h) {
         DBG_PRINTS("closing");
-        if (haslogstatus) {
-            logfflush(h);
-            logwrtime(h, "Log closed");
+        if (IS_VALID_HANDLE(pipedprocess)) {
+            w = FALSE;
+            if (GetExitCodeProcess(pipedprocess, &r)) {
+                if (r == STILL_ACTIVE)
+                    w = TRUE;
+            }
         }
-        FlushFileBuffers(h);
+        if (w) {
+            DBG_PRINTS("flushing");
+            if (haslogstatus) {
+                logfflush(h);
+                logwrtime(h, "Log closed");
+            }
+            FlushFileBuffers(h);
+        }
         CloseHandle(h);
     }
     LeaveCriticalSection(&logfilelock);
@@ -1933,17 +1946,13 @@ static void closelogfile(void)
             killproctree(pipedprocess, pipedprocpid, 0);
         }
 #if defined(_DEBUG)
-        {
-            DWORD rv;
-
-            if (GetExitCodeProcess(pipedprocess, &rv)) {
-                DBG_PRINTF("log process returned %lu", rv);
-            }
+        if (GetExitCodeProcess(pipedprocess, &r)) {
+            DBG_PRINTF("log process returned %lu", r);
         }
 #endif
         SAFE_CLOSE_HANDLE(pipedprocess);
     }
-    DBG_PRINTS("closed");
+    DBG_PRINTS("done");
 }
 
 static void resolvetimeout(int hh, int mm, int ss, int od)
