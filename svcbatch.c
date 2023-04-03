@@ -2116,10 +2116,8 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
         cmdline = xappendarg(1, cmdline, L"-n", svcendlogfn);
     }
-    for (i = 0; i < svcstopwargc; i++) {
-        xwchreplace(svcstopwargv[i], L'@', L'%');
+    for (i = 0; i < svcstopwargc; i++)
         cmdline = xappendarg(1, cmdline, NULL, svcstopwargv[i]);
-    }
     DBG_PRINTF("cmdline %S", cmdline);
     if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, TRUE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_CONSOLE,
