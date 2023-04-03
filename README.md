@@ -438,9 +438,7 @@ make sure to get familiar with `sc.exe` utility.
     [00:00:00.027429] Service name     : adummysvc
     [00:00:00.027446] Service uuid     : 4eb43188-6b91-1705-598b-ffb2b78357c9
     [00:00:00.027463] Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
-    [00:00:00.027479]       arguments  : run test
     [00:00:00.027495] Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
-    [00:00:00.027512]       arguments  : shutdown argument "argument with spaces"
     [00:00:00.027528] Program directory: C:\Workplace\svcbatch\.build\dbg
     [00:00:00.028021] Base directory   : C:\Workplace\svcbatch\test
     [00:00:00.028029] Home directory   : C:\Workplace\svcbatch\test
@@ -541,6 +539,12 @@ SvcBatch sets for each instance.
 * **SVCBATCH_SERVICE_HOME**
 
   This variable is set to the service working directory.
+
+* **SVCBATCH_SERVICE_LOGS**
+
+  This variable is set to the service log directory.
+  In case the logging is disabled, this variable is
+  set to the system **TEMP** envirnonment variable.
 
 * **SVCBATCH_SERVICE_NAME**
 

@@ -2829,7 +2829,15 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", servicelogs);
         }
         else {
-            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", NULL);
+            wchar_t *tmp = xgetenv(L"TEMP");
+            if (tmp == NULL) {
+                xsyserror(GetLastError(), L"Missing TEMP environment variable", NULL);
+                reportsvcstatus(SERVICE_STOPPED, ERROR_BAD_ENVIRONMENT);
+                return;
+
+            }
+            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", tmp);
+            xfree(tmp);
         }
     }
     else {
