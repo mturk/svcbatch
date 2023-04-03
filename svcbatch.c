@@ -2438,18 +2438,22 @@ static void monitorshutdown(void)
     DBG_PRINTS("started");
 
     wh[0] = processended;
-    wh[1] = monitorevent;
-    wh[2] = ssignalevent;
+    wh[1] = svcstopstart;
+    wh[2] = monitorevent;
+    wh[3] = ssignalevent;
 
-    ws = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
+    ws = WaitForMultipleObjects(4, wh, FALSE, INFINITE);
     switch (ws) {
         case WAIT_OBJECT_0:
             DBG_PRINTS("processended signaled");
         break;
         case WAIT_OBJECT_1:
-            DBG_PRINTS("monitorevent signaled");
+            DBG_PRINTS("servicestop signaled");
         break;
         case WAIT_OBJECT_2:
+            DBG_PRINTS("monitorevent signaled");
+        break;
+        case WAIT_OBJECT_3:
             DBG_PRINTS("shutdown stop signaled");
             if (haslogstatus) {
                 EnterCriticalSection(&logfilelock);
@@ -2472,24 +2476,29 @@ static void monitorshutdown(void)
 
 static void monitorservice(void)
 {
-    HANDLE wh[2];
+    HANDLE wh[3];
     BOOL   rc = TRUE;
 
     DBG_PRINTS("started");
 
     wh[0] = processended;
-    wh[1] = monitorevent;
+    wh[1] = svcstopstart;
+    wh[2] = monitorevent;
 
     do {
         DWORD ws, cc;
 
-        ws = WaitForMultipleObjects(2, wh, FALSE, INFINITE);
+        ws = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
         switch (ws) {
             case WAIT_OBJECT_0:
                 DBG_PRINTS("processended signaled");
                 rc = FALSE;
             break;
             case WAIT_OBJECT_1:
+                DBG_PRINTS("servicestop signaled");
+                rc = FALSE;
+            break;
+            case WAIT_OBJECT_2:
                 cc = (DWORD)InterlockedExchange(&monitorsig, 0);
                 if (cc == 0) {
                     DBG_PRINTS("quit signaled");
@@ -2832,14 +2841,26 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
 static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc)
 {
+    const char *msg = "UNKNOWN";
 
+    switch (ctrl) {
+        case SERVICE_CONTROL_PRESHUTDOWN:
+            msg = "SERVICE_CONTROL_PRESHUTDOWN";
+        break;
+        case SERVICE_CONTROL_SHUTDOWN:
+            msg = "SERVICE_CONTROL_SHUTDOWN";
+        break;
+        case SERVICE_CONTROL_STOP:
+            msg = "SERVICE_CONTROL_STOP";
+        break;
+    }
     switch (ctrl) {
         case SERVICE_CONTROL_PRESHUTDOWN:
             /* fall through */
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
         case SERVICE_CONTROL_STOP:
-            DBG_PRINTF("service stop control code: 0x%08X", ctrl);
+            DBG_PRINTF("service %s", msg);
             reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
             SetEvent(svcstopstart);
             if (InterlockedIncrement(&sstarted) == 1) {
@@ -2850,7 +2871,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                     h = InterlockedExchangePointer(&logfhandle, NULL);
                     if (h) {
                         logfflush(h);
-                        logwrline(h, "Service signaled : SERVICE_CONTROL_STOP");
+                        logprintf(h, "Service signaled : %s", msg);
                     }
                     InterlockedExchangePointer(&logfhandle, h);
                     LeaveCriticalSection(&logfilelock);
