@@ -797,19 +797,21 @@ static void xmktimedext(wchar_t *buf, int siz)
 
 static int xtimehdr(char *wb, int sz)
 {
-    LARGE_INTEGER ct;
-    LARGE_INTEGER et;
+    LARGE_INTEGER ct = {{ 0, 0 }};
+    LARGE_INTEGER et = {{ 0, 0 }};
     DWORD   ss, us, mm, hh;
 
-    QueryPerformanceCounter(&ct);
-    et.QuadPart = ct.QuadPart - pcstarttime.QuadPart;
-    /**
-     * Convert to microseconds
-     */
-    et.QuadPart *= CPP_INT64_C(1000000);
-    et.QuadPart /= pcfrequency.QuadPart;
-    ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
+    if (pcfrequency.QuadPart) {
+        QueryPerformanceCounter(&ct);
+        et.QuadPart = ct.QuadPart - pcstarttime.QuadPart;
 
+        /**
+         * Convert to microseconds
+         */
+        et.QuadPart *= CPP_INT64_C(1000000);
+        et.QuadPart /= pcfrequency.QuadPart;
+        ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
+    }
     us = (DWORD)((et.QuadPart % CPP_INT64_C(1000000)));
     ss = (DWORD)((ct.QuadPart / MS_IN_SECOND) % 60);
     mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % 60);
@@ -827,13 +829,29 @@ static void dbgprints(const char *funcname, const char *string)
 {
     char b[MBUFSIZ];
 
-    xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s %s",
-              GetCurrentThreadId(),
-              servicemode, funcname, string);
 #if (_DEBUG > 1)
     if (dbgfile) {
+        xsnprintf(b, MBUFSIZ, "[%.4lu] [%.4lu] %d %-16s %s",
+                  GetCurrentProcessId(),
+                  GetCurrentThreadId(),
+                  servicemode, funcname, string);
+    }
+    else
+#endif
+    {
+        xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s %s",
+                  GetCurrentThreadId(),
+                  servicemode, funcname, string);
+    }
+#if (_DEBUG > 1)
+    if (dbgfile) {
+        char h[TBUFSIZ];
+
+        xtimehdr(h, TBUFSIZ);
+        fputs(h,    dbgfile);
         fputs(b,    dbgfile);
         fputc('\n', dbgfile);
+        fflush(dbgfile);
     }
     else
 #endif
@@ -848,16 +866,33 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     char    b[MBUFSIZ];
     va_list ap;
 
-    n = xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s ",
-                  GetCurrentThreadId(),
-                  servicemode, funcname);
+#if (_DEBUG > 1)
+    if (dbgfile) {
+        n = xsnprintf(b, MBUFSIZ, "[%.4lu] [%.4lu] %d %-16s ",
+                      GetCurrentProcessId(),
+                      GetCurrentThreadId(),
+                      servicemode, funcname);
+    }
+    else
+#endif
+    {
+        n = xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s ",
+                      GetCurrentThreadId(),
+                      servicemode, funcname);
+    }
+
     va_start(ap, format);
     xvsnprintf(b + n, MBUFSIZ - n, format, ap);
     va_end(ap);
 #if (_DEBUG > 1)
     if (dbgfile) {
+        char h[TBUFSIZ];
+
+        xtimehdr(h, TBUFSIZ);
+        fputs(h,    dbgfile);
         fputs(b,    dbgfile);
         fputc('\n', dbgfile);
+        fflush(dbgfile);
     }
     else
 #endif
