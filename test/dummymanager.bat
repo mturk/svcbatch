@@ -56,7 +56,7 @@ rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=-s shutdown /Sargument /s\"argument with spaces\""
+set "SHUTDOWN_ARGS=-s shutdown /S@@SystemRoot@@ /s\"argument with spaces\""
 rem
 rem
 set "SERVICE_LOG_DIR=-o \"Logs/%SERVICE_NAME%\""
@@ -88,7 +88,7 @@ rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
-set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" -pvbL /w \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_REDIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run test"
+set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" -pvbL /w \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_REDIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"

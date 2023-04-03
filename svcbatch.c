@@ -97,6 +97,7 @@ static int       xwoptind         = 1;
 static wchar_t   xwoption         = WNUL;
 static int       logredirargc     = 0;
 static int       svcstopwargc     = 0;
+static int       svcbatchargc     = 0;
 static int       svccodepage      = 0;
 static _locale_t localeobject     = NULL;
 static wchar_t  *svcbatchexe      = NULL;
@@ -107,7 +108,6 @@ static wchar_t  *servicebase      = NULL;
 static wchar_t  *servicename      = NULL;
 static wchar_t  *servicehome      = NULL;
 static wchar_t  *serviceuuid      = NULL;
-static wchar_t  *svcbatchargs     = NULL;
 
 static wchar_t  *servicelogs      = NULL;
 static wchar_t  *logfilename      = NULL;
@@ -124,6 +124,7 @@ static HANDLE    pipedprocess     = NULL;
 
 static wchar_t  *logredirargv[SVCBATCH_MAX_ARGS];
 static wchar_t  *svcstopwargv[SVCBATCH_MAX_ARGS];
+static wchar_t  *svcbatchargv[SVCBATCH_MAX_ARGS];
 
 static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
 
@@ -295,11 +296,20 @@ static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
 
 static void xwchreplace(wchar_t *s, wchar_t c, wchar_t r)
 {
-    while (*s) {
-        if (*s == c)
-            *s = r;
-        s++;
+    wchar_t *d;
+
+    for (d = s; *s; s++, d++) {
+        if (*s == c) {
+            if (*(s + 1) == c)
+                *d = *(s++);
+            else
+                *d = r;
+        }
+        else {
+            *d = *s;
+        }
     }
+    *d = WNUL;
 }
 
 static wchar_t *xgetenv(const wchar_t *s)
@@ -1461,8 +1471,6 @@ static void logconfig(HANDLE h)
     logwransi(h, "Service name     : ", servicename);
     logwransi(h, "Service uuid     : ", serviceuuid);
     logwransi(h, "Batch file       : ", svcbatchfile);
-    if (svcbatchargs)
-        logwransi(h, "      arguments  : ", svcbatchargs);
     if (svcstopwargc)
         logwransi(h, "Shutdown batch   : ", svcstopwargv[0]);
     logwransi(h, "Program directory: ", exelocation);
@@ -2108,9 +2116,10 @@ static DWORD runshutdown(DWORD rt)
         cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
         cmdline = xappendarg(1, cmdline, L"-n", svcendlogfn);
     }
-    for (i = 0; i < svcstopwargc; i++)
+    for (i = 0; i < svcstopwargc; i++) {
+        xwchreplace(svcstopwargv[i], L'@', L'%');
         cmdline = xappendarg(1, cmdline, NULL, svcstopwargv[i]);
-
+    }
     DBG_PRINTF("cmdline %S", cmdline);
     if (!CreateProcessW(svcbatchexe, cmdline, NULL, NULL, TRUE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_CONSOLE,
@@ -2508,6 +2517,7 @@ finished:
 
 static DWORD WINAPI workerthread(void *unused)
 {
+    int i;
     wchar_t *cmdline = NULL;
     HANDLE   wh[2];
     HANDLE   wrthread;
@@ -2532,7 +2542,10 @@ static DWORD WINAPI workerthread(void *unused)
     }
     cmdline = xappendarg(1, NULL,    NULL,     comspec);
     cmdline = xappendarg(1, cmdline, L"/D /C", svcbatchfile);
-    cmdline = xappendarg(0, cmdline, NULL,     svcbatchargs);
+    for (i = 0; i < svcbatchargc; i++) {
+        xwchreplace(svcbatchargv[i], L'@', L'%');
+        cmdline = xappendarg(1, cmdline, NULL, svcbatchargv[i]);
+    }
 
     op.pipe     = rd;
     op.o.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
@@ -3114,7 +3127,10 @@ int wmain(int argc, const wchar_t **wargv)
     if (localeparam) {
         if (*localeparam == L'.') {
             if (xwstartswith(localeparam + 1, L"UTF")) {
-                svccodepage = 65001;
+                if (wcschr(localeparam + 4, L'8'))
+                    svccodepage = 65001;
+                else
+                    return xsyserror(0, L"Invalid -c command option value", localeparam);
             }
             else {
                 svccodepage = xwcstoi(localeparam + 1, NULL);
@@ -3140,7 +3156,10 @@ int wmain(int argc, const wchar_t **wargv)
             /**
              * Add arguments for batch file
              */
-            svcbatchargs = xappendarg(1, svcbatchargs,  NULL, wargv[i]);
+            if (svcbatchargc < SVCBATCH_MAX_ARGS)
+                svcbatchargv[svcbatchargc++] = xwcsdup(wargv[i]);
+            else
+                return xsyserror(0, L"Too many batch arguments", wargv[i]);
         }
     }
     if (IS_EMPTY_WCS(batchparam))
