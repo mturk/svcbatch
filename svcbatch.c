@@ -3229,8 +3229,13 @@ int wmain(int argc, const wchar_t **wargv)
             xwcslcat(bb, TBUFSIZ, L"-t ");
         if (haslogstatus)
             xwcslcat(bb, TBUFSIZ, L"-v ");
-        if (bb[0])
+        if (bb[0]) {
+#if defined(_DEBUG)
+            DBG_PRINTF("extra option(s) %S", bb);
+#else
             return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
+#endif
+        }
     }
     if (servicemode) {
         /**
