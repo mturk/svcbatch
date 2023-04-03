@@ -1107,30 +1107,23 @@ static BOOL isrelativepath(const wchar_t *p)
     return TRUE;
 }
 
-static wchar_t *getfullpathname(const wchar_t *src, int isdir)
+static wchar_t *getfullpathname(wchar_t *buf, int siz, const wchar_t *src, int isdir)
 {
-    wchar_t *cp;
-
     ASSERT_WSTR(src, NULL);
 
-    cp = xwcsdup(src);
-    xcleanwinpath(cp, isdir);
+    xwcslcpy(buf, siz, src);
+    xcleanwinpath(buf, isdir);
 
-    if (isrelativepath(cp)) {
+    if (isrelativepath(buf)) {
         DWORD   nn;
-        DWORD   sz = FBUFSIZ - 1;
         wchar_t bb[FBUFSIZ];
 
-        nn = GetFullPathNameW(cp, sz, bb, NULL);
-        if ((nn == 0) || (nn >= sz)) {
-            xfree(cp);
+        nn = GetFullPathNameW(buf, FBUFSIZ, bb, NULL);
+        if ((nn == 0) || (nn >= FBUFSIZ))
             return NULL;
-        }
-        xfree(cp);
-        cp = xwcsdup(bb);
+        xwcslcpy(buf, siz, bb);
     }
-
-    return cp;
+    return buf;
 }
 
 static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
@@ -1169,19 +1162,16 @@ static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
 
 static wchar_t *getrealpathname(const wchar_t *src, int isdir)
 {
-    wchar_t    *fpn;
-    wchar_t    *buf;
+    wchar_t *fpn;
+    wchar_t  buf[FBUFSIZ];
 
     if (!servicemode)
         return xwcsdup(src);
 
-    fpn = getfullpathname(src, isdir);
-    if (IS_EMPTY_WCS(fpn))
-        return NULL;
-    buf = getfinalpathname(fpn, isdir);
+    fpn = getfullpathname(buf, FBUFSIZ, src, isdir);
+    ASSERT_WSTR(fpn, NULL);
 
-    xfree(fpn);
-    return buf;
+    return getfinalpathname(fpn, isdir);
 }
 
 static int resolvebatchname(const wchar_t *a)
@@ -1450,17 +1440,15 @@ static void logconfig(HANDLE h)
 
 static DWORD createlogsdir(void)
 {
-    DWORD   rc;
-    wchar_t *dp;
+    wchar_t dp[FBUFSIZ];
 
-    dp = getfullpathname(outdirparam, 1);
-    if (dp == NULL) {
+    if (getfullpathname(dp, FBUFSIZ, outdirparam, 1) == NULL) {
         xsyserror(0, L"getfullpathname", outdirparam);
         return ERROR_BAD_PATHNAME;
     }
     servicelogs = getfinalpathname(dp, 1);
     if (servicelogs == NULL) {
-        rc = xcreatepath(dp);
+        DWORD rc = xcreatepath(dp);
         if (rc != 0)
             return xsyserror(rc, L"xcreatepath", dp);
         servicelogs = getfinalpathname(dp, 1);
@@ -1473,7 +1461,6 @@ static DWORD createlogsdir(void)
                   servicelogs);
         return ERROR_BAD_PATHNAME;
     }
-    xfree(dp);
     return 0;
 }
 
