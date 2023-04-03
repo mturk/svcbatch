@@ -90,7 +90,6 @@ static BOOL      servicemode      = TRUE;
 static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
 static DWORD     pipedprocpid     = 0;
-static DWORD     curprosessid     = 0;
 
 static int       svcmaxlogs       = 0;
 static int       xwoptind         = 1;
@@ -768,8 +767,8 @@ static wchar_t *xuuidstring(wchar_t *b)
 
     if (b == NULL)
         b = s;
-    d[0] = HIBYTE(curprosessid);
-    d[1] = LOBYTE(curprosessid);
+    d[0] = HIBYTE(svcthread[0].id);
+    d[1] = LOBYTE(svcthread[0].id);
     for (i = 0, x = 0; i < 18; i++) {
         if (i == 2 || i == 6 || i == 8 || i == 10 || i == 12)
             b[x++] = '-';
@@ -1136,6 +1135,25 @@ static wchar_t *getfullpathname(wchar_t *buf, int siz, const wchar_t *src, int i
     return buf;
 }
 
+static DWORD fixshortpath(wchar_t *buf, DWORD len)
+{
+    if ((len > 5) && (len < _MAX_FNAME)) {
+        /**
+         * Strip leading \\?\ for short paths
+         * but not \\?\UNC\* paths
+         */
+        if ((buf[0] == L'\\') &&
+            (buf[1] == L'\\') &&
+            (buf[2] == L'?')  &&
+            (buf[3] == L'\\') &&
+            (buf[5] == L':')) {
+            wmemmove(buf, buf + 4, len - 3);
+            len -= 4;
+        }
+    }
+    return len;
+}
+
 static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
 {
     wchar_t buf[FBUFSIZ];
@@ -1154,19 +1172,7 @@ static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
         return NULL;
     }
     CloseHandle(fh);
-    if ((len > 5) && (len < _MAX_FNAME)) {
-        /**
-         * Strip leading \\?\ for short paths
-         * but not \\?\UNC\* paths
-         */
-        if ((buf[0] == L'\\') &&
-            (buf[1] == L'\\') &&
-            (buf[2] == L'?')  &&
-            (buf[3] == L'\\') &&
-            (buf[5] == L':')) {
-            wmemmove(buf, buf + 4, len - 3);
-        }
-    }
+    fixshortpath(buf, len);
     return xwcsdup(buf);
 }
 
@@ -2937,21 +2943,18 @@ static void __cdecl objectscleanup(void)
 static int xwmaininit(void)
 {
     wchar_t *bb;
-    DWORD    sz = NBUFSIZ;
+    DWORD    sz = FBUFSIZ;
     DWORD    nn;
+
+    xmemzero(svcthread, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
+    svcthread[0].h  = GetCurrentProcess();
+    svcthread[0].id = GetCurrentProcessId();
 
     bb = xwmalloc(sz);
     nn = GetModuleFileNameW(NULL, bb, sz);
-    if (nn == 0)
-        return GetLastError();
-    while (nn >= sz) {
-        sz = sz * 2;
-        xfree(bb);
-        bb = xwmalloc(sz);
-        nn = GetModuleFileNameW(NULL, bb, sz);
-        if (nn == 0)
-            return GetLastError();
-    }
+    if ((nn == 0) || (nn >= sz))
+        return ERROR_BAD_PATHNAME;
+    nn = fixshortpath(bb, nn);
     while (--nn > 2) {
         if (bb[nn] == L'\\') {
             bb[nn] = WNUL;
@@ -2965,7 +2968,6 @@ static int xwmaininit(void)
     svcbatchexe = bb;
     QueryPerformanceFrequency(&pcfrequency);
     QueryPerformanceCounter(&pcstarttime);
-    curprosessid = GetCurrentProcessId();
 
     return 0;
 }
