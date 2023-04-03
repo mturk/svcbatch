@@ -246,25 +246,57 @@ static wchar_t *xwcsdup(const wchar_t *s)
     return _wcsdup(s);
 }
 
-static wchar_t *xcwiden(wchar_t *wcs, int siz, const char *src)
+static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
 {
-    int i;
-    int n;
+    int r;
+    int n = siz - 1;
 
-    if (src == NULL)
-        return NULL;
-    if (wcs == NULL) {
-        siz = (int)strlen(src) + 1;
-        wcs = xwmalloc(siz);
+    ASSERT_NULL(src, NULL);
+    ASSERT_NULL(dst, NULL);
+
+    *dst = '\0';
+    if (*src == WNUL)
+        return dst;
+
+    if (cp == 0) {
+        for (r = 0; *src; src++, r++) {
+            if (r == n)
+                break;
+            dst[r] = *src < 128 ? (char)*src : '?';
+        }
+        dst[r] = '\0';
     }
-    n = siz - 1;
-    for (i = 0; *src; src++, i++) {
-        if (i == n)
-            break;
-        wcs[i] = (BYTE)*src < 128 ? (wchar_t)*src : L'?';
+    else {
+        r = WideCharToMultiByte(cp, 0, src, -1, dst, siz, NULL, NULL);
     }
-    wcs[i] = '\0';
-    return wcs;
+
+    return dst;
+}
+
+static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
+{
+    int r;
+    int n = siz - 1;
+
+    ASSERT_NULL(src, NULL);
+    ASSERT_NULL(dst, NULL);
+
+    *dst = L'\0';
+    if (*src == 0)
+        return dst;
+    if (cp == 0) {
+        for (r = 0; *src; src++, r++) {
+            if (r == n)
+                break;
+            dst[r] = (BYTE)*src < 128 ? (wchar_t)*src : L'?';
+        }
+        dst[r] = L'\0';
+    }
+    else {
+        r = MultiByteToWideChar(cp, 0, src, -1, dst, siz);
+    }
+
+    return dst;
 }
 
 static void xwchreplace(wchar_t *s, wchar_t c, wchar_t r)
@@ -1399,16 +1431,27 @@ static DWORD logwrline(HANDLE h, const char *s)
 static DWORD logprintf(HANDLE h, const char *format, ...)
 {
     int     c;
-    char    buf[MBUFSIZ];
+    char    buf[FBUFSIZ];
     va_list ap;
 
     va_start(ap, format);
-    c = xvsnprintf(buf, MBUFSIZ, format, ap);
+    c = xvsnprintf(buf, FBUFSIZ, format, ap);
     va_end(ap);
     if (c > 0)
         return logwrline(h, buf);
     else
         return 0;
+}
+
+static DWORD logwransi(HANDLE h, const char *hdr, const wchar_t *wcs)
+{
+    int     n;
+    char    buf[FBUFSIZ];
+
+    n = (int)strlen(hdr);
+    memcpy(buf, hdr, n);
+    xwcstombs(0, buf + n, FBUFSIZ - n, wcs);
+    return logwrline(h, buf);
 }
 
 static DWORD logwrtime(HANDLE h, const char *hdr)
@@ -1426,20 +1469,19 @@ static DWORD logwrtime(HANDLE h, const char *hdr)
 
 static void logconfig(HANDLE h)
 {
-
-    logprintf(h, "Service name     : %S", servicename);
-    logprintf(h, "Service uuid     : %S", serviceuuid);
-    logprintf(h, "Batch file       : %S", svcbatchfile);
+    logwransi(h, "Service name     : ", servicename);
+    logwransi(h, "Service uuid     : ", serviceuuid);
+    logwransi(h, "Batch file       : ", svcbatchfile);
     if (svcbatchargs)
-        logprintf(h, "      arguments  : %S", svcbatchargs);
+        logwransi(h, "      arguments  : ", svcbatchargs);
     if (svcstopwargc)
-        logprintf(h, "Shutdown batch   : %S", svcstopwargv[0]);
-    logprintf(h, "Program directory: %S", exelocation);
-    logprintf(h, "Base directory   : %S", servicebase);
-    logprintf(h, "Home directory   : %S", servicehome);
-    logprintf(h, "Logs directory   : %S", servicelogs);
+        logwransi(h, "Shutdown batch   : ", svcstopwargv[0]);
+    logwransi(h, "Program directory: ", exelocation);
+    logwransi(h, "Base directory   : ", servicebase);
+    logwransi(h, "Home directory   : ", servicehome);
+    logwransi(h, "Logs directory   : ", servicelogs);
     if (haspipedlogs)
-        logprintf(h, "Log redirected to: %S", logredirargv[0]);
+        logwransi(h, "Log redirected to: ", logredirargv[0]);
 
     logfflush(h);
 }
@@ -2983,7 +3025,7 @@ int wmain(int argc, const wchar_t **wargv)
     }
     ASSERT_SIZE(argc, 2, ERROR_INVALID_PARAMETER);
 
-    xcwiden(wnamestamp, RBUFSIZ, cnamestamp);
+    xmbstowcs(0, wnamestamp, RBUFSIZ, cnamestamp);
     DBG_PRINTS(cnamestamp);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
