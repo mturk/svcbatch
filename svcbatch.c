@@ -994,16 +994,27 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     }
     errarg[i++] = hdr;
 
+#if defined(_DEBUG)
+# if (_DEBUG > 1)
+    if (dbgfile) {
+        fputc('\n', dbgfile);
+    }
+    else
+# endif
+    {
+        OutputDebugStringA("\n");
+    }
+#endif
     if (ern) {
         c = xsnwprintf(erb, TBUFSIZ, L"error(%lu) ", ern);
         xwinapierror(erb + c, MBUFSIZ - c, ern);
         errarg[i++] = CRLFW;
         errarg[i++] = erb;
-        DBG_PRINTF("\n%S, %S\n", hdr, erb);
+        DBG_PRINTF("%S, %S\n", hdr, erb);
     }
     else {
         ern = ERROR_INVALID_PARAMETER;
-        DBG_PRINTF("\n%S\n", hdr);
+        DBG_PRINTF("%S\n", hdr);
     }
 #if defined(_DEBUG) && (_DEBUG > 1)
     return ern;
