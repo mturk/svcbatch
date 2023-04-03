@@ -999,12 +999,15 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
         xwinapierror(erb + c, MBUFSIZ - c, ern);
         errarg[i++] = CRLFW;
         errarg[i++] = erb;
-        DBG_PRINTF("%S, %S", hdr, erb);
+        DBG_PRINTF("\n%S, %S\n", hdr, erb);
     }
     else {
         ern = ERROR_INVALID_PARAMETER;
-        DBG_PRINTF("%S", hdr);
+        DBG_PRINTF("\n%S\n", hdr);
     }
+#if defined(_DEBUG) && (_DEBUG > 1)
+    return ern;
+#else
     errarg[i++] = CRLFW;
     while (i < 10) {
         errarg[i++] = L"";
@@ -1022,6 +1025,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
         }
     }
     return ern;
+#endif
 }
 
 static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
