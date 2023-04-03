@@ -55,8 +55,8 @@ PIPELOG = $(WORKDIR)/pipedlog.exe
 WINVER  = 0x0601
 
 ifdef _DEBUG
-CFLAGS  = -D_DEBUG
-RFLAGS  = -D _DEBUG
+CFLAGS  = -D_DEBUG=$(_DEBUG)
+RFLAGS  = -D _DEBUG=$(_DEBUG)
 RL      = @true
 else
 CFLAGS  = -DNDEBUG

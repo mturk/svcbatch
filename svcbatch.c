@@ -34,6 +34,9 @@ static void dbgprintf(const char *, const char *, ...);
 static void dbgprints(const char *, const char *);
 # define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
 # define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, Msg)
+# if (_DEBUG > 1)
+static FILE *dbgfile = NULL;
+# endif
 #else
 # define DBG_PRINTF(Fmt, ...)   (void)0
 # define DBG_PRINTS(Msg)        (void)0
@@ -827,7 +830,16 @@ static void dbgprints(const char *funcname, const char *string)
     xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s %s",
               GetCurrentThreadId(),
               servicemode, funcname, string);
-    OutputDebugStringA(b);
+#if (_DEBUG > 1)
+    if (dbgfile) {
+        fputs(b,    dbgfile);
+        fputc('\n', dbgfile);
+    }
+    else
+#endif
+    {
+        OutputDebugStringA(b);
+    }
 }
 
 static void dbgprintf(const char *funcname, const char *format, ...)
@@ -842,8 +854,16 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     va_start(ap, format);
     xvsnprintf(b + n, MBUFSIZ - n, format, ap);
     va_end(ap);
-
-    OutputDebugStringA(b);
+#if (_DEBUG > 1)
+    if (dbgfile) {
+        fputs(b,    dbgfile);
+        fputc('\n', dbgfile);
+    }
+    else
+#endif
+    {
+        OutputDebugStringA(b);
+    }
 }
 
 static void xiphandler(const wchar_t *e,
@@ -2989,12 +3009,30 @@ int wmain(int argc, const wchar_t **wargv)
     wchar_t       *nparam[2] = { NULL, NULL };
 
 #if defined(_DEBUG)
-#if defined(_MSC_VER) && (_MSC_VER < 1900)
+# if defined(_MSC_VER) && (_MSC_VER < 1900)
     /* Not supported */
-#else
+# else
     _set_invalid_parameter_handler(xiphandler);
-#endif
+# endif
    _CrtSetReportMode(_CRT_ASSERT, 0);
+# if (_DEBUG > 1)
+    {
+        SYSTEMTIME st;
+        wchar_t  dbgnb[TBUFSIZ];
+        wchar_t *dbgfn;
+
+        GetSystemTime(&st);
+        xsnwprintf(dbgnb, TBUFSIZ,
+                   L"sb-%.4lu-%.4d%.2d%.2d%.2d%.2d%.2d.",
+                   GetCurrentProcessId(),
+                   st.wYear, st.wMonth, st.wDay,
+                   st.wHour, st.wMinute, st.wSecond);
+        dbgfn = _wtempnam(NULL, dbgnb);
+        if (dbgfn)
+            dbgfile = _wfopen(dbgfn, L"w");
+
+    }
+# endif
 #endif
     /**
      * Make sure children (cmd.exe) are kept quiet.
@@ -3414,5 +3452,9 @@ int wmain(int argc, const wchar_t **wargv)
         rv = ssvcstatus.dwServiceSpecificExitCode;
     }
     DBG_PRINTF("done (%lu)\n", rv);
+#if defined(_DEBUG) && (_DEBUG > 1)
+    if (dbgfile)
+        fclose(dbgfile);
+#endif
     return rv;
 }
