@@ -70,7 +70,7 @@ rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-m 0"
 rem
 rem Write log to external program instead to log file
-rem set "SERVICE_LOG_REDIR=-e pipedlog.exe -e piped.log -e some -e \"dummy arguments\""
+rem set "SERVICE_LOG_REDIR=-e \"%_BUILD_DIR%\pipedlog.exe\" -e piped.log -e some -e \"dummy arguments\""
 rem
 rem Use Apache Httpd rotatelogs utility for logging
 rem set "SERVICE_LOG_REDIR=-e rotatelogs.exe -e -l -e logrotate.@Y-@m-@d.@H@M@S.log -e120\""
