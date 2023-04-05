@@ -2690,6 +2690,7 @@ static DWORD WINAPI workerthread(void *unused)
     HANDLE   wh[2];
     HANDLE   wr = NULL;
     HANDLE   rd = NULL;
+    LPHANDLE rp = NULL;
     DWORD    rc = 0;
     DWORD    nw = 2;
     PROCESS_INFORMATION cp;
@@ -2701,8 +2702,9 @@ static DWORD WINAPI workerthread(void *unused)
 
     xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
     xmemzero(&op, 1, sizeof(SVCBATCH_PIPE));
-
-    rc = createiopipes(&si, &wr, &rd, FILE_FLAG_OVERLAPPED);
+    if (havelogging)
+        rp = &rd;
+    rc = createiopipes(&si, &wr, rp, FILE_FLAG_OVERLAPPED);
     if (rc != 0) {
         DBG_PRINTF("createiopipes failed with %lu", rc);
         goto finished;
@@ -2714,11 +2716,12 @@ static DWORD WINAPI workerthread(void *unused)
         cmdline = xappendarg(1, cmdline, NULL, svcbatchargv[i]);
     }
 
-    op.hPipe = rd;
-    op.oOverlap.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
-    if (IS_INVALID_HANDLE(op.oOverlap.hEvent))
-        goto finished;
-
+    if (havelogging) {
+        op.hPipe = rd;
+        op.oOverlap.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
+        if (IS_INVALID_HANDLE(op.oOverlap.hEvent))
+            goto finished;
+    }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
     DBG_PRINTF("cmdline %S", cmdline);
@@ -2746,7 +2749,6 @@ static DWORD WINAPI workerthread(void *unused)
         goto finished;
     }
     wh[0] = childprocess;
-    wh[1] = op.oOverlap.hEvent;
 
     ResumeThread(cp.hThread);
     ResumeThread(svcthread[SVCBATCH_WRITE_THREAD].hThread);
@@ -2757,64 +2759,69 @@ static DWORD WINAPI workerthread(void *unused)
     if (haslogrotate)
         xcreatethread(SVCBATCH_ROTATE_THREAD, 1, 0, rotatethread, NULL);
 
-    do {
-        DWORD ws;
+    if (havelogging) {
+        wh[1] = op.oOverlap.hEvent;
+        do {
+            DWORD ws;
 
-        ws = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
-        switch (ws) {
-            case WAIT_OBJECT_0:
-                nw = 0;
-                DBG_PRINTF("childprocess %lu done", childprocpid);
-            break;
-            case WAIT_OBJECT_1:
-                if (op.dwState == ERROR_IO_PENDING) {
-                    if (!GetOverlappedResult(op.hPipe, (LPOVERLAPPED)&op,
-                                            &op.nRead, FALSE)) {
-                        op.dwState = GetLastError();
+            ws = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
+            switch (ws) {
+                case WAIT_OBJECT_0:
+                    nw = 0;
+                    DBG_PRINTF("childprocess %lu done", childprocpid);
+                break;
+                case WAIT_OBJECT_1:
+                    if (op.dwState == ERROR_IO_PENDING) {
+                        if (!GetOverlappedResult(op.hPipe, (LPOVERLAPPED)&op,
+                                                &op.nRead, FALSE)) {
+                            op.dwState = GetLastError();
+                        }
+                        else {
+                            op.dwState = 0;
+                            rc = logwrdata(op.bBuffer, op.nRead);
+                        }
+                        break;
+                    }
+                    if (ReadFile(op.hPipe, op.bBuffer, DSIZEOF(op.bBuffer),
+                                &op.nRead, (LPOVERLAPPED)&op) && op.nRead) {
+                        op.dwState = 0;
+                        rc = logwrdata(op.bBuffer, op.nRead);
+                        SetEvent(op.oOverlap.hEvent);
                     }
                     else {
-                        op.dwState = 0;
-                        if (havelogging)
-                            rc = logwrdata(op.bBuffer, op.nRead);
+                        op.dwState = GetLastError();
+                        if (op.dwState != ERROR_IO_PENDING) {
+                            SAFE_CLOSE_HANDLE(op.hPipe);
+                            ResetEvent(op.oOverlap.hEvent);
+                            rc = op.dwState;
+                            nw = 1;
+                        }
                     }
-                    break;
-                }
-                if (ReadFile(op.hPipe, op.bBuffer, DSIZEOF(op.bBuffer),
-                            &op.nRead, (LPOVERLAPPED)&op) && op.nRead) {
-                    op.dwState = 0;
-                    if (havelogging)
-                        rc = logwrdata(op.bBuffer, op.nRead);
-                    SetEvent(op.oOverlap.hEvent);
-                }
-                else {
-                    op.dwState = GetLastError();
-                    if (op.dwState != ERROR_IO_PENDING) {
-                        SAFE_CLOSE_HANDLE(op.hPipe);
-                        ResetEvent(op.oOverlap.hEvent);
-                        rc = op.dwState;
-                        nw = 1;
-                    }
-                }
 #if defined(_DEBUG)
-                if (rc) {
-                    if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
-                        DBG_PRINTS("pipe closed");
-                    else if (rc == ERROR_NO_MORE_FILES)
-                        DBG_PRINTS("logfile closed");
-                    else
-                        DBG_PRINTF("err=%lu", rc);
-                }
+                    if (rc) {
+                        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+                            DBG_PRINTS("pipe closed");
+                        else if (rc == ERROR_NO_MORE_FILES)
+                            DBG_PRINTS("logfile closed");
+                        else
+                            DBG_PRINTF("err=%lu", rc);
+                    }
 #endif
-            break;
-            default:
-                DBG_PRINTF("wait failed %lu with %lu", ws, GetLastError());
-                nw = 0;
-            break;
+                break;
+                default:
+                    DBG_PRINTF("wait failed %lu with %lu", ws, GetLastError());
+                    nw = 0;
+                break;
 
-        }
-    } while (nw);
-    WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, INFINITE);
+            }
+        } while (nw);
+        WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, INFINITE);
+    }
+    else {
+        wh[1] = svcthread[SVCBATCH_WRITE_THREAD].hThread;
+        WaitForMultipleObjects(nw, wh, TRUE, INFINITE);
 
+    }
     DBG_PRINTF("finished %S with pid %lu",
               svcbatchname, childprocpid);
     if (IS_INVALID_HANDLE(childprocess)) {
@@ -2841,8 +2848,10 @@ finished:
     SAFE_CLOSE_HANDLE(cp.hThread);
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
-    SAFE_CLOSE_HANDLE(op.hPipe);
-    SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
+    if (havelogging) {
+        SAFE_CLOSE_HANDLE(op.hPipe);
+        SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
+    }
     SetEvent(processended);
 
     DBG_PRINTS("done");
@@ -3255,7 +3264,7 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     ASSERT_SIZE(argc, 2, ERROR_INVALID_PARAMETER);
-    DBG_PRINTF("%S", wnamestamp);
+    DBG_PRINTS(cnamestamp);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
