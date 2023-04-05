@@ -44,9 +44,7 @@ typedef enum {
     SVCBATCH_ROTATE_THREAD,
     SVCBATCH_MONITOR_THREAD,
     SVCBATCH_WRITE_THREAD,
-#if defined(_DEBUG)
     SVCBATCH_RDLOGPIPE_THREAD,
-#endif
     SVCBATCH_MAX_THREADS
 } SVCBATCH_THREAD_ID;
 
@@ -59,9 +57,7 @@ typedef struct _SVCBATCH_THREAD {
     DWORD                  dwId;
     DWORD                  dwThreadId;
     DWORD                  dwExitCode;
-#if defined(_DEBUG)
     ULONGLONG              dwDuration;
-#endif
 } SVCBATCH_THREAD, *LPSVCBATCH_THREAD;
 
 typedef struct _SVCBATCH_PIPE {
@@ -2977,7 +2973,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
     return 0;
 }
 
-static void cleanupthreads(void)
+static void __cdecl cleanupthreads(void)
 {
     int i;
 
@@ -2996,6 +2992,26 @@ static void cleanupthreads(void)
         }
     }
 }
+
+static void __cdecl cconsolecleanup(void)
+{
+    SetConsoleCtrlHandler(consolehandler, FALSE);
+    FreeConsole();
+}
+
+static void __cdecl objectscleanup(void)
+{
+    SAFE_CLOSE_HANDLE(processended);
+    SAFE_CLOSE_HANDLE(svcstopended);
+    SAFE_CLOSE_HANDLE(svcstopstart);
+    SAFE_CLOSE_HANDLE(ssignalevent);
+    SAFE_CLOSE_HANDLE(monitorevent);
+    SAFE_CLOSE_HANDLE(logrotatesig);
+
+    DeleteCriticalSection(&logfilelock);
+    DeleteCriticalSection(&servicelock);
+}
+
 
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
@@ -3116,25 +3132,6 @@ finished:
     cleanupthreads();
     reportsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");
-}
-
-static void __cdecl cconsolecleanup(void)
-{
-    SetConsoleCtrlHandler(consolehandler, FALSE);
-    FreeConsole();
-}
-
-static void __cdecl objectscleanup(void)
-{
-    SAFE_CLOSE_HANDLE(processended);
-    SAFE_CLOSE_HANDLE(svcstopended);
-    SAFE_CLOSE_HANDLE(svcstopstart);
-    SAFE_CLOSE_HANDLE(ssignalevent);
-    SAFE_CLOSE_HANDLE(monitorevent);
-    SAFE_CLOSE_HANDLE(logrotatesig);
-
-    DeleteCriticalSection(&logfilelock);
-    DeleteCriticalSection(&servicelock);
 }
 
 static int xwmaininit(void)
@@ -3544,6 +3541,12 @@ int wmain(int argc, const wchar_t **wargv)
                 return xsyserror(ERROR_FILE_NOT_FOUND, p, NULL);
             xfree(p);
         }
+        if (haslogrotate) {
+            for (i = 0; i < rcnt; i++) {
+                if (!resolverotate(rparam[i]))
+                    return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
+            }
+        }
         if (ncnt) {
             svclogfname = nparam[0];
             if (ncnt > 1) {
@@ -3594,10 +3597,6 @@ int wmain(int argc, const wchar_t **wargv)
                 return xsyserror(GetLastError(), L"CreateEvent", bb);
         }
         if (haslogrotate) {
-            for (i = 0; i < rcnt; i++) {
-                if (!resolverotate(rparam[i]))
-                    return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
-            }
             logrotatesig = CreateEvent(NULL, TRUE, FALSE, NULL);
             if (IS_INVALID_HANDLE(logrotatesig))
                 return xsyserror(GetLastError(), L"CreateEvent", NULL);
