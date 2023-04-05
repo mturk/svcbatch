@@ -80,10 +80,9 @@ typedef struct _SVCBATCH_PROCESS {
     DWORD               dwExitCode;
     DWORD               dwArgc;
     LPWSTR              lpCommandLine;
-    LPWSTR              lpArgv[SVCBATCH_MAX_ARGS];
     LPWSTR              lpFilePart;                     /* Pointer to file part of szExeFile   */
     LPWSTR              szExeFile[SVCBATCH_PATH_MAX];
-
+    LPWSTR             *lpArgv[SVCBATCH_MAX_ARGS];
 } SVCBATCH_PROCESS, *LPSVACBATCH_PROCESS;
 
 typedef struct _SVCBATCH_LOG {
@@ -2265,10 +2264,8 @@ static DWORD runshutdown(DWORD rt)
         rp[2] = WNUL;
     cmdline = xappendarg(0, cmdline, NULL,  rp);
     cmdline = xappendarg(0, cmdline, L"-c", localeparam);
-    if (havelogging && svcendlogfn) {
-        cmdline = xappendarg(1, cmdline, L"-o", servicelogs);
+    if (havelogging && svcendlogfn)
         cmdline = xappendarg(1, cmdline, L"-n", svcendlogfn);
-    }
     for (i = 0; i < svcstopwargc; i++)
         cmdline = xappendarg(1, cmdline, NULL, svcstopwargv[i]);
     DBG_PRINTF("cmdline %S", cmdline);
@@ -3059,7 +3056,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     else {
         DBG_PRINTF("shutting down %S", servicename);
-        servicelogs = xwcsdup(outdirparam);
+        servicelogs = xgetenv(L"SVCBATCH_SERVICE_LOGS");
     }
     if (servicemode) {
         /**
