@@ -52,7 +52,7 @@ BEGIN
             VALUE "Comments",           SVCBATCH_LICENSE_SHORT
             VALUE "CompanyName",        SVCBATCH_COMPANY_NAME
             VALUE "FileDescription",    SVCBATCH_DESCRIPTION
-            VALUE "FileVersion",        SVCBATCH_VERSION_STR
+            VALUE "FileVersion",        SVCBATCH_VERSION_STR SVCBATCH_VERSION_SFX
             VALUE "InternalName",       SVCBATCH_NAME
             VALUE "LegalCopyright",     SVCBATCH_COPYRIGHT
             VALUE "OriginalFilename",   SVCBATCH_NAME ".exe"

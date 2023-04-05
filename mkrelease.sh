@@ -51,7 +51,7 @@ esac
 #
 ProjectName=svcbatch
 ReleaseArch=win-x64-mingw
-MakefileFlags="_BUILD_TIMESTAMP=`date +%Y%m%d%H%M%S`"
+MakefileFlags="VERSION_MICRO=`date +%y%V%u`"
 #
 if [ "x$1" = "x-d" ]
 then

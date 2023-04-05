@@ -31,8 +31,8 @@ set "BuildDir=.build\rel"
 set "ProjectFiles=%ProjectName%.exe"
 rem
 rem Get timestamp using Powershell
-for /f "delims=" %%# in ('powershell get-date -format "{yyyyddMMHHmmss}"') do @set BuildTimestamp=%%#
-set "MakefileArgs=_BUILD_TIMESTAMP=%BuildTimestamp%"
+for /f "delims=" %%# in ('powershell get-date -UFormat "{%%y%%V%%u}"') do @set BuildTimestamp=%%#
+set "MakefileArgs=VERSION_MICRO=%BuildTimestamp%"
 rem
 :getOpts
 rem

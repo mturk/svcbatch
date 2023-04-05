@@ -33,31 +33,76 @@
 #if defined(_DEBUG)
 static void dbgprintf(const char *, const char *, ...);
 static void dbgprints(const char *, const char *);
-# define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
-# define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, Msg)
 # if (_DEBUG > 1)
 static FILE *dbgfile = NULL;
 # endif
-#else
-# define DBG_PRINTF(Fmt, ...)   (void)0
-# define DBG_PRINTS(Msg)        (void)0
 #endif
 
-#define xsyserror(_n, _e, _d)   svcsyserror(__FUNCTION__, __LINE__, (_n), (_e), (_d))
+typedef enum {
+    SVCBATCH_WORKER_THREAD = 0,
+    SVCBATCH_STOP_THREAD,
+    SVCBATCH_ROTATE_THREAD,
+    SVCBATCH_MONITOR_THREAD,
+    SVCBATCH_WRITE_THREAD,
+#if defined(_DEBUG)
+    SVCBATCH_RDLOGPIPE_THREAD,
+#endif
+    SVCBATCH_MAX_THREADS
+} SVCBATCH_THREAD_ID;
+
 
 typedef struct _SVCBATCH_THREAD {
-    LPTHREAD_START_ROUTINE threadfn;
-    LPVOID                 param;
-    HANDLE                 h;
-    DWORD                  id;
+    volatile LONG          nStarted;
+    LPTHREAD_START_ROUTINE lpStartAddress;
+    HANDLE                 hThread;
+    LPVOID                 lpParameter;
+    DWORD                  dwId;
+    DWORD                  dwThreadId;
+    DWORD                  dwExitCode;
+#if defined(_DEBUG)
+    ULONGLONG              dwDuration;
+#endif
 } SVCBATCH_THREAD, *LPSVCBATCH_THREAD;
 
 typedef struct _SVCBATCH_PIPE {
-    OVERLAPPED  o;
-    HANDLE      pipe;
-    DWORD       stat;
-    BYTE        buff[HBUFSIZ];
+    OVERLAPPED  oOverlap;
+    HANDLE      hPipe;
+    BYTE        bBuffer[HBUFSIZ];
+    DWORD       nRead;
+    DWORD       dwState;
 } SVCBATCH_PIPE, *LPSVCBATCH_PIPE;
+
+typedef struct _SVCBATCH_PROCESS {
+    DWORD               dwType;
+    DWORD               dwCreationFlags;
+    volatile LONG       dwCurrentState;
+    HANDLE              hRdPipe;
+    HANDLE              hWrPipe;
+    PROCESS_INFORMATION sProcessInformation;
+    STARTUPINFOW        sStartupInfo;
+    SECURITY_ATTRIBUTES sSecurityAttributes;
+    DWORD               dwExitCode;
+    DWORD               dwArgc;
+    LPWSTR              lpCommandLine;
+    LPWSTR              lpArgv[SVCBATCH_MAX_ARGS];
+    LPWSTR              lpFilePart;                     /* Pointer to file part of szExeFile   */
+    LPWSTR              szExeFile[SVCBATCH_PATH_MAX];
+
+} SVCBATCH_PROCESS, *LPSVACBATCH_PROCESS;
+
+typedef struct _SVCBATCH_LOG {
+    DWORD               dwType;                         /* Log type (file or external log application  */
+    volatile LONG       dwCurrentState;
+    volatile LONG       nRotateCount;
+    volatile HANDLE     hFile;
+    volatile LONG64     nWritten;
+    volatile LONG64     nOpenTime;                      /* GetTickCount64 value when log was opened */
+    CRITICAL_SECTION    csLock;
+    LPSVACBATCH_PROCESS lpLogProcess;
+    LPWSTR              lpFilePart;                     /* Pointer to file part of szFileName   */
+    LPWSTR              szFileName[SVCBATCH_PATH_MAX];
+
+} SVCBATCH_LOG, *LPSVACBATCH_LOG;
 
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         rotateruns  = 0;
@@ -133,17 +178,18 @@ static wchar_t  *svcbatchargv[SVCBATCH_MAX_ARGS];
 
 static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
 
-static wchar_t      wnamestamp[RBUFSIZ];
 static wchar_t      zerostring[2] = { WNUL, WNUL };
 static const wchar_t *CRLFW       = L"\r\n";
 static const char    *CRLFA       =  "\r\n";
 static const char    *YYES        =  "Y";
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
+static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *outdirparam = NULL;
 static const wchar_t *localeparam = NULL;
 static const wchar_t *xwoptarg    = NULL;
+
 
 /**
  * (element & 1) == valid file name character
@@ -773,8 +819,8 @@ static wchar_t *xuuidstring(wchar_t *b)
 
     if (b == NULL)
         b = s;
-    d[0] = HIBYTE(svcthread[0].id);
-    d[1] = LOBYTE(svcthread[0].id);
+    d[0] = HIBYTE(GetCurrentProcessId());
+    d[1] = LOBYTE(GetCurrentProcessId());
     for (i = 0, x = 0; i < 18; i++) {
         if (i == 2 || i == 6 || i == 8 || i == 10 || i == 12)
             b[x++] = '-';
@@ -1138,44 +1184,44 @@ static DWORD xcreatepath(const wchar_t *path)
 
 static DWORD WINAPI xrunthread(LPVOID param)
 {
-    DWORD r;
-    LPSVCBATCH_THREAD tp = (LPSVCBATCH_THREAD)param;
+    LPSVCBATCH_THREAD p = (LPSVCBATCH_THREAD)param;
 
-    r = (*tp->threadfn)(tp->param);
-    ExitThread(r);
-    return r;
+#if defined(_DEBUG)
+    p->dwDuration = GetTickCount64();
+#endif
+    p->dwThreadId = GetCurrentThreadId();
+    p->dwExitCode = (*p->lpStartAddress)(p->lpParameter);
+#if defined(_DEBUG)
+    p->dwDuration = GetTickCount64() - p->dwDuration;
+#endif
+    InterlockedExchange(&p->nStarted, 0);
+    ExitThread(p->dwExitCode);
+
+    return p->dwExitCode;
 }
 
-static HANDLE xcreatethread(int detached, int suspended,
-                            LPTHREAD_START_ROUTINE threadfn,
-                            LPVOID param)
+static BOOL xcreatethread(SVCBATCH_THREAD_ID id,
+                          int detached, int suspended,
+                          LPTHREAD_START_ROUTINE threadfn,
+                          LPVOID param)
 {
-    static volatile LONG tc = 0;
-    DWORD  ix;
+    if (InterlockedCompareExchange(&svcthread[id].nStarted, 1, 0)) {
+        /**
+         * Already started
+         */
+         SetLastError(ERROR_BUSY);
+         return FALSE;
+    }
+    svcthread[id].lpStartAddress = threadfn;
+    svcthread[id].lpParameter    = param;
 
-    ix = (DWORD)InterlockedIncrement(&tc);
-    if (ix >= SVCBATCH_MAX_THREADS) {
-        SetLastError(ERROR_OUTOFMEMORY);
-        return NULL;
+    svcthread[id].hThread = CreateThread(NULL, 0, xrunthread, &svcthread[id],
+                                         suspended ? CREATE_SUSPENDED : 0, NULL);
+    if (svcthread[id].hThread == NULL) {
+        InterlockedExchange(&svcthread[id].nStarted, 0);
+        return FALSE;
     }
-    svcthread[ix].threadfn = threadfn;
-    svcthread[ix].param    = param;
-
-    svcthread[ix].h = CreateThread(NULL, 0, xrunthread,
-                                   &svcthread[ix], CREATE_SUSPENDED,
-                                   &svcthread[ix].id);
-    if (svcthread[ix].h == NULL)
-        return NULL;
-    if (detached) {
-        ResumeThread(svcthread[ix].h);
-        CloseHandle( svcthread[ix].h);
-        return NULL;
-    }
-    else {
-        if (!suspended)
-            ResumeThread(svcthread[ix].h);
-        return svcthread[ix].h;
-    }
+    return TRUE;
 }
 
 static BOOL isrelativepath(const wchar_t *p)
@@ -1711,7 +1757,8 @@ static DWORD openlogpipe(BOOL ssp)
     ResumeThread(cp.hThread);
     SAFE_CLOSE_HANDLE(cp.hThread);
 #if defined(_DEBUG)
-    xcreatethread(1, 0, rdpipedlog, rd);
+    xcreatethread(SVCBATCH_RDLOGPIPE_THREAD,
+                  1, 0, rdpipedlog, rd);
 #endif
     if (haslogstatus)
         logwrline(wr, cnamestamp);
@@ -2360,12 +2407,11 @@ finished:
 
 static void createstopthread(DWORD rv)
 {
-    if (InterlockedIncrement(&sstarted) == 1) {
+    if (xcreatethread(SVCBATCH_STOP_THREAD,
+                      1, 0, stopthread, NULL)) {
+        ResetEvent(svcstopended);
         if (rv)
             setsvcstatusexit(rv);
-
-        ResetEvent(svcstopended);
-        xcreatethread(1, 0, stopthread, NULL);
     }
 }
 
@@ -2642,7 +2688,6 @@ static DWORD WINAPI workerthread(void *unused)
     int i;
     wchar_t *cmdline = NULL;
     HANDLE   wh[2];
-    HANDLE   wrthread;
     HANDLE   wr = NULL;
     HANDLE   rd = NULL;
     DWORD    rc = 0;
@@ -2669,9 +2714,9 @@ static DWORD WINAPI workerthread(void *unused)
         cmdline = xappendarg(1, cmdline, NULL, svcbatchargv[i]);
     }
 
-    op.pipe     = rd;
-    op.o.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
-    if (IS_INVALID_HANDLE(op.o.hEvent))
+    op.hPipe = rd;
+    op.oOverlap.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
+    if (IS_INVALID_HANDLE(op.oOverlap.hEvent))
         goto finished;
 
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -2695,26 +2740,25 @@ static DWORD WINAPI workerthread(void *unused)
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
 
-    wrthread = xcreatethread(0, 1, wrpipethread, wr);
-    if (IS_INVALID_HANDLE(wrthread)) {
+    if (!xcreatethread(SVCBATCH_WRITE_THREAD,
+                       0, 1, wrpipethread, wr)) {
         xsyserror(GetLastError(), L"xcreatethread", NULL);
         goto finished;
     }
     wh[0] = childprocess;
-    wh[1] = op.o.hEvent;
+    wh[1] = op.oOverlap.hEvent;
 
     ResumeThread(cp.hThread);
-    ResumeThread(wrthread);
+    ResumeThread(svcthread[SVCBATCH_WRITE_THREAD].hThread);
 
     SAFE_CLOSE_HANDLE(cp.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     DBG_PRINTF("running child with pid %lu", childprocpid);
     if (haslogrotate)
-        xcreatethread(1, 0, rotatethread, NULL);
+        xcreatethread(SVCBATCH_ROTATE_THREAD, 1, 0, rotatethread, NULL);
 
     do {
         DWORD ws;
-        DWORD rr;
 
         ws = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
         switch (ws) {
@@ -2723,33 +2767,31 @@ static DWORD WINAPI workerthread(void *unused)
                 DBG_PRINTF("childprocess %lu done", childprocpid);
             break;
             case WAIT_OBJECT_1:
-                if (op.stat == ERROR_IO_PENDING) {
-                    if (!GetOverlappedResult(op.pipe,
-                                             (LPOVERLAPPED)&op,
-                                             &rr,
-                                             FALSE)) {
-                        op.stat = GetLastError();
+                if (op.dwState == ERROR_IO_PENDING) {
+                    if (!GetOverlappedResult(op.hPipe, (LPOVERLAPPED)&op,
+                                            &op.nRead, FALSE)) {
+                        op.dwState = GetLastError();
                     }
                     else {
-                        op.stat = 0;
+                        op.dwState = 0;
                         if (havelogging)
-                            rc = logwrdata(op.buff, rr);
+                            rc = logwrdata(op.bBuffer, op.nRead);
                     }
                     break;
                 }
-                if (ReadFile(op.pipe, op.buff, HBUFSIZ,
-                             &rr, (LPOVERLAPPED)&op) && rr) {
-                    op.stat = 0;
+                if (ReadFile(op.hPipe, op.bBuffer, DSIZEOF(op.bBuffer),
+                            &op.nRead, (LPOVERLAPPED)&op) && op.nRead) {
+                    op.dwState = 0;
                     if (havelogging)
-                        rc = logwrdata(op.buff, rr);
-                    SetEvent(op.o.hEvent);
+                        rc = logwrdata(op.bBuffer, op.nRead);
+                    SetEvent(op.oOverlap.hEvent);
                 }
                 else {
-                    op.stat = GetLastError();
-                    if (op.stat != ERROR_IO_PENDING) {
-                        SAFE_CLOSE_HANDLE(op.pipe);
-                        ResetEvent(op.o.hEvent);
-                        rc = op.stat;
+                    op.dwState = GetLastError();
+                    if (op.dwState != ERROR_IO_PENDING) {
+                        SAFE_CLOSE_HANDLE(op.hPipe);
+                        ResetEvent(op.oOverlap.hEvent);
+                        rc = op.dwState;
                         nw = 1;
                     }
                 }
@@ -2771,8 +2813,7 @@ static DWORD WINAPI workerthread(void *unused)
 
         }
     } while (nw);
-    WaitForSingleObject(wrthread, INFINITE);
-    CloseHandle(wrthread);
+    WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, INFINITE);
 
     DBG_PRINTF("finished %S with pid %lu",
               svcbatchname, childprocpid);
@@ -2800,9 +2841,8 @@ finished:
     SAFE_CLOSE_HANDLE(cp.hThread);
     SAFE_CLOSE_HANDLE(si.hStdInput);
     SAFE_CLOSE_HANDLE(si.hStdError);
-    SAFE_CLOSE_HANDLE(wr);
-    SAFE_CLOSE_HANDLE(op.pipe);
-    SAFE_CLOSE_HANDLE(op.o.hEvent);
+    SAFE_CLOSE_HANDLE(op.hPipe);
+    SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
     SetEvent(processended);
 
     DBG_PRINTS("done");
@@ -2876,7 +2916,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                     InterlockedExchangePointer(&logfhandle, h);
                     LeaveCriticalSection(&logfilelock);
                 }
-                xcreatethread(1, 0, stopthread, NULL);
+                xcreatethread(SVCBATCH_STOP_THREAD, 1, 0, stopthread, NULL);
             }
             else {
                 DBG_PRINTS("service stop is already running");
@@ -2926,6 +2966,26 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
     }
     return 0;
+}
+
+static void cleanupthreads(void)
+{
+    int i;
+
+    for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
+        if (InterlockedCompareExchange(&svcthread[i].nStarted, 0, 0) > 0) {
+            DBG_PRINTF("terminating thread %d", i);
+            TerminateThread(svcthread[i].hThread, ERROR_DISCARDED);
+        }
+        if (svcthread[i].hThread) {
+#if defined(_DEBUG)
+            DBG_PRINTF("svcthread[%d] %4lu %10llu", i,
+                        svcthread[i].dwExitCode,
+                        svcthread[i].dwDuration);
+#endif
+            CloseHandle(svcthread[i].hThread);
+        }
+    }
 }
 
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
@@ -3008,21 +3068,21 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-    wh[1] = xcreatethread(0, 0, monitorthread, NULL);
-    if (IS_INVALID_HANDLE(wh[1])) {
+    if (!xcreatethread(SVCBATCH_MONITOR_THREAD,
+                       0, 0, monitorthread, NULL)) {
         xsyserror(GetLastError(), L"xcreatethread", NULL);
         goto finished;
     }
-    wh[0] = xcreatethread(0, 0, workerthread, NULL);
-    if (IS_INVALID_HANDLE(wh[0])) {
+    if (!xcreatethread(SVCBATCH_WORKER_THREAD,
+                       0, 0, workerthread, NULL)) {
         xsyserror(GetLastError(), L"xcreatethread", NULL);
-        SetEvent(processended);
         goto finished;
     }
+
+    wh[0] = svcthread[SVCBATCH_WORKER_THREAD].hThread;
+    wh[1] = svcthread[SVCBATCH_MONITOR_THREAD].hThread;
     DBG_PRINTS("running");
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
-    SAFE_CLOSE_HANDLE(wh[0]);
-    SAFE_CLOSE_HANDLE(wh[1]);
 
     if (WaitForSingleObject(svcstopended, 0) == WAIT_OBJECT_0) {
         DBG_PRINTS("stopped");
@@ -3044,7 +3104,7 @@ finished:
 
     SAFE_CLOSE_HANDLE(childprocess);
     closelogfile();
-
+    cleanupthreads();
     reportsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");
 }
@@ -3075,8 +3135,6 @@ static int xwmaininit(void)
     DWORD    nn;
 
     xmemzero(svcthread, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
-    svcthread[0].h  = GetCurrentProcess();
-    svcthread[0].id = GetCurrentProcessId();
 
     bb = xwmalloc(sz);
     nn = GetModuleFileNameW(NULL, bb, sz);
@@ -3189,6 +3247,7 @@ int wmain(int argc, const wchar_t **wargv)
             if (servicename == NULL)
                 return ERROR_BAD_ENVIRONMENT;
             cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT ;
+            wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
             cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
             wargv[1] = wargv[0];
             argc    -= 1;
@@ -3196,8 +3255,7 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     ASSERT_SIZE(argc, 2, ERROR_INVALID_PARAMETER);
-    xmbstowcs(0, wnamestamp, RBUFSIZ, cnamestamp);
-    DBG_PRINTS(cnamestamp);
+    DBG_PRINTF("%S", wnamestamp);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
