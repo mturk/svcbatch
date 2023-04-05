@@ -78,12 +78,12 @@ typedef struct _SVCBATCH_PROCESS {
     STARTUPINFOW        sStartupInfo;
     SECURITY_ATTRIBUTES sSecurityAttributes;
     DWORD               dwExitCode;
-    DWORD               dwArgc;
+    int                 dwArgc;
     LPWSTR              lpCommandLine;
     LPWSTR              lpFilePart;                     /* Pointer to file part of szExeFile   */
-    LPWSTR              szExeFile[SVCBATCH_PATH_MAX];
-    LPWSTR             *lpArgv[SVCBATCH_MAX_ARGS];
-} SVCBATCH_PROCESS, *LPSVACBATCH_PROCESS;
+    WCHAR               szExeFile[SVCBATCH_PATH_MAX];
+    LPWSTR              lpArgv[SVCBATCH_MAX_ARGS];
+} SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
 
 typedef struct _SVCBATCH_LOG {
     DWORD               dwType;                         /* Log type (file or external log application  */
@@ -93,11 +93,16 @@ typedef struct _SVCBATCH_LOG {
     volatile LONG64     nWritten;
     volatile LONG64     nOpenTime;                      /* GetTickCount64 value when log was opened */
     CRITICAL_SECTION    csLock;
-    LPSVACBATCH_PROCESS lpLogProcess;
+    LPSVCBATCH_PROCESS  lpLogProcess;
     LPWSTR              lpFilePart;                     /* Pointer to file part of szFileName   */
-    LPWSTR              szFileName[SVCBATCH_PATH_MAX];
+    WCHAR               szFileName[SVCBATCH_PATH_MAX];
 
 } SVCBATCH_LOG, *LPSVACBATCH_LOG;
+
+static LPSVCBATCH_PROCESS    svcstopproc = NULL;
+static LPSVCBATCH_PROCESS    svclogsproc = NULL;
+static LPSVCBATCH_PROCESS    svcmainproc = NULL;
+static LPSVCBATCH_PROCESS    svcxcmdproc = NULL;
 
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         rotateruns  = 0;
@@ -120,26 +125,22 @@ static LARGE_INTEGER         pcstarttime = {{ 0, 0 }};
 
 static wchar_t  *comspec          = NULL;
 
-static BOOL      haslogstatus     = FALSE;
 static BOOL      hasctrlbreak     = FALSE;
 static BOOL      haslogrotate     = FALSE;
-static BOOL      haspipedlogs     = FALSE;
 static BOOL      rotatebysize     = FALSE;
 static BOOL      rotatebytime     = FALSE;
 static BOOL      uselocaltime     = FALSE;
-static BOOL      truncatelogs     = FALSE;
-static BOOL      truncateslog     = FALSE;
 static BOOL      havelogging      = TRUE;
 static BOOL      servicemode      = TRUE;
 
+static int       haslogstatus     = 0;
+static int       truncatelogs     = 0;
 static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
-static DWORD     pipedprocpid     = 0;
 
 static int       svcmaxlogs       = 0;
 static int       xwoptind         = 1;
 static wchar_t   xwoption         = WNUL;
-static int       logredirargc     = 0;
 static int       svcstopwargc     = 0;
 static int       svcbatchargc     = 0;
 static int       svccodepage      = 0;
@@ -165,9 +166,7 @@ static HANDLE    ssignalevent     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
-static HANDLE    pipedprocess     = NULL;
 
-static wchar_t  *logredirargv[SVCBATCH_MAX_ARGS];
 static wchar_t  *svcstopwargv[SVCBATCH_MAX_ARGS];
 static wchar_t  *svcbatchargv[SVCBATCH_MAX_ARGS];
 
@@ -1082,6 +1081,33 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
 #endif
 }
 
+static __inline BOOL isprocrunning(LPSVCBATCH_PROCESS p)
+{
+    if (p && InterlockedCompareExchange(&p->dwCurrentState, 0, 0) == SVCBATCH_PROCESS_RUNNING)
+        return TRUE;
+    else
+        return FALSE;
+}
+
+static __inline DWORD xgetprocessid(LPSVCBATCH_PROCESS p)
+{
+    if (p)
+        return p->sProcessInformation.dwProcessId;
+    else
+        return 0;
+}
+
+static DWORD waitprocess(LPSVCBATCH_PROCESS p, DWORD w)
+{
+    ASSERT_NULL(p, ERROR_INVALID_PARAMETER);
+
+    if (InterlockedCompareExchange(&p->dwCurrentState, 0, 0) > SVCBATCH_PROCESS_STOPPED) {
+        WaitForSingleObject(p->sProcessInformation.hProcess, w);
+        GetExitCodeProcess(p->sProcessInformation.hProcess, &p->dwExitCode);
+    }
+    return p->dwExitCode;
+}
+
 static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
 {
     DWORD  r = 0;
@@ -1126,6 +1152,23 @@ finished:
         DBG_PRINTF("terminating proc [%.4lu]", pid);
         TerminateProcess(ph, 1);
     }
+    return r;
+}
+
+static DWORD killprocess(LPSVCBATCH_PROCESS proc, int rc)
+{
+    DWORD r;
+
+    InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
+    r = killproctree(NULL, proc->sProcessInformation.dwProcessId, rc);
+
+    DBG_PRINTF("terminating proc [%.4lu]", proc->sProcessInformation.dwProcessId);
+    proc->dwExitCode = 1;
+    if (!TerminateProcess(proc->sProcessInformation.hProcess,
+                          proc->dwExitCode))
+        r = GetLastError();
+    InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
+
     return r;
 }
 
@@ -1492,7 +1535,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
 
 static BOOL xseekfend(HANDLE h)
 {
-    if (!haspipedlogs) {
+    if (!svclogsproc) {
         LARGE_INTEGER ee = {{ 0, 0 }};
         return SetFilePointerEx(h, ee, NULL, FILE_END);
     }
@@ -1519,7 +1562,7 @@ static BOOL logfflush(HANDLE h)
     if (xseekfend(h)) {
         if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0)) {
             InterlockedAdd64(&logwritten, wr);
-            if (!haspipedlogs)
+            if (!svclogsproc)
                 FlushFileBuffers(h);
             return xseekfend(h);
         }
@@ -1594,8 +1637,8 @@ static void logconfig(HANDLE h)
     logwransi(h, "Base directory   : ", servicebase);
     logwransi(h, "Home directory   : ", servicehome);
     logwransi(h, "Logs directory   : ", servicelogs);
-    if (haspipedlogs)
-        logwransi(h, "Log redirected to: ", logredirargv[0]);
+    if (svclogsproc)
+        logwransi(h, "Log redirected to: ", svclogsproc->lpArgv[0]);
 
     logfflush(h);
 }
@@ -1664,14 +1707,14 @@ static DWORD WINAPI rdpipedlog(void *ph)
             }
             else if (rb[0] == '\n') {
                 rl[rn] = '\0';
-                DBG_PRINTF("[%.4lu] %s", pipedprocpid, rl);
+                DBG_PRINTF("[%.4lu] %s", xgetprocessid(svclogsproc), rl);
                 rn = 0;
             }
             else {
                 rl[rn++] = rb[0];
                 if (rn > rm) {
                     rl[rn] = '\0';
-                    DBG_PRINTF("[%.4lu] %s", pipedprocpid, rl);
+                    DBG_PRINTF("[%.4lu] %s", xgetprocessid(svclogsproc), rl);
                     rn = 0;
                 }
             }
@@ -1683,7 +1726,7 @@ static DWORD WINAPI rdpipedlog(void *ph)
     CloseHandle(ph);
     if (rn) {
         rl[rn] = '\0';
-        DBG_PRINTF("[%.4lu] %s", pipedprocpid, rl);
+        DBG_PRINTF("[%.4lu] %s", xgetprocessid(svclogsproc), rl);
     }
     if (rc) {
         if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
@@ -1701,9 +1744,6 @@ static DWORD openlogpipe(BOOL ssp)
     DWORD    rc;
     HANDLE   wr = NULL;
     LPHANDLE rp = NULL;
-    PROCESS_INFORMATION cp;
-    STARTUPINFOW si;
-    wchar_t *cmdline = NULL;
 #if defined(_DEBUG)
     HANDLE rd = NULL;
 
@@ -1711,46 +1751,51 @@ static DWORD openlogpipe(BOOL ssp)
 #endif
 
     DBG_PRINTS("started");
-
-    xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
-    rc = createiopipes(&si, &wr, rp, 0);
+    svclogsproc->dwType          = SVCBATCH_USER_LOG_PROCESS;
+    svclogsproc->dwCreationFlags = CREATE_SUSPENDED |
+                                   CREATE_UNICODE_ENVIRONMENT |
+                                   CREATE_NEW_CONSOLE;
+    InterlockedExchange(&svclogsproc->dwCurrentState, SVCBATCH_PROCESS_STARTING);
+    rc = createiopipes(&svclogsproc->sStartupInfo, &wr, rp, 0);
     if (rc) {
        DBG_PRINTF("createiopipes failed with %lu", rc);
        return rc;
     }
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    cmdline = xappendarg(1, NULL, NULL, logredirargv[0]);
-    if (logredirargc == 1) {
-        cmdline = xappendarg(1, cmdline, NULL, svclogfname);
+    svclogsproc->lpCommandLine = xappendarg(1, NULL, NULL, svclogsproc->lpArgv[0]);
+    if (svclogsproc->dwArgc == 1) {
+        svclogsproc->lpCommandLine = xappendarg(1, svclogsproc->lpCommandLine, NULL, svclogfname);
     }
     else {
         int i;
-        for (i = 1; i < logredirargc; i++) {
-            xwchreplace(logredirargv[i], L'@', L'%');
-            cmdline = xappendarg(1, cmdline, NULL, logredirargv[i]);
+        for (i = 1; i < svclogsproc->dwArgc; i++) {
+            xwchreplace(svclogsproc->lpArgv[i], L'@', L'%');
+            svclogsproc->lpCommandLine = xappendarg(1, svclogsproc->lpCommandLine, NULL, svclogsproc->lpArgv[i]);
         }
     }
-    DBG_PRINTF("cmdline %S", cmdline);
-    if (!CreateProcessW(logredirargv[0], cmdline, NULL, NULL, TRUE,
-                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
+    DBG_PRINTF("cmdline %S", svclogsproc->lpCommandLine);
+    if (!CreateProcessW(svclogsproc->lpArgv[0],
+                        svclogsproc->lpCommandLine,
+                        NULL, NULL, TRUE,
+                        svclogsproc->dwCreationFlags,
                         NULL,
                         servicelogs,
-                       &si, &cp)) {
+                       &svclogsproc->sStartupInfo,
+                       &svclogsproc->sProcessInformation)) {
         rc = GetLastError();
-        xsyserror(rc, L"CreateProcess", logredirargv[0]);
+        xsyserror(rc, L"CreateProcess", svclogsproc->lpArgv[0]);
         goto failed;
     }
-    pipedprocess = cp.hProcess;
-    pipedprocpid = cp.dwProcessId;
     /**
      * Close our side of the pipes
      */
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
+    SAFE_CLOSE_HANDLE(svclogsproc->sStartupInfo.hStdInput);
+    SAFE_CLOSE_HANDLE(svclogsproc->sStartupInfo.hStdError);
 
-    ResumeThread(cp.hThread);
-    SAFE_CLOSE_HANDLE(cp.hThread);
+    ResumeThread(svclogsproc->sProcessInformation.hThread);
+    SAFE_CLOSE_HANDLE(svclogsproc->sProcessInformation.hThread);
+    InterlockedExchange(&svclogsproc->dwCurrentState, SVCBATCH_PROCESS_RUNNING);
 #if defined(_DEBUG)
     xcreatethread(SVCBATCH_RDLOGPIPE_THREAD,
                   1, 0, rdpipedlog, rd);
@@ -1759,8 +1804,7 @@ static DWORD openlogpipe(BOOL ssp)
         logwrline(wr, cnamestamp);
 
     InterlockedExchangePointer(&logfhandle, wr);
-    DBG_PRINTF("running pipe log process %lu", pipedprocpid);
-    xfree(cmdline);
+    DBG_PRINTF("running pipe log process %lu", xgetprocessid(svclogsproc));
 
     return 0;
 failed:
@@ -1768,8 +1812,10 @@ failed:
 #if defined(_DEBUG)
     SAFE_CLOSE_HANDLE(rd);
 #endif
-    SAFE_CLOSE_HANDLE(pipedprocess);
-
+    xfree(svclogsproc->lpCommandLine);
+    svclogsproc->dwExitCode = rc;
+    SAFE_CLOSE_HANDLE(svclogsproc->sProcessInformation.hProcess);
+    InterlockedExchange(&svclogsproc->dwCurrentState, 0);
     return rc;
 }
 
@@ -1803,7 +1849,7 @@ static DWORD makelogfile(BOOL ssp)
     }
     ewb[x] = WNUL;
     logfilename = xwcsmkpath(servicelogs, ewb);
-    if (servicemode || truncatelogs)
+    if (servicemode || truncatelogs == 1)
         cm = CREATE_ALWAYS;
     else
         cm = OPEN_ALWAYS;
@@ -1853,9 +1899,9 @@ static DWORD openlogfile(BOOL ssp)
     InterlockedExchange64(&logwopened, GetTickCount64());
     if (wcschr(svclogfname, L'%'))
         return makelogfile(ssp);
-    if (truncatelogs)
+    if (truncatelogs == 1)
         renameprev = 0;
-    if (rotatebysize || rotatebytime || truncatelogs)
+    if (rotatebysize || rotatebytime || truncatelogs == 1)
         rotateprev = 0;
     else
         rotateprev = svcmaxlogs;
@@ -1937,7 +1983,7 @@ static DWORD openlogfile(BOOL ssp)
             xfree(logpn);
         }
     }
-    if (truncatelogs)
+    if (truncatelogs == 1)
         cm = CREATE_ALWAYS;
     else
         cm = OPEN_ALWAYS;
@@ -2002,7 +2048,7 @@ static DWORD rotatelogs(void)
     }
     QueryPerformanceCounter(&pcstarttime);
     FlushFileBuffers(h);
-    if (truncatelogs) {
+    if (truncatelogs == 1) {
         LARGE_INTEGER ee = {{ 0, 0 }};
 
         if (SetFilePointerEx(h, ee, NULL, FILE_BEGIN)) {
@@ -2052,7 +2098,6 @@ finished:
 static void closelogfile(void)
 {
     HANDLE h;
-    DWORD  r;
 
     DBG_PRINTS("started");
     EnterCriticalSection(&logfilelock);
@@ -2061,8 +2106,8 @@ static void closelogfile(void)
         BOOL f = TRUE;
 
         DBG_PRINTS("closing");
-        if (IS_VALID_HANDLE(pipedprocess)) {
-            if (!GetExitCodeProcess(pipedprocess, &r) || (r != STILL_ACTIVE))
+        if (svclogsproc) {
+            if (waitprocess(svclogsproc, SVCBATCH_STOP_STEP) != STILL_ACTIVE)
                 f = FALSE;
         }
         if (f) {
@@ -2072,23 +2117,22 @@ static void closelogfile(void)
                 logwrtime(h, "Log closed");
             }
             FlushFileBuffers(h);
+            DBG_PRINTS("flushed");
         }
         CloseHandle(h);
     }
-    LeaveCriticalSection(&logfilelock);
-    if (IS_VALID_HANDLE(pipedprocess)) {
-        DBG_PRINTF("wait for log process %lu to finish", pipedprocpid);
-        if (WaitForSingleObject(pipedprocess, SVCBATCH_STOP_STEP) == WAIT_TIMEOUT) {
-            DBG_PRINTF("terminating log process %lu", pipedprocpid);
-            killproctree(pipedprocess, pipedprocpid, 0);
+    if (svclogsproc) {
+        DBG_PRINTF("wait for log process %lu to finish",
+                   xgetprocessid(svclogsproc));
+        if (waitprocess(svclogsproc, SVCBATCH_STOP_STEP) == STILL_ACTIVE) {
+            DBG_PRINTS("terminating log process");
+            killprocess(svclogsproc, 0);
         }
 #if defined(_DEBUG)
-        if (GetExitCodeProcess(pipedprocess, &r)) {
-            DBG_PRINTF("log process returned %lu", r);
-        }
+        DBG_PRINTF("log process returned %lu", svclogsproc->dwExitCode);
 #endif
-        SAFE_CLOSE_HANDLE(pipedprocess);
     }
+    LeaveCriticalSection(&logfilelock);
     DBG_PRINTS("done");
 }
 
@@ -2251,9 +2295,9 @@ static DWORD runshutdown(DWORD rt)
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
             rp[ip++] = L'l';
-        if (truncatelogs || truncateslog)
+        if (truncatelogs)
             rp[ip++] = L't';
-        if (haslogstatus)
+        for (i = 0; i < haslogstatus; i++)
             rp[ip++] = L'v';
     }
     else {
@@ -3071,7 +3115,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     if (havelogging) {
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-        if (haspipedlogs)
+        if (svclogsproc)
             rv = openlogpipe(TRUE);
         else
             rv = openlogfile(TRUE);
@@ -3275,15 +3319,10 @@ int wmain(int argc, const wchar_t **wargv)
                 havelogging  = FALSE;
             break;
             case L't':
-                truncateslog = TRUE;
-                if (truncatelogs)
-                    truncatelogs = FALSE;
-                else
-                    truncatelogs = TRUE;
-
+                truncatelogs++;
             break;
             case L'v':
-                haslogstatus = TRUE;
+                haslogstatus++;
             break;
             /**
              * Options with arguments
@@ -3305,8 +3344,12 @@ int wmain(int argc, const wchar_t **wargv)
              * multiple times
              */
             case L'e':
-                if (logredirargc < SVCBATCH_MAX_ARGS)
-                    logredirargv[logredirargc++] = xwcsdup(xwoptarg);
+                if (!svclogsproc) {
+                    svclogsproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+
+                }
+                if (svclogsproc->dwArgc < SVCBATCH_MAX_ARGS)
+                    svclogsproc->lpArgv[svclogsproc->dwArgc++] = xwcsdup(xwoptarg);
                 else
                     return xsyserror(0, L"Too many -e arguments", xwoptarg);
             break;
@@ -3402,7 +3445,7 @@ int wmain(int argc, const wchar_t **wargv)
 
     if (havelogging) {
         if (servicemode) {
-            if (logredirargc == 0) {
+            if (!svclogsproc) {
                 svcmaxlogs = SVCBATCH_MAX_LOGS;
                 if (maxlogsparam) {
                     svcmaxlogs = xwcstoi(maxlogsparam, NULL);
@@ -3426,7 +3469,7 @@ int wmain(int argc, const wchar_t **wargv)
          * are not defined when -q is defined
          */
         bb[0] = WNUL;
-        if (logredirargc)
+        if (svclogsproc)
             xwcslcat(bb, TBUFSIZ, L"-e ");
         if (maxlogsparam)
             xwcslcat(bb, TBUFSIZ, L"-m ");
@@ -3442,7 +3485,13 @@ int wmain(int argc, const wchar_t **wargv)
             xwcslcat(bb, TBUFSIZ, L"-v ");
         if (bb[0]) {
 #if defined(_DEBUG)
-            DBG_PRINTF("extra option(s) %S", bb);
+            DBG_PRINTF("option -q is mutually exclusive with option(s) %S", bb);
+            xfree(svclogsproc);
+            outdirparam  = NULL;
+            svclogsproc  = NULL;
+            ncnt         = 0;
+            haslogstatus = 0;
+            truncatelogs = 0;
 #else
             return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
 #endif
@@ -3556,13 +3605,12 @@ int wmain(int argc, const wchar_t **wargv)
                 }
             }
         }
-        if (logredirargc) {
-            wchar_t *p = logredirargv[0];
+        if (svclogsproc) {
+            wchar_t *p = svclogsproc->lpArgv[0];
 
-            logredirargv[0] = getrealpathname(p, 0);
-            if (logredirargv[0] == NULL)
+            svclogsproc->lpArgv[0] = getrealpathname(p, 0);
+            if (svclogsproc->lpArgv[0] == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, p, NULL);
-            haspipedlogs = TRUE;
             xfree(p);
         }
     }
