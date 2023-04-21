@@ -84,7 +84,7 @@
  * Maximum number of arguments
  * for shutdown and external log application
  */
-#define SVCBATCH_MAX_ARGS       8
+#define SVCBATCH_MAX_ARGS       16
 
 /**
  * Maximum length for the path and
@@ -94,6 +94,9 @@
  * realistic number.
  */
 #define SVCBATCH_PATH_MAX       4096
+
+#define SVCBATCH_NAME_MAX       256
+#define SVCBATCH_RSRC_LEN       64
 
 /**
  * Custom SCM control code that
