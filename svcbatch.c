@@ -141,8 +141,6 @@ static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 static LARGE_INTEGER         pcfrequency = {{ 0, 0 }};
 static LARGE_INTEGER         pcstarttime = {{ 0, 0 }};
 
-static wchar_t  *comspec          = NULL;
-
 static BOOL      hasctrlbreak     = FALSE;
 static BOOL      haslogrotate     = FALSE;
 static BOOL      rotatebysize     = FALSE;
@@ -2684,34 +2682,31 @@ finished:
 static DWORD WINAPI workerthread(void *unused)
 {
     DWORD i;
-    wchar_t *cmdline = NULL;
+    wchar_t *xcmd = NULL;
     HANDLE   wh[2];
     HANDLE   wr = NULL;
     HANDLE   rd = NULL;
     LPHANDLE rp = NULL;
     DWORD    rc = 0;
     DWORD    nw = 2;
-    PROCESS_INFORMATION cp;
-    STARTUPINFOW  si;
     SVCBATCH_PIPE op;
 
     DBG_PRINTS("started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-    xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
     xmemzero(&op, 1, sizeof(SVCBATCH_PIPE));
     if (havelogging)
         rp = &rd;
-    rc = createiopipes(&si, &wr, rp, FILE_FLAG_OVERLAPPED);
+    rc = createiopipes(&svcxcmdproc->sInfo, &wr, rp, FILE_FLAG_OVERLAPPED);
     if (rc != 0) {
         DBG_PRINTF("createiopipes failed with %lu", rc);
         goto finished;
     }
-    cmdline = xappendarg(1, NULL,    NULL,     comspec);
-    cmdline = xappendarg(1, cmdline, L"/D /C", mainservice->lpFile);
+    xcmd = xappendarg(1, NULL, NULL,     svcxcmdproc->szExe);
+    xcmd = xappendarg(1, xcmd, L"/D /C", mainservice->lpFile);
     for (i = 1; i < svcxcmdproc->nArgc; i++) {
         xwchreplace(svcxcmdproc->lpArgv[i], L'@', L'%');
-        cmdline = xappendarg(1, cmdline, NULL, svcxcmdproc->lpArgv[i]);
+        xcmd = xappendarg(1, xcmd, NULL, svcxcmdproc->lpArgv[i]);
     }
 
     if (havelogging) {
@@ -2721,25 +2716,26 @@ static DWORD WINAPI workerthread(void *unused)
             goto finished;
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-
-    DBG_PRINTF("cmdline %S", cmdline);
-    if (!CreateProcessW(comspec, cmdline, NULL, NULL, TRUE,
+    svcxcmdproc->lpCommandLine = xcmd;
+    DBG_PRINTF("cmdline %S", svcxcmdproc->lpCommandLine);
+    if (!CreateProcessW(svcxcmdproc->szExe,
+                        svcxcmdproc->lpCommandLine, NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
                         NULL,
                         mainservice->lpHome,
-                       &si, &cp)) {
+                       &svcxcmdproc->sInfo, &svcxcmdproc->pInfo)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         xsyserror(rc, L"CreateProcess", NULL);
         goto finished;
     }
-    childprocess = cp.hProcess;
-    childprocpid = cp.dwProcessId;
+    childprocess = svcxcmdproc->pInfo.hProcess;
+    childprocpid = svcxcmdproc->pInfo.dwProcessId;
     /**
      * Close our side of the pipes
      */
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
+    SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdInput);
+    SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdError);
 
     if (!xcreatethread(SVCBATCH_WRITE_THREAD,
                        0, 1, wrpipethread, wr)) {
@@ -2748,10 +2744,10 @@ static DWORD WINAPI workerthread(void *unused)
     }
     wh[0] = childprocess;
 
-    ResumeThread(cp.hThread);
+    ResumeThread(svcxcmdproc->pInfo.hThread);
     ResumeThread(svcthread[SVCBATCH_WRITE_THREAD].hThread);
 
-    SAFE_CLOSE_HANDLE(cp.hThread);
+    SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     DBG_PRINTF("running child with pid %lu", childprocpid);
     if (haslogrotate)
@@ -2843,9 +2839,9 @@ static DWORD WINAPI workerthread(void *unused)
     }
 
 finished:
-    SAFE_CLOSE_HANDLE(cp.hThread);
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
+    SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hThread);
+    SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdInput);
+    SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdError);
     if (havelogging) {
         SAFE_CLOSE_HANDLE(op.hPipe);
         SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
@@ -3429,9 +3425,6 @@ int wmain(int argc, const wchar_t **wargv)
         mainservice->lpUuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
     if (IS_EMPTY_WCS(mainservice->lpUuid))
         return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
-    comspec = xgetenv(L"COMSPEC");
-    if (IS_EMPTY_WCS(comspec))
-        return xsyserror(GetLastError(), L"COMSPEC", NULL);
 
     if (havelogging) {
         if (servicemode) {
