@@ -76,7 +76,6 @@ typedef struct _SVCBATCH_PROCESS {
     HANDLE              hWrPipe;
     PROCESS_INFORMATION pInfo;
     STARTUPINFOW        sInfo;
-    SECURITY_ATTRIBUTES sSecurityAttributes;
     DWORD               dwExitCode;
     DWORD               nArgc;
     LPWSTR              lpCommandLine;
@@ -152,7 +151,6 @@ static BOOL      servicemode      = TRUE;
 static DWORD     haslogstatus     = 0;
 static DWORD     truncatelogs     = 0;
 static DWORD     preshutdown      = 0;
-static DWORD     childprocpid     = 0;
 
 static int       svcmaxlogs       = 0;
 static int       xwoptind         = 1;
@@ -165,7 +163,6 @@ static wchar_t  *logfilename      = NULL;
 static wchar_t  *svclogfname      = NULL;
 static wchar_t  *svcendlogfn      = NULL;
 
-static HANDLE    childprocess     = NULL;
 static HANDLE    svcstopstart     = NULL;
 static HANDLE    svcstopended     = NULL;
 static HANDLE    ssignalevent     = NULL;
@@ -2391,8 +2388,7 @@ static DWORD WINAPI stopthread(void *unused)
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
     DBG_PRINTS("child is still active ... terminating");
 
-    killproctree(childprocess, childprocpid, 0);
-    SAFE_CLOSE_HANDLE(childprocess);
+    killprocess(svcxcmdproc, 0);
 
 finished:
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
@@ -2693,6 +2689,7 @@ static DWORD WINAPI workerthread(void *unused)
 
     DBG_PRINTS("started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STARTING);
 
     xmemzero(&op, 1, sizeof(SVCBATCH_PIPE));
     if (havelogging)
@@ -2719,18 +2716,18 @@ static DWORD WINAPI workerthread(void *unused)
     svcxcmdproc->lpCommandLine = xcmd;
     DBG_PRINTF("cmdline %S", svcxcmdproc->lpCommandLine);
     if (!CreateProcessW(svcxcmdproc->szExe,
-                        svcxcmdproc->lpCommandLine, NULL, NULL, TRUE,
+                        svcxcmdproc->lpCommandLine,
+                        NULL, NULL, TRUE,
                         CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
                         NULL,
                         mainservice->lpHome,
-                       &svcxcmdproc->sInfo, &svcxcmdproc->pInfo)) {
+                       &svcxcmdproc->sInfo,
+                       &svcxcmdproc->pInfo)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
         xsyserror(rc, L"CreateProcess", NULL);
         goto finished;
     }
-    childprocess = svcxcmdproc->pInfo.hProcess;
-    childprocpid = svcxcmdproc->pInfo.dwProcessId;
     /**
      * Close our side of the pipes
      */
@@ -2742,14 +2739,15 @@ static DWORD WINAPI workerthread(void *unused)
         xsyserror(GetLastError(), L"xcreatethread", NULL);
         goto finished;
     }
-    wh[0] = childprocess;
+    wh[0] = svcxcmdproc->pInfo.hProcess;
 
     ResumeThread(svcxcmdproc->pInfo.hThread);
     ResumeThread(svcthread[SVCBATCH_WRITE_THREAD].hThread);
+    InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_RUNNING);
 
     SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    DBG_PRINTF("running child with pid %lu", childprocpid);
+    DBG_PRINTF("running child with pid %lu", svcxcmdproc->pInfo.dwProcessId);
     if (haslogrotate)
         xcreatethread(SVCBATCH_ROTATE_THREAD, 1, 0, rotatethread, NULL);
 
@@ -2762,7 +2760,7 @@ static DWORD WINAPI workerthread(void *unused)
             switch (ws) {
                 case WAIT_OBJECT_0:
                     nw = 0;
-                    DBG_PRINTF("childprocess %lu done", childprocpid);
+                    DBG_PRINTF("childprocess %lu done", svcxcmdproc->pInfo.dwProcessId);
                 break;
                 case WAIT_OBJECT_1:
                     if (op.dwState == ERROR_IO_PENDING) {
@@ -2809,20 +2807,19 @@ static DWORD WINAPI workerthread(void *unused)
 
             }
         } while (nw);
+        InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
         WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, INFINITE);
     }
     else {
         wh[1] = svcthread[SVCBATCH_WRITE_THREAD].hThread;
+        InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
         WaitForMultipleObjects(nw, wh, TRUE, INFINITE);
 
     }
     DBG_PRINTF("finished %S with pid %lu",
-               mainservice->lpName, childprocpid);
-    if (IS_INVALID_HANDLE(childprocess)) {
-        DBG_PRINTF("%S child process is closed", mainservice->lpName);
-        goto finished;
-    }
-    if (GetExitCodeProcess(childprocess, &rc)) {
+               mainservice->lpName, svcxcmdproc->pInfo.dwProcessId);
+    if (GetExitCodeProcess(svcxcmdproc->pInfo.hProcess, &rc)) {
+        svcxcmdproc->dwExitCode = rc;
         DBG_PRINTF("%S exited with %lu", mainservice->lpName, rc);
     }
     else {
@@ -2839,6 +2836,8 @@ static DWORD WINAPI workerthread(void *unused)
     }
 
 finished:
+    InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
+    SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hProcess);
     SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hThread);
     SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdError);
@@ -3129,7 +3128,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
 finished:
 
-    SAFE_CLOSE_HANDLE(childprocess);
     closelogfile();
     cleanupthreads();
     reportsvcstatus(SERVICE_STOPPED, rv);
