@@ -123,14 +123,10 @@ static LPSVCBATCH_SERVICE    mainservice = NULL;
 static volatile LONG         monitorsig  = 0;
 static volatile LONG         rotateruns  = 0;
 static volatile LONG         sstarted    = 0;
-static volatile LONG         sscstate    = SERVICE_START_PENDING;
 static volatile LONG         rotatecount = 0;
 static volatile LONG64       logwritten  = CPP_INT64_C(0);
 static volatile LONG64       logwopened  = CPP_INT64_C(0);
 static volatile HANDLE       logfhandle  = NULL;
-static SERVICE_STATUS_HANDLE hsvcstatus  = NULL;
-static SERVICE_STATUS        ssvcstatus;
-static CRITICAL_SECTION      servicelock;
 static CRITICAL_SECTION      logfilelock;
 static SECURITY_ATTRIBUTES   sazero;
 static LONGLONG              rotateint   = CPP_INT64_C(0);
@@ -1329,9 +1325,9 @@ static BOOL resolvebatchname(const wchar_t *bp)
 
 static void setsvcstatusexit(DWORD e)
 {
-    EnterCriticalSection(&servicelock);
-    ssvcstatus.dwServiceSpecificExitCode = e;
-    LeaveCriticalSection(&servicelock);
+    EnterCriticalSection(&mainservice->csLock);
+    mainservice->sStatus.dwServiceSpecificExitCode = e;
+    LeaveCriticalSection(&mainservice->csLock);
 }
 
 static void reportsvcstatus(DWORD status, DWORD param)
@@ -1340,42 +1336,42 @@ static void reportsvcstatus(DWORD status, DWORD param)
 
     if (!servicemode)
         return;
-    EnterCriticalSection(&servicelock);
-    if (InterlockedExchange(&sscstate, SERVICE_STOPPED) == SERVICE_STOPPED)
+    EnterCriticalSection(&mainservice->csLock);
+    if (InterlockedExchange(&mainservice->dwCurrentState, SERVICE_STOPPED) == SERVICE_STOPPED)
         goto finished;
-    ssvcstatus.dwControlsAccepted = 0;
-    ssvcstatus.dwCheckPoint       = 0;
-    ssvcstatus.dwWaitHint         = 0;
+    mainservice->sStatus.dwControlsAccepted = 0;
+    mainservice->sStatus.dwCheckPoint       = 0;
+    mainservice->sStatus.dwWaitHint         = 0;
 
     if (status == SERVICE_RUNNING) {
-        ssvcstatus.dwControlsAccepted =  SERVICE_ACCEPT_STOP |
-                                         SERVICE_ACCEPT_SHUTDOWN |
-                                         preshutdown;
+        mainservice->sStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP |
+                                                  SERVICE_ACCEPT_SHUTDOWN |
+                                                  preshutdown;
         cpcnt = 1;
     }
     else if (status == SERVICE_STOPPED) {
         if (param != 0)
-            ssvcstatus.dwServiceSpecificExitCode = param;
-        if (ssvcstatus.dwServiceSpecificExitCode == 0 &&
-            ssvcstatus.dwCurrentState != SERVICE_STOP_PENDING) {
-            ssvcstatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
+            mainservice->sStatus.dwServiceSpecificExitCode = param;
+        if (mainservice->sStatus.dwServiceSpecificExitCode == 0 &&
+            mainservice->sStatus.dwCurrentState != SERVICE_STOP_PENDING) {
+            mainservice->sStatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
             xsyserror(0, L"service stopped without SERVICE_CONTROL_STOP signal", NULL);
         }
-        if (ssvcstatus.dwServiceSpecificExitCode != 0)
-            ssvcstatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+        if (mainservice->sStatus.dwServiceSpecificExitCode != 0)
+            mainservice->sStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
     else {
-        ssvcstatus.dwCheckPoint = cpcnt++;
-        ssvcstatus.dwWaitHint   = param;
+        mainservice->sStatus.dwCheckPoint = cpcnt++;
+        mainservice->sStatus.dwWaitHint   = param;
     }
-    ssvcstatus.dwCurrentState = status;
-    InterlockedExchange(&sscstate, status);
-    if (!SetServiceStatus(hsvcstatus, &ssvcstatus)) {
+    mainservice->sStatus.dwCurrentState = status;
+    InterlockedExchange(&mainservice->dwCurrentState, status);
+    if (!SetServiceStatus(mainservice->hStatus, &mainservice->sStatus)) {
         xsyserror(GetLastError(), L"SetServiceStatus", NULL);
-        InterlockedExchange(&sscstate, SERVICE_STOPPED);
+        InterlockedExchange(&mainservice->dwCurrentState, SERVICE_STOPPED);
     }
 finished:
-    LeaveCriticalSection(&servicelock);
+    LeaveCriticalSection(&mainservice->csLock);
 }
 
 static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
@@ -3005,7 +3001,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(logrotatesig);
 
     DeleteCriticalSection(&logfilelock);
-    DeleteCriticalSection(&servicelock);
+    DeleteCriticalSection(&mainservice->csLock);
 }
 
 
@@ -3015,8 +3011,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     HANDLE wh[4] = { NULL, NULL, NULL, NULL };
     DWORD  ws;
 
-    ssvcstatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
-    ssvcstatus.dwCurrentState = SERVICE_START_PENDING;
+    mainservice->sStatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
+    mainservice->sStatus.dwCurrentState = SERVICE_START_PENDING;
 
     if (IS_EMPTY_WCS(mainservice->lpName) && (argc > 0))
         mainservice->lpName = xwcsdup(argv[0]);
@@ -3026,8 +3022,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         return;
     }
     if (servicemode) {
-        hsvcstatus = RegisterServiceCtrlHandlerExW(mainservice->lpName, servicehandler, NULL);
-        if (IS_INVALID_HANDLE(hsvcstatus)) {
+        mainservice->hStatus = RegisterServiceCtrlHandlerExW(mainservice->lpName, servicehandler, NULL);
+        if (IS_INVALID_HANDLE(mainservice->hStatus)) {
             return;
         }
         DBG_PRINTF("started %S", mainservice->lpName);
@@ -3143,12 +3139,14 @@ static int xwmaininit(void)
     svcmainproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
     svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
+    mainservice->dwCurrentState    = SERVICE_START_PENDING;
     svcxcmdproc->dwType            = SVCBATCH_SHELL_PROCESS;
     svcmainproc->dwType            = SVCBATCH_SERVICE_PROCESS;
     svcmainproc->dwCurrentState    = SVCBATCH_PROCESS_RUNNING;
     svcmainproc->pInfo.hProcess    = GetCurrentProcess();
     svcmainproc->pInfo.dwProcessId = GetCurrentProcessId();
     svcmainproc->pInfo.dwThreadId  = GetCurrentThreadId();
+
     GetStartupInfoW(&svcmainproc->sInfo);
 
     bb = svcmainproc->szExe;
@@ -3175,7 +3173,7 @@ static int xwmaininit(void)
      */
     QueryPerformanceFrequency(&pcfrequency);
     QueryPerformanceCounter(&pcstarttime);
-
+    InitializeCriticalSection(&mainservice->csLock);
 
     return 0;
 }
@@ -3603,7 +3601,6 @@ int wmain(int argc, const wchar_t **wargv)
         svclogfname = nparam[0];
     }
 
-    xmemzero(&ssvcstatus, 1, sizeof(SERVICE_STATUS));
     xmemzero(&sazero,     1, sizeof(SECURITY_ATTRIBUTES));
     sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
     /**
@@ -3643,7 +3640,6 @@ int wmain(int argc, const wchar_t **wargv)
     monitorevent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
-    InitializeCriticalSection(&servicelock);
     InitializeCriticalSection(&logfilelock);
     atexit(objectscleanup);
 
@@ -3660,7 +3656,7 @@ int wmain(int argc, const wchar_t **wargv)
     else {
         DBG_PRINTS("starting shutdown");
         servicemain(0, NULL);
-        rv = ssvcstatus.dwServiceSpecificExitCode;
+        rv = mainservice->sStatus.dwServiceSpecificExitCode;
     }
     DBG_PRINTF("done (%lu)\n", rv);
 #if defined(_DEBUG) && (_DEBUG > 1)
