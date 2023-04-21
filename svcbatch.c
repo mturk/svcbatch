@@ -111,7 +111,6 @@ typedef struct _SVCBATCH_SERVICE {
     LPWSTR              lpLogs;
     LPWSTR              lpName;
     LPWSTR              lpUuid;
-    WCHAR               szBase[SVCBATCH_PATH_MAX];
 
 } SVCBATCH_SERVICE, *LPSVCBATCH_SERVICE;
 
