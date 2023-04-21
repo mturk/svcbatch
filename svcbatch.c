@@ -151,15 +151,14 @@ static BOOL      uselocaltime     = FALSE;
 static BOOL      havelogging      = TRUE;
 static BOOL      servicemode      = TRUE;
 
-static int       haslogstatus     = 0;
-static int       truncatelogs     = 0;
+static DWORD     haslogstatus     = 0;
+static DWORD     truncatelogs     = 0;
 static DWORD     preshutdown      = 0;
 static DWORD     childprocpid     = 0;
 
 static int       svcmaxlogs       = 0;
 static int       xwoptind         = 1;
 static wchar_t   xwoption         = WNUL;
-static int       svcstopwargc     = 0;
 static int       svccodepage      = 0;
 static _locale_t localeobject     = NULL;
 
@@ -175,8 +174,6 @@ static HANDLE    ssignalevent     = NULL;
 static HANDLE    processended     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
-
-static wchar_t  *svcstopwargv[SVCBATCH_MAX_ARGS];
 
 static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
 
@@ -1595,8 +1592,8 @@ static void logconfig(HANDLE h)
     logwransi(h, "Service name     : ", mainservice->lpName);
     logwransi(h, "Service uuid     : ", mainservice->lpUuid);
     logwransi(h, "Batch file       : ", mainservice->lpFile);
-    if (svcstopwargc)
-        logwransi(h, "Shutdown batch   : ", svcstopwargv[0]);
+    if (svcstopproc)
+        logwransi(h, "Shutdown batch   : ", svcstopproc->lpArgv[0]);
     logwransi(h, "Program directory: ", svcmainproc->szDir);
     logwransi(h, "Base directory   : ", mainservice->lpBase);
     logwransi(h, "Home directory   : ", mainservice->lpHome);
@@ -2242,7 +2239,7 @@ static DWORD runshutdown(DWORD rt)
     wchar_t *cmdline = NULL;
     HANDLE   wh[2];
     DWORD    rc = 0;
-    int   i, ip = 4;
+    DWORD i, ip = 4;
     PROCESS_INFORMATION cp;
     STARTUPINFOW si;
 
@@ -2274,8 +2271,8 @@ static DWORD runshutdown(DWORD rt)
     cmdline = xappendarg(0, cmdline, L"-c", localeparam);
     if (havelogging && svcendlogfn)
         cmdline = xappendarg(1, cmdline, L"-n", svcendlogfn);
-    for (i = 0; i < svcstopwargc; i++)
-        cmdline = xappendarg(1, cmdline, NULL, svcstopwargv[i]);
+    for (i = 0; i < svcstopproc->nArgc; i++)
+        cmdline = xappendarg(1, cmdline, NULL, svcstopproc->lpArgv[i]);
     DBG_PRINTF("cmdline %S", cmdline);
     if (!CreateProcessW(svcmainproc->szExe, cmdline, NULL, NULL, TRUE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_CONSOLE,
@@ -2349,7 +2346,7 @@ static DWORD WINAPI stopthread(void *unused)
 
     SetEvent(svcstopstart);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-    if (svcstopwargc) {
+    if (svcstopproc) {
         DWORD rc;
 
         DBG_PRINTS("creating shutdown process");
@@ -3125,7 +3122,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         DBG_PRINTS("waiting for stopthread to finish");
         ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
         if (ws == WAIT_TIMEOUT) {
-            if (svcstopwargc) {
+            if (svcstopproc) {
                 DBG_PRINTS("sending shutdown stop signal");
                 SetEvent(ssignalevent);
                 ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
@@ -3351,10 +3348,6 @@ int wmain(int argc, const wchar_t **wargv)
                     sparam[scnt++] = xwoptarg;
                 else
                     return xsyserror(0, L"Too many -s arguments", xwoptarg);
-                if (svcstopwargc < SVCBATCH_MAX_ARGS)
-                    svcstopwargv[svcstopwargc++] = xwcsdup(xwoptarg);
-                else
-                    return xsyserror(0, L"Too many -s arguments", xwoptarg);
             break;
             case L'n':
                 if (ncnt > 1)
@@ -3454,7 +3447,7 @@ int wmain(int argc, const wchar_t **wargv)
             }
             if (ncnt == 0)
                 nparam[ncnt++] = xwcsdup(SVCBATCH_LOGNAME);
-            if (svcstopwargc && (ncnt < 2))
+            if (scnt && (ncnt < 2))
                 nparam[ncnt++] = xwcsdup(SHUTDOWN_LOGNAME);
         }
         if (outdirparam == NULL)
@@ -3575,14 +3568,6 @@ int wmain(int argc, const wchar_t **wargv)
         return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
     if (servicemode) {
-        if (svcstopwargc) {
-            wchar_t *p = svcstopwargv[0];
-
-            svcstopwargv[0] = xgetfinalpathname(p, 0, NULL, 0);
-            if (svcstopwargv[0] == NULL)
-                return xsyserror(ERROR_FILE_NOT_FOUND, p, NULL);
-            xfree(p);
-        }
         if (haslogrotate) {
             for (i = 0; i < rcnt; i++) {
                 if (!resolverotate(rparam[i]))
@@ -3644,7 +3629,7 @@ int wmain(int argc, const wchar_t **wargv)
     if (IS_INVALID_HANDLE(processended))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
     if (servicemode) {
-        if (svcstopwargc) {
+        if (svcstopproc) {
             xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
             xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
             ssignalevent = CreateEventW(&sazero, TRUE, FALSE, bb);
