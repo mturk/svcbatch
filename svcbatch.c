@@ -80,9 +80,8 @@ typedef struct _SVCBATCH_PROCESS {
     DWORD               dwExitCode;
     DWORD               nArgc;
     LPWSTR              lpCommandLine;
-    LPWSTR              lpFilePart;                     /* Pointer to file part of szExeFile   */
-    WCHAR               szExeFile[SVCBATCH_PATH_MAX];
-    WCHAR               szExeDir[SVCBATCH_PATH_MAX];
+    WCHAR               szExe[SVCBATCH_PATH_MAX];
+    WCHAR               szDir[SVCBATCH_PATH_MAX];
     LPWSTR              lpArgv[SVCBATCH_MAX_ARGS];
 } SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
 
@@ -780,35 +779,6 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
     return oli[0];
 }
 
-static void xcleanwinpath(wchar_t *s, int isdir)
-{
-    int i;
-
-    if (IS_EMPTY_WCS(s))
-        return;
-
-    for (i = 0; s[i]; i++) {
-        if (s[i] == L'/')
-            s[i] =  L'\\';
-    }
-    --i;
-    while (i > 1) {
-        if (iswspace(s[i]))
-            s[i--] = WNUL;
-        else
-            break;
-
-    }
-    if (isdir) {
-        while (i > 1) {
-            if ((s[i] ==  L'\\') && (s[i - 1] != L'.'))
-                s[i--] = WNUL;
-            else
-                break;
-        }
-    }
-}
-
 static wchar_t *xuuidstring(wchar_t *b)
 {
     static wchar_t s[TBUFSIZ];
@@ -822,8 +792,8 @@ static wchar_t *xuuidstring(wchar_t *b)
 
     if (b == NULL)
         b = s;
-    d[0] = HIBYTE(GetCurrentProcessId());
-    d[1] = LOBYTE(GetCurrentProcessId());
+    d[0] = HIBYTE(svcmainproc->pInfo.dwProcessId);
+    d[1] = LOBYTE(svcmainproc->pInfo.dwProcessId);
     for (i = 0, x = 0; i < 18; i++) {
         if (i == 2 || i == 6 || i == 8 || i == 10 || i == 12)
             b[x++] = '-';
@@ -884,7 +854,7 @@ static void dbgprints(const char *funcname, const char *string)
 #if (_DEBUG > 1)
     if (dbgfile) {
         xsnprintf(b, MBUFSIZ, "[%.4lu] [%.4lu] %d %-16s %s",
-                  GetCurrentProcessId(),
+                  svcmainproc->pInfo.dwProcessId,
                   GetCurrentThreadId(),
                   servicemode, funcname, string);
     }
@@ -920,7 +890,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 #if (_DEBUG > 1)
     if (dbgfile) {
         n = xsnprintf(b, MBUFSIZ, "[%.4lu] [%.4lu] %d %-16s ",
-                      GetCurrentProcessId(),
+                      svcmainproc->pInfo.dwProcessId,
                       GetCurrentThreadId(),
                       servicemode, funcname);
     }
@@ -1280,25 +1250,6 @@ static BOOL isrelativepath(const wchar_t *p)
     return TRUE;
 }
 
-static wchar_t *getfullpathname(wchar_t *buf, int siz, const wchar_t *src, int isdir)
-{
-    ASSERT_WSTR(src, NULL);
-
-    xwcslcpy(buf, siz, src);
-    xcleanwinpath(buf, isdir);
-
-    if (isrelativepath(buf)) {
-        DWORD   nn;
-        wchar_t bb[FBUFSIZ];
-
-        nn = GetFullPathNameW(buf, FBUFSIZ, bb, NULL);
-        if ((nn == 0) || (nn >= FBUFSIZ))
-            return NULL;
-        xwcslcpy(buf, siz, bb);
-    }
-    return buf;
-}
-
 static DWORD fixshortpath(wchar_t *buf, DWORD len)
 {
     if ((len > 5) && (len < _MAX_FNAME)) {
@@ -1318,26 +1269,16 @@ static DWORD fixshortpath(wchar_t *buf, DWORD len)
     return len;
 }
 
-static wchar_t *getfinalpathname(const wchar_t *path, int isdir)
+static wchar_t *xgetfullpathname(const wchar_t *path, wchar_t *dst, DWORD siz)
 {
-    wchar_t buf[FBUFSIZ];
-    DWORD   len;
-    HANDLE  fh;
-    DWORD   atr  = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
+    DWORD len;
+    ASSERT_WSTR(path, NULL);
 
-    fh = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
-                     OPEN_EXISTING, atr, NULL);
-    if (IS_INVALID_HANDLE(fh))
+    len = GetFullPathNameW(path, siz, dst, NULL);
+    if ((len == 0) || (len >= siz))
         return NULL;
-    len = GetFinalPathNameByHandleW(fh, buf, HBUFSIZ, VOLUME_NAME_DOS);
-    CloseHandle(fh);
-    if (len >= FBUFSIZ) {
-        SetLastError(ERROR_BUFFER_OVERFLOW);
-        return NULL;
-    }
-    CloseHandle(fh);
-    fixshortpath(buf, len);
-    return xwcsdup(buf);
+    fixshortpath(dst, len);
+    return dst;
 }
 
 static wchar_t *xgetfinalpathname(const wchar_t *path, int isdir,
@@ -1371,20 +1312,6 @@ static wchar_t *xgetfinalpathname(const wchar_t *path, int isdir,
         return xwcsdup(buf);
     else
         return buf;
-}
-
-static wchar_t *getrealpathname(const wchar_t *src, int isdir)
-{
-    wchar_t *fpn;
-    wchar_t  buf[FBUFSIZ];
-
-    if (!servicemode)
-        return xwcsdup(src);
-
-    fpn = getfullpathname(buf, FBUFSIZ, src, isdir);
-    ASSERT_WSTR(fpn, NULL);
-
-    return getfinalpathname(fpn, isdir);
 }
 
 static BOOL resolvebatchname(const wchar_t *bp)
@@ -1670,7 +1597,7 @@ static void logconfig(HANDLE h)
     logwransi(h, "Batch file       : ", mainservice->lpFile);
     if (svcstopwargc)
         logwransi(h, "Shutdown batch   : ", svcstopwargv[0]);
-    logwransi(h, "Program directory: ", svcmainproc->szExeDir);
+    logwransi(h, "Program directory: ", svcmainproc->szDir);
     logwransi(h, "Base directory   : ", mainservice->lpBase);
     logwransi(h, "Home directory   : ", mainservice->lpHome);
     logwransi(h, "Logs directory   : ", servicelogs);
@@ -1698,23 +1625,23 @@ static DWORD createlogsdir(void)
 {
     wchar_t dp[FBUFSIZ];
 
-    if (getfullpathname(dp, FBUFSIZ, outdirparam, 1) == NULL) {
-        xsyserror(0, L"getfullpathname", outdirparam);
+    if (xgetfullpathname(outdirparam, dp, FBUFSIZ) == NULL) {
+        xsyserror(0, L"xgetfullpathname", outdirparam);
         return ERROR_BAD_PATHNAME;
     }
-    servicelogs = getfinalpathname(dp, 1);
+    servicelogs = xgetfinalpathname(dp, 1, NULL, 0);
     if (servicelogs == NULL) {
         DWORD rc = GetLastError();
 
         if (rc != ERROR_PATH_NOT_FOUND)
-            return xsyserror(rc, L"getfinalpathname", dp);
+            return xsyserror(rc, L"xgetfinalpathname", dp);
 
         rc = xcreatepath(dp);
         if (rc != 0)
             return xsyserror(rc, L"xcreatepath", dp);
-        servicelogs = getfinalpathname(dp, 1);
+        servicelogs = xgetfinalpathname(dp, 1, NULL, 0);
         if (servicelogs == NULL)
-            return xsyserror(GetLastError(), L"getfinalpathname", dp);
+            return xsyserror(GetLastError(), L"xgetfinalpathname", dp);
     }
     if (_wcsicmp(servicelogs, mainservice->lpHome) == 0) {
         xsyserror(0, L"Logs directory cannot be the same as home directory",
@@ -2328,7 +2255,7 @@ static DWORD runshutdown(DWORD rt)
         DBG_PRINTF("createiopipes failed with %lu", rc);
         return rc;
     }
-    cmdline = xappendarg(1, NULL,    NULL, svcmainproc->szExeFile);
+    cmdline = xappendarg(1, NULL,    NULL, svcmainproc->szExe);
     if (havelogging && svcendlogfn) {
         if (uselocaltime)
             rp[ip++] = L'l';
@@ -2350,7 +2277,7 @@ static DWORD runshutdown(DWORD rt)
     for (i = 0; i < svcstopwargc; i++)
         cmdline = xappendarg(1, cmdline, NULL, svcstopwargv[i]);
     DBG_PRINTF("cmdline %S", cmdline);
-    if (!CreateProcessW(svcmainproc->szExeFile, cmdline, NULL, NULL, TRUE,
+    if (!CreateProcessW(svcmainproc->szExe, cmdline, NULL, NULL, TRUE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_CONSOLE,
                         NULL, NULL, &si, &cp)) {
         rc = GetLastError();
@@ -3234,19 +3161,18 @@ static int xwmaininit(void)
     svcmainproc->pInfo.dwThreadId  = GetCurrentThreadId();
     GetStartupInfoW(&svcmainproc->sInfo);
 
-    bb = svcmainproc->szExeFile;
+    bb = svcmainproc->szExe;
     nn = GetModuleFileNameW(NULL, bb, SVCBATCH_PATH_MAX);
     if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
         return ERROR_BAD_PATHNAME;
     while (--nn > 2) {
         if (bb[nn] == L'\\') {
-            svcmainproc->lpFilePart = bb + nn + 1;
-            xwcslcpy(svcmainproc->szExeDir, nn + 1, bb);
+            xwcslcpy(svcmainproc->szDir, nn + 1, bb);
             break;
         }
     }
 
-    bb = svcxcmdproc->szExeFile;
+    bb = svcxcmdproc->szExe;
     nn = GetEnvironmentVariableW(L"COMSPEC", bb, SVCBATCH_PATH_MAX);
     if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
         return GetLastError();
@@ -3625,10 +3551,10 @@ int wmain(int argc, const wchar_t **wargv)
          }
          if (mainservice->lpHome == NULL) {
             if (svchomeparam == NULL) {
-                mainservice->lpHome = svcmainproc->szExeDir;
+                mainservice->lpHome = svcmainproc->szDir;
             }
             else {
-                SetCurrentDirectoryW(svcmainproc->szExeDir);
+                SetCurrentDirectoryW(svcmainproc->szDir);
                 mainservice->lpHome = xgetfinalpathname(svchomeparam, 1, NULL, 0);
                 if (IS_EMPTY_WCS(mainservice->lpHome))
                     return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
@@ -3652,7 +3578,7 @@ int wmain(int argc, const wchar_t **wargv)
         if (svcstopwargc) {
             wchar_t *p = svcstopwargv[0];
 
-            svcstopwargv[0] = getrealpathname(p, 0);
+            svcstopwargv[0] = xgetfinalpathname(p, 0, NULL, 0);
             if (svcstopwargv[0] == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, p, NULL);
             xfree(p);
@@ -3678,7 +3604,7 @@ int wmain(int argc, const wchar_t **wargv)
         if (ecnt) {
             svclogsproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
-            svclogsproc->lpArgv[0] = getrealpathname(eparam[0], 0);
+            svclogsproc->lpArgv[0] = xgetfinalpathname(eparam[0], 0, NULL, 0);
             if (svclogsproc->lpArgv[0] == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, eparam[0], NULL);
             for (i = 1; i < ecnt; i++)
@@ -3689,12 +3615,12 @@ int wmain(int argc, const wchar_t **wargv)
         if (scnt) {
             svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
-            svcstopproc->lpArgv[0] = getrealpathname(sparam[0], 0);
+            svcstopproc->lpArgv[0] = xgetfinalpathname(sparam[0], 0, NULL, 0);
             if (svcstopproc->lpArgv[0] == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
             for (i = 1; i < scnt; i++)
                 svcstopproc->lpArgv[i] = xwcsdup(sparam[i]);
-            svcstopproc->nArgc  = ecnt;
+            svcstopproc->nArgc  = scnt;
             svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
         }
     }
