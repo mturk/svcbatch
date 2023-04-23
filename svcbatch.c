@@ -25,9 +25,6 @@
 #include <locale.h>
 #include <errno.h>
 #if defined(_DEBUG)
-# if (_DEBUG > 1)
-#include <io.h>
-# endif
 #include <crtdbg.h>
 #endif
 #include "svcbatch.h"
@@ -35,9 +32,6 @@
 #if defined(_DEBUG)
 static void dbgprintf(const char *, const char *, ...);
 static void dbgprints(const char *, const char *);
-# if (_DEBUG > 1)
-static FILE *dbgfile = NULL;
-# endif
 #endif
 
 typedef enum {
@@ -834,34 +828,10 @@ static void dbgprints(const char *funcname, const char *string)
 {
     char b[MBUFSIZ];
 
-#if (_DEBUG > 1)
-    if (dbgfile) {
-        xsnprintf(b, MBUFSIZ, "[%.4lu] [%.4lu] %d %-16s %s",
-                  svcmainproc->pInfo.dwProcessId,
-                  GetCurrentThreadId(),
-                  servicemode, funcname, string);
-    }
-    else
-#endif
-    {
-        xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s %s",
-                  GetCurrentThreadId(),
-                  servicemode, funcname, string);
-    }
-#if (_DEBUG > 1)
-    if (dbgfile) {
-        SYSTEMTIME st;
-
-        GetSystemTime(&st);
-        fprintf(dbgfile, "[%.2d:%.2d:%.2d] %s\n",
-                st.wHour, st.wMinute, st.wSecond, b);
-        fflush(dbgfile);
-    }
-    else
-#endif
-    {
-        OutputDebugStringA(b);
-    }
+    xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s %s",
+              GetCurrentThreadId(),
+              servicemode, funcname, string);
+    OutputDebugStringA(b);
 }
 
 static void dbgprintf(const char *funcname, const char *format, ...)
@@ -870,38 +840,14 @@ static void dbgprintf(const char *funcname, const char *format, ...)
     char    b[MBUFSIZ];
     va_list ap;
 
-#if (_DEBUG > 1)
-    if (dbgfile) {
-        n = xsnprintf(b, MBUFSIZ, "[%.4lu] [%.4lu] %d %-16s ",
-                      svcmainproc->pInfo.dwProcessId,
-                      GetCurrentThreadId(),
-                      servicemode, funcname);
-    }
-    else
-#endif
-    {
-        n = xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s ",
-                      GetCurrentThreadId(),
-                      servicemode, funcname);
-    }
+    n = xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s ",
+                  GetCurrentThreadId(),
+                  servicemode, funcname);
 
     va_start(ap, format);
     xvsnprintf(b + n, MBUFSIZ - n, format, ap);
     va_end(ap);
-#if (_DEBUG > 1)
-    if (dbgfile) {
-        SYSTEMTIME st;
-
-        GetSystemTime(&st);
-        fprintf(dbgfile, "[%.2d:%.2d:%.2d] %s\n",
-                st.wHour, st.wMinute, st.wSecond, b);
-        fflush(dbgfile);
-    }
-    else
-#endif
-    {
-        OutputDebugStringA(b);
-    }
+    OutputDebugStringA(b);
 }
 
 static void xiphandler(const wchar_t *e,
@@ -999,15 +945,7 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     errarg[i++] = hdr;
 
 #if defined(_DEBUG)
-# if (_DEBUG > 1)
-    if (dbgfile) {
-        fputc('\n', dbgfile);
-    }
-    else
-# endif
-    {
-        OutputDebugStringA("\n");
-    }
+    OutputDebugStringA("\n");
 #endif
     if (ern) {
         c = xsnwprintf(erb, TBUFSIZ, L"error(%lu) ", ern);
@@ -3204,24 +3142,6 @@ int wmain(int argc, const wchar_t **wargv)
     _set_invalid_parameter_handler(xiphandler);
 # endif
    _CrtSetReportMode(_CRT_ASSERT, 0);
-# if (_DEBUG > 1)
-    {
-        wchar_t dbgnb[BBUFSIZ] = L"";
-
-        GetTempPathW(BBUFSIZ - TBUFSIZ, dbgnb);
-        xwcslcat(dbgnb, BBUFSIZ, L"svcbatch_debug.log");
-        dbgfile = _wfopen(dbgnb, L"atc");
-        if (dbgfile) {
-            long sz;
-
-            sz = _filelength(_fileno(dbgfile));
-            if (sz > 0) {
-                fputs("\n\n", dbgfile);
-                fflush(dbgfile);
-            }
-        }
-    }
-# endif
 #endif
     /**
      * Make sure child processes are kept quiet.
@@ -3663,11 +3583,5 @@ int wmain(int argc, const wchar_t **wargv)
         rv = mainservice->sStatus.dwServiceSpecificExitCode;
     }
     DBG_PRINTF("done (%lu)\n", rv);
-#if defined(_DEBUG) && (_DEBUG > 1)
-    if (dbgfile) {
-        fflush(dbgfile);
-        fclose(dbgfile);
-    }
-#endif
     return rv;
 }
