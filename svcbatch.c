@@ -44,7 +44,6 @@ typedef enum {
     SVCBATCH_MAX_THREADS
 } SVCBATCH_THREAD_ID;
 
-
 typedef struct _SVCBATCH_THREAD {
     volatile LONG          nStarted;
     LPTHREAD_START_ROUTINE lpStartAddress;
@@ -65,9 +64,9 @@ typedef struct _SVCBATCH_PIPE {
 } SVCBATCH_PIPE, *LPSVCBATCH_PIPE;
 
 typedef struct _SVCBATCH_PROCESS {
+    volatile LONG       dwCurrentState;
     DWORD               dwType;
     DWORD               dwCreationFlags;
-    volatile LONG       dwCurrentState;
     HANDLE              hRdPipe;
     HANDLE              hWrPipe;
     PROCESS_INFORMATION pInfo;
@@ -81,12 +80,12 @@ typedef struct _SVCBATCH_PROCESS {
 } SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
 
 typedef struct _SVCBATCH_LOG {
-    DWORD               dwType;                         /* Log type (file or external log application  */
     volatile LONG       dwCurrentState;
     volatile LONG       nRotateCount;
     volatile HANDLE     hFile;
     volatile LONG64     nWritten;
-    volatile LONG64     nOpenTime;                      /* GetTickCount64 value when log was opened */
+    volatile LONG64     nOpenTime;
+    DWORD               dwType;
     CRITICAL_SECTION    csLock;
     LPSVCBATCH_PROCESS  lpLogProcess;
     LPWSTR              lpFileName;
@@ -97,15 +96,14 @@ typedef struct _SVCBATCH_LOG {
 typedef struct _SVCBATCH_SERVICE {
     volatile LONG           dwCurrentState;
     SERVICE_STATUS_HANDLE   hStatus;
+    SERVICE_STATUS          sStatus;
+    CRITICAL_SECTION        csLock;
 
-    SERVICE_STATUS      sStatus;
-    CRITICAL_SECTION    csLock;
-
-    LPWSTR              lpBase;
-    LPWSTR              lpHome;
-    LPWSTR              lpLogs;
-    LPWSTR              lpName;
-    LPWSTR              lpUuid;
+    LPWSTR                  lpBase;
+    LPWSTR                  lpHome;
+    LPWSTR                  lpLogs;
+    LPWSTR                  lpName;
+    LPWSTR                  lpUuid;
 
 } SVCBATCH_SERVICE, *LPSVCBATCH_SERVICE;
 
@@ -133,7 +131,6 @@ static BOOL      rotatebysize     = FALSE;
 static BOOL      rotatebytime     = FALSE;
 static BOOL      uselocaltime     = FALSE;
 static BOOL      havelogging      = TRUE;
-static BOOL      servicemode      = TRUE;
 
 static DWORD     haslogstatus     = 0;
 static DWORD     truncatelogs     = 0;
@@ -830,7 +827,7 @@ static void dbgprints(const char *funcname, const char *string)
 
     xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s %s",
               GetCurrentThreadId(),
-              servicemode, funcname, string);
+              svcmainproc->dwType, funcname, string);
     OutputDebugStringA(b);
 }
 
@@ -842,7 +839,7 @@ static void dbgprintf(const char *funcname, const char *format, ...)
 
     n = xsnprintf(b, MBUFSIZ, "[%.4lu] %d %-16s ",
                   GetCurrentThreadId(),
-                  servicemode, funcname);
+                  svcmainproc->dwType, funcname);
 
     va_start(ap, format);
     xvsnprintf(b + n, MBUFSIZ - n, format, ap);
@@ -1271,7 +1268,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
 {
     static DWORD cpcnt = 1;
 
-    if (!servicemode)
+    if (svcmainproc->dwType != SVCBATCH_SERVICE_PROCESS)
         return;
     SVCBATCH_CS_ENTER(mainservice);
     if (InterlockedExchange(&mainservice->dwCurrentState, SERVICE_STOPPED) == SERVICE_STOPPED)
@@ -1737,7 +1734,7 @@ static DWORD makelogfile(BOOL ssp)
     }
     ewb[x] = WNUL;
     svcbatchlog->lpFileName = xwcsmkpath(svcbatchlog->szDir, ewb);
-    if (servicemode || truncatelogs == 1)
+    if ((svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) || (truncatelogs == 1))
         cm = CREATE_ALWAYS;
     else
         cm = OPEN_ALWAYS;
@@ -2265,7 +2262,7 @@ static DWORD WINAPI stopthread(void *unused)
 {
 
 #if defined(_DEBUG)
-    if (servicemode)
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS)
         DBG_PRINTS("service stop");
     else
         DBG_PRINTS("shutdown stop");
@@ -2515,7 +2512,7 @@ static void monitorservice(void)
 
 static DWORD WINAPI monitorthread(void *unused)
 {
-    if (servicemode)
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS)
         monitorservice();
     else
         monitorshutdown();
@@ -2958,7 +2955,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
-    if (servicemode) {
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         mainservice->hStatus = RegisterServiceCtrlHandlerExW(mainservice->lpName, servicehandler, NULL);
         if (IS_INVALID_HANDLE(mainservice->hStatus)) {
             return;
@@ -2991,7 +2988,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         GetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS",
                                 svcbatchlog->szDir, SVCBATCH_PATH_MAX);
     }
-    if (servicemode) {
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         /**
          * Add additional environment variables
          * They are unique to this service instance
@@ -3075,9 +3072,8 @@ static int xwmaininit(void)
     svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
     mainservice->dwCurrentState    = SERVICE_START_PENDING;
-    svcxcmdproc->dwType            = SVCBATCH_SHELL_PROCESS;
-    svcmainproc->dwType            = SVCBATCH_SERVICE_PROCESS;
     svcmainproc->dwCurrentState    = SVCBATCH_PROCESS_RUNNING;
+    svcxcmdproc->dwType            = SVCBATCH_SHELL_PROCESS;
     svcmainproc->pInfo.hProcess    = GetCurrentProcess();
     svcmainproc->pInfo.dwProcessId = GetCurrentProcessId();
     svcmainproc->pInfo.dwThreadId  = GetCurrentThreadId();
@@ -3179,7 +3175,6 @@ int wmain(int argc, const wchar_t **wargv)
         svcmainproc->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
         svcmainproc->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
     }
-    DBG_PRINTS(cnamestamp);
 
     /**
      * Check if running as service or as a child process.
@@ -3187,7 +3182,7 @@ int wmain(int argc, const wchar_t **wargv)
     if (argc > 1) {
         const wchar_t *p = wargv[1];
         if ((p[0] == L':') && (p[1] == L':') && (p[2] == WNUL)) {
-            servicemode = FALSE;
+            svcmainproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
             mainservice->lpName = xgetenv(L"SVCBATCH_SERVICE_NAME");
             if (mainservice->lpName == NULL)
                 return ERROR_BAD_ENVIRONMENT;
@@ -3198,7 +3193,11 @@ int wmain(int argc, const wchar_t **wargv)
             argc    -= 1;
             wargv   += 1;
         }
+        else {
+            svcmainproc->dwType = SVCBATCH_SERVICE_PROCESS;
+        }
     }
+    DBG_PRINTS(cnamestamp);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
@@ -3262,7 +3261,7 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Too many -n options", xwoptarg);
 
                 nparam[ncnt] = xwcsdup(xwoptarg);
-                if (servicemode) {
+                if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
                     if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
                         return xsyserror(0, L"Found invalid filename characters", xwoptarg);
                     /**
@@ -3331,7 +3330,7 @@ int wmain(int argc, const wchar_t **wargv)
                 return xsyserror(0, L"Too many batch arguments", wargv[i]);
         }
     }
-    if (servicemode)
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS)
         mainservice->lpUuid = xuuidstring(NULL);
     else
         mainservice->lpUuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
@@ -3343,7 +3342,7 @@ int wmain(int argc, const wchar_t **wargv)
 
         svcbatchlog->dwType = SVCBATCH_LOG_FILE;
         SVCBATCH_CS_CREATE(svcbatchlog);
-        if (servicemode) {
+        if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
             if (ecnt == 0) {
                 svcmaxlogs = SVCBATCH_MAX_LOGS;
                 if (maxlogsparam) {
@@ -3395,7 +3394,7 @@ int wmain(int argc, const wchar_t **wargv)
 #endif
         }
     }
-    if (servicemode) {
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         /**
          * Find the location of SVCBATCH_SERVICE_HOME
          * all relative paths are resolved against it.
@@ -3473,7 +3472,7 @@ int wmain(int argc, const wchar_t **wargv)
     if (!resolvebatchname(batchparam))
         return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
-    if (servicemode) {
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         if (haslogrotate) {
             for (i = 0; i < rcnt; i++) {
                 if (!resolverotate(rparam[i]))
@@ -3540,7 +3539,7 @@ int wmain(int argc, const wchar_t **wargv)
     processended = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(processended))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
-    if (servicemode) {
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         if (svcstopproc) {
             xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
             xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
@@ -3571,7 +3570,7 @@ int wmain(int argc, const wchar_t **wargv)
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
     se[1].lpServiceName = NULL;
     se[1].lpServiceProc = NULL;
-    if (servicemode) {
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         DBG_PRINTS("starting service");
         if (!StartServiceCtrlDispatcherW(se))
             rv = xsyserror(GetLastError(),
