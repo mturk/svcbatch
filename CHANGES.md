@@ -10,7 +10,14 @@ For a full list of changes, see the [git commit log][log]
 
   * In development
   * Drop experimental console mode with _DEBUG builds
+  * Use object structures instead global variables
+  * Do not rotate logs if previous rotation was less then 2 minutes ago
+  * Use asynchronous read from batch file
+  * Ensure that all started processes are properly terminated
 
+### New Features
+
+ * Add SVCBATCH_SERVICE_LOGS environment variable
 
 ## v2.0.0
 
