@@ -115,8 +115,6 @@ static LPSVCBATCH_SERVICE    mainservice = NULL;
 static LPSVCBATCH_LOG        svcbatchlog = NULL;
 
 static volatile LONG         monitorsig  = 0;
-static volatile LONG         rotateruns  = 0;
-static volatile LONG         rotatecount = 0;
 
 static SECURITY_ATTRIBUTES   sazero;
 static LONGLONG              rotateint   = CPP_INT64_C(0);
@@ -1533,6 +1531,8 @@ static BOOL canrotatelogs(void)
     ULONGLONG cm;
     ULONGLONG pm;
 
+    if (InterlockedCompareExchange(&svcbatchlog->dwCurrentState, 0, 0))
+        return FALSE;
     cm = GetTickCount64();
     pm = InterlockedCompareExchange64(&svcbatchlog->nOpenTime, 0, 0);
 
@@ -1922,7 +1922,7 @@ static DWORD rotatelogs(void)
     HANDLE h  = NULL;
 
     SVCBATCH_CS_ENTER(svcbatchlog);
-    InterlockedExchange(&rotateruns, 1);
+    InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
     InterlockedExchange64(&svcbatchlog->nOpenTime, GetTickCount64());
 
     h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
@@ -1943,7 +1943,7 @@ static DWORD rotatelogs(void)
                     logwrline(h, cnamestamp);
                     logwrtime(h, "Log truncated");
                     logprintf(h, "Log generation   : %lu",
-                              InterlockedIncrement(&rotatecount));
+                              InterlockedIncrement(&svcbatchlog->nRotateCount));
                     logconfig(h);
                 }
                 DBG_PRINTS("truncated");
@@ -1963,7 +1963,7 @@ static DWORD rotatelogs(void)
         if (haslogstatus) {
             logwrtime(svcbatchlog->hFile, "Log rotated");
             logprintf(svcbatchlog->hFile, "Log generation   : %lu",
-                      InterlockedIncrement(&rotatecount));
+                      InterlockedIncrement(&svcbatchlog->nRotateCount));
             logconfig(svcbatchlog->hFile);
         }
         DBG_PRINTS("rotated");
@@ -1974,7 +1974,7 @@ static DWORD rotatelogs(void)
     }
 
 finished:
-    InterlockedExchange(&rotateruns, 0);
+    InterlockedExchange(&svcbatchlog->dwCurrentState, 0);
     InterlockedExchange64(&svcbatchlog->nOpenTime, GetTickCount64());
     SVCBATCH_CS_LEAVE(svcbatchlog);
     return rc;
@@ -2354,10 +2354,8 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
         if (InterlockedCompareExchange64(&svcbatchlog->nWritten, 0, 0) >= rotatesiz.QuadPart) {
             if (canrotatelogs()) {
                 InterlockedExchange64(&svcbatchlog->nWritten, 0);
-                if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
-                    DBG_PRINTS("rotating by size");
-                    SetEvent(logrotatesig);
-                }
+                DBG_PRINTS("rotating by size");
+                SetEvent(logrotatesig);
             }
         }
     }
@@ -2578,7 +2576,7 @@ static DWORD WINAPI rotatethread(void *unused)
             break;
             case WAIT_OBJECT_3:
                 DBG_PRINTS("rotatetimer signaled");
-                if (canrotatelogs() && (InterlockedCompareExchange(&rotateruns, 1, 0) == 0)) {
+                if (canrotatelogs()) {
                     DBG_PRINTS("rotate by time");
                     rc = rotatelogs();
                     if (rc) {
@@ -2870,16 +2868,12 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                  * Signal to rotatethread that
                  * user send custom service control
                  */
-                if (!canrotatelogs()) {
-                    DBG_PRINTS("rotatelogs not ready");
-                    return ERROR_NOT_READY;
-                }
-                if (InterlockedCompareExchange(&rotateruns, 1, 0) == 0) {
+                if (canrotatelogs()) {
                     DBG_PRINTS("signaling SVCBATCH_CTRL_ROTATE");
                     SetEvent(logrotatesig);
                 }
                 else {
-                    DBG_PRINTS("rotatelogs already running");
+                    DBG_PRINTS("rotatelogs is busy");
                     return ERROR_ALREADY_EXISTS;
                 }
             }
