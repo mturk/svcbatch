@@ -157,7 +157,7 @@ static const wchar_t *localeparam = NULL;
 static const wchar_t *svclogfname = NULL;
 static const wchar_t *svcstoplogn = NULL;
 
-static int            xwoptind     = 1;
+static int            xwoptind    = 1;
 static wchar_t        xwoption    = WNUL;
 static const wchar_t *xwoptarg    = NULL;
 
