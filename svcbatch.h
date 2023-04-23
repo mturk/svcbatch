@@ -217,6 +217,11 @@
 #define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == WNUL))
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 
+#define SVCBATCH_CS_CREATE(_o)  if (_o) InitializeCriticalSection(&((_o)->csLock))
+#define SVCBATCH_CS_DELETE(_o)  if (_o) DeleteCriticalSection(&((_o)->csLock))
+#define SVCBATCH_CS_ENTER(_o)   if (_o) EnterCriticalSection(&((_o)->csLock))
+#define SVCBATCH_CS_LEAVE(_o)   if (_o) LeaveCriticalSection(&((_o)->csLock))
+
 /**
  * Assertion macros
  */
