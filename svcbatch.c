@@ -126,7 +126,6 @@ static BOOL      haslogrotate     = FALSE;
 static BOOL      rotatebysize     = FALSE;
 static BOOL      rotatebytime     = FALSE;
 static BOOL      uselocaltime     = FALSE;
-static BOOL      havelogging      = TRUE;
 
 static DWORD     haslogstatus     = 0;
 static DWORD     truncatelogs     = 0;
@@ -2175,7 +2174,7 @@ static DWORD runshutdown(DWORD rt)
         return rc;
     }
     cmdline = xappendarg(1, NULL,    NULL, svcmainproc->szExe);
-    if (havelogging && svcstoplogn) {
+    if (svcbatchlog && svcstoplogn) {
         if (uselocaltime)
             rp[ip++] = L'l';
         if (truncatelogs)
@@ -2191,7 +2190,7 @@ static DWORD runshutdown(DWORD rt)
         rp[2] = WNUL;
     cmdline = xappendarg(0, cmdline, NULL,  rp);
     cmdline = xappendarg(0, cmdline, L"-c", localeparam);
-    if (havelogging && svcstoplogn)
+    if (svcbatchlog && svcstoplogn)
         cmdline = xappendarg(1, cmdline, L"-n", svcstoplogn);
     for (i = 0; i < svcstopproc->nArgc; i++)
         cmdline = xappendarg(1, cmdline, NULL, svcstopproc->lpArgv[i]);
@@ -2607,7 +2606,7 @@ static DWORD WINAPI workerthread(void *unused)
     InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STARTING);
 
     xmemzero(&op, 1, sizeof(SVCBATCH_PIPE));
-    if (havelogging)
+    if (svcbatchlog)
         rp = &rd;
     rc = createiopipes(&svcxcmdproc->sInfo, &wr, rp, FILE_FLAG_OVERLAPPED);
     if (rc != 0) {
@@ -2621,7 +2620,7 @@ static DWORD WINAPI workerthread(void *unused)
         xcmd = xappendarg(1, xcmd, NULL, svcxcmdproc->lpArgv[i]);
     }
 
-    if (havelogging) {
+    if (svcbatchlog) {
         op.hPipe = rd;
         op.oOverlap.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
         if (IS_INVALID_HANDLE(op.oOverlap.hEvent))
@@ -2666,7 +2665,7 @@ static DWORD WINAPI workerthread(void *unused)
     if (haslogrotate)
         xcreatethread(SVCBATCH_ROTATE_THREAD, 0, rotatethread, NULL);
 
-    if (havelogging) {
+    if (svcbatchlog) {
         wh[1] = op.oOverlap.hEvent;
         do {
             DWORD ws;
@@ -2756,7 +2755,7 @@ finished:
     SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hThread);
     SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdError);
-    if (havelogging) {
+    if (svcbatchlog) {
         SAFE_CLOSE_HANDLE(op.hPipe);
         SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
     }
@@ -2944,7 +2943,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         DBG_PRINTF("started %S", mainservice->lpName);
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-        if (havelogging) {
+        if (svcbatchlog) {
             rv = createlogsdir();
             if (rv) {
                 reportsvcstatus(SERVICE_STOPPED, rv);
@@ -2981,7 +2980,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     }
 
-    if (havelogging) {
+    if (svcbatchlog) {
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         if (svclogsproc)
             rv = openlogpipe(TRUE);
@@ -3100,6 +3099,7 @@ int wmain(int argc, const wchar_t **wargv)
     int         scnt = 0;
     int         rv;
     wchar_t     bb[BBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
+    BOOL        havelogging = TRUE;
 
     HANDLE      h;
     SERVICE_TABLE_ENTRYW se[2];
@@ -3363,7 +3363,7 @@ int wmain(int argc, const wchar_t **wargv)
         if (haslogstatus)
             xwcslcat(bb, TBUFSIZ, L"-v ");
         if (bb[0]) {
-#if defined(_DEBUG)
+#if defined(_DEBUG) && (_DEBUG > 1)
             DBG_PRINTF("option -q is mutually exclusive with option(s) %S", bb);
             outdirparam  = NULL;
             ecnt         = 0;
