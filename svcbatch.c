@@ -114,8 +114,6 @@ static LPSVCBATCH_PROCESS    svcxcmdproc = NULL;
 static LPSVCBATCH_SERVICE    mainservice = NULL;
 static LPSVCBATCH_LOG        svcbatchlog = NULL;
 
-static volatile LONG         monitorsig  = 0;
-
 static SECURITY_ATTRIBUTES   sazero;
 static LONGLONG              rotateint   = CPP_INT64_C(0);
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
@@ -2394,7 +2392,7 @@ static DWORD WINAPI wrpipethread(void *wh)
     return rc;
 }
 
-static void monitorshutdown(void)
+static void monitorsvcstop(void)
 {
     HANDLE wh[4];
     HANDLE h;
@@ -2451,7 +2449,7 @@ static void monitorservice(void)
     wh[2] = monitorevent;
 
     do {
-        DWORD ws, cc;
+        DWORD ws;
 
         ws = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
         switch (ws) {
@@ -2464,39 +2462,29 @@ static void monitorservice(void)
                 rc = FALSE;
             break;
             case WAIT_OBJECT_2:
-                cc = (DWORD)InterlockedExchange(&monitorsig, 0);
-                if (cc == 0) {
-                    DBG_PRINTS("quit signaled");
-                    rc = FALSE;
-                }
-                else if (cc == SVCBATCH_CTRL_BREAK) {
-                    DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
-                    if (haslogstatus) {
-                        HANDLE h;
+                DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
+                if (haslogstatus) {
+                    HANDLE h;
 
-                        SVCBATCH_CS_ENTER(svcbatchlog);
-                        h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
+                    SVCBATCH_CS_ENTER(svcbatchlog);
+                    h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
 
-                        if (h) {
-                            logfflush(h);
-                            logwrline(h, "Signaled SVCBATCH_CTRL_BREAK");
-                        }
-                        InterlockedExchangePointer(&svcbatchlog->hFile, h);
-                        SVCBATCH_CS_LEAVE(svcbatchlog);
+                    if (h) {
+                        logfflush(h);
+                        logwrline(h, "Signaled SVCBATCH_CTRL_BREAK");
                     }
-                    /**
-                     * Danger Zone!!!
-                     *
-                     * Send CTRL_BREAK_EVENT to the child process.
-                     * This is useful if batch file is running java
-                     * CTRL_BREAK signal tells JDK to dump thread stack
-                     *
-                     */
-                    GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+                    InterlockedExchangePointer(&svcbatchlog->hFile, h);
+                    SVCBATCH_CS_LEAVE(svcbatchlog);
                 }
-                else {
-                    DBG_PRINTF("unknown control %lu", cc);
-                }
+                /**
+                 * Danger Zone!!!
+                 *
+                 * Send CTRL_BREAK_EVENT to the child process.
+                 * This is useful if batch file is running java
+                 * CTRL_BREAK signal tells JDK to dump thread stack
+                 *
+                 */
+                GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
                 ResetEvent(monitorevent);
             break;
             default:
@@ -2513,7 +2501,7 @@ static DWORD WINAPI monitorthread(void *unused)
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS)
         monitorservice();
     else
-        monitorshutdown();
+        monitorsvcstop();
 
     return 0;
 }
@@ -2854,7 +2842,6 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SVCBATCH_CTRL_BREAK:
             if (hasctrlbreak) {
                 DBG_PRINTS("raising SVCBATCH_CTRL_BREAK");
-                InterlockedExchange(&monitorsig, ctrl);
                 SetEvent(monitorevent);
             }
             else {
