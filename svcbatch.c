@@ -3071,6 +3071,7 @@ static int xwmaininit(void)
     nn = GetModuleFileNameW(NULL, bb, SVCBATCH_PATH_MAX);
     if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
         return ERROR_BAD_PATHNAME;
+    nn = fixshortpath(bb, nn);
     while (--nn > 2) {
         if (bb[nn] == L'\\') {
             xwcslcpy(svcmainproc->szDir, nn + 1, bb);
@@ -3082,6 +3083,7 @@ static int xwmaininit(void)
     nn = GetEnvironmentVariableW(L"COMSPEC", bb, SVCBATCH_PATH_MAX);
     if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
         return GetLastError();
+    fixshortpath(bb, nn);
     /* Reserve lpArgv[0] for batch file */
     svcxcmdproc->nArgc  = 1;
     svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
