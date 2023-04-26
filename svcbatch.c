@@ -2880,7 +2880,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
     return 0;
 }
 
-static void __cdecl cleanupthreads(void)
+static void __cdecl threadscleanup(void)
 {
     int i;
 
@@ -3037,7 +3037,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 finished:
 
     closelogfile();
-    cleanupthreads();
+    threadscleanup();
     reportsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");
 }
@@ -3047,6 +3047,13 @@ static int xwmaininit(void)
     wchar_t *bb;
     DWORD    nn;
 
+    /**
+     * On systems that run Windows XP or later,
+     * this functions will always succeed.
+     */
+    QueryPerformanceFrequency(&pcfrequency);
+    QueryPerformanceCounter(&pcstarttime);
+
     xmemzero(svcthread, SVCBATCH_MAX_THREADS,     sizeof(SVCBATCH_THREAD));
     mainservice = (LPSVCBATCH_SERVICE)xmcalloc(1, sizeof(SVCBATCH_SERVICE));
     svcmainproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
@@ -3054,7 +3061,6 @@ static int xwmaininit(void)
 
     mainservice->dwCurrentState    = SERVICE_START_PENDING;
     svcmainproc->dwCurrentState    = SVCBATCH_PROCESS_RUNNING;
-    svcxcmdproc->dwType            = SVCBATCH_SHELL_PROCESS;
     svcmainproc->pInfo.hProcess    = GetCurrentProcess();
     svcmainproc->pInfo.dwProcessId = GetCurrentProcessId();
     svcmainproc->pInfo.dwThreadId  = GetCurrentThreadId();
@@ -3077,14 +3083,8 @@ static int xwmaininit(void)
     if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
         return GetLastError();
     /* Reserve lpArgv[0] for batch file */
-    svcxcmdproc->nArgc = 1;
-
-    /**
-     * On systems that run Windows XP or later,
-     * this functions will always succeed.
-     */
-    QueryPerformanceFrequency(&pcfrequency);
-    QueryPerformanceCounter(&pcstarttime);
+    svcxcmdproc->nArgc  = 1;
+    svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
     SVCBATCH_CS_CREATE(mainservice);
 
     return 0;
@@ -3335,6 +3335,12 @@ int wmain(int argc, const wchar_t **wargv)
                 if (svcmaxlogs)
                     haslogrotate = TRUE;
             }
+            else {
+                if (rcnt)
+                    return xsyserror(0, L"Option -e is mutually exclusive with option -r", NULL);
+                if (maxlogsparam)
+                    return xsyserror(0, L"Option -e is mutually exclusive with option -m", NULL);
+            }
             if (ncnt == 0) {
                 svclogfname = SVCBATCH_LOGNAME;
                 svcstoplogn = SHUTDOWN_LOGNAME;
@@ -3369,6 +3375,7 @@ int wmain(int argc, const wchar_t **wargv)
             outdirparam  = NULL;
             ecnt         = 0;
             ncnt         = 0;
+            rcnt         = 0;
             haslogstatus = 0;
             truncatelogs = 0;
 #else
@@ -3513,6 +3520,7 @@ int wmain(int argc, const wchar_t **wargv)
     /**
      * Create logic state events
      */
+    atexit(objectscleanup);
     svcstopended = CreateEvent(NULL, TRUE, TRUE,  NULL);
     if (IS_INVALID_HANDLE(svcstopended))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
@@ -3547,7 +3555,6 @@ int wmain(int argc, const wchar_t **wargv)
     monitorevent = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (IS_INVALID_HANDLE(monitorevent))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
-    atexit(objectscleanup);
 
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
