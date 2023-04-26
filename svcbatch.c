@@ -1750,7 +1750,8 @@ static DWORD makelogfile(BOOL ssp)
         cm = CREATE_ALWAYS;
     else
         cm = OPEN_ALWAYS;
-    h = CreateFileW(svcbatchlog->lpFileName, GENERIC_WRITE,
+    h = CreateFileW(svcbatchlog->lpFileName,
+                    GENERIC_READ | GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, cm,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
@@ -3556,7 +3557,7 @@ int wmain(int argc, const wchar_t **wargv)
         if (svcstopproc) {
             xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
             xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
-            ssignalevent = CreateEventW(&sazero, TRUE, FALSE, bb);
+            ssignalevent = CreateEvent(NULL, TRUE, FALSE, bb);
             if (IS_INVALID_HANDLE(ssignalevent))
                 return xsyserror(GetLastError(), L"CreateEvent", bb);
         }
@@ -3569,7 +3570,7 @@ int wmain(int argc, const wchar_t **wargv)
     else {
         xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
         xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
-        ssignalevent = OpenEventW(SYNCHRONIZE, FALSE, bb);
+        ssignalevent = OpenEvent(SYNCHRONIZE, FALSE, bb);
         if (IS_INVALID_HANDLE(ssignalevent))
             return xsyserror(GetLastError(), L"OpenEvent", bb);
     }
