@@ -928,11 +928,16 @@ static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wc
     errarg[i++] = wnamestamp;
     if (mainservice->lpName)
         errarg[i++] = mainservice->lpName;
-    if (typ == EVENTLOG_ERROR_TYPE) {
-        errarg[i++] = L"\r\nreported the following error:";
+    if (typ == EVENTLOG_INFORMATION_TYPE) {
+        xwcslcpy(hdr, MBUFSIZ, CRLFW);
+        xwcslcat(hdr, MBUFSIZ, err);
     }
-    xsnwprintf(hdr, MBUFSIZ,
-               L"\r\nsvcbatch.c(%.4d, %S) %s", line, fn, err);
+    else {
+        if (typ == EVENTLOG_ERROR_TYPE)
+            errarg[i++] = L"\r\nreported the following error:";
+        xsnwprintf(hdr, MBUFSIZ,
+                   L"\r\nsvcbatch.c(%.4d, %S) %s", line, fn, err);
+    }
     if (eds) {
         xwcslcat(hdr, MBUFSIZ, L": ");
         xwcslcat(hdr, MBUFSIZ, eds);
