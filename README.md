@@ -572,9 +572,10 @@ SvcBatch sets for each instance.
 
 * **SVCBATCH_SERVICE_UUID**
 
-  This is the service's unique identifier in UUID hex format
-  `01234567-89ab-cdef-0123-456789abcdef` and it is
-  randomly generated on service startup.
+  This is the service's unique identifier in following hexadecimal format
+  `abcd-01234567-89ab-cdef-0123-456789abcdef`.
+  The first four digits are current process id, and remaining digits
+  are randomly generated at service startup.
 
   `SVCBATCH_SERVICE_UUID` can be used inside batch file
   when unique identifier is needed.
