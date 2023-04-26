@@ -1885,7 +1885,8 @@ static DWORD openlogfile(BOOL ssp)
     else
         cm = OPEN_ALWAYS;
 
-    h = CreateFileW(svcbatchlog->lpFileName, GENERIC_WRITE,
+    h = CreateFileW(svcbatchlog->lpFileName,
+                    GENERIC_READ | GENERIC_WRITE,
                     FILE_SHARE_READ, &sazero, cm,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
