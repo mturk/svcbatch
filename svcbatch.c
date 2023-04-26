@@ -2638,7 +2638,9 @@ static DWORD WINAPI workerthread(void *unused)
 
     if (svcbatchlog) {
         op.hPipe = rd;
-        op.oOverlap.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
+        op.oOverlap.hEvent = CreateEventEx(NULL, NULL,
+                                           CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
+                                           EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (IS_INVALID_HANDLE(op.oOverlap.hEvent)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
@@ -3544,25 +3546,41 @@ int wmain(int argc, const wchar_t **wargv)
      * Create logic state events
      */
     atexit(objectscleanup);
-    svcstopended = CreateEvent(NULL, TRUE, TRUE,  NULL);
+    svcstopended = CreateEventEx(NULL, NULL,
+                                 CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
+                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(svcstopended))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
-    svcstopstart = CreateEvent(NULL, TRUE, FALSE,  NULL);
+    svcstopstart = CreateEventEx(NULL, NULL,
+                                 CREATE_EVENT_MANUAL_RESET,
+                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(svcstopstart))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
-    processended = CreateEvent(NULL, TRUE, FALSE, NULL);
+    processended = CreateEventEx(NULL, NULL,
+                                 CREATE_EVENT_MANUAL_RESET,
+                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(processended))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
+    monitorevent = CreateEventEx(NULL, NULL,
+                                 CREATE_EVENT_MANUAL_RESET,
+                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
+    if (IS_INVALID_HANDLE(monitorevent))
+        return xsyserror(GetLastError(), L"CreateEvent", NULL);
+
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         if (svcstopproc) {
             xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
             xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
-            ssignalevent = CreateEvent(NULL, TRUE, FALSE, bb);
+            ssignalevent = CreateEventEx(NULL, bb,
+                                         CREATE_EVENT_MANUAL_RESET,
+                                         EVENT_MODIFY_STATE | SYNCHRONIZE);
             if (IS_INVALID_HANDLE(ssignalevent))
                 return xsyserror(GetLastError(), L"CreateEvent", bb);
         }
         if (haslogrotate) {
-            logrotatesig = CreateEvent(NULL, TRUE, FALSE, NULL);
+            logrotatesig = CreateEventEx(NULL, NULL,
+                                         CREATE_EVENT_MANUAL_RESET,
+                                         EVENT_MODIFY_STATE | SYNCHRONIZE);
             if (IS_INVALID_HANDLE(logrotatesig))
                 return xsyserror(GetLastError(), L"CreateEvent", NULL);
         }
@@ -3574,10 +3592,6 @@ int wmain(int argc, const wchar_t **wargv)
         if (IS_INVALID_HANDLE(ssignalevent))
             return xsyserror(GetLastError(), L"OpenEvent", bb);
     }
-
-    monitorevent = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (IS_INVALID_HANDLE(monitorevent))
-        return xsyserror(GetLastError(), L"CreateEvent", NULL);
 
     se[0].lpServiceName = zerostring;
     se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
