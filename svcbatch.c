@@ -3379,7 +3379,7 @@ int wmain(int argc, const wchar_t **wargv)
                     xwcslcat(bb, TBUFSIZ, L"-m ");
                 if (rcnt)
                     xwcslcat(bb, TBUFSIZ, L"-r ");
-                if ((truncatelogs == 1) && (scnt == 0))
+                if (truncatelogs && (scnt == 0))
                     xwcslcat(bb, TBUFSIZ, L"-t ");
                 if (bb[0]) {
 #if defined(_DEBUG) && (_DEBUG > 1)
