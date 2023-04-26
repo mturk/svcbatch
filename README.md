@@ -500,6 +500,15 @@ make sure to get familiar with `sc.exe` utility.
   German **locale** date representation.
 
 
+  If defined, all internal logging will be translated to **code page**.
+
+  ```cmd
+  > sc create ... -v -c .utf-8 ...
+
+  ```
+  This will convert all internal logging to **utf-8** code page.
+
+
 * **-t**
 
   **Truncate log file instead reusing**
@@ -544,7 +553,7 @@ SvcBatch sets for each instance.
 
   This variable is set to the service log directory.
   In case the logging is disabled, this variable is
-  set to the system **TEMP** envirnonment variable.
+  set to the system **TEMP** environment variable.
 
 * **SVCBATCH_SERVICE_NAME**
 
