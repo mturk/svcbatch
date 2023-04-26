@@ -1694,7 +1694,6 @@ failed:
 #if defined(_DEBUG)
     SAFE_CLOSE_HANDLE(rd);
 #endif
-    xfree(svclogsproc->lpCommandLine);
     svclogsproc->dwExitCode = rc;
     SAFE_CLOSE_HANDLE(svclogsproc->pInfo.hProcess);
     InterlockedExchange(&svclogsproc->dwCurrentState, 0);
@@ -2157,23 +2156,19 @@ static BOOL resolverotate(const wchar_t *rp)
 static DWORD runshutdown(DWORD rt)
 {
     wchar_t  rp[TBUFSIZ] = { L':', L':', L' ', L'-' };
-    wchar_t *cmdline = NULL;
     HANDLE   wh[2];
     DWORD    rc = 0;
     DWORD i, ip = 4;
-    PROCESS_INFORMATION cp;
-    STARTUPINFOW si;
 
     DBG_PRINTS("started");
 
-    xmemzero(&cp, 1, sizeof(PROCESS_INFORMATION));
-
-    rc = createiopipes(&si, NULL, NULL, 0);
+    rc = createiopipes(&svcstopproc->sInfo, NULL, NULL, 0);
     if (rc != 0) {
         DBG_PRINTF("createiopipes failed with %lu", rc);
         return rc;
     }
-    cmdline = xappendarg(1, NULL,    NULL, svcmainproc->szExe);
+    xwcslcpy(svcstopproc->szExe, SVCBATCH_PATH_MAX,  svcmainproc->szExe);
+    svcstopproc->lpCommandLine = xappendarg(1, NULL, NULL, svcstopproc->szExe);
     if (svcbatchlog && svcstoplogn) {
         if (uselocaltime)
             rp[ip++] = L'l';
@@ -2188,39 +2183,46 @@ static DWORD runshutdown(DWORD rt)
     rp[ip++] = WNUL;
     if (ip < 6)
         rp[2] = WNUL;
-    cmdline = xappendarg(0, cmdline, NULL,  rp);
-    cmdline = xappendarg(0, cmdline, L"-c", localeparam);
+    svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, NULL,  rp);
+    svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, L"-c", localeparam);
     if (svcbatchlog && svcstoplogn)
-        cmdline = xappendarg(1, cmdline, L"-n", svcstoplogn);
+        svcstopproc->lpCommandLine = xappendarg(1, svcstopproc->lpCommandLine, L"-n", svcstoplogn);
     for (i = 0; i < svcstopproc->nArgc; i++)
-        cmdline = xappendarg(1, cmdline, NULL, svcstopproc->lpArgv[i]);
-    DBG_PRINTF("cmdline %S", cmdline);
-    if (!CreateProcessW(svcmainproc->szExe, cmdline, NULL, NULL, TRUE,
-                        CREATE_UNICODE_ENVIRONMENT | CREATE_SUSPENDED | CREATE_NEW_CONSOLE,
-                        NULL, NULL, &si, &cp)) {
+        svcstopproc->lpCommandLine = xappendarg(1, svcstopproc->lpCommandLine, NULL, svcstopproc->lpArgv[i]);
+    DBG_PRINTF("cmdline %S", svcstopproc->lpCommandLine);
+    svcstopproc->dwCreationFlags = CREATE_SUSPENDED |
+                                   CREATE_UNICODE_ENVIRONMENT |
+                                   CREATE_NEW_CONSOLE;
+    if (!CreateProcessW(svcstopproc->szExe,
+                        svcstopproc->lpCommandLine,
+                        NULL, NULL, TRUE,
+                        svcstopproc->dwCreationFlags,
+                        NULL, NULL,
+                        &svcstopproc->sInfo,
+                        &svcstopproc->pInfo)) {
         rc = GetLastError();
         xsyserror(rc, L"CreateProcess", NULL);
         goto finished;
     }
 
-    wh[0] = cp.hProcess;
+    wh[0] = svcstopproc->pInfo.hProcess;
     wh[1] = processended;
-    ResumeThread(cp.hThread);
-    SAFE_CLOSE_HANDLE(cp.hThread);
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
+    ResumeThread(svcstopproc->pInfo.hThread);
+    SAFE_CLOSE_HANDLE(svcstopproc->pInfo.hThread);
+    SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdInput);
+    SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdError);
 
-    DBG_PRINTF("waiting for shutdown process %lu to finish", cp.dwProcessId);
+    DBG_PRINTF("waiting for shutdown process %lu to finish", svcstopproc->pInfo.dwProcessId);
     rc = WaitForMultipleObjects(2, wh, FALSE, rt + SVCBATCH_STOP_STEP);
 #if defined(_DEBUG)
     switch (rc) {
         case WAIT_OBJECT_0:
             DBG_PRINTF("done with shutdown process %lu",
-                      cp.dwProcessId);
+                       svcstopproc->pInfo.dwProcessId);
         break;
         case WAIT_OBJECT_1:
             DBG_PRINTF("processended for %lu",
-                      cp.dwProcessId);
+                       svcstopproc->pInfo.dwProcessId);
         break;
         default:
         break;
@@ -2228,16 +2230,16 @@ static DWORD runshutdown(DWORD rt)
 #endif
     if (rc != WAIT_OBJECT_0) {
         DBG_PRINTF("sending signal event to %lu",
-                  cp.dwProcessId);
+                   svcstopproc->pInfo.dwProcessId);
         SetEvent(ssignalevent);
-        if (WaitForSingleObject(cp.hProcess, rt) != WAIT_OBJECT_0) {
+        if (WaitForSingleObject(svcstopproc->pInfo.hProcess, rt) != WAIT_OBJECT_0) {
             DBG_PRINTF("calling TerminateProcess for %lu",
-                       cp.dwProcessId);
-            killproctree(cp.hProcess, cp.dwProcessId, 1);
+                       svcstopproc->pInfo.dwProcessId);
+            killproctree(svcstopproc->pInfo.hProcess, svcstopproc->pInfo.dwProcessId, 1);
         }
     }
 #if defined(_DEBUG)
-    if (GetExitCodeProcess(cp.hProcess, &rc))
+    if (GetExitCodeProcess(svcstopproc->pInfo.hProcess, &rc))
         DBG_PRINTF("shutdown process exited with %lu", rc);
     else
         DBG_PRINTF("shutdown GetExitCodeProcess failed with %lu", GetLastError());
@@ -2245,11 +2247,11 @@ static DWORD runshutdown(DWORD rt)
 #endif
 
 finished:
-    xfree(cmdline);
-    SAFE_CLOSE_HANDLE(si.hStdInput);
-    SAFE_CLOSE_HANDLE(si.hStdError);
-    SAFE_CLOSE_HANDLE(cp.hThread);
-    SAFE_CLOSE_HANDLE(cp.hProcess);
+    xfree(svcstopproc->lpCommandLine);
+    SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdInput);
+    SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdError);
+    SAFE_CLOSE_HANDLE(svcstopproc->pInfo.hThread);
+    SAFE_CLOSE_HANDLE(svcstopproc->pInfo.hProcess);
 
     DBG_PRINTS("done");
     return rc;
@@ -2592,7 +2594,6 @@ finished:
 static DWORD WINAPI workerthread(void *unused)
 {
     DWORD i;
-    wchar_t *xcmd = NULL;
     HANDLE   wh[2];
     HANDLE   wr = NULL;
     HANDLE   rd = NULL;
@@ -2613,11 +2614,11 @@ static DWORD WINAPI workerthread(void *unused)
         DBG_PRINTF("createiopipes failed with %lu", rc);
         goto finished;
     }
-    xcmd = xappendarg(1, NULL, NULL,     svcxcmdproc->szExe);
-    xcmd = xappendarg(1, xcmd, L"/D /C", svcxcmdproc->lpArgv[0]);
+    svcxcmdproc->lpCommandLine = xappendarg(1, NULL, NULL,     svcxcmdproc->szExe);
+    svcxcmdproc->lpCommandLine = xappendarg(1, svcxcmdproc->lpCommandLine, L"/D /C", svcxcmdproc->lpArgv[0]);
     for (i = 1; i < svcxcmdproc->nArgc; i++) {
         xwchreplace(svcxcmdproc->lpArgv[i], L'@', L'%');
-        xcmd = xappendarg(1, xcmd, NULL, svcxcmdproc->lpArgv[i]);
+        svcxcmdproc->lpCommandLine = xappendarg(1, svcxcmdproc->lpCommandLine, NULL, svcxcmdproc->lpArgv[i]);
     }
 
     if (svcbatchlog) {
@@ -2627,12 +2628,12 @@ static DWORD WINAPI workerthread(void *unused)
             goto finished;
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    svcxcmdproc->lpCommandLine = xcmd;
+    svcxcmdproc->dwCreationFlags = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
     DBG_PRINTF("cmdline %S", svcxcmdproc->lpCommandLine);
     if (!CreateProcessW(svcxcmdproc->szExe,
                         svcxcmdproc->lpCommandLine,
                         NULL, NULL, TRUE,
-                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
+                        svcxcmdproc->dwCreationFlags,
                         NULL,
                         mainservice->lpHome,
                        &svcxcmdproc->sInfo,
@@ -3046,7 +3047,7 @@ static int xwmaininit(void)
     wchar_t *bb;
     DWORD    nn;
 
-    xmemzero(svcthread, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
+    xmemzero(svcthread, SVCBATCH_MAX_THREADS,     sizeof(SVCBATCH_THREAD));
     mainservice = (LPSVCBATCH_SERVICE)xmcalloc(1, sizeof(SVCBATCH_SERVICE));
     svcmainproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
     svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
@@ -3057,7 +3058,7 @@ static int xwmaininit(void)
     svcmainproc->pInfo.hProcess    = GetCurrentProcess();
     svcmainproc->pInfo.dwProcessId = GetCurrentProcessId();
     svcmainproc->pInfo.dwThreadId  = GetCurrentThreadId();
-
+    svcmainproc->sInfo.cb          = DSIZEOF(STARTUPINFOW);
     GetStartupInfoW(&svcmainproc->sInfo);
 
     bb = svcmainproc->szExe;
@@ -3495,8 +3496,9 @@ int wmain(int argc, const wchar_t **wargv)
                 return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
             for (i = 1; i < scnt; i++)
                 svcstopproc->lpArgv[i] = xwcsdup(sparam[i]);
-            svcstopproc->nArgc  = scnt;
-            svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
+            svcstopproc->nArgc    = scnt;
+            svcstopproc->dwType   = SVCBATCH_SHUTDOWN_PROCESS;
+            svcstopproc->sInfo.cb = DSIZEOF(STARTUPINFOW);
         }
     }
     else {
