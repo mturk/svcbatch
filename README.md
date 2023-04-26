@@ -162,7 +162,11 @@ used as switches. This means that `/b /B -b and -B` can be used for the same opt
 
 After handling switches SvcBatch will use the next argument
 as the batch file to execute.
+
 Any additional arguments will be passed as arguments to batch file.
+If additional argument contains `@` characters, each `@` character
+will be converted to `%` character at runtime.
+In case you need to pass `@` character use `@@`.
 
 Command line options are defined at service install time, so
 make sure to get familiar with `sc.exe` utility.
@@ -519,6 +523,15 @@ make sure to get familiar with `sc.exe` utility.
   This is useful when a log is processed in real time by a command
   like tail, and there is no need for archived data.
 
+
+  ```cmd
+  > sc create ... -t ...
+
+  ```
+
+  This will truncate existing `SvcBatch.log` and `SvcBatch.shutdown.log`
+  on open or rotate instead creating a new file.
+
   If multiple **-t** options are defined only the service stop log file
   will be truncated.
 
@@ -528,7 +541,7 @@ make sure to get familiar with `sc.exe` utility.
   ```
 
   This will truncate existing `SvcBatch.shutdown.log` instead
-  appending on service stop or shutdown. This feature is usable
+  appending on service shutdown. This feature is usable
   only if **-s** option is defined.
 
 
