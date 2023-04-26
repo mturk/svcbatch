@@ -87,7 +87,6 @@ typedef struct _SVCBATCH_LOG {
     volatile LONG64     nOpenTime;
     DWORD               dwType;
     CRITICAL_SECTION    csLock;
-    LPSVCBATCH_PROCESS  lpLogProcess;
     LPWSTR              lpFileName;
     WCHAR               szDir[SVCBATCH_PATH_MAX];
 
@@ -989,6 +988,19 @@ static __inline DWORD xgetprocessid(LPSVCBATCH_PROCESS p)
         return 0;
 }
 
+static void xclearprocess(LPSVCBATCH_PROCESS p)
+{
+    InterlockedExchange(&p->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
+    SAFE_CLOSE_HANDLE(p->pInfo.hProcess);
+    SAFE_CLOSE_HANDLE(p->pInfo.hThread);
+    SAFE_CLOSE_HANDLE(p->sInfo.hStdInput);
+    SAFE_CLOSE_HANDLE(p->sInfo.hStdError);
+    xfree(p->lpCommandLine);
+    p->lpCommandLine = NULL;
+
+    DBG_PRINTF("%.4lu %lu", p->pInfo.dwProcessId, p->dwExitCode);
+}
+
 static DWORD waitprocess(LPSVCBATCH_PROCESS p, DWORD w)
 {
     ASSERT_NULL(p, ERROR_INVALID_PARAMETER);
@@ -1644,8 +1656,10 @@ static DWORD openlogpipe(BOOL ssp)
     InterlockedExchange(&svclogsproc->dwCurrentState, SVCBATCH_PROCESS_STARTING);
     rc = createiopipes(&svclogsproc->sInfo, &wr, rp, 0);
     if (rc) {
-       DBG_PRINTF("createiopipes failed with %lu", rc);
-       return rc;
+        DBG_PRINTF("createiopipes failed with %lu", rc);
+        svclogsproc->dwExitCode = rc;
+        InterlockedExchange(&svclogsproc->dwCurrentState, 0);
+        return rc;
     }
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -1698,8 +1712,7 @@ failed:
     SAFE_CLOSE_HANDLE(rd);
 #endif
     svclogsproc->dwExitCode = rc;
-    SAFE_CLOSE_HANDLE(svclogsproc->pInfo.hProcess);
-    InterlockedExchange(&svclogsproc->dwCurrentState, 0);
+    xclearprocess(svclogsproc);
     return rc;
 }
 
@@ -2015,6 +2028,7 @@ static void closelogfile(void)
 #if defined(_DEBUG)
         DBG_PRINTF("log process returned %lu", svclogsproc->dwExitCode);
 #endif
+        xclearprocess(svclogsproc);
     }
     SVCBATCH_CS_LEAVE(svcbatchlog);
     DBG_PRINTS("done");
@@ -2250,12 +2264,7 @@ static DWORD runshutdown(DWORD rt)
 #endif
 
 finished:
-    xfree(svcstopproc->lpCommandLine);
-    SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdInput);
-    SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdError);
-    SAFE_CLOSE_HANDLE(svcstopproc->pInfo.hThread);
-    SAFE_CLOSE_HANDLE(svcstopproc->pInfo.hProcess);
-
+    xclearprocess(svcstopproc);
     DBG_PRINTS("done");
     return rc;
 }
@@ -2615,9 +2624,10 @@ static DWORD WINAPI workerthread(void *unused)
     rc = createiopipes(&svcxcmdproc->sInfo, &wr, rp, FILE_FLAG_OVERLAPPED);
     if (rc != 0) {
         DBG_PRINTF("createiopipes failed with %lu", rc);
+        svcxcmdproc->dwExitCode = rc;
         goto finished;
     }
-    svcxcmdproc->lpCommandLine = xappendarg(1, NULL, NULL,     svcxcmdproc->szExe);
+    svcxcmdproc->lpCommandLine = xappendarg(1, NULL, NULL, svcxcmdproc->szExe);
     svcxcmdproc->lpCommandLine = xappendarg(1, svcxcmdproc->lpCommandLine, L"/D /C", svcxcmdproc->lpArgv[0]);
     for (i = 1; i < svcxcmdproc->nArgc; i++) {
         xwchreplace(svcxcmdproc->lpArgv[i], L'@', L'%');
@@ -2627,8 +2637,13 @@ static DWORD WINAPI workerthread(void *unused)
     if (svcbatchlog) {
         op.hPipe = rd;
         op.oOverlap.hEvent = CreateEvent(NULL, TRUE, TRUE, NULL);
-        if (IS_INVALID_HANDLE(op.oOverlap.hEvent))
+        if (IS_INVALID_HANDLE(op.oOverlap.hEvent)) {
+            rc = GetLastError();
+            setsvcstatusexit(rc);
+            xsyserror(rc, L"CreateEvent", NULL);
+            svcxcmdproc->dwExitCode = rc;
             goto finished;
+        }
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     svcxcmdproc->dwCreationFlags = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
@@ -2644,6 +2659,7 @@ static DWORD WINAPI workerthread(void *unused)
         rc = GetLastError();
         setsvcstatusexit(rc);
         xsyserror(rc, L"CreateProcess", NULL);
+        svcxcmdproc->dwExitCode = rc;
         goto finished;
     }
     /**
@@ -2654,7 +2670,10 @@ static DWORD WINAPI workerthread(void *unused)
 
     if (!xcreatethread(SVCBATCH_WRITE_THREAD,
                        1, wrpipethread, wr)) {
-        xsyserror(GetLastError(), L"xcreatethread", NULL);
+        rc = GetLastError();
+        xsyserror(rc, L"xcreatethread", NULL);
+        TerminateProcess(svcxcmdproc->pInfo.hProcess, rc);
+        svcxcmdproc->dwExitCode = rc;
         goto finished;
     }
     wh[0] = svcxcmdproc->pInfo.hProcess;
@@ -2730,9 +2749,8 @@ static DWORD WINAPI workerthread(void *unused)
     }
     else {
         wh[1] = svcthread[SVCBATCH_WRITE_THREAD].hThread;
-        InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
         WaitForMultipleObjects(nw, wh, TRUE, INFINITE);
-
+        InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
     }
     DBG_PRINTF("finished %S with pid %lu",
                mainservice->lpName, svcxcmdproc->pInfo.dwProcessId);
@@ -2751,14 +2769,11 @@ static DWORD WINAPI workerthread(void *unused)
               */
             setsvcstatusexit(ERROR_PROCESS_ABORTED);
         }
+        svcxcmdproc->dwExitCode = rc;
     }
 
 finished:
-    InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
-    SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hProcess);
-    SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hThread);
-    SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdInput);
-    SAFE_CLOSE_HANDLE(svcxcmdproc->sInfo.hStdError);
+    xclearprocess(svcxcmdproc);
     if (svcbatchlog) {
         SAFE_CLOSE_HANDLE(op.hPipe);
         SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
@@ -3233,7 +3248,7 @@ int wmain(int argc, const wchar_t **wargv)
              */
             case L'e':
                 if (ecnt < SVCBATCH_MAX_ARGS)
-                    eparam[scnt++] = xwoptarg;
+                    eparam[ecnt++] = xwoptarg;
                 else
                     return xsyserror(0, L"Too many -e arguments", xwoptarg);
             break;
@@ -3503,9 +3518,7 @@ int wmain(int argc, const wchar_t **wargv)
             svclogsproc->nArgc  = ecnt;
             svclogsproc->dwType = SVCBATCH_USER_LOG_PROCESS;
 
-            svcbatchlog->lpLogProcess = svclogsproc;
             svcbatchlog->dwType = SVCBATCH_LOG_PIPE;
-
         }
         if (scnt) {
             svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
