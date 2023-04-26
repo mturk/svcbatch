@@ -3503,9 +3503,8 @@ int wmain(int argc, const wchar_t **wargv)
                 return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
             for (i = 1; i < scnt; i++)
                 svcstopproc->lpArgv[i] = xwcsdup(sparam[i]);
-            svcstopproc->nArgc    = scnt;
-            svcstopproc->dwType   = SVCBATCH_SHUTDOWN_PROCESS;
-            svcstopproc->sInfo.cb = DSIZEOF(STARTUPINFOW);
+            svcstopproc->nArgc  = scnt;
+            svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
         }
     }
     else {
