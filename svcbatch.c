@@ -372,16 +372,13 @@ static int xwcstoi(const wchar_t *sp, wchar_t **ep)
     while(iswdigit(*sp)) {
         int dv = *sp - L'0';
 
-        /* Check if accumulated value is smaller then
-         * INT_MAX/10, otherwise overflow would occur.
-         */
-        if (rv > 214748363) {
-            SetLastError(ERROR_INVALID_DATA);
-            return -1;
-        }
         if (dv || rv) {
             rv *= 10;
             rv += dv;
+        }
+        if (rv < 0) {
+            SetLastError(ERROR_INVALID_DATA);
+            return -1;
         }
         dc++;
         sp++;
