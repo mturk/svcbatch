@@ -2997,6 +2997,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", mainservice->lpName);
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", mainservice->lpUuid);
 
+#if defined(_DEBUG) && (_DEBUG > 1)
+        xsysinfo(L"service is", L"starting");
+#endif
     }
 
     if (svcbatchlog) {
@@ -3034,9 +3037,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     wh[0] = svcthread[SVCBATCH_WORKER_THREAD].hThread;
     wh[1] = svcthread[SVCBATCH_MONITOR_THREAD].hThread;
     DBG_PRINTS("running");
-#if defined(_DEBUG) && (_DEBUG > 1)
-    xsysinfo(L"service is running", NULL);
-#endif
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
 
     if (WaitForSingleObject(svcstopended, 0) == WAIT_OBJECT_0) {
