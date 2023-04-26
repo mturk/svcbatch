@@ -928,18 +928,17 @@ static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wc
     errarg[i++] = wnamestamp;
     if (mainservice->lpName)
         errarg[i++] = mainservice->lpName;
-    if (typ == EVENTLOG_INFORMATION_TYPE) {
-        xwcslcpy(hdr, MBUFSIZ, CRLFW);
-        xwcslcat(hdr, MBUFSIZ, err);
-    }
-    else {
+    xwcslcpy(hdr, MBUFSIZ, CRLFW);
+    if (typ != EVENTLOG_INFORMATION_TYPE) {
         if (typ == EVENTLOG_ERROR_TYPE)
             errarg[i++] = L"\r\nreported the following error:";
-        xsnwprintf(hdr, MBUFSIZ,
-                   L"\r\nsvcbatch.c(%.4d, %S) %s", line, fn, err);
+        xsnwprintf(hdr + 2, MBUFSIZ - 2,
+                   L"svcbatch.c(%.4d, %S) ", line, fn);
     }
+    xwcslcat(hdr, MBUFSIZ, err);
     if (eds) {
-        xwcslcat(hdr, MBUFSIZ, L": ");
+        if (err)
+            xwcslcat(hdr, MBUFSIZ, L": ");
         xwcslcat(hdr, MBUFSIZ, eds);
     }
     errarg[i++] = hdr;
@@ -2962,7 +2961,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
-
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         mainservice->hStatus = RegisterServiceCtrlHandlerExW(mainservice->lpName, servicehandler, NULL);
         if (IS_INVALID_HANDLE(mainservice->hStatus)) {
@@ -3007,11 +3005,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", mainservice->lpName);
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", mainservice->lpUuid);
 
-#if defined(_DEBUG) && (_DEBUG > 1)
-        xsysinfo(L"service is", L"starting");
-#endif
     }
-
     if (svcbatchlog) {
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
         if (svclogsproc)
@@ -3046,7 +3040,15 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     wh[0] = svcthread[SVCBATCH_WORKER_THREAD].hThread;
     wh[1] = svcthread[SVCBATCH_MONITOR_THREAD].hThread;
-    DBG_PRINTS("running");
+#if defined(_DEBUG)
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
+        wchar_t bb[TBUFSIZ];
+        xsnwprintf(bb, TBUFSIZ,
+                   L"Service is running with Process ID: %lu",
+                   svcmainproc->pInfo.dwProcessId);
+        xsysinfo(bb, NULL);
+    }
+#endif
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
 
     if (WaitForSingleObject(svcstopended, 0) == WAIT_OBJECT_0) {
@@ -3198,7 +3200,6 @@ int wmain(int argc, const wchar_t **wargv)
     if (argc > 1) {
         const wchar_t *p = wargv[1];
         if ((p[0] == L':') && (p[1] == L':') && (p[2] == WNUL)) {
-            svcmainproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
             mainservice->lpName = xgetenv(L"SVCBATCH_SERVICE_NAME");
             if (mainservice->lpName == NULL)
                 return ERROR_BAD_ENVIRONMENT;
@@ -3208,6 +3209,7 @@ int wmain(int argc, const wchar_t **wargv)
             wargv[1] = wargv[0];
             argc    -= 1;
             wargv   += 1;
+            svcmainproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
         }
         else {
             svcmainproc->dwType = SVCBATCH_SERVICE_PROCESS;
@@ -3384,8 +3386,7 @@ int wmain(int argc, const wchar_t **wargv)
                 if (bb[0]) {
 #if defined(_DEBUG) && (_DEBUG > 1)
                     xsyswarn(0, L"Option -e is mutually exclusive with option(s)", bb);
-                    maxlogsparam = NULL;
-                    rcnt         = 0;
+                    rcnt = 0;
 #else
                     return xsyserror(0, L"Option -e is mutually exclusive with option(s)", bb);
 #endif
