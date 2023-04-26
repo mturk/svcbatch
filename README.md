@@ -433,16 +433,16 @@ make sure to get familiar with `sc.exe` utility.
   when log file is opened:
 
   ```no-highlight
-    [00:00:00.027266] SvcBatch 2.0.0_1.debug (dev) (Feb 13 2023 12:15:41 msc 193431937.0)
-    [00:00:00.027410] Log opened       : 2023-02-13 12:16:27
-    [00:00:00.027429] Service name     : adummysvc
-    [00:00:00.027446] Service uuid     : 4eb43188-6b91-1705-598b-ffb2b78357c9
-    [00:00:00.027463] Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
-    [00:00:00.027495] Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
-    [00:00:00.027528] Program directory: C:\Workplace\svcbatch\.build\dbg
-    [00:00:00.028021] Base directory   : C:\Workplace\svcbatch\test
-    [00:00:00.028029] Home directory   : C:\Workplace\svcbatch\test
-    [00:00:00.028035] Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
+    [00:00:00.030708] SvcBatch 2.0.1.0_2.dbg (msc 192930148.0)
+    [00:00:00.030804] Log opened       : 2023-04-26 05:13:21
+    [00:00:00.030821] Service name     : adummysvc
+    [00:00:00.030836] Service uuid     : 176c-b2aaf3dd-4bcc-9449-a1e5-70b25cda0ae5
+    [00:00:00.030852] Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
+    [00:00:00.030867] Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
+    [00:00:00.030882] Program directory: C:\Workplace\svcbatch\.build\dbg
+    [00:00:00.030897] Base directory   : C:\Workplace\svcbatch\test
+    [00:00:00.030914] Home directory   : C:\Workplace\svcbatch\test
+    [00:00:00.031483] Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
 
     ...
 
@@ -450,7 +450,8 @@ make sure to get familiar with `sc.exe` utility.
 
     ...
 
-    [00:00:25.386534] Log closed       : 2023-02-13 12:16:53
+    [00:00:25.386534] Log closed       : 2023-04-26 05:13:46
+
   ```
 
 
