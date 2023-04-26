@@ -3275,25 +3275,32 @@ int wmain(int argc, const wchar_t **wargv)
 
     localeobject = _get_current_locale();
     if (localeparam) {
-        if (*localeparam == L'.') {
-            if (xwstartswith(localeparam + 1, L"UTF")) {
-                if (wcschr(localeparam + 4, L'8'))
+        wchar_t *p;
+        wchar_t lb[TBUFSIZ];
+
+        xwcslcpy(lb, TBUFSIZ, localeparam);
+        p = wcschr(lb, L'.');
+        if (p) {
+            *(p++) = WNUL;
+            if (xwstartswith(p, L"UTF")) {
+                if (wcschr(p + 3, L'8'))
                     svccodepage = 65001;
                 else
                     return xsyserror(0, L"Invalid -c command option value", localeparam);
             }
             else {
-                svccodepage = xwcstoi(localeparam + 1, NULL);
+                svccodepage = xwcstoi(p, NULL);
                 if (svccodepage < 0)
                     return xsyserror(0, L"Invalid -c command option value", localeparam);
             }
             DBG_PRINTF("using codepage %d", svccodepage);
         }
 #if defined(_MSC_VER)
-        else {
-            localeobject = _wcreate_locale(LC_ALL, localeparam);
+        if (lb[0]) {
+            localeobject = _wcreate_locale(LC_ALL, lb);
             if (localeobject == NULL)
                 return xsyserror(0, L"Invalid -c command option value", localeparam);
+            DBG_PRINTF("using locale %S", lb);
         }
 #endif
     }
