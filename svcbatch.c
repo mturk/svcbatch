@@ -1567,7 +1567,7 @@ static DWORD createlogsdir(void)
     if (p == NULL) {
         DWORD rc = GetLastError();
 
-        if (rc != ERROR_PATH_NOT_FOUND)
+        if (rc > ERROR_PATH_NOT_FOUND)
             return xsyserror(rc, L"xgetfinalpathname", dp);
 
         rc = xcreatepath(dp);
