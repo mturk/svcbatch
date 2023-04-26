@@ -125,8 +125,8 @@ static BOOL      haslogrotate     = FALSE;
 static BOOL      rotatebysize     = FALSE;
 static BOOL      rotatebytime     = FALSE;
 static BOOL      uselocaltime     = FALSE;
+static BOOL      haslogstatus     = FALSE;
 
-static DWORD     haslogstatus     = 0;
 static DWORD     truncatelogs     = 0;
 static DWORD     preshutdown      = 0;
 
@@ -2191,7 +2191,7 @@ static DWORD runshutdown(DWORD rt)
             rp[ip++] = L'l';
         if (truncatelogs)
             rp[ip++] = L't';
-        for (i = 0; i < haslogstatus; i++)
+        if (haslogstatus)
             rp[ip++] = L'v';
     }
     else {
@@ -3222,10 +3222,7 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Too many -t options", NULL);
             break;
             case L'v':
-                if (haslogstatus < 2)
-                    haslogstatus++;
-                else
-                    return xsyserror(0, L"Too many -v options", NULL);
+                haslogstatus = TRUE;
             break;
             /**
              * Options with arguments
@@ -3403,7 +3400,7 @@ int wmain(int argc, const wchar_t **wargv)
             ecnt         = 0;
             ncnt         = 0;
             rcnt         = 0;
-            haslogstatus = 0;
+            haslogstatus = FALSE;
             truncatelogs = 0;
 #else
             return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
