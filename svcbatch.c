@@ -3374,10 +3374,20 @@ int wmain(int argc, const wchar_t **wargv)
                     haslogrotate = TRUE;
             }
             else {
+                bb[0] = WNUL;
                 if (rcnt)
-                    return xsyserror(0, L"Option -e is mutually exclusive with option -r", NULL);
+                    xwcslcat(bb, TBUFSIZ, L"-r ");
                 if (maxlogsparam)
-                    return xsyserror(0, L"Option -e is mutually exclusive with option -m", NULL);
+                    xwcslcat(bb, TBUFSIZ, L"-m ");
+                if (bb[0]) {
+#if defined(_DEBUG) && (_DEBUG > 1)
+                    xsyswarn(0, L"Option -e is mutually exclusive with option(s)", bb);
+                    maxlogsparam = NULL;
+                    rcnt         = 0;
+#else
+                    return xsyserror(0, L"Option -e is mutually exclusive with option(s)", bb);
+#endif
+                }
             }
             if (ncnt == 0) {
                 svclogfname = SVCBATCH_LOGNAME;
