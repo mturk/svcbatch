@@ -945,13 +945,17 @@ static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wc
     errarg[i++] = hdr;
     if (ern == 0) {
         ern = ERROR_INVALID_PARAMETER;
-        DBG_PRINTF("%S", hdr + 2);
+#if defined(_DEBUG)
+        dbgprintf(fn, "%S", hdr + 2);
+#endif
     }
     else {
         c = xsnwprintf(erb, TBUFSIZ, L"\r\nerror(%lu) ", ern);
         xwinapierror(erb + c, MBUFSIZ - c, ern);
         errarg[i++] = erb;
-        DBG_PRINTF("%S, %S", hdr + 2, erb + 2);
+#if defined(_DEBUG)
+        dbgprintf(fn, "%S, %S", hdr + 2, erb + 2);
+#endif
     }
 
     errarg[i++] = CRLFW;
@@ -2989,8 +2993,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     else {
         DBG_PRINTF("shutting down %S", mainservice->lpName);
-        GetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS",
-                                svcbatchlog->szDir, SVCBATCH_PATH_MAX);
+        if (svcbatchlog)
+            GetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS",
+                                    svcbatchlog->szDir, SVCBATCH_PATH_MAX);
     }
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         /**
@@ -3062,7 +3067,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
 finished:
 
-    closelogfile();
+    if (svcbatchlog)
+        closelogfile();
     threadscleanup();
     reportsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");
@@ -3403,12 +3409,13 @@ int wmain(int argc, const wchar_t **wargv)
             xwcslcat(bb, TBUFSIZ, L"-v ");
         if (bb[0]) {
 #if defined(_DEBUG) && (_DEBUG > 1)
-            DBG_PRINTF("option -q is mutually exclusive with option(s) %S", bb);
+            xsyswarn(0, L"Option -q is mutually exclusive with option(s)", bb);
             outdirparam  = NULL;
             ecnt         = 0;
             ncnt         = 0;
             rcnt         = 0;
             haslogstatus = FALSE;
+            haslogrotate = FALSE;
             truncatelogs = 0;
 #else
             return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
