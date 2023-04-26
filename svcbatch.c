@@ -2690,33 +2690,33 @@ static DWORD WINAPI workerthread(void *unused)
                             op.dwState = 0;
                             rc = logwrdata(op.bBuffer, op.nRead);
                         }
-                        break;
-                    }
-                    if (ReadFile(op.hPipe, op.bBuffer, DSIZEOF(op.bBuffer),
-                                &op.nRead, (LPOVERLAPPED)&op) && op.nRead) {
-                        op.dwState = 0;
-                        rc = logwrdata(op.bBuffer, op.nRead);
-                        SetEvent(op.oOverlap.hEvent);
                     }
                     else {
-                        op.dwState = GetLastError();
-                        if (op.dwState != ERROR_IO_PENDING) {
-                            SAFE_CLOSE_HANDLE(op.hPipe);
-                            ResetEvent(op.oOverlap.hEvent);
-                            rc = op.dwState;
-                            nw = 1;
+                        if (ReadFile(op.hPipe, op.bBuffer, DSIZEOF(op.bBuffer),
+                                    &op.nRead, (LPOVERLAPPED)&op) && op.nRead) {
+                            op.dwState = 0;
+                            rc = logwrdata(op.bBuffer, op.nRead);
+                            SetEvent(op.oOverlap.hEvent);
+                        }
+                        else {
+                            op.dwState = GetLastError();
+                            if (op.dwState != ERROR_IO_PENDING)
+                                rc = op.dwState;
                         }
                     }
-#if defined(_DEBUG)
                     if (rc) {
+                        SAFE_CLOSE_HANDLE(op.hPipe);
+                        ResetEvent(op.oOverlap.hEvent);
+                        nw = 1;
+#if defined(_DEBUG)
                         if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
                             DBG_PRINTS("pipe closed");
                         else if (rc == ERROR_NO_MORE_FILES)
                             DBG_PRINTS("logfile closed");
                         else
                             DBG_PRINTF("err=%lu", rc);
-                    }
 #endif
+                    }
                 break;
                 default:
                     DBG_PRINTF("wait failed %lu with %lu", ws, GetLastError());
