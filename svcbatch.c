@@ -918,7 +918,7 @@ finished:
     return ssrv;
 }
 
-static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err, const wchar_t *eds)
+static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wchar_t *err, const wchar_t *eds)
 {
     wchar_t        hdr[MBUFSIZ];
     wchar_t        erb[MBUFSIZ];
@@ -928,37 +928,30 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
     errarg[i++] = wnamestamp;
     if (mainservice->lpName)
         errarg[i++] = mainservice->lpName;
-    errarg[i++] = CRLFW;
-    errarg[i++] = L"reported the following error:\r\n";
-
+    if (typ == EVENTLOG_ERROR_TYPE) {
+        errarg[i++] = L"\r\nreported the following error:";
+    }
     xsnwprintf(hdr, MBUFSIZ,
-               L"svcbatch.c(%.4d, %S) %s", line, fn, err);
+               L"\r\nsvcbatch.c(%.4d, %S) %s", line, fn, err);
     if (eds) {
         xwcslcat(hdr, MBUFSIZ, L": ");
         xwcslcat(hdr, MBUFSIZ, eds);
     }
     errarg[i++] = hdr;
-
-#if defined(_DEBUG)
-    OutputDebugStringA("\n");
-#endif
-    if (ern) {
-        c = xsnwprintf(erb, TBUFSIZ, L"error(%lu) ", ern);
-        xwinapierror(erb + c, MBUFSIZ - c, ern);
-        errarg[i++] = CRLFW;
-        errarg[i++] = erb;
-        DBG_PRINTF("%S, %S\n", hdr, erb);
+    if (ern == 0) {
+        ern = ERROR_INVALID_PARAMETER;
+        DBG_PRINTF("%S", hdr + 2);
     }
     else {
-        ern = ERROR_INVALID_PARAMETER;
-        DBG_PRINTF("%S\n", hdr);
+        c = xsnwprintf(erb, TBUFSIZ, L"\r\nerror(%lu) ", ern);
+        xwinapierror(erb + c, MBUFSIZ - c, ern);
+        errarg[i++] = erb;
+        DBG_PRINTF("%S, %S", hdr + 2, erb + 2);
     }
-#if defined(_DEBUG) && (_DEBUG > 1)
-    return ern;
-#else
+
     errarg[i++] = CRLFW;
     while (i < 10) {
-        errarg[i++] = L"";
+        errarg[i++] = NULL;
     }
     if (setupeventlog()) {
         HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_NAME));
@@ -967,13 +960,11 @@ static DWORD svcsyserror(const char *fn, int line, DWORD ern, const wchar_t *err
              * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
              * The event code in netmsg.dll is 3299
              */
-            ReportEventW(es, EVENTLOG_ERROR_TYPE,
-                         0, 3299, NULL, 9, 0, errarg, NULL);
+            ReportEventW(es, typ, 0, 3299, NULL, 9, 0, errarg, NULL);
             DeregisterEventSource(es);
         }
     }
     return ern;
-#endif
 }
 
 static __inline BOOL isprocrunning(LPSVCBATCH_PROCESS p)
@@ -2962,6 +2953,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
+
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         mainservice->hStatus = RegisterServiceCtrlHandlerExW(mainservice->lpName, servicehandler, NULL);
         if (IS_INVALID_HANDLE(mainservice->hStatus)) {
@@ -3042,6 +3034,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     wh[0] = svcthread[SVCBATCH_WORKER_THREAD].hThread;
     wh[1] = svcthread[SVCBATCH_MONITOR_THREAD].hThread;
     DBG_PRINTS("running");
+#if defined(_DEBUG) && (_DEBUG > 1)
+    xsysinfo(L"service is running", NULL);
+#endif
     WaitForMultipleObjects(2, wh, TRUE, INFINITE);
 
     if (WaitForSingleObject(svcstopended, 0) == WAIT_OBJECT_0) {
