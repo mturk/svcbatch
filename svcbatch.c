@@ -1525,18 +1525,21 @@ static void logconfig(HANDLE h)
 
 static BOOL canrotatelogs(void)
 {
-    ULONGLONG cm;
-    ULONGLONG pm;
+    BOOL rv = FALSE;
 
-    if (InterlockedCompareExchange(&svcbatchlog->dwCurrentState, 0, 0))
-        return FALSE;
-    cm = GetTickCount64();
-    pm = InterlockedCompareExchange64(&svcbatchlog->nOpenTime, 0, 0);
+    SVCBATCH_CS_ENTER(svcbatchlog);
+    if (InterlockedCompareExchange(&svcbatchlog->dwCurrentState, 0, 0) == 0) {
+        ULONGLONG cm;
+        ULONGLONG pm;
 
-    if ((cm - pm) > (SVCBATCH_MIN_ROTATE_T * MS_IN_MINUTE))
-        return TRUE;
-    else
-        return FALSE;
+        cm = GetTickCount64();
+        pm = InterlockedCompareExchange64(&svcbatchlog->nOpenTime, 0, 0);
+
+        if ((cm - pm) > (SVCBATCH_MIN_ROTATE_T * MS_IN_MINUTE))
+            rv = TRUE;
+    }
+    SVCBATCH_CS_LEAVE(svcbatchlog);
+    return rv;;
 }
 
 static DWORD createlogsdir(void)
@@ -1919,7 +1922,6 @@ static DWORD rotatelogs(void)
 
     SVCBATCH_CS_ENTER(svcbatchlog);
     InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
-    InterlockedExchange64(&svcbatchlog->nOpenTime, GetTickCount64());
 
     h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
     if (h == NULL) {
@@ -1982,6 +1984,7 @@ static void closelogfile(void)
 
     DBG_PRINTS("started");
     SVCBATCH_CS_ENTER(svcbatchlog);
+    InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
     h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
     if (h) {
         BOOL f = TRUE;
