@@ -260,6 +260,14 @@ static __inline int xwcslen(const wchar_t *s)
         return (int)wcslen(s);
 }
 
+static __inline int xstrlen(const char *s)
+{
+    if (IS_EMPTY_STR(s))
+        return 0;
+    else
+        return (int)strlen(s);
+}
+
 static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
 {
     int r = 0;
@@ -788,17 +796,16 @@ static int xtimehdr(char *wb, int sz)
     LARGE_INTEGER et = {{ 0, 0 }};
     DWORD   ss, us, mm, hh;
 
-    if (pcfrequency.QuadPart) {
-        QueryPerformanceCounter(&ct);
-        et.QuadPart = ct.QuadPart - pcstarttime.QuadPart;
+    QueryPerformanceCounter(&ct);
+    et.QuadPart = ct.QuadPart - pcstarttime.QuadPart;
 
-        /**
-         * Convert to microseconds
-         */
-        et.QuadPart *= CPP_INT64_C(1000000);
-        et.QuadPart /= pcfrequency.QuadPart;
-        ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
-    }
+    /**
+     * Convert to microseconds
+     */
+    et.QuadPart *= CPP_INT64_C(1000000);
+    et.QuadPart /= pcfrequency.QuadPart;
+    ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
+
     us = (DWORD)((et.QuadPart % CPP_INT64_C(1000000)));
     ss = (DWORD)((ct.QuadPart / MS_IN_SECOND) % 60);
     mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % 60);
@@ -1470,7 +1477,7 @@ static void logwrline(HANDLE h, const char *s)
     if (nw > 0) {
         if (WriteFile(h, wb, nw, &wr, NULL) && (wr != 0))
             InterlockedAdd64(&svcbatchlog->nWritten, wr);
-        nw = (DWORD)strlen(s);
+        nw = xstrlen(s);
         if (WriteFile(h, s, nw, &wr, NULL) && (wr != 0))
             InterlockedAdd64(&svcbatchlog->nWritten, wr);
         if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0))
@@ -1496,7 +1503,7 @@ static void logwransi(HANDLE h, const char *hdr, const wchar_t *wcs)
     int     n;
     char    buf[FBUFSIZ];
 
-    n = (int)strlen(hdr);
+    n = xstrlen(hdr);
     memcpy(buf, hdr, n);
     xwcstombs(svccodepage, buf + n, FBUFSIZ - n, wcs);
     logwrline(h, buf);
