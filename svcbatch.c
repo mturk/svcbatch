@@ -3036,7 +3036,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     wh[0] = svcthread[SVCBATCH_WORKER_THREAD].hThread;
     wh[1] = svcthread[SVCBATCH_MONITOR_THREAD].hThread;
-#if defined(_DEBUG)
+#if defined(_DEBUG) && (_DEBUG > 1)
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         wchar_t bb[TBUFSIZ];
         xsnwprintf(bb, TBUFSIZ,
@@ -3062,7 +3062,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         }
         DBG_PRINTF("wait for svcstopended returned %lu", ws);
     }
-#if defined(_DEBUG)
+#if defined(_DEBUG) && (_DEBUG > 1)
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         wchar_t bb[TBUFSIZ];
         xsnwprintf(bb, TBUFSIZ,
