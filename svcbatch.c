@@ -153,8 +153,8 @@ static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSI
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
 static const wchar_t *localeparam = NULL;
-static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
-static const wchar_t *svcstoplogn = SHUTDOWN_LOGNAME;
+static const wchar_t *svclogfname = NULL;
+static const wchar_t *svcstoplogn = NULL;
 
 static int            xwoptind    = 1;
 static wchar_t        xwoption    = WNUL;
@@ -3391,6 +3391,14 @@ int wmain(int argc, const wchar_t **wargv)
 #endif
                 }
             }
+            svclogfname = SVCBATCH_LOGNAME;
+            svcstoplogn = SHUTDOWN_LOGNAME;
+        }
+        else {
+            if (ncnt)
+                svclogfname = nparam[0];
+            else
+                svclogfname = SHUTDOWN_LOGNAME;
         }
     }
     else {
@@ -3548,12 +3556,6 @@ int wmain(int argc, const wchar_t **wargv)
             svcstopproc->nArgc  = scnt;
             svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
         }
-    }
-    else {
-        if (ncnt)
-            svclogfname = nparam[0];
-        else
-            svclogfname = SHUTDOWN_LOGNAME;
     }
 
     xmemzero(&sazero, 1, sizeof(SECURITY_ATTRIBUTES));
