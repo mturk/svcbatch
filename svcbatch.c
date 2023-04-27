@@ -2232,13 +2232,13 @@ static DWORD runshutdown(DWORD rt)
     SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdError);
 
-    DBG_PRINTF("waiting for shutdown process %lu to finish", svcstopproc->pInfo.dwProcessId);
+    DBG_PRINTF("waiting for shutdown process %lu to finish", xgetprocessid(svcstopproc));
     rc = WaitForMultipleObjects(2, wh, FALSE, rt + SVCBATCH_STOP_STEP);
 #if defined(_DEBUG)
     switch (rc) {
         case WAIT_OBJECT_0:
             DBG_PRINTF("done with shutdown process %lu",
-                       svcstopproc->pInfo.dwProcessId);
+                       xgetprocessid(svcstopproc));
         break;
         case WAIT_OBJECT_1:
             DBG_PRINTS("worker finished");
@@ -2249,12 +2249,12 @@ static DWORD runshutdown(DWORD rt)
 #endif
     if (rc != WAIT_OBJECT_0) {
         DBG_PRINTF("sending ssignalevent to %lu",
-                   svcstopproc->pInfo.dwProcessId);
+                   xgetprocessid(svcstopproc));
         SetEvent(ssignalevent);
         if (WaitForSingleObject(svcstopproc->pInfo.hProcess, rt) != WAIT_OBJECT_0) {
             DBG_PRINTF("calling killproctree for %lu",
-                       svcstopproc->pInfo.dwProcessId);
-            killproctree(svcstopproc->pInfo.hProcess, svcstopproc->pInfo.dwProcessId, 1);
+                       xgetprocessid(svcstopproc));
+            killproctree(svcstopproc->pInfo.hProcess, xgetprocessid(svcstopproc), 1);
         }
     }
 #if defined(_DEBUG)
@@ -2686,7 +2686,7 @@ static DWORD WINAPI workerthread(void *unused)
 
     SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    DBG_PRINTF("running process %lu", svcxcmdproc->pInfo.dwProcessId);
+    DBG_PRINTF("running process %lu", xgetprocessid(svcxcmdproc));
     if (haslogrotate)
         xcreatethread(SVCBATCH_ROTATE_THREAD, 0, rotatethread, NULL);
 
@@ -2766,7 +2766,7 @@ static DWORD WINAPI workerthread(void *unused)
         }
     }
     DBG_PRINTF("finished process %lu with %lu",
-               svcxcmdproc->pInfo.dwProcessId,
+               xgetprocessid(svcxcmdproc),
                svcxcmdproc->dwExitCode);
 
 finished:
