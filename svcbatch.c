@@ -160,16 +160,6 @@ static int            xwoptind    = 1;
 static wchar_t        xwoption    = WNUL;
 static const wchar_t *xwoptarg    = NULL;
 
-static const wchar_t *tmpdirenv[] = {
-    L"TMP",
-    L"TEMP",
-    L"USERPROFILE",
-    L"LOCALAPPDATA",
-    L"SYSTEMROOT",
-    NULL
-};
-
-
 /**
  * (element & 1) == valid file name character
  * (element & 2) == character should be escaped in command line
@@ -1250,35 +1240,6 @@ static wchar_t *xgetfinalpathname(const wchar_t *path, int isdir,
     else
         return buf;
 }
-
-static wchar_t *xtempdir(void)
-{
-    int             i = 0;
-    wchar_t        *d = NULL;
-    const wchar_t **e = tmpdirenv;
-    wchar_t         b[BBUFSIZ];
-
-
-    while (*e != NULL) {
-        DWORD n = GetEnvironmentVariableW(*e, b, BBUFSIZ);
-        if ((n > 0) && (n < MAX_PATH)) {
-            if (i > 1) {
-                xwcslcat(b, BBUFSIZ, L"\\Temp");
-                d = xgetfinalpathname(b, 1, NULL, 0);
-            }
-            if (d == NULL) {
-                b[n] = WNUL;
-                d = xgetfinalpathname(b, 1, NULL, 0);
-            }
-        }
-        if (d != NULL)
-            break;
-        e++;
-        i++;
-    }
-    return d;
-}
-
 
 static BOOL resolvebatchname(const wchar_t *bp)
 {
@@ -3010,15 +2971,18 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", svcbatchlog->szDir);
         }
         else {
-            wchar_t *tmp = xtempdir();
-            if (tmp == NULL) {
-                xsyserror(ERROR_PATH_NOT_FOUND, L"Temporary files directory", NULL);
-                reportsvcstatus(SERVICE_STOPPED, ERROR_BAD_ENVIRONMENT);
-                return;
+            wchar_t *op = xgetfinalpathname(outdirparam, 1, NULL, 0);
 
+            if (op == NULL) {
+                xsyswarn(ERROR_PATH_NOT_FOUND, outdirparam, NULL);
+                xsysinfo(L"Use -o option with parameter set to the exiting directory",
+                         L"failing over to SVCBATCH_SERVICE_HOME");
+                SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", mainservice->lpHome);
             }
-            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", tmp);
-            xfree(tmp);
+            else {
+                SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", op);
+                xfree(op);
+            }
         }
     }
     else {
