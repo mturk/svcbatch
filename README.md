@@ -566,8 +566,15 @@ SvcBatch sets for each instance.
 * **SVCBATCH_SERVICE_LOGS**
 
   This variable is set to the service log directory.
+
   In case the logging is disabled, this variable is
-  set to the system **TEMP** environment variable.
+  set to the **SVCBATCH_SERVICE_HOME\Logs** directory.
+  If the **SVCBATCH_SERVICE_HOME\Logs** directory does
+  not exists, it will be set to **SVCBATCH_SERVICE_HOME**
+  and warning message will be added to the Windows Event Log.
+  Use **-o** command line option that points to the existing
+  directory with correct access rights.
+
 
 * **SVCBATCH_SERVICE_NAME**
 
