@@ -2788,7 +2788,7 @@ finished:
     SetEvent(processended);
 
     DBG_PRINTS("done");
-    return 0;
+    return rc;
 }
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
@@ -3066,6 +3066,15 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         }
         DBG_PRINTF("stopthread status=%lu", ws);
     }
+#if defined(_DEBUG)
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
+        wchar_t bb[TBUFSIZ];
+        xsnwprintf(bb, TBUFSIZ,
+                   L"Service stopped with Exit code: %lu",
+                   svcthread[SVCBATCH_WORKER_THREAD].dwExitCode);
+        xsysinfo(bb, NULL);
+    }
+#endif
 
 finished:
 
