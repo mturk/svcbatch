@@ -998,8 +998,7 @@ static void xclearprocess(LPSVCBATCH_PROCESS p)
     SAFE_CLOSE_HANDLE(p->pInfo.hThread);
     SAFE_CLOSE_HANDLE(p->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(p->sInfo.hStdError);
-    xfree(p->lpCommandLine);
-    p->lpCommandLine = NULL;
+    SAFE_MEM_FREE(p->lpCommandLine);
 
     DBG_PRINTF("%.4lu %lu", p->pInfo.dwProcessId, p->dwExitCode);
 }
@@ -1260,9 +1259,8 @@ static BOOL resolvebatchname(const wchar_t *bp)
         return TRUE;
     }
     else {
-        xfree(svcxcmdproc->lpArgv[0]);
-        svcxcmdproc->lpArgv[0] = NULL;
-        mainservice->lpBase    = NULL;
+        SAFE_MEM_FREE(svcxcmdproc->lpArgv[0]);
+        mainservice->lpBase = NULL;
         return FALSE;
     }
 }

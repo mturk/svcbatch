@@ -281,6 +281,11 @@
         CloseHandle((_h));                                  \
     (_h) = NULL
 
+#define SAFE_MEM_FREE(_m)                                   \
+    if ((_m) != NULL)                                       \
+        free((_m));                                         \
+    (_m) = NULL
+
 #define WAIT_OBJECT_1          (WAIT_OBJECT_0 + 1)
 #define WAIT_OBJECT_2          (WAIT_OBJECT_0 + 2)
 #define WAIT_OBJECT_3          (WAIT_OBJECT_0 + 3)
