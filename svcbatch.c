@@ -1297,7 +1297,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
         if (mainservice->sStatus.dwServiceSpecificExitCode == 0 &&
             mainservice->sStatus.dwCurrentState != SERVICE_STOP_PENDING) {
             mainservice->sStatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
-            xsyserror(0, L"service stopped without SERVICE_CONTROL_STOP signal", NULL);
+            xsyserror(0, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
         }
         if (mainservice->sStatus.dwServiceSpecificExitCode != 0)
             mainservice->sStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
@@ -1736,7 +1736,7 @@ static DWORD makelogfile(BOOL ssp)
     else
         ctm = gmtime(&ctt);
     if (_wcsftime_l(ewb, BBUFSIZ, svclogfname, ctm, localeobject) == 0)
-        return xsyserror(0, L"invalid format code", svclogfname);
+        return xsyserror(0, L"Invalid format code", svclogfname);
     xfree(svcbatchlog->lpFileName);
 
     for (i = 0, x = 0; ewb[i]; i++) {
@@ -1966,7 +1966,7 @@ static DWORD rotatelogs(void)
             }
         }
         rc = GetLastError();
-        xsyserror(rc, L"truncatelogs", NULL);
+        xsyserror(rc, L"Log truncation failed", NULL);
         CloseHandle(h);
     }
     else {
@@ -1984,7 +1984,7 @@ static DWORD rotatelogs(void)
     }
     else {
         setsvcstatusexit(rc);
-        xsyserror(0, L"rotatelogs failed", NULL);
+        xsyserror(0, L"Log rotation failed", NULL);
     }
 
 finished:
@@ -2373,7 +2373,7 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
     SVCBATCH_CS_LEAVE(svcbatchlog);
     if (rc) {
         if (rc != ERROR_NO_MORE_FILES) {
-            xsyserror(rc, L"logappend", NULL);
+            xsyserror(rc, L"Log append failed", NULL);
             createstopthread(rc);
         }
     }
@@ -2537,6 +2537,9 @@ static DWORD WINAPI rotatethread(void *unused)
     if (rotatetmo.QuadPart) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
+            rc = GetLastError();
+            setsvcstatusexit(rc);
+            xsyserror(rc, L"CreateWaitableTimer", NULL);
             goto finished;
         }
         if (!SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE)) {
@@ -2570,7 +2573,7 @@ static DWORD WINAPI rotatethread(void *unused)
                     }
                 }
                 else {
-                    xsyserror(rc, L"rotatelogs", NULL);
+                    xsyserror(rc, L"Log rotation failed", NULL);
                     createstopthread(rc);
                 }
                 ResetEvent(logrotatesig);
@@ -2581,7 +2584,7 @@ static DWORD WINAPI rotatethread(void *unused)
                     DBG_PRINTS("rotate by time");
                     rc = rotatelogs();
                     if (rc) {
-                        xsyserror(rc, L"rotatelogs", NULL);
+                        xsyserror(rc, L"Log rotation failed", NULL);
                         createstopthread(rc);
                     }
                 }
@@ -2673,7 +2676,7 @@ static DWORD WINAPI workerthread(void *unused)
     if (!xcreatethread(SVCBATCH_WRITE_THREAD,
                        1, wrpipethread, wr)) {
         rc = GetLastError();
-        xsyserror(rc, L"xcreatethread", NULL);
+        xsyserror(rc, L"Create thread failed", NULL);
         TerminateProcess(svcxcmdproc->pInfo.hProcess, rc);
         svcxcmdproc->dwExitCode = rc;
         goto finished;
@@ -2947,7 +2950,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     if (IS_EMPTY_WCS(mainservice->lpName) && (argc > 0))
         mainservice->lpName = xwcsdup(argv[0]);
     if (IS_EMPTY_WCS(mainservice->lpName)) {
-        xsyserror(ERROR_INVALID_PARAMETER, L"Missing servicename", NULL);
+        xsyserror(ERROR_INVALID_PARAMETER, L"Missing service name", NULL);
         exit(ERROR_INVALID_PARAMETER);
         return;
     }
@@ -3004,7 +3007,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             rv = openlogfile(TRUE);
 
         if (rv != 0) {
-            xsyserror(0, L"openlog failed", NULL);
+            xsyserror(0, L"Log open failed", NULL);
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
@@ -3019,12 +3022,12 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     if (!xcreatethread(SVCBATCH_MONITOR_THREAD,
                        0, monitorthread, NULL)) {
-        xsyserror(GetLastError(), L"xcreatethread", NULL);
+        xsyserror(GetLastError(), L"Create thread failed", NULL);
         goto finished;
     }
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
-        xsyserror(GetLastError(), L"xcreatethread", NULL);
+        xsyserror(GetLastError(), L"Create thread failed", NULL);
         goto finished;
     }
 
