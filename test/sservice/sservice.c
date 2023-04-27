@@ -17,6 +17,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <io.h>
+#include <fcntl.h>
 
 static HANDLE stopsig = NULL;
 
@@ -58,47 +60,48 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int r = 0;
     DWORD pid;
 
+    _setmode(_fileno(stdout),_O_BINARY);
     setvbuf(stdout, (char*)NULL, _IONBF, 0);
     pid = GetCurrentProcessId();
 
     stopsig = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (stopsig == NULL) {
         r = GetLastError();
-        fwprintf(stderr, L"\n\n[%.4lu] CreateEvent failed\n", pid);
+        fprintf(stderr, "\n\n[%.4lu] CreateEvent failed\n", pid);
         return r;
     }
-    fwprintf(stdout, L"\n[%.4lu] Program '%s' started\n", pid, wargv[0]);
+    fprintf(stdout, "\n[%.4lu] Program '%S' started\n", pid, wargv[0]);
     if (argc > 1) {
-        fwprintf(stdout, L"\n[%.4lu] Arguments\n\n", pid);
+        fprintf(stdout, "\n[%.4lu] Arguments\n\n", pid);
         for (i = 1; i < argc; i++) {
-            fwprintf(stdout, L"[%.4lu] [%.2d] %s\n", pid, i, wargv[i]);
+            fprintf(stdout, "[%.4lu] [%.2d] %S\n", pid, i, wargv[i]);
         }
     }
-    fwprintf(stdout, L"\n[%.4lu] Environment\n\n", pid);
+    fprintf(stdout, "\n[%.4lu] Environment\n\n", pid);
     while (wenv[e] != NULL) {
-        fwprintf(stdout, L"[%.4lu] [%.2d] %s\n", pid, e + 1, wenv[e]);
+        fprintf(stdout, "[%.4lu] [%.2d] %S\n", pid, e + 1, wenv[e]);
         e++;
     }
     SetConsoleCtrlHandler(consolehandler, TRUE);
-    fwprintf(stdout, L"\n\n[%.4lu] Program running\n", pid);
+    fprintf(stdout, "\n\n[%.4lu] Program running\n", pid);
     i = 1;
     for(;;) {
         DWORD ws = WaitForSingleObject(stopsig, 2000);
 
         if (ws == WAIT_OBJECT_0) {
-            fwprintf(stdout, L"\n\n[%.4lu] Stop signaled\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] Stop signaled\n", pid);
             fflush(stdout);
             Sleep(2000);
             break;
         }
-        fwprintf(stdout, L"[%.4lu] [%.4d] ... running\n", pid, i++);
+        fprintf(stdout, "[%.4lu] [%.4d] ... running\n", pid, i++);
         if (i > 1800) {
-            fwprintf(stderr, L"\n\n[%.4lu] Timeout reached\n", pid);
+            fprintf(stderr, "\n\n[%.4lu] Timeout reached\n", pid);
             r = ERROR_PROCESS_ABORTED;
             break;
         }
     }
-    fwprintf(stdout, L"\n\n[%.4lu] Program done\n", pid);
+    fprintf(stdout, "\n\n[%.4lu] Program done\n", pid);
     _flushall();
     CloseHandle(stopsig);
     return r;
