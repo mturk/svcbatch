@@ -151,10 +151,10 @@ static const char    *YYES        =  "Y";
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
-static const wchar_t *outdirparam = NULL;
+static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
 static const wchar_t *localeparam = NULL;
-static const wchar_t *svclogfname = NULL;
-static const wchar_t *svcstoplogn = NULL;
+static const wchar_t *svclogfname = SVCBATCH_LOGNAME;
+static const wchar_t *svcstoplogn = SHUTDOWN_LOGNAME;
 
 static int            xwoptind    = 1;
 static wchar_t        xwoption    = WNUL;
@@ -3391,13 +3391,7 @@ int wmain(int argc, const wchar_t **wargv)
 #endif
                 }
             }
-            if (ncnt == 0) {
-                svclogfname = SVCBATCH_LOGNAME;
-                svcstoplogn = SHUTDOWN_LOGNAME;
-            }
         }
-        if (outdirparam == NULL)
-            outdirparam = SVCBATCH_LOGSDIR;
     }
     else {
         /**
@@ -3411,8 +3405,6 @@ int wmain(int argc, const wchar_t **wargv)
             xwcslcat(bb, TBUFSIZ, L"-m ");
         if (ncnt)
             xwcslcat(bb, TBUFSIZ, L"-n ");
-        if (outdirparam)
-            xwcslcat(bb, TBUFSIZ, L"-o ");
         if (rcnt)
             xwcslcat(bb, TBUFSIZ, L"-r ");
         if (truncatelogs)
@@ -3422,7 +3414,6 @@ int wmain(int argc, const wchar_t **wargv)
         if (bb[0]) {
 #if defined(_DEBUG) && (_DEBUG > 1)
             xsyswarn(0, L"Option -q is mutually exclusive with option(s)", bb);
-            outdirparam  = NULL;
             ecnt         = 0;
             ncnt         = 0;
             rcnt         = 0;
@@ -3528,6 +3519,8 @@ int wmain(int argc, const wchar_t **wargv)
                 else {
                     if (_wcsicmp(nparam[1], L"NUL"))
                         svcstoplogn = nparam[1];
+                    else
+                        svcstoplogn = NULL;
                 }
             }
         }
@@ -3557,7 +3550,7 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     else {
-        if (nparam[0])
+        if (ncnt)
             svclogfname = nparam[0];
         else
             svclogfname = SHUTDOWN_LOGNAME;
