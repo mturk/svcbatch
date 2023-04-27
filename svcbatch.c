@@ -146,7 +146,7 @@ static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
 static wchar_t      zerostring[2] = { WNUL, WNUL };
 static const wchar_t *CRLFW       = L"\r\n";
 static const char    *CRLFA       =  "\r\n";
-static const char    *YYES        =  "Y";
+static const char    *YYES        =  "Y\r\n";
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
@@ -1021,6 +1021,7 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
     HANDLE p;
     PROCESSENTRY32W e;
 
+    DBG_PRINTF("killing process %.4lu %d", pid, rc);
     h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (IS_INVALID_HANDLE(h)) {
         r = GetLastError();
@@ -1040,11 +1041,10 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
 
             if (IS_VALID_HANDLE(p)) {
                 if (rc) {
-                    DBG_PRINTF("killing child %.4lu of process %.4lu", e.th32ProcessID, pid);
                     killproctree(p, e.th32ProcessID, rc - 1);
                 }
                 else {
-                    DBG_PRINTF("terminating child %.4lu of process %.4lu", e.th32ProcessID, pid);
+                    DBG_PRINTF("terminating child %.4lu of %.4lu", e.th32ProcessID, pid);
                     TerminateProcess(p, ERROR_INVALID_FUNCTION);
                 }
                 CloseHandle(p);
@@ -1055,8 +1055,8 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
     CloseHandle(h);
 finished:
     if (IS_VALID_HANDLE(ph)) {
-        DBG_PRINTF("terminating process %.4lu", pid);
         TerminateProcess(ph, ERROR_INVALID_FUNCTION);
+        DBG_PRINTF("terminated %.4lu", pid);
     }
     return r;
 }
@@ -1066,13 +1066,14 @@ static DWORD killprocess(LPSVCBATCH_PROCESS proc, int rc)
     DWORD r;
 
     InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
+    DBG_PRINTF("killing process %.4lu", xgetprocessid(proc));
     r = killproctree(NULL, xgetprocessid(proc), rc);
 
-    DBG_PRINTF("terminating process %.4lu", xgetprocessid(proc));
     proc->dwExitCode = ERROR_INVALID_FUNCTION;
     if (!TerminateProcess(proc->pInfo.hProcess,
                           proc->dwExitCode))
         r = GetLastError();
+    DBG_PRINTF("terminated %.4lu", xgetprocessid(proc));
     InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
 
     return r;
@@ -2026,7 +2027,7 @@ static void closelogfile(void)
                    xgetprocessid(svclogsproc));
         if (waitprocess(svclogsproc, SVCBATCH_STOP_STEP) == STILL_ACTIVE) {
             DBG_PRINTS("terminating log process");
-            killprocess(svclogsproc, 0);
+            killprocess(svclogsproc, 1);
         }
 #if defined(_DEBUG)
         DBG_PRINTF("log process returned %lu", svclogsproc->dwExitCode);
@@ -2328,7 +2329,7 @@ static DWORD WINAPI stopthread(void *unused)
     DBG_PRINTS("worker process is still running ... terminating");
 #endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
-    killprocess(svcxcmdproc, 0);
+    killprocess(svcxcmdproc, 1);
 
 finished:
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
@@ -2386,7 +2387,7 @@ static DWORD WINAPI wrpipethread(void *wh)
     DWORD rc = 0;
 
     DBG_PRINTS("started");
-    if (WriteFile(wh, YYES, 1, &wr, NULL) && (wr != 0)) {
+    if (WriteFile(wh, YYES, 3, &wr, NULL) && (wr != 0)) {
         if (!FlushFileBuffers(wh))
             rc = GetLastError();
     }
