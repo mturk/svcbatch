@@ -163,6 +163,7 @@ static const wchar_t *xwoptarg    = NULL;
 static const wchar_t *tmpdirenv[] = {
     L"TMP",
     L"TEMP",
+    L"USERPROFILE",
     L"LOCALAPPDATA",
     L"SYSTEMROOT",
     NULL
@@ -1261,9 +1262,14 @@ static wchar_t *xtempdir(void)
     while (*e != NULL) {
         DWORD n = GetEnvironmentVariableW(*e, b, BBUFSIZ);
         if ((n > 0) && (n < MAX_PATH)) {
-            if (i > 1)
+            if (i > 1) {
                 xwcslcat(b, BBUFSIZ, L"\\Temp");
-            d = xgetfinalpathname(b, 1, NULL, 0);
+                d = xgetfinalpathname(b, 1, NULL, 0);
+            }
+            if (d == NULL) {
+                b[n] = WNUL;
+                d = xgetfinalpathname(b, 1, NULL, 0);
+            }
         }
         if (d != NULL)
             break;
@@ -3006,7 +3012,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         else {
             wchar_t *tmp = xtempdir();
             if (tmp == NULL) {
-                xsyserror(ERROR_PATH_NOT_FOUND, L"Missing Temp directory", NULL);
+                xsyserror(ERROR_PATH_NOT_FOUND, L"Temporary files directory", NULL);
                 reportsvcstatus(SERVICE_STOPPED, ERROR_BAD_ENVIRONMENT);
                 return;
 
