@@ -160,6 +160,14 @@ static int            xwoptind    = 1;
 static wchar_t        xwoption    = WNUL;
 static const wchar_t *xwoptarg    = NULL;
 
+static const wchar_t *tmpdirenv[] = {
+    L"TMP",
+    L"TEMP",
+    L"LOCALAPPDATA",
+    L"SYSTEMROOT",
+    NULL
+};
+
 
 /**
  * (element & 1) == valid file name character
@@ -1241,6 +1249,34 @@ static wchar_t *xgetfinalpathname(const wchar_t *path, int isdir,
     else
         return buf;
 }
+
+static wchar_t *xtmpdir(void)
+{
+    int             i = 0;
+    wchar_t        *p;
+    wchar_t        *d = NULL;
+    const wchar_t **e = tmpdirenv;
+
+    while (*e != NULL) {
+        d = xgetenv(*e);
+        if (d != NULL) {
+            p = d;
+            if (i > 1) {
+                d = xwcsconcat(p, L"\\Temp");
+                xfree(p);
+                p = d;
+            }
+            d = xgetfinalpathname(p, 1, NULL, 0);
+            xfree(p);
+            if (d != NULL)
+                break;
+        }
+        e++;
+        i++;
+    }
+    return d;
+}
+
 
 static BOOL resolvebatchname(const wchar_t *bp)
 {
@@ -2972,9 +3008,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", svcbatchlog->szDir);
         }
         else {
-            wchar_t *tmp = xgetenv(L"TEMP");
+            wchar_t *tmp = xtmpdir();
             if (tmp == NULL) {
-                xsyserror(GetLastError(), L"Missing TEMP environment variable", NULL);
+                xsyserror(ERROR_PATH_NOT_FOUND, L"Missing Temp directory", NULL);
                 reportsvcstatus(SERVICE_STOPPED, ERROR_BAD_ENVIRONMENT);
                 return;
 
