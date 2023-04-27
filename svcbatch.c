@@ -1168,13 +1168,13 @@ static BOOL xcreatethread(SVCBATCH_THREAD_ID id,
     return TRUE;
 }
 
-static BOOL isrelativepath(const wchar_t *p)
+static BOOL isabsolutepath(const wchar_t *p)
 {
     if ((p != NULL) && (p[0] < 128)) {
         if ((p[0] == L'\\') || (isalpha(p[0]) && (p[1] == L':')))
-            return FALSE;
+            return TRUE;
     }
-    return TRUE;
+    return FALSE;
 }
 
 static DWORD fixshortpath(wchar_t *buf, DWORD len)
@@ -3452,28 +3452,19 @@ int wmain(int argc, const wchar_t **wargv)
          *    SetCurrentDirectory.
          *    If -w parameter was defined, resolve it and set as home
          *    directory or fail.
-         *    In case -w was not defined reslove batch file and set its
+         *    In case -w was not defined resolve batch file and set its
          *    directory as home directory or fail if it cannot be resolved.
          *
          */
          if (svchomeparam) {
-             if (isrelativepath(svchomeparam)) {
-
-             }
-             else {
+             if (isabsolutepath(svchomeparam)) {
                 mainservice->lpHome = xgetfinalpathname(svchomeparam, 1, NULL, 0);
                 if (IS_EMPTY_WCS(mainservice->lpHome))
                     return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
              }
          }
          if (mainservice->lpHome == NULL) {
-            if (isrelativepath(batchparam)) {
-                /**
-                 * No -w param and batch file is relative
-                 * so we will use svcbatch.exe directory
-                 */
-            }
-            else {
+            if (isabsolutepath(batchparam)) {
                 if (!resolvebatchname(batchparam))
                     return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
