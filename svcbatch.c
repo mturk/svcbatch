@@ -2756,24 +2756,20 @@ static DWORD WINAPI workerthread(void *unused)
         WaitForMultipleObjects(nw, wh, TRUE, INFINITE);
         InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
     }
-    DBG_PRINTF("finished process %lu", svcxcmdproc->pInfo.dwProcessId);
-    if (GetExitCodeProcess(svcxcmdproc->pInfo.hProcess, &rc)) {
-        svcxcmdproc->dwExitCode = rc;
-        DBG_PRINTF("process exited with %lu", rc);
-    }
-    else {
+    if (!GetExitCodeProcess(svcxcmdproc->pInfo.hProcess, &rc))
         rc = GetLastError();
-        DBG_PRINTF("getting exit failed with %lu", rc);
-    }
     if (rc) {
         if (rc != 255) {
             /**
               * 255 is exit code when CTRL_C is send to cmd.exe
               */
             setsvcstatusexit(rc);
+            svcxcmdproc->dwExitCode = rc;
         }
-        svcxcmdproc->dwExitCode = rc;
     }
+    DBG_PRINTF("finished process %lu with %lu",
+               svcxcmdproc->pInfo.dwProcessId,
+               svcxcmdproc->dwExitCode);
 
 finished:
     xclearprocess(svcxcmdproc);
@@ -2784,7 +2780,7 @@ finished:
     SetEvent(workfinished);
 
     DBG_PRINTS("done");
-    return rc;
+    return svcxcmdproc->dwExitCode;
 }
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
