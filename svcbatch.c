@@ -1250,27 +1250,23 @@ static wchar_t *xgetfinalpathname(const wchar_t *path, int isdir,
         return buf;
 }
 
-static wchar_t *xtmpdir(void)
+static wchar_t *xtempdir(void)
 {
     int             i = 0;
-    wchar_t        *p;
     wchar_t        *d = NULL;
     const wchar_t **e = tmpdirenv;
+    wchar_t         b[BBUFSIZ];
+
 
     while (*e != NULL) {
-        d = xgetenv(*e);
-        if (d != NULL) {
-            p = d;
-            if (i > 1) {
-                d = xwcsconcat(p, L"\\Temp");
-                xfree(p);
-                p = d;
-            }
-            d = xgetfinalpathname(p, 1, NULL, 0);
-            xfree(p);
-            if (d != NULL)
-                break;
+        DWORD n = GetEnvironmentVariableW(*e, b, BBUFSIZ);
+        if ((n > 0) && (n < MAX_PATH)) {
+            if (i > 1)
+                xwcslcat(b, BBUFSIZ, L"\\Temp");
+            d = xgetfinalpathname(b, 1, NULL, 0);
         }
+        if (d != NULL)
+            break;
         e++;
         i++;
     }
@@ -3008,7 +3004,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", svcbatchlog->szDir);
         }
         else {
-            wchar_t *tmp = xtmpdir();
+            wchar_t *tmp = xtempdir();
             if (tmp == NULL) {
                 xsyserror(ERROR_PATH_NOT_FOUND, L"Missing Temp directory", NULL);
                 reportsvcstatus(SERVICE_STOPPED, ERROR_BAD_ENVIRONMENT);
