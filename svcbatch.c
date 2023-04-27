@@ -22,7 +22,6 @@
 #include <string.h>
 #include <wchar.h>
 #include <time.h>
-#include <locale.h>
 #include <errno.h>
 #if defined(_DEBUG)
 #include <crtdbg.h>
@@ -132,7 +131,6 @@ static DWORD     preshutdown      = 0;
 
 static int       svcmaxlogs       = 0;
 static int       svccodepage      = 0;
-static _locale_t localeobject     = NULL;
 
 static HANDLE    svcstopstart     = NULL;
 static HANDLE    svcstopended     = NULL;
@@ -152,7 +150,7 @@ static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
-static const wchar_t *localeparam = NULL;
+static const wchar_t *codepageopt = NULL;
 static const wchar_t *svclogfname = NULL;
 static const wchar_t *svcstoplogn = NULL;
 
@@ -1735,7 +1733,7 @@ static DWORD makelogfile(BOOL ssp)
         ctm = localtime(&ctt);
     else
         ctm = gmtime(&ctt);
-    if (_wcsftime_l(ewb, BBUFSIZ, svclogfname, ctm, localeobject) == 0)
+    if (wcsftime(ewb, BBUFSIZ, svclogfname, ctm) == 0)
         return xsyserror(0, L"Invalid format code", svclogfname);
     xfree(svcbatchlog->lpFileName);
 
@@ -2204,7 +2202,7 @@ static DWORD runshutdown(DWORD rt)
     if (ip < 6)
         rp[2] = WNUL;
     svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, NULL,  rp);
-    svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, L"-c", localeparam);
+    svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, L"-c", codepageopt);
     if (svcbatchlog && svcstoplogn)
         svcstopproc->lpCommandLine = xappendarg(1, svcstopproc->lpCommandLine, L"-n", svcstoplogn);
     for (i = 0; i < svcstopproc->nArgc; i++)
@@ -3249,7 +3247,7 @@ int wmain(int argc, const wchar_t **wargv)
              * Options with arguments
              */
             case L'c':
-                localeparam  = xwoptarg;
+                codepageopt  = xwoptarg;
             break;
             case L'm':
                 maxlogsparam = xwoptarg;
@@ -3309,36 +3307,19 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
 
-    localeobject = _get_current_locale();
-    if (localeparam) {
-        wchar_t *p;
-        wchar_t lb[TBUFSIZ];
-
-        xwcslcpy(lb, TBUFSIZ, localeparam);
-        p = wcschr(lb, L'.');
-        if (p) {
-            *(p++) = WNUL;
-            if (xwstartswith(p, L"UTF")) {
-                if (wcschr(p + 3, L'8'))
-                    svccodepage = 65001;
-                else
-                    return xsyserror(0, L"Invalid -c command option value", localeparam);
-            }
-            else {
-                svccodepage = xwcstoi(p, NULL);
-                if (svccodepage < 0)
-                    return xsyserror(0, L"Invalid -c command option value", localeparam);
-            }
-            DBG_PRINTF("using codepage %d", svccodepage);
+    if (codepageopt) {
+        if (xwstartswith(codepageopt, L"UTF")) {
+            if (wcschr(codepageopt + 3, L'8'))
+                svccodepage = 65001;
+            else
+                return xsyserror(0, L"Invalid -c command option value", codepageopt);
         }
-#if defined(_MSC_VER)
-        if (lb[0]) {
-            localeobject = _wcreate_locale(LC_ALL, lb);
-            if (localeobject == NULL)
-                return xsyserror(0, L"Invalid -c command option value", localeparam);
-            DBG_PRINTF("using locale %S", lb);
+        else {
+            svccodepage = xwcstoi(codepageopt, NULL);
+            if (svccodepage < 0)
+                return xsyserror(0, L"Invalid -c command option value", codepageopt);
         }
-#endif
+        DBG_PRINTF("using code page %d", svccodepage);
     }
 
     argc  -= xwoptind;

@@ -466,49 +466,15 @@ make sure to get familiar with `sc.exe` utility.
   This option causes all logging and rotation
   to use local instead system time.
 
-* **-c [locale][.code page]**
+* **-c [code page]**
 
-  **Sets run-time locale**
+  **Sets run-time code page**
 
-  This option allows to change default locale used for
-  string formatting.
-
-  The **locale** argument can take a locale name, a language
-  string, a language string and country/region code,
-  a **code page**, or a language string, country/region code,
-  and **code page**. The available locale names, languages,
-  country/region codes, and code pages include all the
-  ones supported by the Windows NLS API.
-
-  ```cmd
-  > sc create ... -c en-US.1250 ...
-
-  ```
-
-  This option can be used in combination with **-n** option
-  to produce locale specific formatted log filenames.
-
-  ```cmd
-  > sc create ... -c en-US -n service.@#x.log ...
-
-  ```
-
-  This will create something like **service.Monday, March 6, 2023.log**,
-  while the:
-
-  ```cmd
-  > sc create ... -c de-DE -n service.@#x.log ...
-
-  ```
-
-  This will create **service.Montag, 6. März 2023.log** using
-  German **locale** date representation.
-
-
+  This option allows to change default system code page.
   If defined, all internal logging will be translated to **code page**.
 
   ```cmd
-  > sc create ... -v -c .utf-8 ...
+  > sc create ... -v -c utf-8 ...
 
   ```
   This will convert all internal logging to **utf-8** code page.

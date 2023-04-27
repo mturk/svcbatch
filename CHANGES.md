@@ -14,10 +14,12 @@ For a full list of changes, see the [git commit log][log]
   * Do not rotate logs if previous rotation was less then 2 minutes ago
   * Use asynchronous read from batch file
   * Ensure that all started processes are properly terminated
+  * Deprecate setting locale with -c command option
 
 ### New Features
 
  * Add SVCBATCH_SERVICE_LOGS environment variable
+ * Use -c command option to set user defined code page
 
 ## v2.0.0
 
