@@ -59,6 +59,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int e = 0;
     int r = 0;
     DWORD pid;
+    HANDLE wh[2];
+    wchar_t sb[256];
 
     _setmode(_fileno(stdout),_O_BINARY);
     setvbuf(stdout, (char*)NULL, _IONBF, 0);
@@ -70,6 +72,17 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fprintf(stderr, "\n\n[%.4lu] CreateEvent failed\n", pid);
         return r;
     }
+    wh[0] = stopsig;
+
+    lstrcpyW(sb, L"Local\\se-");
+    GetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", sb + 9, 64);
+    wh[1] = OpenEvent(SYNCHRONIZE, FALSE, sb);
+    if (wh[1] == NULL) {
+        r = GetLastError();
+        fprintf(stderr, "\n\n[%.4lu] OpenEvent %S failed\n", pid, sb);
+        return r;
+    }
+
     fprintf(stdout, "\n[%.4lu] Program '%S' started\n", pid, wargv[0]);
     if (argc > 1) {
         fprintf(stdout, "\n[%.4lu] Arguments\n\n", pid);
@@ -86,12 +99,18 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     fprintf(stdout, "\n\n[%.4lu] Program running\n", pid);
     i = 1;
     for(;;) {
-        DWORD ws = WaitForSingleObject(stopsig, 2000);
+        DWORD ws = WaitForMultipleObjects(2, wh, FALSE, 2000);
 
         if (ws == WAIT_OBJECT_0) {
-            fprintf(stdout, "\n\n[%.4lu] Stop signaled\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] Console Stop signaled\n", pid);
             fflush(stdout);
             Sleep(2000);
+            break;
+        }
+        if (ws == WAIT_OBJECT_0 + 1) {
+            fprintf(stdout, "\n\n[%.4lu] Signal Stop signaled\n", pid);
+            fflush(stdout);
+            Sleep(1000);
             break;
         }
         fprintf(stdout, "[%.4lu] [%.4d] ... running\n", pid, i++);

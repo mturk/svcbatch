@@ -2307,6 +2307,12 @@ static DWORD WINAPI stopthread(void *unused)
             }
         }
     }
+    else {
+        /**
+         * Signal to all child processes to stop
+         */
+         SetEvent(ssignalevent);
+    }
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         DWORD ws;
 
@@ -3054,11 +3060,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         DBG_PRINTS("waiting for stop thread to finish");
         ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
         if (ws == WAIT_TIMEOUT) {
-            if (svcstopproc) {
-                DBG_PRINTS("sending ssignalevent");
-                SetEvent(ssignalevent);
-                ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
-            }
+            DBG_PRINTS("sending ssignalevent");
+            SetEvent(ssignalevent);
+            ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
         }
         DBG_PRINTF("wait for svcstopended returned %lu", ws);
     }
@@ -3566,15 +3570,13 @@ int wmain(int argc, const wchar_t **wargv)
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
 
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
-        if (svcstopproc) {
-            xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
-            xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
-            ssignalevent = CreateEventEx(NULL, bb,
-                                         CREATE_EVENT_MANUAL_RESET,
-                                         EVENT_MODIFY_STATE | SYNCHRONIZE);
-            if (IS_INVALID_HANDLE(ssignalevent))
-                return xsyserror(GetLastError(), L"CreateEvent", bb);
-        }
+        xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
+        xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
+        ssignalevent = CreateEventEx(NULL, bb,
+                                     CREATE_EVENT_MANUAL_RESET,
+                                     EVENT_MODIFY_STATE | SYNCHRONIZE);
+        if (IS_INVALID_HANDLE(ssignalevent))
+            return xsyserror(GetLastError(), L"CreateEvent", bb);
         if (haslogrotate) {
             logrotatesig = CreateEventEx(NULL, NULL,
                                          CREATE_EVENT_MANUAL_RESET,
