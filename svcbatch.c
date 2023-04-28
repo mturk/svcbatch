@@ -1209,11 +1209,11 @@ static wchar_t *xgetfullpathname(const wchar_t *path, wchar_t *dst, DWORD siz)
 static wchar_t *xgetfinalpathname(const wchar_t *path, int isdir,
                                   wchar_t *dst, DWORD siz)
 {
+    HANDLE   fh;
     wchar_t  sbb[SVCBATCH_PATH_MAX];
     wchar_t *buf = dst;
-    HANDLE   fh;
     DWORD    len;
-    DWORD    atr  = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
+    DWORD    atr = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
     if (dst == NULL) {
         siz = SVCBATCH_PATH_MAX;
@@ -1228,15 +1228,14 @@ static wchar_t *xgetfinalpathname(const wchar_t *path, int isdir,
     if (IS_INVALID_HANDLE(fh))
         return NULL;
     len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
-    if ((len == 0) || (len >= siz))
-        buf = NULL;
-    else
-        fixshortpath(buf, len);
     CloseHandle(fh);
+    if ((len == 0) || (len >= siz))
+        return NULL;
+
+    fixshortpath(buf, len);
     if (dst == NULL)
-        return xwcsdup(buf);
-    else
-        return buf;
+        dst = xwcsdup(buf);
+    return dst;
 }
 
 static BOOL resolvebatchname(const wchar_t *bp)
