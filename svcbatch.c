@@ -1076,51 +1076,54 @@ static DWORD killprocess(LPSVCBATCH_PROCESS proc, int rc)
     return r;
 }
 
-static DWORD xcreatedir(const wchar_t *path)
-{
-    if (!CreateDirectoryW(path, NULL)) {
-        DWORD rc = GetLastError();
-        if (rc != ERROR_ALREADY_EXISTS)
-            return rc;
-    }
-    return 0;
-}
-
 static DWORD xmdparent(wchar_t *path)
 {
-    DWORD rc;
+    DWORD rc = 0;
     wchar_t *s;
 
     s = wcsrchr(path, L'\\');
     if (s == NULL)
         return ERROR_BAD_PATHNAME;
     *s = WNUL;
-    rc = xcreatedir(path);
+    if (CreateDirectoryW(path, NULL))
+        return 0;
+    else
+        rc = GetLastError();
     if (rc == ERROR_PATH_NOT_FOUND) {
         /**
          * One or more intermediate directories do not exist
-         * Call xmdparent again
          */
         rc = xmdparent(path);
     }
-    *s = L'\\';
     return rc;
 }
 
-static DWORD xcreatepath(const wchar_t *path)
+static DWORD xcreatedir(const wchar_t *path)
 {
-    DWORD rc;
+    DWORD rc = 0;
 
-    rc = xcreatedir(path);
+    if (CreateDirectoryW(path, NULL))
+        return 0;
+    else
+        rc = GetLastError();
     if (rc == ERROR_PATH_NOT_FOUND) {
-        wchar_t *pp = xwcsdup(path);
-
+        wchar_t pp[SVCBATCH_PATH_MAX];
+        /**
+         * One or more intermediate directories do not exist
+         */
+        xwcslcpy(pp, SVCBATCH_PATH_MAX, path);
         rc = xmdparent(pp);
-        xfree(pp);
-
-        if (rc == 0)
-            rc = xcreatedir(path);
+        if (rc == 0) {
+            /**
+             * All intermediate paths are created.
+             * Create the final directory in the path.
+             */
+            if (!CreateDirectoryW(path, NULL))
+                rc = GetLastError();
+        }
     }
+    if (rc == ERROR_ALREADY_EXISTS)
+        rc = 0;
     return rc;
 }
 
@@ -1568,9 +1571,9 @@ static DWORD createlogsdir(void)
         if (rc > ERROR_PATH_NOT_FOUND)
             return xsyserror(rc, L"xgetfinalpathname", dp);
 
-        rc = xcreatepath(dp);
+        rc = xcreatedir(dp);
         if (rc != 0)
-            return xsyserror(rc, L"xcreatepath", dp);
+            return xsyserror(rc, L"xcreatedir", dp);
         p = xgetfinalpathname(dp, 1, svcbatchlog->szDir, SVCBATCH_PATH_MAX);
         if (p == NULL)
             return xsyserror(GetLastError(), L"xgetfinalpathname", dp);
