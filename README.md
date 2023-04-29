@@ -412,6 +412,13 @@ make sure to get familiar with `sc.exe` utility.
   first one will be used as **batchfile** and rest will
   be used as additional **argument** send to the **batchfile**.
 
+  In case **batchfile** name is **NUL** service will create
+  event object with the name `Local\se-%SVCBATCH_SERVICE_UUID%`.
+  Applications started from the service batch file can open that
+  event and use it as wait signal which will be signaled on
+  service stop.
+  Check [sservice](../test/sservice) for how to write a client
+  application that can use this IPC mechanism.
 
 * **-q**
 

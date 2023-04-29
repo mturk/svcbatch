@@ -20,6 +20,7 @@ For a full list of changes, see the [git commit log][log]
 
  * Add SVCBATCH_SERVICE_LOGS environment variable
  * Use -c command option to set user defined code page
+ * If first -s option is NUL create stop signal event
 
 ## v2.0.0
 
