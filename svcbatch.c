@@ -135,7 +135,6 @@ static int       stoptimeout      = SVCBATCH_STOP_WAIT;
 
 static HANDLE    svcstopstart     = NULL;
 static HANDLE    svcstopended     = NULL;
-static HANDLE    ssignalevent     = NULL;
 static HANDLE    workfinished     = NULL;
 static HANDLE    monitorevent     = NULL;
 static HANDLE    logrotatesig     = NULL;
@@ -2253,7 +2252,6 @@ finished:
 static DWORD WINAPI stopthread(void *unused)
 {
     DWORD ws;
-    DWORD ww = 0;
 
     SetEvent(svcstopstart);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
@@ -2266,23 +2264,11 @@ static DWORD WINAPI stopthread(void *unused)
         rc = runshutdown(SVCBATCH_STOP_STEP);
         DBG_PRINTF("runshutdown returned %lu", rc);
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-        if (rc)
-            ww = SVCBATCH_STOP_SYNC;
-        else
-            ww = stoptimeout;
-    }
-    if (ssignalevent) {
-        /**
-         * Signal to all child processes to stop
-         */
-        DBG_PRINTS("setting shutdown signal event");
-        SetEvent(ssignalevent);
-        ww = stoptimeout;
-    }
-    ws = WaitForSingleObject(workfinished, ww);
-    if (ws == WAIT_OBJECT_0) {
-        DBG_PRINTS("worker finished");
-        goto finished;
+        ws = WaitForSingleObject(workfinished, rc ? SVCBATCH_STOP_SYNC : stoptimeout);
+        if (ws == WAIT_OBJECT_0) {
+            DBG_PRINTS("worker finished");
+            goto finished;
+        }
     }
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         DBG_PRINTS("generating CTRL_C_EVENT");
@@ -2877,7 +2863,6 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(workfinished);
     SAFE_CLOSE_HANDLE(svcstopended);
     SAFE_CLOSE_HANDLE(svcstopstart);
-    SAFE_CLOSE_HANDLE(ssignalevent);
     SAFE_CLOSE_HANDLE(monitorevent);
     SAFE_CLOSE_HANDLE(logrotatesig);
 
@@ -3467,26 +3452,15 @@ int wmain(int argc, const wchar_t **wargv)
             svcbatchlog->dwType = SVCBATCH_LOG_PIPE;
         }
         if (scnt) {
-            if (_wcsicmp(sparam[0], L"NUL") == 0) {
-                xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
-                xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
-                ssignalevent = CreateEventEx(NULL, bb,
-                                             CREATE_EVENT_MANUAL_RESET,
-                                             EVENT_MODIFY_STATE | SYNCHRONIZE);
-                if (IS_INVALID_HANDLE(ssignalevent))
-                    return xsyserror(GetLastError(), L"CreateEvent", bb);
-            }
-            else {
-                svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+            svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
-                svcstopproc->lpArgv[0] = xgetfinalpathname(sparam[0], 0, NULL, 0);
-                if (svcstopproc->lpArgv[0] == NULL)
-                    return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
-                for (i = 1; i < scnt; i++)
-                    svcstopproc->lpArgv[i] = xwcsdup(sparam[i]);
-                svcstopproc->nArgc  = scnt;
-                svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
-            }
+            svcstopproc->lpArgv[0] = xgetfinalpathname(sparam[0], 0, NULL, 0);
+            if (svcstopproc->lpArgv[0] == NULL)
+                return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
+            for (i = 1; i < scnt; i++)
+                svcstopproc->lpArgv[i] = xwcsdup(sparam[i]);
+            svcstopproc->nArgc  = scnt;
+            svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
         }
     }
 

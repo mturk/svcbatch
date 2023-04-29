@@ -72,7 +72,6 @@
 #define SVCBATCH_LOGNAME       L"SvcBatch.log"
 #define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
-#define SHUTDOWN_IPCNAME       L"Local\\se-"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sp-"
 
 /**

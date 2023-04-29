@@ -16,14 +16,12 @@ For a full list of changes, see the [git commit log][log]
   * Ensure that all started processes are properly terminated
   * Deprecate setting locale with -c command option
   * Check for mutually exclusive options at startup
-  * Lower down stop timeouts on system shutdown
 
 ### New Features
 
  * Add SVCBATCH_SERVICE_LOGS environment variable
  * Add -k command option for changing default stop timeout
  * Use -c command option to set user defined code page
- * Create stop signal event if first -s option is NUL
 
 ## v2.0.0
 
