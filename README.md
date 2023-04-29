@@ -220,15 +220,28 @@ make sure to get familiar with `sc.exe` utility.
 
   ```
 
-  The **program** current directory is always set
-  to service output directory.
+  To use the Apache Httpd rotatelogs utility for logging,
+  put the `rotatelogs.exe` to the service home directory
+  and use something like this:
+
+  ```cmd
+  > sc create ... -e rotatelogs.exe -e -l -e myservice.@Y-@m-@d.@H@M@S.log -e120
+
+  ```
+
+  The **program** working directory is always set
+  to the service output directory, and exported
+  as **SVCBATCH_SERVICE_LOGS** environment value.
+
+  Also check [pipedlog](test/pipedlog) directory that contains
+  example of a simple application used for log redirection.
 
   **Notice**
 
   This option is mutually exclusive with log rotation
   related options. Do not use options `m`, `r`, or `v`
   together with this option when installing service.
-  Service will fail to start, and write and error message
+  Service will fail to start, and write an error message
   to the Windows Event log.
 
 * **-k [timeout]**
