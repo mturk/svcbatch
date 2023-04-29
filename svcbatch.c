@@ -36,9 +36,9 @@ static void dbgprints(const char *, const char *);
 typedef enum {
     SVCBATCH_WORKER_THREAD = 0,
     SVCBATCH_STOP_THREAD,
-    SVCBATCH_ROTATE_THREAD,
-    SVCBATCH_MONITOR_THREAD,
     SVCBATCH_WRITE_THREAD,
+    SVCBATCH_MONITOR_THREAD,
+    SVCBATCH_ROTATE_THREAD,
     SVCBATCH_RDLOGPIPE_THREAD,
     SVCBATCH_MAX_THREADS
 } SVCBATCH_THREAD_ID;
@@ -2233,7 +2233,7 @@ static DWORD runshutdown(DWORD rt)
     SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdError);
 
     DBG_PRINTF("waiting for shutdown process %lu to finish", xgetprocessid(svcstopproc));
-    rc = WaitForMultipleObjects(2, wh, FALSE, rt + SVCBATCH_STOP_STEP);
+    rc = WaitForMultipleObjects(2, wh, FALSE, rt);
 #if defined(_DEBUG)
     switch (rc) {
         case WAIT_OBJECT_0:
@@ -2248,9 +2248,6 @@ static DWORD runshutdown(DWORD rt)
     }
 #endif
     if (rc != WAIT_OBJECT_0) {
-        DBG_PRINTF("sending ssignalevent to %lu",
-                   xgetprocessid(svcstopproc));
-        SetEvent(ssignalevent);
         if (WaitForSingleObject(svcstopproc->pInfo.hProcess, rt) != WAIT_OBJECT_0) {
             DBG_PRINTF("calling killproctree for %lu",
                        xgetprocessid(svcstopproc));
@@ -2289,22 +2286,11 @@ static DWORD WINAPI stopthread(void *unused)
         DBG_PRINTS("creating shutdown process");
         rc = runshutdown(SVCBATCH_STOP_WAIT);
         DBG_PRINTF("runshutdown returned %lu", rc);
-        if (WaitForSingleObject(workfinished, 0) == WAIT_OBJECT_0) {
-            DBG_PRINTS("worker ended by shutdown");
-            goto finished;
-        }
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-        if (rc == 0) {
-            if (WaitForSingleObject(ssignalevent, 0) == WAIT_OBJECT_0) {
-                DBG_PRINTS("shutdown signal event set");
-            }
-            else {
-                DBG_PRINTS("wait for workfinished signal");
-                if (WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
-                    DBG_PRINTS("worker finished");
-                    goto finished;
-                }
-            }
+        DBG_PRINTS("wait for workfinished signal");
+        if (WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+            DBG_PRINTS("worker finished");
+            goto finished;
         }
     }
     else {
@@ -2345,7 +2331,7 @@ static DWORD WINAPI stopthread(void *unused)
     killprocess(svcxcmdproc, 1);
 
 finished:
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_STEP);
     SetEvent(svcstopended);
     DBG_PRINTS("done");
     return 0;
@@ -2419,52 +2405,7 @@ static DWORD WINAPI wrpipethread(void *wh)
     return rc;
 }
 
-static void monitorsvcstop(void)
-{
-    HANDLE wh[4];
-    HANDLE h;
-    DWORD  ws;
-
-    DBG_PRINTS("started");
-
-    wh[0] = workfinished;
-    wh[1] = svcstopstart;
-    wh[2] = monitorevent;
-    wh[3] = ssignalevent;
-
-    ws = WaitForMultipleObjects(4, wh, FALSE, INFINITE);
-    switch (ws) {
-        case WAIT_OBJECT_0:
-            DBG_PRINTS("workfinished signaled");
-        break;
-        case WAIT_OBJECT_1:
-            DBG_PRINTS("svcstopstart signaled");
-        break;
-        case WAIT_OBJECT_2:
-            DBG_PRINTS("monitorevent signaled");
-        break;
-        case WAIT_OBJECT_3:
-            DBG_PRINTS("ssignalevent signaled");
-            if (haslogstatus) {
-                SVCBATCH_CS_ENTER(svcbatchlog);
-                h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
-                if (h) {
-                    logfflush(h);
-                    logwrline(h, "Received shutdown stop signal");
-                }
-                InterlockedExchangePointer(&svcbatchlog->hFile, h);
-                SVCBATCH_CS_LEAVE(svcbatchlog);
-            }
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            createstopthread(0);
-        break;
-        default:
-        break;
-    }
-    DBG_PRINTS("done");
-}
-
-static void monitorservice(void)
+static DWORD WINAPI monitorthread(void *unused)
 {
     HANDLE wh[3];
     BOOL   rc = TRUE;
@@ -2521,15 +2462,6 @@ static void monitorservice(void)
     } while (rc);
 
     DBG_PRINTS("done");
-}
-
-static DWORD WINAPI monitorthread(void *unused)
-{
-    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS)
-        monitorservice();
-    else
-        monitorsvcstop();
-
     return 0;
 }
 
@@ -2872,7 +2804,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
         break;
         case SVCBATCH_CTRL_BREAK:
-            if (hasctrlbreak) {
+            if (monitorevent) {
                 DBG_PRINTS("raising SVCBATCH_CTRL_BREAK");
                 SetEvent(monitorevent);
             }
@@ -2954,8 +2886,8 @@ static void __cdecl objectscleanup(void)
 
 static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 {
+    DWORD  wt = INFINITE;
     DWORD  rv = 0;
-    HANDLE wh[4] = { NULL, NULL, NULL, NULL };
     DWORD  ws;
 
     mainservice->sStatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
@@ -3004,6 +2936,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         if (svcbatchlog)
             GetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS",
                                     svcbatchlog->szDir, SVCBATCH_PATH_MAX);
+        wt = SVCBATCH_STOP_WAIT;
     }
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         /**
@@ -3037,55 +2970,36 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SetConsoleCtrlHandler(consolehandler, TRUE);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-    if (!xcreatethread(SVCBATCH_MONITOR_THREAD,
-                       0, monitorthread, NULL)) {
-        xsyserror(GetLastError(), L"Create thread failed", NULL);
-        goto finished;
-    }
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
         xsyserror(GetLastError(), L"Create thread failed", NULL);
         goto finished;
     }
+    if (monitorevent) {
+        HANDLE wh[2];
 
-    wh[0] = svcthread[SVCBATCH_WORKER_THREAD].hThread;
-    wh[1] = svcthread[SVCBATCH_MONITOR_THREAD].hThread;
-#if defined(_DEBUG) && (_DEBUG > 1)
-    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
-        wchar_t bb[TBUFSIZ];
-        xsnwprintf(bb, TBUFSIZ,
-                   L"Service is running with Process ID: %lu",
-                   svcmainproc->pInfo.dwProcessId);
-        xsysinfo(bb, NULL);
-    }
-#endif
-    WaitForMultipleObjects(2, wh, TRUE, INFINITE);
-
-    if (WaitForSingleObject(svcstopended, 0) == WAIT_OBJECT_0) {
-        DBG_PRINTS("stopped");
+        if (!xcreatethread(SVCBATCH_MONITOR_THREAD,
+                           0, monitorthread, NULL)) {
+            xsyserror(GetLastError(), L"Create thread failed", NULL);
+            goto finished;
+        }
+        wh[0] = svcthread[SVCBATCH_WORKER_THREAD].hThread;
+        wh[1] = svcthread[SVCBATCH_MONITOR_THREAD].hThread;
+        ws = WaitForMultipleObjects(2, wh, TRUE, wt);
     }
     else {
-        DBG_PRINTS("waiting for stop thread to finish");
-        ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
-        if (ws == WAIT_TIMEOUT) {
-            DBG_PRINTS("sending ssignalevent");
-            SetEvent(ssignalevent);
-            ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
-        }
-        DBG_PRINTF("wait for svcstopended returned %lu", ws);
+        ws = WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].hThread, wt);
     }
-#if defined(_DEBUG) && (_DEBUG > 1)
-    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
-        wchar_t bb[TBUFSIZ];
-        xsnwprintf(bb, TBUFSIZ,
-                   L"Service stopped with Exit code: %lu",
-                   svcthread[SVCBATCH_WORKER_THREAD].dwExitCode);
-        xsysinfo(bb, NULL);
+    if (ws == WAIT_TIMEOUT) {
+        DBG_PRINTS("timeout");
+        createstopthread(WAIT_TIMEOUT);
     }
-#endif
+
+    DBG_PRINTS("waiting for stop thread to finish");
+    ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
+    DBG_PRINTF("wait for svcstopended returned %lu", ws);
 
 finished:
-
     if (svcbatchlog)
         closelogfile();
     threadscleanup();
@@ -3503,6 +3417,10 @@ int wmain(int argc, const wchar_t **wargv)
     if (!resolvebatchname(batchparam))
         return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
+    xmemzero(&sazero, 1, sizeof(SECURITY_ATTRIBUTES));
+    sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
+    atexit(objectscleanup);
+
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         if (haslogrotate) {
             for (i = 0; i < rcnt; i++) {
@@ -3538,7 +3456,16 @@ int wmain(int argc, const wchar_t **wargv)
             svcbatchlog->dwType = SVCBATCH_LOG_PIPE;
         }
         if (scnt) {
-            if (_wcsicmp(sparam[0], L"NUL")) {
+            if (_wcsicmp(sparam[0], L"NUL") == 0) {
+                xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
+                xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
+                ssignalevent = CreateEventEx(NULL, bb,
+                                             CREATE_EVENT_MANUAL_RESET,
+                                             EVENT_MODIFY_STATE | SYNCHRONIZE);
+                if (IS_INVALID_HANDLE(ssignalevent))
+                    return xsyserror(GetLastError(), L"CreateEvent", bb);
+            }
+            else {
                 svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
                 svcstopproc->lpArgv[0] = xgetfinalpathname(sparam[0], 0, NULL, 0);
@@ -3552,12 +3479,9 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
 
-    xmemzero(&sazero, 1, sizeof(SECURITY_ATTRIBUTES));
-    sazero.nLength = DSIZEOF(SECURITY_ATTRIBUTES);
     /**
      * Create logic state events
      */
-    atexit(objectscleanup);
     svcstopended = CreateEventEx(NULL, NULL,
                                  CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
                                  EVENT_MODIFY_STATE | SYNCHRONIZE);
@@ -3573,21 +3497,14 @@ int wmain(int argc, const wchar_t **wargv)
                                  EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(workfinished))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
-    monitorevent = CreateEventEx(NULL, NULL,
-                                 CREATE_EVENT_MANUAL_RESET,
-                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
-    if (IS_INVALID_HANDLE(monitorevent))
-        return xsyserror(GetLastError(), L"CreateEvent", NULL);
-
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
-        if (scnt) {
-            xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
-            xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
-            ssignalevent = CreateEventEx(NULL, bb,
+        if (hasctrlbreak) {
+            monitorevent = CreateEventEx(NULL, NULL,
                                          CREATE_EVENT_MANUAL_RESET,
                                          EVENT_MODIFY_STATE | SYNCHRONIZE);
-            if (IS_INVALID_HANDLE(ssignalevent))
-                return xsyserror(GetLastError(), L"CreateEvent", bb);
+            if (IS_INVALID_HANDLE(monitorevent))
+                return xsyserror(GetLastError(), L"CreateEvent", NULL);
+
         }
         if (haslogrotate) {
             logrotatesig = CreateEventEx(NULL, NULL,
@@ -3596,13 +3513,6 @@ int wmain(int argc, const wchar_t **wargv)
             if (IS_INVALID_HANDLE(logrotatesig))
                 return xsyserror(GetLastError(), L"CreateEvent", NULL);
         }
-    }
-    else {
-        xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
-        xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
-        ssignalevent = OpenEvent(SYNCHRONIZE, FALSE, bb);
-        if (IS_INVALID_HANDLE(ssignalevent))
-            return xsyserror(GetLastError(), L"OpenEvent", bb);
     }
 
     se[0].lpServiceName = zerostring;
