@@ -1015,50 +1015,53 @@ static DWORD waitprocess(LPSVCBATCH_PROCESS p, DWORD w)
 static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
 {
     DWORD  r = 0;
+    DWORD  c = 0;
     HANDLE h;
     HANDLE p;
     PROCESSENTRY32W e;
 
     DBG_PRINTF("process %.4lu %d", pid, rc);
-again:
-    h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-    if (IS_INVALID_HANDLE(h)) {
-        DBG_PRINTF("failed to create snap %.4lu %lu", pid, GetLastError());
-        goto finished;
-    }
-    e.dwSize = DSIZEOF(PROCESSENTRY32W);
-    if (!Process32FirstW(h, &e)) {
-        CloseHandle(h);
-        goto finished;
-    }
+
     do {
-        if (e.th32ParentProcessID == pid) {
-            p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, e.th32ProcessID);
-
-            if (IS_VALID_HANDLE(p)) {
-                if (rc) {
-                    CloseHandle(h);
-                    r += killproctree(p, e.th32ProcessID, rc - 1);
-                }
-                else {
-                    DBG_PRINTF("terminating child %.4lu of %.4lu", e.th32ProcessID, pid);
-                    TerminateProcess(p, ERROR_INVALID_FUNCTION);
-                    r++;
-                }
-                CloseHandle(p);
-                if (rc)
-                    goto again;
-            }
+        c = 0;
+        h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if (IS_INVALID_HANDLE(h)) {
+            DBG_PRINTF("failed to create snap %.4lu %lu", pid, GetLastError());
+            break;
         }
+        e.dwSize = DSIZEOF(PROCESSENTRY32W);
+        if (!Process32FirstW(h, &e)) {
+            CloseHandle(h);
+            break;
+        }
+        do {
+            if (e.th32ParentProcessID == pid) {
+                p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, e.th32ProcessID);
 
-    } while (Process32NextW(h, &e));
-    CloseHandle(h);
+                if (IS_VALID_HANDLE(p)) {
+                    if (rc) {
+                        SAFE_CLOSE_HANDLE(h);
+                        r += killproctree(p, e.th32ProcessID, rc - 1);
+                    }
+                    else {
+                        DBG_PRINTF("terminating child %.4lu of %.4lu", e.th32ProcessID, pid);
+                        TerminateProcess(p, ERROR_INVALID_FUNCTION);
+                    }
+                    CloseHandle(p);
+                    c++;
+                    if (rc)
+                       break;
+                }
+            }
 
-finished:
+        } while (Process32NextW(h, &e));
+        SAFE_CLOSE_HANDLE(h);
+        r += c;
+    } while (rc && c);
+
     if (IS_VALID_HANDLE(ph)) {
         DBG_PRINTF("terminating process %.4lu %d", pid, rc);
         TerminateProcess(ph, ERROR_INVALID_FUNCTION);
-        r++;
     }
     DBG_PRINTF("done %.4lu %d %d", pid, rc, r);
     return r;
@@ -2235,7 +2238,7 @@ static DWORD runshutdown(DWORD rt)
     rc = WaitForSingleObject(svcstopproc->pInfo.hProcess, stoptimeout + rt);
     if (rc == WAIT_TIMEOUT) {
         DBG_PRINTF("terminating %lu", xgetprocessid(svcstopproc));
-        killproctree(svcstopproc->pInfo.hProcess, xgetprocessid(svcstopproc), 1);
+        killproctree(svcstopproc->pInfo.hProcess, xgetprocessid(svcstopproc), 2);
     }
 #if defined(_DEBUG)
     if (GetExitCodeProcess(svcstopproc->pInfo.hProcess, &rc))
