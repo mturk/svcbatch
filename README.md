@@ -227,7 +227,7 @@ make sure to get familiar with `sc.exe` utility.
   The **program** current directory is always set
   to service output directory.
 
-* **Notice**
+  **Notice**
 
   This option is mutually exclusive with log rotation
   related options. Do not use options `m`, `r`, or `v`
@@ -446,7 +446,7 @@ make sure to get familiar with `sc.exe` utility.
   Use this option when output from `cmd.exe` is not needed or
   service batch file manages logging on its own.
 
-* **Notice**
+  **Notice**
 
   This option is mutually exclusive with other log related
   command options. Do not use options `-e`, `m`, `n`, `r`,
