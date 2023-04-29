@@ -2914,15 +2914,17 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         }
         else {
             if (outdirparam == NULL) {
+#if defined(_DEBUG)
                 xsyswarn(ERROR_INVALID_PARAMETER, L"log directory", NULL);
                 xsysinfo(L"Use -o option with parameter set to the exiting directory",
                          L"failing over to SVCBATCH_SERVICE_HOME");
+#endif
                 SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", mainservice->lpHome);
             }
             else {
                 wchar_t *op = xgetfinalpathname(outdirparam, 1, NULL, 0);
                 if (op == NULL) {
-                    rv = ERROR_PATH_NOT_FOUND;
+                    rv = GetLastError();
                     xsyserror(rv, outdirparam, NULL);
                     reportsvcstatus(SERVICE_STOPPED, rv);
                     return;

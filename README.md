@@ -466,24 +466,24 @@ make sure to get familiar with `sc.exe` utility.
   when log file is opened:
 
   ```no-highlight
-    [00:00:00.030708] SvcBatch 2.0.1.0_2.dbg (msc 192930148.0)
-    [00:00:00.030804] Log opened       : 2023-04-26 05:13:21
-    [00:00:00.030821] Service name     : adummysvc
-    [00:00:00.030836] Service uuid     : 176c-b2aaf3dd-4bcc-9449-a1e5-70b25cda0ae5
-    [00:00:00.030852] Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
-    [00:00:00.030867] Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
-    [00:00:00.030882] Program directory: C:\Workplace\svcbatch\.build\dbg
-    [00:00:00.030897] Base directory   : C:\Workplace\svcbatch\test
-    [00:00:00.030914] Home directory   : C:\Workplace\svcbatch\test
-    [00:00:00.031483] Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
+    [00:00:00.034518] SvcBatch 2.1.0.0_2.dbg (msc 193532217.1)
+    [00:00:00.034646] Log opened       : 2023-04-30 00:38:32
+    [00:00:00.034711] Service name     : adummysvc
+    [00:00:00.034728] Service uuid     : 0a5c-d10e67f7-c9c1-c420-1fc5-d7e26f223282
+    [00:00:00.034764] Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
+    [00:00:00.034780] Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
+    [00:00:00.034795] Program directory: C:\Workplace\svcbatch\.build\dbg
+    [00:00:00.034842] Base directory   : C:\Workplace\svcbatch\test
+    [00:00:00.034857] Home directory   : C:\Workplace\svcbatch\test
+    [00:00:00.035426] Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
 
     ...
 
-    [00:00:10.775126] Service signaled : SERVICE_CONTROL_STOP
+    [00:00:11.003626] Service signaled : SERVICE_CONTROL_STOP
 
     ...
 
-    [00:00:25.386534] Log closed       : 2023-04-26 05:13:46
+    [00:00:21.059643] Log closed       : 2023-04-30 00:38:53
 
   ```
 
@@ -560,15 +560,17 @@ SvcBatch sets for each instance.
 
 * **SVCBATCH_SERVICE_LOGS**
 
-  This variable is set to the service log directory.
+  This variable is set to the service's log directory.
 
-  In case the logging is disabled, this variable is
-  set to the **SVCBATCH_SERVICE_HOME\Logs** directory.
-  If the **SVCBATCH_SERVICE_HOME\Logs** directory does
-  not exists, it will be set to **SVCBATCH_SERVICE_HOME**
-  and warning message will be added to the Windows Event Log.
-  Use **-o** command line option that points to the existing
-  directory with correct access rights.
+  In case the logging is disabled, by using **-q**
+  command option, this variable is
+  set to the **SVCBATCH_SERVICE_HOME** directory.
+
+  However, if the **-o** command line option was defined
+  together with **-q** option, the directory specified by
+  the **-o** command option parameter must exist, or the
+  service will fail to start and write error message to the
+  Windows Event Log.
 
 
 * **SVCBATCH_SERVICE_NAME**
@@ -659,18 +661,25 @@ that originated from svcbatch.exe.
 
 ## Version Information
 
-An easy way to get SvcBatch version and build information
+The simplest way to obtain the version information
+is to right click on the `svcbatch.exe` from Windows File
+Explorer and click on the Details tab.
+
+
+Another way to get SvcBatch version and build information
 is to open command prompt and type
 
   ```cmd
   > svcbatch.exe
-  SvcBatch 1.3.0 (dev) (20221110175032 gcc 12.2.0)
+  SvcBatch 1.2.3.4 ...
 
   >
   ```
 
-The same information can be obtained by inspecting the top
-of the `SvcBatch.log` file.
+The actual version information can be obtained by inspecting
+the top of the service's `SvcBatch.log` file. This information
+will be present in the log file, only if **-v** command
+option was defined at service's install.
 
 Make sure to use the correct information when filing
 bug reports.
