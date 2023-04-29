@@ -6,7 +6,7 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
-## v2.0.1
+## v2.1.0
 
   * In development
   * Drop experimental console mode with _DEBUG builds
