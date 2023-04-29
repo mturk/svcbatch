@@ -237,12 +237,12 @@ make sure to get familiar with `sc.exe` utility.
 
 * **-k [timeout]**
 
-  **Set stop timeout in seconds**
+  **Set stop timeout in milliseconds**
 
   This option sets the **timeout** when service receives
   stop or shutdown signal.
-  The valid **timeout** range is between `1` and `20`
-  seconds.
+  The valid **timeout** range is between `1000` and `20000`
+  milliseconds.
 
   By default this value is set to `10` seconds.
 

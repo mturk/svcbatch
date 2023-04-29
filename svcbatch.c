@@ -2199,7 +2199,7 @@ static DWORD runshutdown(DWORD rt)
     }
     xwcslcpy(svcstopproc->szExe, SVCBATCH_PATH_MAX,  svcmainproc->szExe);
     svcstopproc->lpCommandLine = xappendarg(1, NULL, NULL, svcstopproc->szExe);
-    ip = xsnwprintf(rp, TBUFSIZ, L":: -k%d -", stoptimeout / MS_IN_SECOND);
+    ip = xsnwprintf(rp, TBUFSIZ, L":: -k%d -", stoptimeout);
     if (svcbatchlog && svcstoplogn) {
         if (uselocaltime)
             rp[ip++] = L'l';
@@ -3193,7 +3193,7 @@ int wmain(int argc, const wchar_t **wargv)
                 svchomeparam = xwoptarg;
             break;
             case L'k':
-                stoptimeout  = xwcstoi(xwoptarg, NULL) * MS_IN_SECOND;
+                stoptimeout  = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
                     return xsyserror(0, L"Invalid -k command option value", xwoptarg);
             break;
