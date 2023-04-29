@@ -149,7 +149,7 @@ static const char    *YYES        =  "Y\r\n";
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
-static const wchar_t *outdirparam = SVCBATCH_LOGSDIR;
+static const wchar_t *outdirparam = NULL;
 static const wchar_t *codepageopt = NULL;
 static const wchar_t *svclogfname = NULL;
 static const wchar_t *svcstoplogn = NULL;
@@ -2903,6 +2903,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
         if (svcbatchlog) {
+            if (outdirparam == NULL)
+                outdirparam = SVCBATCH_LOGSDIR;
             rv = createlogsdir();
             if (rv) {
                 reportsvcstatus(SERVICE_STOPPED, rv);
@@ -2911,17 +2913,24 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", svcbatchlog->szDir);
         }
         else {
-            wchar_t *op = xgetfinalpathname(outdirparam, 1, NULL, 0);
-
-            if (op == NULL) {
-                xsyswarn(ERROR_PATH_NOT_FOUND, outdirparam, NULL);
+            if (outdirparam == NULL) {
+                xsyswarn(ERROR_INVALID_PARAMETER, L"log directory", NULL);
                 xsysinfo(L"Use -o option with parameter set to the exiting directory",
                          L"failing over to SVCBATCH_SERVICE_HOME");
                 SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", mainservice->lpHome);
             }
             else {
-                SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", op);
-                xfree(op);
+                wchar_t *op = xgetfinalpathname(outdirparam, 1, NULL, 0);
+                if (op == NULL) {
+                    rv = ERROR_PATH_NOT_FOUND;
+                    xsyserror(rv, outdirparam, NULL);
+                    reportsvcstatus(SERVICE_STOPPED, rv);
+                    return;
+                }
+                else {
+                    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", op);
+                    xfree(op);
+                }
             }
         }
     }
