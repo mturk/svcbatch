@@ -2302,12 +2302,14 @@ finished:
 
 static void createstopthread(DWORD rv)
 {
-    if (xcreatethread(SVCBATCH_STOP_THREAD,
-                      0, stopthread, NULL)) {
-        ResetEvent(svcstopended);
-        if (rv)
-            setsvcstatusexit(rv);
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
+        if (xcreatethread(SVCBATCH_STOP_THREAD,
+                          0, stopthread, NULL)) {
+            ResetEvent(svcstopended);
+        }
     }
+    if (rv)
+        setsvcstatusexit(rv);
 }
 
 static void stopshutdown(DWORD rt)
@@ -2365,7 +2367,7 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
         }
     }
     SVCBATCH_CS_LEAVE(svcbatchlog);
-    if (rc && svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
+    if (rc != 0) {
         if (rc != ERROR_NO_MORE_FILES) {
             xsyserror(rc, L"Log append failed", NULL);
             createstopthread(rc);
