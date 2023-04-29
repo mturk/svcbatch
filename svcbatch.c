@@ -2557,12 +2557,10 @@ finished:
 static DWORD WINAPI workerthread(void *unused)
 {
     DWORD i;
-    HANDLE   wh[2];
     HANDLE   wr = NULL;
     HANDLE   rd = NULL;
     LPHANDLE rp = NULL;
     DWORD    rc = 0;
-    DWORD    nw = 2;
     SVCBATCH_PIPE op;
 
     DBG_PRINTS("started");
@@ -2629,8 +2627,6 @@ static DWORD WINAPI workerthread(void *unused)
         svcxcmdproc->dwExitCode = rc;
         goto finished;
     }
-    wh[0] = svcxcmdproc->pInfo.hProcess;
-
     ResumeThread(svcxcmdproc->pInfo.hThread);
     ResumeThread(svcthread[SVCBATCH_WRITE_THREAD].hThread);
     InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_RUNNING);
@@ -2642,6 +2638,10 @@ static DWORD WINAPI workerthread(void *unused)
         xcreatethread(SVCBATCH_ROTATE_THREAD, 0, rotatethread, NULL);
 
     if (svcbatchlog) {
+        HANDLE wh[2];
+        DWORD  nw = 2;
+
+        wh[0] = svcxcmdproc->pInfo.hProcess;
         wh[1] = op.oOverlap.hEvent;
         do {
             DWORD ws;
@@ -2697,14 +2697,12 @@ static DWORD WINAPI workerthread(void *unused)
 
             }
         } while (nw);
-        InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
-        WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, INFINITE);
     }
     else {
-        wh[1] = svcthread[SVCBATCH_WRITE_THREAD].hThread;
-        WaitForMultipleObjects(nw, wh, TRUE, INFINITE);
-        InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
+        WaitForSingleObject(svcxcmdproc->pInfo.hProcess, INFINITE);
     }
+    InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
+    WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, SVCBATCH_STOP_SYNC);
     if (!GetExitCodeProcess(svcxcmdproc->pInfo.hProcess, &rc))
         rc = GetLastError();
     if (rc) {
