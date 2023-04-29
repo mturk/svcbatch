@@ -12,15 +12,16 @@ For a full list of changes, see the [git commit log][log]
   * Drop experimental console mode with _DEBUG builds
   * Use object structures instead global variables
   * Do not rotate logs if previous rotation was less then 2 minutes ago
-  * Use asynchronous read from batch file
+  * Use asynchronous read from redirected console process
   * Ensure that all started processes are properly terminated
   * Deprecate setting locale with -c command option
+  * Check for mutually exclusive options at startup
 
 ### New Features
 
  * Add SVCBATCH_SERVICE_LOGS environment variable
  * Use -c command option to set user defined code page
- * If first -s option is NUL create stop signal event
+ * Create stop signal event if first -s option is NUL
 
 ## v2.0.0
 

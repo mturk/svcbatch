@@ -154,6 +154,9 @@ Users can disable log rotation by adding **-m 0** option.
 In that case SvcBatch.log file will be be created or opened
 for append if already present.
 
+In case the last log rotation was less then `2` minutes ago, no
+log rotation will happen.
+
 ## Command Line Options
 
 SvcBatch command line options allow users to customize
@@ -223,6 +226,15 @@ make sure to get familiar with `sc.exe` utility.
 
   The **program** current directory is always set
   to service output directory.
+
+* **Notice**
+
+  This option is mutually exclusive with log rotation
+  related options. Do not use options `m`, `r`, or `v`
+  together with this option when installing service.
+  Service will fail to start, and write and error message
+  to the Windows Event log.
+
 
 * **-n [log name][shutdown name]**
 
@@ -416,8 +428,10 @@ make sure to get familiar with `sc.exe` utility.
   event object with the name `Local\se-%SVCBATCH_SERVICE_UUID%`.
   Applications started from the service batch file can open that
   event and use it as wait signal which will be signaled on
-  service stop.
-  Check [sservice](test/sservice) example for how to write a
+  service stop. This option makes sense only for services that
+  are running custom applications which have that option implemented.
+
+  Check [sservice](test/sservice) for example how to write a
   client application that can use this IPC mechanism.
 
 * **-q**
@@ -432,6 +446,13 @@ make sure to get familiar with `sc.exe` utility.
   Use this option when output from `cmd.exe` is not needed or
   service batch file manages logging on its own.
 
+* **Notice**
+
+  This option is mutually exclusive with other log related
+  command options. Do not use options `-e`, `m`, `n`, `r`,
+  `t` or `v` together with this option when installing service.
+  Service will fail to start, and write an error message
+  to the Windows Event log.
 
 * **-v**
 
