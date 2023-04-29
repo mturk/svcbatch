@@ -2245,7 +2245,7 @@ static DWORD runshutdown(DWORD rt)
         rc = GetLastError();
 finished:
     xclearprocess(svcstopproc);
-    DBG_PRINTS("done");
+    DBG_PRINTF("done %lu", rc);
     return rc;
 }
 
@@ -2259,16 +2259,26 @@ static DWORD WINAPI stopthread(void *unused)
     DBG_PRINTS("started");
     if (svcstopproc) {
         DWORD rc;
+        int   ri = 0;
+        ULONGLONG rs;
 
         DBG_PRINTS("creating shutdown process");
+        rs = GetTickCount64();
         rc = runshutdown(SVCBATCH_STOP_STEP);
-        DBG_PRINTF("runshutdown returned %lu", rc);
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-        ws = WaitForSingleObject(workfinished, rc ? SVCBATCH_STOP_SYNC : stoptimeout);
+        ri = (int)(GetTickCount64() - rs);
+        DBG_PRINTF("shutdown finished in %d ms", ri);
+        reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout);
+        if (rc)
+            ri = stoptimeout - ri;
+        if (ri < SVCBATCH_STOP_SYNC)
+            ri = SVCBATCH_STOP_SYNC;
+        DBG_PRINTF("waiting %d ms for worker", ri);
+        ws = WaitForSingleObject(workfinished, ri);
         if (ws == WAIT_OBJECT_0) {
             DBG_PRINTS("worker finished");
             goto finished;
         }
+        reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout);
     }
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         DBG_PRINTS("generating CTRL_C_EVENT");
