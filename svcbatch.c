@@ -35,8 +35,8 @@ static void dbgprints(const char *, const char *);
 
 typedef enum {
     SVCBATCH_WORKER_THREAD = 0,
-    SVCBATCH_STOP_THREAD,
     SVCBATCH_WRITE_THREAD,
+    SVCBATCH_STOP_THREAD,
     SVCBATCH_MONITOR_THREAD,
     SVCBATCH_ROTATE_THREAD,
     SVCBATCH_RDLOGPIPE_THREAD,
@@ -1019,17 +1019,15 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
     HANDLE p;
     PROCESSENTRY32W e;
 
-    DBG_PRINTF("killing process %.4lu %d", pid, rc);
+    DBG_PRINTF("process %.4lu %d", pid, rc);
+again:
     h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (IS_INVALID_HANDLE(h)) {
-        r = GetLastError();
+        DBG_PRINTF("failed to create snap %.4lu %lu", pid, GetLastError());
         goto finished;
     }
     e.dwSize = DSIZEOF(PROCESSENTRY32W);
-    if (Process32FirstW(h, &e) == 0) {
-        r = GetLastError();
-        if (r == ERROR_NO_MORE_FILES)
-            r = 0;
+    if (!Process32FirstW(h, &e)) {
         CloseHandle(h);
         goto finished;
     }
@@ -1039,42 +1037,49 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
 
             if (IS_VALID_HANDLE(p)) {
                 if (rc) {
-                    killproctree(p, e.th32ProcessID, rc - 1);
+                    CloseHandle(h);
+                    r += killproctree(p, e.th32ProcessID, rc - 1);
                 }
                 else {
                     DBG_PRINTF("terminating child %.4lu of %.4lu", e.th32ProcessID, pid);
                     TerminateProcess(p, ERROR_INVALID_FUNCTION);
+                    r++;
                 }
                 CloseHandle(p);
+                if (rc)
+                    goto again;
             }
         }
 
     } while (Process32NextW(h, &e));
     CloseHandle(h);
+
 finished:
     if (IS_VALID_HANDLE(ph)) {
+        DBG_PRINTF("terminating process %.4lu %d", pid, rc);
         TerminateProcess(ph, ERROR_INVALID_FUNCTION);
-        DBG_PRINTF("terminated %.4lu", pid);
+        r++;
     }
+    DBG_PRINTF("done %.4lu %d %d", pid, rc, r);
     return r;
 }
 
-static DWORD killprocess(LPSVCBATCH_PROCESS proc, int rc)
+static void killprocess(LPSVCBATCH_PROCESS proc, int rc)
 {
-    DWORD r;
-
     InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
     DBG_PRINTF("killing process %.4lu", xgetprocessid(proc));
-    r = killproctree(NULL, xgetprocessid(proc), rc);
 
+    if (killproctree(NULL, xgetprocessid(proc), rc)) {
+        if (waitprocess(proc, 200) != STILL_ACTIVE)
+            goto finished;
+    }
+    DBG_PRINTF("terminating %.4lu", xgetprocessid(proc));
     proc->dwExitCode = ERROR_INVALID_FUNCTION;
-    if (!TerminateProcess(proc->pInfo.hProcess,
-                          proc->dwExitCode))
-        r = GetLastError();
-    DBG_PRINTF("terminated %.4lu", xgetprocessid(proc));
-    InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
+    TerminateProcess(proc->pInfo.hProcess, proc->dwExitCode);
 
-    return r;
+finished:
+    InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
+    DBG_PRINTF("done %.4lu", xgetprocessid(proc));
 }
 
 static DWORD xmdparent(wchar_t *path)
@@ -2177,7 +2182,6 @@ static BOOL resolverotate(const wchar_t *rp)
 static DWORD runshutdown(DWORD rt)
 {
     wchar_t  rp[TBUFSIZ];
-    HANDLE   wh[2];
     DWORD    rc = 0;
     DWORD i, ip = 4;
 
@@ -2210,8 +2214,7 @@ static DWORD runshutdown(DWORD rt)
     for (i = 0; i < svcstopproc->nArgc; i++)
         svcstopproc->lpCommandLine = xappendarg(1, svcstopproc->lpCommandLine, NULL, svcstopproc->lpArgv[i]);
     DBG_PRINTF("cmdline %S", svcstopproc->lpCommandLine);
-    svcstopproc->dwCreationFlags = CREATE_SUSPENDED |
-                                   CREATE_UNICODE_ENVIRONMENT |
+    svcstopproc->dwCreationFlags = CREATE_UNICODE_ENVIRONMENT |
                                    CREATE_NEW_CONSOLE;
     if (!CreateProcessW(svcstopproc->szExe,
                         svcstopproc->lpCommandLine,
@@ -2224,35 +2227,15 @@ static DWORD runshutdown(DWORD rt)
         xsyserror(rc, L"CreateProcess", NULL);
         goto finished;
     }
-
-    wh[0] = svcstopproc->pInfo.hProcess;
-    wh[1] = workfinished;
-    ResumeThread(svcstopproc->pInfo.hThread);
     SAFE_CLOSE_HANDLE(svcstopproc->pInfo.hThread);
     SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdError);
 
     DBG_PRINTF("waiting for shutdown process %lu to finish", xgetprocessid(svcstopproc));
-    rc = WaitForMultipleObjects(2, wh, FALSE, stoptimeout);
-#if defined(_DEBUG)
-    switch (rc) {
-        case WAIT_OBJECT_0:
-            DBG_PRINTF("done with shutdown process %lu",
-                       xgetprocessid(svcstopproc));
-        break;
-        case WAIT_OBJECT_1:
-            DBG_PRINTS("worker finished");
-        break;
-        default:
-        break;
-    }
-#endif
-    if (rc != WAIT_OBJECT_0) {
-        if (WaitForSingleObject(svcstopproc->pInfo.hProcess, rt) != WAIT_OBJECT_0) {
-            DBG_PRINTF("calling killproctree for %lu",
-                       xgetprocessid(svcstopproc));
-            killproctree(svcstopproc->pInfo.hProcess, xgetprocessid(svcstopproc), 1);
-        }
+    rc = WaitForSingleObject(svcstopproc->pInfo.hProcess, stoptimeout + rt);
+    if (rc == WAIT_TIMEOUT) {
+        DBG_PRINTF("terminating %lu", xgetprocessid(svcstopproc));
+        killproctree(svcstopproc->pInfo.hProcess, xgetprocessid(svcstopproc), 1);
     }
 #if defined(_DEBUG)
     if (GetExitCodeProcess(svcstopproc->pInfo.hProcess, &rc))
@@ -2272,20 +2255,15 @@ static DWORD WINAPI stopthread(void *unused)
 {
     DWORD ws = 0;
 
-#if defined(_DEBUG)
-    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS)
-        DBG_PRINTS("service stop");
-    else
-        DBG_PRINTS("shutdown stop");
-#endif
-
     SetEvent(svcstopstart);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+
+    DBG_PRINTS("started");
     if (svcstopproc) {
         DWORD rc;
 
         DBG_PRINTS("creating shutdown process");
-        rc = runshutdown(SVCBATCH_STOP_SYNC);
+        rc = runshutdown(SVCBATCH_STOP_STEP);
         DBG_PRINTF("runshutdown returned %lu", rc);
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
         DBG_PRINTS("wait for workfinished signal");
@@ -2311,12 +2289,11 @@ static DWORD WINAPI stopthread(void *unused)
          }
     }
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
-
 #if defined(_DEBUG)
         DBG_PRINTS("generating CTRL_C_EVENT");
 #endif
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        ws = WaitForSingleObject(workfinished, ws ? SVCBATCH_STOP_SYNC : stoptimeout);
+        ws = WaitForSingleObject(workfinished, stoptimeout);
         SetConsoleCtrlHandler(NULL, FALSE);
         if (ws == WAIT_OBJECT_0) {
             DBG_PRINTS("worker ended by CTRL_C_EVENT");
@@ -2341,13 +2318,51 @@ finished:
 
 static void createstopthread(DWORD rv)
 {
-    if (xcreatethread(SVCBATCH_STOP_THREAD,
-                      0, stopthread, NULL)) {
-        ResetEvent(svcstopended);
-        if (rv)
-            setsvcstatusexit(rv);
+    if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
+        if (xcreatethread(SVCBATCH_STOP_THREAD,
+                          0, stopthread, NULL)) {
+            ResetEvent(svcstopended);
+            if (rv)
+                setsvcstatusexit(rv);
+        }
+    }
+    else {
+        setsvcstatusexit(rv);
     }
 }
+
+static void stopshutdown(DWORD rt)
+{
+    DWORD ws = 0;
+
+    SetEvent(svcstopstart);
+    DBG_PRINTS("started");
+
+    if (SetConsoleCtrlHandler(NULL, TRUE)) {
+#if defined(_DEBUG)
+        DBG_PRINTS("generating CTRL_C_EVENT");
+#endif
+        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+        ws = WaitForSingleObject(workfinished, rt);
+        SetConsoleCtrlHandler(NULL, FALSE);
+        if (ws == WAIT_OBJECT_0) {
+            DBG_PRINTS("worker ended by CTRL_C_EVENT");
+            goto finished;
+        }
+    }
+#if defined(_DEBUG)
+    else {
+        DBG_PRINTF("SetConsoleCtrlHandler failed err=%lu", GetLastError());
+    }
+    DBG_PRINTS("worker process is still running ... terminating");
+#endif
+    killprocess(svcxcmdproc, 1);
+
+finished:
+    SetEvent(svcstopended);
+    DBG_PRINTS("done");
+}
+
 
 static DWORD logwrdata(BYTE *buf, DWORD len)
 {
@@ -2991,15 +3006,16 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         ws = WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].hThread, wt);
     }
     if (ws == WAIT_TIMEOUT) {
-        DBG_PRINTS("timeout");
-        createstopthread(WAIT_TIMEOUT);
+        ResetEvent(svcstopended);
+        stopshutdown(SVCBATCH_STOP_TMIN);
+        setsvcstatusexit(rv);
     }
 
-    DBG_PRINTS("waiting for stop thread to finish");
-    ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
-    DBG_PRINTF("wait for svcstopended returned %lu", ws);
+    DBG_PRINTS("waiting for stop to finish");
+    WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
 
 finished:
+    DBG_PRINTS("finishing");
     if (svcbatchlog)
         closelogfile();
     threadscleanup();
@@ -3188,7 +3204,7 @@ int wmain(int argc, const wchar_t **wargv)
             break;
             case L'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL) * MS_IN_SECOND;
-                if ((stoptimeout < MS_IN_SECOND) || (stoptimeout > SVCBATCH_STOP_HINT))
+                if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
                     return xsyserror(0, L"Invalid -k command option value", xwoptarg);
             break;
             /**
