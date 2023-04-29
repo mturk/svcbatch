@@ -135,7 +135,10 @@ and extract the 7-zip standalone console version from
 and put **7za.exe** somewhere in the PATH.
 
 Change `SVCBATCH_ISDEV_VERSION` to `0` in [svcbatch.h](../svcbatch.h)
-file and commit before making a release tag.
+file and remove `* In development` for the current version
+from [CHANGES](../CHANGES.md) file.
+
+Commit and push the changes.
 
 Use something like unix `date +%y%V%u` command to get release
 date number and use it to modify the  `SVCBATCH_MICRO_VERSION`
@@ -150,3 +153,8 @@ in GitHub release description box.
 
 Finally add the **svcbatch-x.y.z-win-x64.zip**
 file to the release assets.
+
+After publishing the release, increment the `SVCBATCH_PATCH_VERSION`
+and set `SVCBATCH_ISDEV_VERSION` back to `1` in [svcbatch.h](../svcbatch.h).
+Update `version="x.x.x.x"` to the new one [svcbatch.manifest](../svcbatch.manifest)
+file, add a new section above the current one in CHANGES](../CHANGES.md) file.
