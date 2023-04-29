@@ -2308,10 +2308,18 @@ static DWORD WINAPI stopthread(void *unused)
         }
     }
     else {
-        /**
-         * Signal to all child processes to stop
-         */
-         SetEvent(ssignalevent);
+         if (ssignalevent ) {
+            /**
+             * Signal to all child processes to stop
+             */
+            DBG_PRINTS("setting shutdown signal event");
+            SetEvent(ssignalevent);
+            DBG_PRINTS("wait for workfinished signal");
+            if (WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+                DBG_PRINTS("worker finished");
+                goto finished;
+            }
+         }
     }
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
         DWORD ws;
@@ -3530,15 +3538,17 @@ int wmain(int argc, const wchar_t **wargv)
             svcbatchlog->dwType = SVCBATCH_LOG_PIPE;
         }
         if (scnt) {
-            svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+            if (_wcsicmp(sparam[0], L"NUL")) {
+                svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
-            svcstopproc->lpArgv[0] = xgetfinalpathname(sparam[0], 0, NULL, 0);
-            if (svcstopproc->lpArgv[0] == NULL)
-                return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
-            for (i = 1; i < scnt; i++)
-                svcstopproc->lpArgv[i] = xwcsdup(sparam[i]);
-            svcstopproc->nArgc  = scnt;
-            svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
+                svcstopproc->lpArgv[0] = xgetfinalpathname(sparam[0], 0, NULL, 0);
+                if (svcstopproc->lpArgv[0] == NULL)
+                    return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
+                for (i = 1; i < scnt; i++)
+                    svcstopproc->lpArgv[i] = xwcsdup(sparam[i]);
+                svcstopproc->nArgc  = scnt;
+                svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
+            }
         }
     }
 
@@ -3570,13 +3580,15 @@ int wmain(int argc, const wchar_t **wargv)
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
 
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
-        xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
-        xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
-        ssignalevent = CreateEventEx(NULL, bb,
-                                     CREATE_EVENT_MANUAL_RESET,
-                                     EVENT_MODIFY_STATE | SYNCHRONIZE);
-        if (IS_INVALID_HANDLE(ssignalevent))
-            return xsyserror(GetLastError(), L"CreateEvent", bb);
+        if (scnt) {
+            xwcslcpy(bb, RBUFSIZ, SHUTDOWN_IPCNAME);
+            xwcslcat(bb, RBUFSIZ, mainservice->lpUuid);
+            ssignalevent = CreateEventEx(NULL, bb,
+                                         CREATE_EVENT_MANUAL_RESET,
+                                         EVENT_MODIFY_STATE | SYNCHRONIZE);
+            if (IS_INVALID_HANDLE(ssignalevent))
+                return xsyserror(GetLastError(), L"CreateEvent", bb);
+        }
         if (haslogrotate) {
             logrotatesig = CreateEventEx(NULL, NULL,
                                          CREATE_EVENT_MANUAL_RESET,
