@@ -138,7 +138,8 @@ Change `SVCBATCH_ISDEV_VERSION` to `0` in [svcbatch.h](../svcbatch.h)
 file and remove `* In development` for the current version
 from [CHANGES](../CHANGES.md) file.
 
-Commit and push the changes.
+Commit and push the changes with a message similar to
+`Prepare for x.y.z release`.
 
 Use something like unix `date +%y%V%u` command to get release
 date number and use it to modify the  `SVCBATCH_MICRO_VERSION`
@@ -156,5 +157,6 @@ file to the release assets.
 
 After publishing the release, increment the `SVCBATCH_PATCH_VERSION`
 and set `SVCBATCH_ISDEV_VERSION` back to `1` in [svcbatch.h](../svcbatch.h).
+
 Update `version="x.x.x.x"` to the new one [svcbatch.manifest](../svcbatch.manifest)
-file, add a new section above the current one in CHANGES](../CHANGES.md) file.
+file, and add a new section above the current one in [CHANGES](../CHANGES.md) file.
