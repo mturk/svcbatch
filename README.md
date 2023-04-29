@@ -183,24 +183,20 @@ make sure to get familiar with `sc.exe` utility.
 
   See [Custom Control Codes](#custom-control-codes) section below for more details
 
-* **-o [path]**
 
-  **Set service output directory**
+* **-c [code page]**
 
-  This option allows a user to set the output directory, which is where SvcBatch
-  will create any runtime data files.
+  **Sets run-time code page**
 
-  If set, the **path** parameter will be used as the
-  location where SvcBatch.log files will be created.
-  SvcBatch will create a **path** directory if it doesn't exist.
+  This option allows to change default system code page.
+  If defined, all internal logging will be translated to **code page**.
 
-  If not set, SvcBatch will create and use the  **SVCBATCH_SERVICE_HOME\Logs**
-  directory as a location for log files and any runtime data
-  that has to be created.
+  ```cmd
+  > sc create ... -v -c utf-8 ...
 
-  This directory has to be unique for each service instance. Otherwise the
-  service will fail if another service already opened SvacBatch.log
-  in that location.
+  ```
+  This will convert all internal logging to **utf-8** code page.
+
 
 * **-e [program][argument]**
 
@@ -245,6 +241,30 @@ make sure to get familiar with `sc.exe` utility.
   milliseconds.
 
   By default this value is set to `10` seconds.
+
+
+* **-l**
+
+  **Use local time**
+
+  This option causes all logging and rotation
+  to use local instead system time.
+
+
+* **-m [number]**
+
+  **Set maximum number of log files**
+
+  In case the **number** contains a single decimal number
+  between `0 and 9` it will be used instead default `1...9`.
+
+  ```cmd
+  > sc create ... -m 4
+
+  ```
+  Instead rotating Svcbatch.log from `1...9` it will rotate
+  exiting log files from `1...4.`. In case that number is `0`,
+  log rotation will be disabled.
 
 
 * **-n [log name][shutdown name]**
@@ -323,19 +343,55 @@ make sure to get familiar with `sc.exe` utility.
   all occurrences of the `/` character will be removed from the final result.
   This means that resolved `03/06/23` will make final result as `030623`.
 
-* **-w [path]**
+* **-o [path]**
 
-  **Set service working directory**
+  **Set service output directory**
 
-  This option enables users to explicitly set the working
-  directory. This allows for having a relative path
-  for batch file parameters and a common location for
-  svcbatch.exe.
+  This option allows a user to set the output directory, which is where SvcBatch
+  will create any runtime data files.
 
-  If not specified, the working directory is set
-  to the path of the batch file if it was defined
-  as an absolute path. Otherwise directory of svcbatch.exe
-  will be used as the working directory.
+  If set, the **path** parameter will be used as the
+  location where SvcBatch.log files will be created.
+  SvcBatch will create a **path** directory if it doesn't exist.
+
+  If not set, SvcBatch will create and use the  **SVCBATCH_SERVICE_HOME\Logs**
+  directory as a location for log files and any runtime data
+  that has to be created.
+
+  This directory has to be unique for each service instance. Otherwise the
+  service will fail if another service already opened SvacBatch.log
+  in that location.
+
+
+* **-p**
+
+  **Enable preshutdown service notification**
+
+  When defined, SvcBatch will accept `SERVICE_CONTROL_PRESHUTDOWN` control code.
+  The service control manager waits until the service stops or the specified
+  preshutdown time-out value expires
+
+
+* **-q**
+
+  **Disable logging**
+
+  This option disables both logging and log rotation.
+
+  When defined no log files or directories will be created and
+  any output from service batch files will be discarded.
+
+  Use this option when output from `cmd.exe` is not needed or
+  service batch file manages logging on its own.
+
+  **Notice**
+
+  This option is mutually exclusive with other log related
+  command options. Do not use options `-e`, `m`, `n`, `r`,
+  `t` or `v` together with this option when installing service.
+  Service will fail to start, and write an error message
+  to the Windows Event log.
+
 
 * **-r [rule]**
 
@@ -395,29 +451,6 @@ make sure to get familiar with `sc.exe` utility.
   existing `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`.
   The `YYYYMMDDhhmmss` is the current local or system time.
 
-* **-m [number]**
-
-  **Set maximum number of log files**
-
-  In case the **number** contains a single decimal number
-  between `0 and 9` it will be used instead default `1...9`.
-
-  ```cmd
-  > sc create ... -m 4
-
-  ```
-  Instead rotating Svcbatch.log from `1...9` it will rotate
-  exiting log files from `1...4.`. In case that number is `0`,
-  log rotation will be disabled.
-
-
-* **-p**
-
-  **Enable preshutdown service notification**
-
-  When defined, SvcBatch will accept `SERVICE_CONTROL_PRESHUTDOWN` control code.
-  The service control manager waits until the service stops or the specified
-  preshutdown time-out value expires
 
 * **-s [batchfile][argument]**
 
@@ -435,25 +468,36 @@ make sure to get familiar with `sc.exe` utility.
   first one will be used as **batchfile** and rest will
   be used as additional **argument** send to the **batchfile**.
 
-* **-q**
+* **-t**
 
-  **Disable logging**
+  **Truncate log file instead reusing**
 
-  This option disables both logging and log rotation.
+  This option causes the logfile to be truncated instead of rotated.
 
-  When defined no log files or directories will be created and
-  any output from service batch files will be discarded.
+  This is useful when a log is processed in real time by a command
+  like tail, and there is no need for archived data.
 
-  Use this option when output from `cmd.exe` is not needed or
-  service batch file manages logging on its own.
 
-  **Notice**
+  ```cmd
+  > sc create ... -t ...
 
-  This option is mutually exclusive with other log related
-  command options. Do not use options `-e`, `m`, `n`, `r`,
-  `t` or `v` together with this option when installing service.
-  Service will fail to start, and write an error message
-  to the Windows Event log.
+  ```
+
+  This will truncate existing `SvcBatch.log` and `SvcBatch.shutdown.log`
+  on open or rotate instead creating a new file.
+
+  If multiple **-t** options are defined only the service stop log file
+  will be truncated.
+
+  ```cmd
+  > sc create ... -tt ...
+
+  ```
+
+  This will truncate existing `SvcBatch.shutdown.log` instead
+  appending on service shutdown. This feature is usable
+  only if **-s** option is defined.
+
 
 * **-v**
 
@@ -488,56 +532,19 @@ make sure to get familiar with `sc.exe` utility.
   ```
 
 
-* **-l**
+* **-w [path]**
 
-  **Use local time**
+  **Set service working directory**
 
-  This option causes all logging and rotation
-  to use local instead system time.
+  This option enables users to explicitly set the working
+  directory. This allows for having a relative path
+  for batch file parameters and a common location for
+  svcbatch.exe.
 
-* **-c [code page]**
-
-  **Sets run-time code page**
-
-  This option allows to change default system code page.
-  If defined, all internal logging will be translated to **code page**.
-
-  ```cmd
-  > sc create ... -v -c utf-8 ...
-
-  ```
-  This will convert all internal logging to **utf-8** code page.
-
-
-* **-t**
-
-  **Truncate log file instead reusing**
-
-  This option causes the logfile to be truncated instead of rotated.
-
-  This is useful when a log is processed in real time by a command
-  like tail, and there is no need for archived data.
-
-
-  ```cmd
-  > sc create ... -t ...
-
-  ```
-
-  This will truncate existing `SvcBatch.log` and `SvcBatch.shutdown.log`
-  on open or rotate instead creating a new file.
-
-  If multiple **-t** options are defined only the service stop log file
-  will be truncated.
-
-  ```cmd
-  > sc create ... -tt ...
-
-  ```
-
-  This will truncate existing `SvcBatch.shutdown.log` instead
-  appending on service shutdown. This feature is usable
-  only if **-s** option is defined.
+  If not specified, the working directory is set
+  to the path of the batch file if it was defined
+  as an absolute path. Otherwise directory of svcbatch.exe
+  will be used as the working directory.
 
 
 ## Private Environment Variables
