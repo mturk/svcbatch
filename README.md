@@ -417,8 +417,8 @@ make sure to get familiar with `sc.exe` utility.
   Applications started from the service batch file can open that
   event and use it as wait signal which will be signaled on
   service stop.
-  Check [sservice](../test/sservice) for how to write a client
-  application that can use this IPC mechanism.
+  Check [sservice](test/sservice) example for how to write a
+  client application that can use this IPC mechanism.
 
 * **-q**
 
