@@ -134,6 +134,14 @@ and extract the 7-zip standalone console version from
 [7-Zip Extra](https://www.7-zip.org/a/7z2107-extra.7z)
 and put **7za.exe** somewhere in the PATH.
 
+Change `SVCBATCH_ISDEV_VERSION` to `0` in [svcbatch.h](../svcbatch.h)
+file and commit before making a release tag.
+
+Use something like unix `date +%y%V%u` command to get release
+date number and use it to modify the  `SVCBATCH_MICRO_VERSION`
+in [svcbatch.h](../svcbatch.h) and `version` parameter in
+[svcbatch.manifest](../svcbatch.manifest) files.
+
 Run the [mkrelease.bat](../mkrelease.bat) or [mkrelease.sh](../mkrelease.sh) script file
 to compile and create required metadata and release assets.
 
