@@ -1020,15 +1020,13 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
     HANDLE p;
     PROCESSENTRY32W e;
 
-    DBG_PRINTF("process %.4lu %d", pid, rc);
+    DBG_PRINTF("[%d] process %.4lu", rc, pid);
 
     do {
         c = 0;
         h = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
-        if (IS_INVALID_HANDLE(h)) {
-            DBG_PRINTF("failed to create snap %.4lu %lu", pid, GetLastError());
+        if (IS_INVALID_HANDLE(h))
             break;
-        }
         e.dwSize = DSIZEOF(PROCESSENTRY32W);
         if (!Process32FirstW(h, &e)) {
             CloseHandle(h);
@@ -1041,15 +1039,15 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
                 if (IS_VALID_HANDLE(p)) {
                     DWORD x;
                     if (GetExitCodeProcess(p, &x) && (x == STILL_ACTIVE)) {
-                        c++;
                         if (rc) {
                             SAFE_CLOSE_HANDLE(h);
                             r += killproctree(p, e.th32ProcessID, rc - 1);
                             CloseHandle(p);
+                            c++;
                             break;
                         }
                         else {
-                            DBG_PRINTF("terminating child %.4lu of %.4lu", e.th32ProcessID, pid);
+                            DBG_PRINTF("[%d] terminating child %.4lu of %.4lu", rc, e.th32ProcessID, pid);
                             TerminateProcess(p, ERROR_INVALID_FUNCTION);
                             r++;
                         }
@@ -1060,14 +1058,14 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
 
         } while (Process32NextW(h, &e));
         SAFE_CLOSE_HANDLE(h);
-    } while (rc && c);
+    } while (c);
 
     if (IS_VALID_HANDLE(ph)) {
-        DBG_PRINTF("terminating process %.4lu %d", pid, rc);
+        DBG_PRINTF("[%d] terminating process %.4lu", rc, pid);
         TerminateProcess(ph, ERROR_INVALID_FUNCTION);
         r++;
     }
-    DBG_PRINTF("done %.4lu %d %d", pid, rc, r);
+    DBG_PRINTF("[%d] done %.4lu %lu", rc, pid, r);
     return r;
 }
 
@@ -1077,7 +1075,7 @@ static void killprocess(LPSVCBATCH_PROCESS proc, int rc)
     DBG_PRINTF("killing process %.4lu", xgetprocessid(proc));
 
     if (killproctree(NULL, xgetprocessid(proc), rc)) {
-        if (waitprocess(proc, 200) != STILL_ACTIVE)
+        if (waitprocess(proc, 500) != STILL_ACTIVE)
             goto finished;
     }
     DBG_PRINTF("terminating %.4lu", xgetprocessid(proc));
