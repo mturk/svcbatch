@@ -1039,29 +1039,33 @@ static DWORD killproctree(HANDLE ph, DWORD pid, int rc)
                 p = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_TERMINATE, 0, e.th32ProcessID);
 
                 if (IS_VALID_HANDLE(p)) {
-                    if (rc) {
-                        SAFE_CLOSE_HANDLE(h);
-                        r += killproctree(p, e.th32ProcessID, rc - 1);
-                    }
-                    else {
-                        DBG_PRINTF("terminating child %.4lu of %.4lu", e.th32ProcessID, pid);
-                        TerminateProcess(p, ERROR_INVALID_FUNCTION);
+                    DWORD x;
+                    if (GetExitCodeProcess(p, &x) && (x == STILL_ACTIVE)) {
+                        c++;
+                        if (rc) {
+                            SAFE_CLOSE_HANDLE(h);
+                            r += killproctree(p, e.th32ProcessID, rc - 1);
+                            CloseHandle(p);
+                            break;
+                        }
+                        else {
+                            DBG_PRINTF("terminating child %.4lu of %.4lu", e.th32ProcessID, pid);
+                            TerminateProcess(p, ERROR_INVALID_FUNCTION);
+                            r++;
+                        }
                     }
                     CloseHandle(p);
-                    c++;
-                    if (rc)
-                       break;
                 }
             }
 
         } while (Process32NextW(h, &e));
         SAFE_CLOSE_HANDLE(h);
-        r += c;
     } while (rc && c);
 
     if (IS_VALID_HANDLE(ph)) {
         DBG_PRINTF("terminating process %.4lu %d", pid, rc);
         TerminateProcess(ph, ERROR_INVALID_FUNCTION);
+        r++;
     }
     DBG_PRINTF("done %.4lu %d %d", pid, rc, r);
     return r;
