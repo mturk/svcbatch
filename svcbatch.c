@@ -2238,7 +2238,7 @@ static DWORD runshutdown(DWORD rt)
     DBG_PRINTF("waiting for shutdown process %lu to finish", xgetprocessid(svcstopproc));
     rc = WaitForSingleObject(svcstopproc->pInfo.hProcess, stoptimeout + rt);
     if (rc == WAIT_TIMEOUT) {
-        DBG_PRINTF("terminating shutdown %lu", xgetprocessid(svcstopproc));
+        DBG_PRINTF("terminating shutdown process %lu", xgetprocessid(svcstopproc));
         killproctree(svcstopproc->pInfo.hProcess, xgetprocessid(svcstopproc), 2);
     }
     if (!GetExitCodeProcess(svcstopproc->pInfo.hProcess, &rc))
@@ -2259,7 +2259,7 @@ static DWORD WINAPI stopthread(void *unused)
     DBG_PRINTS("started");
     if (svcstopproc) {
         DWORD rc;
-        int   ri = 0;
+        int   ri;
         ULONGLONG rs;
 
         DBG_PRINTS("creating shutdown process");
@@ -2268,8 +2268,7 @@ static DWORD WINAPI stopthread(void *unused)
         ri = (int)(GetTickCount64() - rs);
         DBG_PRINTF("shutdown finished in %d ms", ri);
         reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout);
-        if (rc)
-            ri = stoptimeout - ri;
+        ri = stoptimeout - ri;
         if (ri < SVCBATCH_STOP_SYNC)
             ri = SVCBATCH_STOP_SYNC;
         DBG_PRINTF("waiting %d ms for worker", ri);
@@ -2994,7 +2993,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     else {
         if (ws == WAIT_TIMEOUT) {
             DBG_PRINTS("stop timeout");
-            stopshutdown(SVCBATCH_STOP_TMIN);
+            stopshutdown(SVCBATCH_STOP_SYNC);
             setsvcstatusexit(WAIT_TIMEOUT);
         }
     }
