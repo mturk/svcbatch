@@ -1075,7 +1075,7 @@ static void killprocess(LPSVCBATCH_PROCESS proc, int rc)
     DBG_PRINTF("killing process %.4lu", xgetprocessid(proc));
 
     if (killproctree(NULL, xgetprocessid(proc), rc)) {
-        if (waitprocess(proc, 500) != STILL_ACTIVE)
+        if (waitprocess(proc, SVCBATCH_STOP_SYNC) != STILL_ACTIVE)
             goto finished;
     }
     DBG_PRINTF("terminating %.4lu", xgetprocessid(proc));
@@ -2258,7 +2258,8 @@ finished:
 
 static DWORD WINAPI stopthread(void *unused)
 {
-    DWORD ws = 0;
+    DWORD ws;
+    DWORD ww = 0;
 
     SetEvent(svcstopstart);
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
@@ -2271,32 +2272,23 @@ static DWORD WINAPI stopthread(void *unused)
         rc = runshutdown(SVCBATCH_STOP_STEP);
         DBG_PRINTF("runshutdown returned %lu", rc);
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
-        DBG_PRINTS("wait for workfinished signal");
-        ws = WaitForSingleObject(workfinished, SVCBATCH_STOP_SYNC);
-        if (ws == WAIT_OBJECT_0) {
-            DBG_PRINTS("worker finished");
-            goto finished;
-        }
+        ww = SVCBATCH_STOP_SYNC;
     }
-    else {
-         if (ssignalevent ) {
-            /**
-             * Signal to all child processes to stop
-             */
-            DBG_PRINTS("setting shutdown signal event");
-            SetEvent(ssignalevent);
-            DBG_PRINTS("wait for workfinished signal");
-            ws = WaitForSingleObject(workfinished, stoptimeout);
-            if (ws == WAIT_OBJECT_0) {
-                DBG_PRINTS("worker finished");
-                goto finished;
-            }
-         }
+    if (ssignalevent) {
+        /**
+         * Signal to all child processes to stop
+         */
+        DBG_PRINTS("setting shutdown signal event");
+        SetEvent(ssignalevent);
+        ww = stoptimeout;
+    }
+    ws = WaitForSingleObject(workfinished, ww);
+    if (ws == WAIT_OBJECT_0) {
+        DBG_PRINTS("worker finished");
+        goto finished;
     }
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
-#if defined(_DEBUG)
         DBG_PRINTS("generating CTRL_C_EVENT");
-#endif
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         ws = WaitForSingleObject(workfinished, stoptimeout);
         SetConsoleCtrlHandler(NULL, FALSE);
@@ -2305,12 +2297,7 @@ static DWORD WINAPI stopthread(void *unused)
             goto finished;
         }
     }
-#if defined(_DEBUG)
-    else {
-        DBG_PRINTF("SetConsoleCtrlHandler failed err=%lu", GetLastError());
-    }
     DBG_PRINTS("worker process is still running ... terminating");
-#endif
     reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_STEP);
     killprocess(svcxcmdproc, 1);
 
