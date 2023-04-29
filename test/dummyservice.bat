@@ -36,8 +36,8 @@ rem
 :runService
 rem
 echo %~nx0: [%TIME%] ... running 😀
-rem Simulate work by sleeping for 5 seconds
-ping -n 6 127.0.0.1 >NUL
+rem Simulate work by sleeping for 2 seconds
+ping -n 3 127.0.0.1 >NUL
 rem Uncomment to write more data to SvcBatch.log
 rem echo.
 rem set
@@ -76,14 +76,14 @@ echo.
 rem
 rem
 echo %~nx0: [%TIME%] Shutdown running
-rem Simulate some work by sleeping for 5 seconds
-ping -n 6 127.0.0.1 >NUL
+rem Simulate some work by sleeping for 2 seconds
+ping -n 3 127.0.0.1 >NUL
 rem Simple IPC mechanism to signal the service
 rem to stop by creating unique file
 echo %~nx0: [%TIME%] creating shutdown-%SVCBATCH_SERVICE_UUID%
 echo Y> "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%"
 :runShutdown
-ping -n 6 127.0.0.1 >NUL
+ping -n 3 127.0.0.1 >NUL
 echo %~nx0: [%TIME%] ... running
 goto runShutdown
 echo %~nx0: [%TIME%] Shutdown done
