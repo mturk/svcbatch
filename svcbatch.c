@@ -2616,6 +2616,7 @@ static DWORD WINAPI workerthread(void *unused)
     if (!xcreatethread(SVCBATCH_WRITE_THREAD,
                        1, wrpipethread, wr)) {
         rc = GetLastError();
+        setsvcstatusexit(rc);
         xsyserror(rc, L"Create thread failed", NULL);
         TerminateProcess(svcxcmdproc->pInfo.hProcess, rc);
         svcxcmdproc->dwExitCode = rc;
@@ -2819,7 +2820,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 }
                 else {
                     DBG_PRINTS("rotatelogs is busy");
-                    return ERROR_ALREADY_EXISTS;
+                    return ERROR_CALL_NOT_IMPLEMENTED;
                 }
             }
             else {
@@ -2889,8 +2890,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     if (IS_EMPTY_WCS(mainservice->lpName) && (argc > 0))
         mainservice->lpName = xwcsdup(argv[0]);
     if (IS_EMPTY_WCS(mainservice->lpName)) {
+        setsvcstatusexit(rv);
         xsyserror(ERROR_INVALID_PARAMETER, L"Missing service name", NULL);
-        exit(ERROR_INVALID_PARAMETER);
         return;
     }
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
