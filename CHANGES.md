@@ -16,6 +16,7 @@ For a full list of changes, see the [git commit log][log]
   * Ensure that all started processes are properly terminated
   * Deprecate setting locale with -c command option
   * Check for mutually exclusive options at startup
+  * Lower down stop timeouts on system shutdown
 
 ### New Features
 

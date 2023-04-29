@@ -126,6 +126,11 @@ static BOOL      rotatebytime     = FALSE;
 static BOOL      uselocaltime     = FALSE;
 static BOOL      haslogstatus     = FALSE;
 
+static DWORD     stoptimeoutw     = SVCBATCH_STOP_WAIT;
+static DWORD     stoptimeouth     = SVCBATCH_STOP_HINT;
+static DWORD     stoptimeoutc     = SVCBATCH_STOP_CHECK;
+static DWORD     stoptimeouts     = SVCBATCH_STOP_STEP;
+
 static DWORD     truncatelogs     = 0;
 static DWORD     preshutdown      = 0;
 
@@ -2007,7 +2012,7 @@ static void closelogfile(void)
 
         DBG_PRINTS("closing");
         if (svclogsproc) {
-            if (waitprocess(svclogsproc, SVCBATCH_STOP_STEP) != STILL_ACTIVE)
+            if (waitprocess(svclogsproc, stoptimeouts) != STILL_ACTIVE)
                 f = FALSE;
         }
         if (f) {
@@ -2024,7 +2029,7 @@ static void closelogfile(void)
     if (svclogsproc) {
         DBG_PRINTF("wait for log process %lu to finish",
                    xgetprocessid(svclogsproc));
-        if (waitprocess(svclogsproc, SVCBATCH_STOP_STEP) == STILL_ACTIVE) {
+        if (waitprocess(svclogsproc, stoptimeouts) == STILL_ACTIVE) {
             DBG_PRINTS("terminating log process");
             killprocess(svclogsproc, 1);
         }
@@ -2233,7 +2238,7 @@ static DWORD runshutdown(DWORD rt)
     SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdError);
 
     DBG_PRINTF("waiting for shutdown process %lu to finish", xgetprocessid(svcstopproc));
-    rc = WaitForMultipleObjects(2, wh, FALSE, rt + SVCBATCH_STOP_STEP);
+    rc = WaitForMultipleObjects(2, wh, FALSE, rt + stoptimeouts);
 #if defined(_DEBUG)
     switch (rc) {
         case WAIT_OBJECT_0:
@@ -2282,25 +2287,25 @@ static DWORD WINAPI stopthread(void *unused)
 #endif
 
     SetEvent(svcstopstart);
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
+    reportsvcstatus(SERVICE_STOP_PENDING, stoptimeoutw);
     if (svcstopproc) {
         DWORD rc;
 
         DBG_PRINTS("creating shutdown process");
-        rc = runshutdown(SVCBATCH_STOP_CHECK);
+        rc = runshutdown(stoptimeoutc);
         DBG_PRINTF("runshutdown returned %lu", rc);
         if (WaitForSingleObject(workfinished, 0) == WAIT_OBJECT_0) {
             DBG_PRINTS("worker ended by shutdown");
             goto finished;
         }
-        reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+        reportsvcstatus(SERVICE_STOP_PENDING, stoptimeouth);
         if (rc == 0) {
             if (WaitForSingleObject(ssignalevent, 0) == WAIT_OBJECT_0) {
                 DBG_PRINTS("shutdown signal event set");
             }
             else {
                 DBG_PRINTS("wait for workfinished signal");
-                if (WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+                if (WaitForSingleObject(workfinished, stoptimeouts) == WAIT_OBJECT_0) {
                     DBG_PRINTS("worker finished");
                     goto finished;
                 }
@@ -2315,7 +2320,7 @@ static DWORD WINAPI stopthread(void *unused)
             DBG_PRINTS("setting shutdown signal event");
             SetEvent(ssignalevent);
             DBG_PRINTS("wait for workfinished signal");
-            if (WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+            if (WaitForSingleObject(workfinished, stoptimeouts) == WAIT_OBJECT_0) {
                 DBG_PRINTS("worker finished");
                 goto finished;
             }
@@ -2328,7 +2333,7 @@ static DWORD WINAPI stopthread(void *unused)
         DBG_PRINTS("generating CTRL_C_EVENT");
 #endif
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        ws = WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP);
+        ws = WaitForSingleObject(workfinished, stoptimeouts);
         SetConsoleCtrlHandler(NULL, FALSE);
         if (ws == WAIT_OBJECT_0) {
             DBG_PRINTS("worker ended by CTRL_C_EVENT");
@@ -2341,11 +2346,11 @@ static DWORD WINAPI stopthread(void *unused)
     }
     DBG_PRINTS("worker process is still running ... terminating");
 #endif
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
+    reportsvcstatus(SERVICE_STOP_PENDING, stoptimeoutc);
     killprocess(svcxcmdproc, 1);
 
 finished:
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_CHECK);
+    reportsvcstatus(SERVICE_STOP_PENDING, stoptimeoutc);
     SetEvent(svcstopended);
     DBG_PRINTS("done");
     return 0;
@@ -2455,7 +2460,7 @@ static void monitorsvcstop(void)
                 InterlockedExchangePointer(&svcbatchlog->hFile, h);
                 SVCBATCH_CS_LEAVE(svcbatchlog);
             }
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+            reportsvcstatus(SERVICE_STOP_PENDING, stoptimeouth);
             createstopthread(0);
         break;
         default:
@@ -2848,9 +2853,13 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             /* fall through */
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
+            stoptimeoutw = SVCBATCH_SHUT_WAIT;
+            stoptimeouth = SVCBATCH_SHUT_HINT;
+            stoptimeoutc = SVCBATCH_SHUT_CHECK;
+            stoptimeouts = SVCBATCH_SHUT_STEP;
         case SERVICE_CONTROL_STOP:
             DBG_PRINTF("service %s", msg);
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
+            reportsvcstatus(SERVICE_STOP_PENDING, stoptimeoutw);
             SetEvent(svcstopstart);
             if (xcreatethread(SVCBATCH_STOP_THREAD, 1, stopthread, NULL)) {
                 ResetEvent(svcstopended);
@@ -3066,11 +3075,11 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     else {
         DBG_PRINTS("waiting for stop thread to finish");
-        ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_HINT);
+        ws = WaitForSingleObject(svcstopended, stoptimeouth);
         if (ws == WAIT_TIMEOUT) {
             DBG_PRINTS("sending ssignalevent");
             SetEvent(ssignalevent);
-            ws = WaitForSingleObject(svcstopended, SVCBATCH_STOP_CHECK);
+            ws = WaitForSingleObject(svcstopended, stoptimeoutc);
         }
         DBG_PRINTF("wait for svcstopended returned %lu", ws);
     }
