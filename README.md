@@ -663,7 +663,7 @@ that originated from svcbatch.exe.
 
 The simplest way to obtain the version information
 is to right click on the `svcbatch.exe` from Windows File
-Explorer and click on the Details tab.
+Explorer, click on Properties, and then on the Details tab.
 
 
 Another way to get SvcBatch version and build information
