@@ -347,12 +347,15 @@
                                 CPP_TOSTR(SVCBATCH_PATCH_VERSION) "."   \
                                 CPP_TOSTR(SVCBATCH_MICRO_VERSION)
 
-
-#define SVCBATCH_VERSION_WCS \
+#define SVCBATCH_VERSION_VER \
                                 CPP_TOWCS(SVCBATCH_MAJOR_VERSION) L"."  \
                                 CPP_TOWCS(SVCBATCH_MINOR_VERSION) L"."  \
                                 CPP_TOWCS(SVCBATCH_PATCH_VERSION) L"."  \
-                                CPP_TOWCS(SVCBATCH_MICRO_VERSION)       \
+                                CPP_TOWCS(SVCBATCH_MICRO_VERSION)
+
+
+#define SVCBATCH_VERSION_WCS \
+                                SVCBATCH_VERSION_VER                    \
                                 CPP_WIDEN(SVCBATCH_VERSION_SFX)         \
                                 CPP_WIDEN(SVCBATCH_VERSION_DBG)
 

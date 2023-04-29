@@ -2937,6 +2937,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
          * Add additional environment variables
          * They are unique to this service instance
          */
+        SetEnvironmentVariableW(L"SVCBATCH_APP_BIN",      svcmainproc->szExe);
+        SetEnvironmentVariableW(L"SVCBATCH_APP_VER",      SVCBATCH_VERSION_VER);
+
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_BASE", mainservice->lpBase);
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_HOME", mainservice->lpHome);
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", mainservice->lpName);

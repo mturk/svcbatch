@@ -608,6 +608,16 @@ SvcBatch sets for each instance.
 
   ```
 
+* **SVCBATCH_APP_BIN**
+
+  Set to the current SvcBatch executable running the service
+
+* **SVCBATCH_APP_VER**
+
+  This environment variable is set to the current version
+  of the SvcBatch executable running the service.
+
+
 ## Custom Control Codes
 
 SvcBatch can send `CTRL_BREAK_EVENT` signal to its child processes.
