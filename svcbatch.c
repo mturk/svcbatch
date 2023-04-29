@@ -2233,7 +2233,7 @@ static DWORD runshutdown(DWORD rt)
     SAFE_CLOSE_HANDLE(svcstopproc->sInfo.hStdError);
 
     DBG_PRINTF("waiting for shutdown process %lu to finish", xgetprocessid(svcstopproc));
-    rc = WaitForMultipleObjects(2, wh, FALSE, rt);
+    rc = WaitForMultipleObjects(2, wh, FALSE, stoptimeout);
 #if defined(_DEBUG)
     switch (rc) {
         case WAIT_OBJECT_0:
@@ -2270,6 +2270,7 @@ finished:
 
 static DWORD WINAPI stopthread(void *unused)
 {
+    DWORD ws = 0;
 
 #if defined(_DEBUG)
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS)
@@ -2284,11 +2285,12 @@ static DWORD WINAPI stopthread(void *unused)
         DWORD rc;
 
         DBG_PRINTS("creating shutdown process");
-        rc = runshutdown(SVCBATCH_STOP_WAIT);
+        rc = runshutdown(SVCBATCH_STOP_SYNC);
         DBG_PRINTF("runshutdown returned %lu", rc);
         reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
         DBG_PRINTS("wait for workfinished signal");
-        if (WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+        ws = WaitForSingleObject(workfinished, SVCBATCH_STOP_SYNC);
+        if (ws == WAIT_OBJECT_0) {
             DBG_PRINTS("worker finished");
             goto finished;
         }
@@ -2301,20 +2303,20 @@ static DWORD WINAPI stopthread(void *unused)
             DBG_PRINTS("setting shutdown signal event");
             SetEvent(ssignalevent);
             DBG_PRINTS("wait for workfinished signal");
-            if (WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP) == WAIT_OBJECT_0) {
+            ws = WaitForSingleObject(workfinished, stoptimeout);
+            if (ws == WAIT_OBJECT_0) {
                 DBG_PRINTS("worker finished");
                 goto finished;
             }
          }
     }
     if (SetConsoleCtrlHandler(NULL, TRUE)) {
-        DWORD ws;
 
 #if defined(_DEBUG)
         DBG_PRINTS("generating CTRL_C_EVENT");
 #endif
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        ws = WaitForSingleObject(workfinished, SVCBATCH_STOP_STEP);
+        ws = WaitForSingleObject(workfinished, ws ? SVCBATCH_STOP_SYNC : stoptimeout);
         SetConsoleCtrlHandler(NULL, FALSE);
         if (ws == WAIT_OBJECT_0) {
             DBG_PRINTS("worker ended by CTRL_C_EVENT");
@@ -2327,7 +2329,7 @@ static DWORD WINAPI stopthread(void *unused)
     }
     DBG_PRINTS("worker process is still running ... terminating");
 #endif
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_WAIT);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_STEP);
     killprocess(svcxcmdproc, 1);
 
 finished:

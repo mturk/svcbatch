@@ -130,6 +130,7 @@
 #define SVCBATCH_STOP_HINT      20000
 #define SVCBATCH_STOP_WAIT      10000
 #define SVCBATCH_STOP_STEP      5000
+#define SVCBATCH_STOP_SYNC      2000
 
 /**
  * Minimum rotate size in kilobytes
