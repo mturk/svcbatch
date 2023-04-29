@@ -20,64 +20,27 @@
 #include <io.h>
 #include <fcntl.h>
 
-static HANDLE stopsig = NULL;
-
-static BOOL WINAPI consolehandler(DWORD ctrl)
-{
-    DWORD pid = GetCurrentProcessId();
-
-    switch (ctrl) {
-        case CTRL_CLOSE_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_CLOSE_EVENT signaled\n\n", pid);
-            SetEvent(stopsig);
-        break;
-        case CTRL_SHUTDOWN_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_SHUTDOWN_EVENT signaled\n\n", pid);
-            SetEvent(stopsig);
-        break;
-        case CTRL_C_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_C_EVENT signaled\n\n", pid);
-            SetEvent(stopsig);
-        break;
-        case CTRL_BREAK_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_BREAK_EVENT signaled\n\n", pid);
-        break;
-        case CTRL_LOGOFF_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_LOGOFF_EVENT signaled\n\n", pid);
-            SetEvent(stopsig);
-        break;
-        default:
-            fprintf(stdout, "\n\n[%.4lu] Unknown control '%lu' signaled\n\n", pid, ctrl);
-        break;
-    }
-    return TRUE;
-}
-
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int i;
     int e = 0;
     int r = 0;
     DWORD pid;
-    HANDLE wh[2];
+    HANDLE stopsig;
     wchar_t sb[256];
 
     _setmode(_fileno(stdout),_O_BINARY);
     setvbuf(stdout, (char*)NULL, _IONBF, 0);
     pid = GetCurrentProcessId();
 
-    stopsig = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (stopsig == NULL) {
-        r = GetLastError();
-        fprintf(stderr, "\n\n[%.4lu] CreateEvent failed\n", pid);
-        return r;
-    }
-    wh[0] = stopsig;
-
+    /**
+     * Open service stop event
+     */
     lstrcpyW(sb, L"Local\\se-");
     GetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", sb + 9, 64);
-    wh[1] = OpenEvent(SYNCHRONIZE, FALSE, sb);
-    if (wh[1] == NULL) {
+
+    stopsig = OpenEvent(SYNCHRONIZE, FALSE, sb);
+    if (stopsig == NULL) {
         r = GetLastError();
         fprintf(stderr, "\n\n[%.4lu] OpenEvent %S failed\n", pid, sb);
         return r;
@@ -95,22 +58,15 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fprintf(stdout, "[%.4lu] [%.2d] %S\n", pid, e + 1, wenv[e]);
         e++;
     }
-    SetConsoleCtrlHandler(consolehandler, TRUE);
     fprintf(stdout, "\n\n[%.4lu] Program running\n", pid);
     i = 1;
     for(;;) {
-        DWORD ws = WaitForMultipleObjects(2, wh, FALSE, 2000);
+        DWORD ws = WaitForSingleObject(stopsig, 2000);
 
         if (ws == WAIT_OBJECT_0) {
-            fprintf(stdout, "\n\n[%.4lu] Console Stop signaled\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] Stop signaled\n", pid);
             fflush(stdout);
             Sleep(2000);
-            break;
-        }
-        if (ws == WAIT_OBJECT_0 + 1) {
-            fprintf(stdout, "\n\n[%.4lu] Signal Stop signaled\n", pid);
-            fflush(stdout);
-            Sleep(1000);
             break;
         }
         fprintf(stdout, "[%.4lu] [%.4d] ... running\n", pid, i++);
