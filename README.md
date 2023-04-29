@@ -242,6 +242,14 @@ make sure to get familiar with `sc.exe` utility.
 
   By default this value is set to `10` seconds.
 
+  Also make sure to check the **WaitToKillServiceTimeout**
+  value specified in the following registry key:
+
+  **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control**
+
+  If the operating system is rebooting, this value is used
+  as time limit.
+
 
 * **-l**
 
