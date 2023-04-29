@@ -2951,6 +2951,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
         if (rv != 0) {
             xsyserror(0, L"Log open failed", NULL);
+            setsvcstatusexit(rv);
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
@@ -2965,7 +2966,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
-        xsyserror(GetLastError(), L"Create thread failed", NULL);
+        rv = GetLastError();
+        setsvcstatusexit(rv);
+        xsyserror(rv, L"Create thread failed", NULL);
         goto finished;
     }
     if (monitorevent) {
@@ -2973,7 +2976,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
         if (!xcreatethread(SVCBATCH_MONITOR_THREAD,
                            0, monitorthread, NULL)) {
-            xsyserror(GetLastError(), L"Create thread failed", NULL);
+            rv = GetLastError();
+            setsvcstatusexit(rv);
+            xsyserror(rv, L"Create thread failed", NULL);
             goto finished;
         }
         wh[0] = svcthread[SVCBATCH_WORKER_THREAD].hThread;
