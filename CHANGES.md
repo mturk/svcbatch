@@ -21,6 +21,7 @@ For a full list of changes, see the [git commit log][log]
 ### New Features
 
  * Add SVCBATCH_SERVICE_LOGS environment variable
+ * Add -k command option for changing default stop timeout
  * Use -c command option to set user defined code page
  * Create stop signal event if first -s option is NUL
 

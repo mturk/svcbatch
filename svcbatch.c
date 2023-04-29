@@ -131,6 +131,7 @@ static DWORD     preshutdown      = 0;
 
 static int       svcmaxlogs       = 0;
 static int       svccodepage      = 0;
+static int       stoptimeout      = SVCBATCH_STOP_WAIT;
 
 static HANDLE    svcstopstart     = NULL;
 static HANDLE    svcstopended     = NULL;
@@ -2175,7 +2176,7 @@ static BOOL resolverotate(const wchar_t *rp)
 
 static DWORD runshutdown(DWORD rt)
 {
-    wchar_t  rp[TBUFSIZ] = { L':', L':', L' ', L'-' };
+    wchar_t  rp[TBUFSIZ];
     HANDLE   wh[2];
     DWORD    rc = 0;
     DWORD i, ip = 4;
@@ -2189,6 +2190,7 @@ static DWORD runshutdown(DWORD rt)
     }
     xwcslcpy(svcstopproc->szExe, SVCBATCH_PATH_MAX,  svcmainproc->szExe);
     svcstopproc->lpCommandLine = xappendarg(1, NULL, NULL, svcstopproc->szExe);
+    ip = xsnwprintf(rp, TBUFSIZ, L":: -k%d -", stoptimeout);
     if (svcbatchlog && svcstoplogn) {
         if (uselocaltime)
             rp[ip++] = L'l';
@@ -2201,8 +2203,6 @@ static DWORD runshutdown(DWORD rt)
         rp[ip++] = L'q';
     }
     rp[ip++] = WNUL;
-    if (ip < 6)
-        rp[2] = WNUL;
     svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, NULL,  rp);
     svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, L"-c", codepageopt);
     if (svcbatchlog && svcstoplogn)
@@ -2936,7 +2936,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         if (svcbatchlog)
             GetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS",
                                     svcbatchlog->szDir, SVCBATCH_PATH_MAX);
-        wt = SVCBATCH_STOP_WAIT;
+        wt = stoptimeout;
     }
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         /**
@@ -3148,7 +3148,7 @@ int wmain(int argc, const wchar_t **wargv)
     }
     DBG_PRINTS(cnamestamp);
 
-    while ((opt = xwgetopt(argc, wargv, L"bc:e:lm:n:o:pqr:s:tvw:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bc:e:k:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = TRUE;
@@ -3185,6 +3185,11 @@ int wmain(int argc, const wchar_t **wargv)
             break;
             case L'w':
                 svchomeparam = xwoptarg;
+            break;
+            case L'k':
+                stoptimeout  = xwcstoi(xwoptarg, NULL);
+                if ((stoptimeout < MS_IN_SECOND) || (stoptimeout > SVCBATCH_STOP_HINT))
+                    return xsyserror(0, L"Invalid -k command option value", xwoptarg);
             break;
             /**
              * Options that can be defined

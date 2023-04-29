@@ -235,6 +235,13 @@ make sure to get familiar with `sc.exe` utility.
   Service will fail to start, and write and error message
   to the Windows Event log.
 
+* **-k [timeout]**
+
+  **Set stop timeout in milliseconds**
+
+  This option sets the timeout when service receives
+  stop signal. By default this value is `10000` milliseconds.
+
 
 * **-n [log name][shutdown name]**
 
