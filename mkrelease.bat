@@ -19,7 +19,7 @@ rem SvcBatch release helper script
 rem
 rem Usage: mkrelease.bat [options] version [make arguments]
 rem    eg: mkrelease 1.2.3
-rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme" "VERSION_MICRO=45"
+rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme"
 rem        mkrelease /d ...   create debug release
 rem        mkrelease /s ...   compile with static msvcrt
 rem
@@ -29,10 +29,7 @@ set "ProjectName=svcbatch"
 set "ReleaseArch=win-x64"
 set "BuildDir=.build\rel"
 set "ProjectFiles=%ProjectName%.exe"
-rem
-rem Get timestamp using Powershell
-for /f "delims=" %%# in ('powershell get-date -UFormat "{%%y%%V%%u}"') do @set BuildTimestamp=%%#
-set "MakefileArgs=VERSION_MICRO=%BuildTimestamp%"
+set "MakefileArgs="
 rem
 :getOpts
 rem

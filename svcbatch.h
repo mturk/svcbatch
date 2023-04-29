@@ -55,11 +55,7 @@
 #define SVCBATCH_MAJOR_VERSION  2
 #define SVCBATCH_MINOR_VERSION  1
 #define SVCBATCH_PATCH_VERSION  0
-#if defined(VERSION_MICRO)
-#define SVCBATCH_MICRO_VERSION  VERSION_MICRO
-#else
 #define SVCBATCH_MICRO_VERSION  0
-#endif
 /**
  * Set to zero for release versions
  */

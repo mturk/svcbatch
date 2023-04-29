@@ -51,7 +51,7 @@ esac
 #
 ProjectName=svcbatch
 ReleaseArch=win-x64-mingw
-MakefileFlags="VERSION_MICRO=`date +%y%V%u`"
+MakefileFlags="-f Makefile.gmk"
 #
 if [ "x$1" = "x-d" ]
 then
@@ -72,16 +72,16 @@ ReleaseZip=$ReleaseName.zip
 #
 #
 MakefileFlags="$MakefileFlags $*"
-make -f Makefile.gmk $MakefileFlags clean
-test "x$BuildHost" = "xcygwin" && MakefileFlags="USE_MINGW_PACKAGE_PREFIX=1 $MakefileFlags"
-make -f Makefile.gmk $MakefileFlags
+make $MakefileFlags clean
+test "x$BuildHost" = "xcygwin" && MakefileFlags="$MakefileFlags USE_MINGW_PACKAGE_PREFIX=1"
+make $MakefileFlags
 #
 pushd $BuildDir >/dev/null
 echo "## Binary release v$ReleaseVersion" > $ReleaseLog
 echo >> $ReleaseLog
 echo '```no-highlight' >> $ReleaseLog
 echo "Compiled on $BuildHost host using:" >> $ReleaseLog
-echo "make -f Makefile.gmk $MakefileFlags" >> $ReleaseLog
+echo "make $MakefileFlags" >> $ReleaseLog
 echo "`make --version | head -1`" >> $ReleaseLog
 echo "`gcc --version | head -1`" >> $ReleaseLog
 echo >> $ReleaseLog
