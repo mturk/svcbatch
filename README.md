@@ -87,7 +87,15 @@ type something like this...
 
 ```
 
-Check [Examples](#examples) section for more
+Once installed you can edit the **ImagePath** value
+from the service's registry key:
+
+**HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\myservice**
+
+The changes made, will be used next the service starts.
+
+
+Also check [Examples](#examples) section for more
 detailed usage.
 
 
