@@ -1547,7 +1547,7 @@ static BOOL canrotatelogs(void)
         cm = GetTickCount64();
         pm = InterlockedCompareExchange64(&svcbatchlog->nOpenTime, 0, 0);
 
-        if ((cm - pm) > (SVCBATCH_MIN_ROTATE_T * MS_IN_MINUTE))
+        if ((cm - pm) > (SVCBATCH_MIN_ROTATE_INT * MS_IN_MINUTE))
             rv = TRUE;
     }
     SVCBATCH_CS_LEAVE(svcbatchlog);
@@ -2096,9 +2096,9 @@ static BOOL resolverotate(const wchar_t *rp)
             break;
         }
         siz = val * mux;
-        if (siz < KILOBYTES(SVCBATCH_MIN_ROTATE_S)) {
+        if (siz < KILOBYTES(SVCBATCH_MIN_ROTATE_SIZ)) {
             DBG_PRINTF("rotate size %S is less then %dK",
-                       rp, SVCBATCH_MIN_ROTATE_S);
+                       rp, SVCBATCH_MIN_ROTATE_SIZ);
             rotatesiz.QuadPart = CPP_INT64_C(0);
             rotatebysize = FALSE;
         }
@@ -2155,9 +2155,9 @@ static BOOL resolverotate(const wchar_t *rp)
                 resolvetimeout(0, 0, 0, 0);
             }
             else {
-                if (mm < SVCBATCH_MIN_ROTATE_T) {
+                if (mm < SVCBATCH_MIN_ROTATE_INT) {
                     DBG_PRINTF("rotate time %d is less then %d minutes",
-                               mm, SVCBATCH_MIN_ROTATE_T);
+                               mm, SVCBATCH_MIN_ROTATE_INT);
                     return FALSE;
                 }
                 rotateint = mm * ONE_MINUTE * CPP_INT64_C(-1);

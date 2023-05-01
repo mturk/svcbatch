@@ -132,12 +132,12 @@
 /**
  * Minimum rotate size in kilobytes
  */
-#define SVCBATCH_MIN_ROTATE_S   1
+#define SVCBATCH_MIN_ROTATE_SIZ 1
 /**
  * Minimum time between two log
  * rotations in minutes
  */
-#define SVCBATCH_MIN_ROTATE_T   2
+#define SVCBATCH_MIN_ROTATE_INT 2
 
 #define MS_IN_DAY               86400000
 #define MS_IN_SECOND            1000
