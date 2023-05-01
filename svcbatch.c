@@ -2540,7 +2540,7 @@ static DWORD WINAPI rotatethread(void *unused)
 finished:
     DBG_PRINTS("done");
     SAFE_CLOSE_HANDLE(wt);
-    return 0;
+    return rc > 1 ? rc : 0;
 }
 
 static DWORD WINAPI workerthread(void *unused)
