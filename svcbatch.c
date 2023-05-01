@@ -2242,6 +2242,7 @@ finished:
 
 static DWORD WINAPI stopthread(void *msg)
 {
+    DWORD rc = 0;
     DWORD ws = WAIT_OBJECT_1;
 
     ResetEvent(svcstopended);
@@ -2261,7 +2262,6 @@ static DWORD WINAPI stopthread(void *msg)
 
     DBG_PRINTS("started");
     if (svcstopproc) {
-        DWORD rc;
         int   ri;
         ULONGLONG rs;
 
@@ -2297,7 +2297,7 @@ static DWORD WINAPI stopthread(void *msg)
     }
     SetEvent(svcstopended);
     DBG_PRINTS("done");
-    return 0;
+    return rc;
 }
 
 static void createstopthread(DWORD rv)
