@@ -2185,7 +2185,7 @@ static DWORD runshutdown(DWORD rt)
     }
     xwcslcpy(svcstopproc->szExe, SVCBATCH_PATH_MAX,  svcmainproc->szExe);
     svcstopproc->lpCommandLine = xappendarg(1, NULL, NULL, svcstopproc->szExe);
-    ip = xsnwprintf(rp, TBUFSIZ, L":: -k%d -", stoptimeout / 1000);
+    ip = xsnwprintf(rp, TBUFSIZ, L"@@ -k%d -", stoptimeout / 1000);
     if (svcbatchlog && svcstoplogn) {
         if (uselocaltime)
             rp[ip++] = L'l';
@@ -3123,6 +3123,7 @@ static int xwmaininit(void)
     /* Reserve lpArgv[0] for batch file */
     svcxcmdproc->nArgc  = 1;
     svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
+    mainservice->lpName = zerostring;
     SVCBATCH_CS_CREATE(mainservice);
 
     return 0;
@@ -3203,23 +3204,32 @@ int wmain(int argc, const wchar_t **wargv)
      */
     if (argc > 1) {
         const wchar_t *p = wargv[1];
-        if ((p[0] == L':') && (p[1] == L':') && (p[2] == WNUL)) {
-            mainservice->lpName = xgetenv(L"SVCBATCH_SERVICE_NAME");
-            if (mainservice->lpName == NULL)
-                return ERROR_BAD_ENVIRONMENT;
-            cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
-            wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
-            cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
+        if (p[1] == L'@') {
+            if ((p[1] == L'@') && (p[2] == WNUL)) {
+                mainservice->lpName = xgetenv(L"SVCBATCH_SERVICE_NAME");
+                if (mainservice->lpName == NULL)
+                    return ERROR_BAD_ENVIRONMENT;
+                mainservice->lpUuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
+                if (mainservice->lpUuid == NULL)
+                    return ERROR_BAD_ENVIRONMENT;
+                cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
+                wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
+                cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
+                svcmainproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
+            }
+            else {
+                mainservice->lpName = xwcsdup(p + 1);
+                if (IS_EMPTY_WCS(mainservice->lpName))
+                    return ERROR_INVALID_PARAMETER;
+                svcmainproc->dwType = SVCBATCH_SERVICE_PROCESS;
+            }
             wargv[1] = wargv[0];
             argc    -= 1;
             wargv   += 1;
-            svcmainproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
-        }
-        else {
-            svcmainproc->dwType = SVCBATCH_SERVICE_PROCESS;
         }
     }
     DBG_PRINTS(cnamestamp);
+    DBG_PRINTF("service name: %S", mainservice->lpName);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:k:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
@@ -3347,8 +3357,6 @@ int wmain(int argc, const wchar_t **wargv)
     }
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS)
         mainservice->lpUuid = xuuidstring(NULL);
-    else
-        mainservice->lpUuid = xgetenv(L"SVCBATCH_SERVICE_UUID");
     if (IS_EMPTY_WCS(mainservice->lpUuid))
         return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
 
@@ -3559,7 +3567,7 @@ int wmain(int argc, const wchar_t **wargv)
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         SERVICE_TABLE_ENTRYW se[2];
 
-        se[0].lpServiceName = zerostring;
+        se[0].lpServiceName = mainservice->lpName;
         se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
         se[1].lpServiceName = NULL;
         se[1].lpServiceProc = NULL;
