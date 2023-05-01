@@ -206,6 +206,18 @@ In case you need to pass `@` character use `@@`.
 Command line options are defined at service install time, so
 make sure to get familiar with `sc.exe` utility.
 
+You can use the `@myservice` as the first command option to set
+the service name which will be then displayed in Windows Event log
+in case there are errors before the main service function.
+
+For example:
+
+```cmd
+> sc create myservice binPath= "%cd%\svcbatch.exe @myservice ... "
+
+```
+
+
 * **-b**
 
   **Enable sending CTRL_BREAK_EVENT**
