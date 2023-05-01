@@ -101,6 +101,28 @@ detailed usage.
   The changes made, will be used next the service starts.
 
 
+* **Starting services**
+
+  To manually start the service use either `sc` or Microsoft
+  Services GUI application.
+
+  SvcBatch will append any additional arguments from the
+  service start application to the batch file's existing arguments
+  defined at install time.
+
+  ```cnd
+  > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat param1"
+
+  ...
+
+  > sc start myservice param2 param3
+
+  ```
+
+  In that case the `myservice.bat` will receive `param1 param2 param3`
+  as arguments.
+
+
 * **Notice**
 
   If the program started from a service batch file creates
