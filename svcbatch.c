@@ -3123,7 +3123,6 @@ static int xwmaininit(void)
     /* Reserve lpArgv[0] for batch file */
     svcxcmdproc->nArgc  = 1;
     svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
-    mainservice->lpName = zerostring;
     SVCBATCH_CS_CREATE(mainservice);
 
     return 0;
@@ -3198,13 +3197,12 @@ int wmain(int argc, const wchar_t **wargv)
         svcmainproc->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
         svcmainproc->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
     }
-
     /**
      * Check if running as service or as a child process.
      */
     if (argc > 1) {
         const wchar_t *p = wargv[1];
-        if (p[1] == L'@') {
+        if (p[0] == L'@') {
             if ((p[1] == L'@') && (p[2] == WNUL)) {
                 mainservice->lpName = xgetenv(L"SVCBATCH_SERVICE_NAME");
                 if (mainservice->lpName == NULL)
@@ -3229,7 +3227,6 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     DBG_PRINTS(cnamestamp);
-    DBG_PRINTF("service name: %S", mainservice->lpName);
 
     while ((opt = xwgetopt(argc, wargv, L"bc:e:k:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
@@ -3567,7 +3564,7 @@ int wmain(int argc, const wchar_t **wargv)
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         SERVICE_TABLE_ENTRYW se[2];
 
-        se[0].lpServiceName = mainservice->lpName;
+        se[0].lpServiceName = zerostring;
         se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
         se[1].lpServiceName = NULL;
         se[1].lpServiceProc = NULL;
