@@ -1551,7 +1551,7 @@ static BOOL canrotatelogs(void)
             rv = TRUE;
     }
     SVCBATCH_CS_LEAVE(svcbatchlog);
-    return rv;;
+    return rv;
 }
 
 static DWORD createlogsdir(void)
@@ -2248,19 +2248,22 @@ static DWORD WINAPI stopthread(void *msg)
     ResetEvent(svcstopended);
     SetEvent(svcstopstart);
 
-    if (haslogstatus && msg) {
-        HANDLE h;
+    DBG_PRINTS("started");
+    if (svcbatchlog) {
         SVCBATCH_CS_ENTER(svcbatchlog);
-        h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
-        if (h) {
-            logfflush(h);
-            logprintf(h, "Service signaled : %s", (const char *)msg);
+        InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
+
+        if (haslogstatus && msg) {
+            HANDLE h;
+            h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
+            if (h) {
+                logfflush(h);
+                logprintf(h, "Service signaled : %s", (const char *)msg);
+            }
+            InterlockedExchangePointer(&svcbatchlog->hFile, h);
         }
-        InterlockedExchangePointer(&svcbatchlog->hFile, h);
         SVCBATCH_CS_LEAVE(svcbatchlog);
     }
-
-    DBG_PRINTS("started");
     if (svcstopproc) {
         int   ri;
         ULONGLONG rs;
@@ -2350,8 +2353,17 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
     else
         rc = ERROR_NO_MORE_FILES;
 
-    InterlockedExchangePointer(&svcbatchlog->hFile, h);
-    if (rotatebysize && (rc == 0)) {
+    if (rc) {
+        InterlockedExchangePointer(&svcbatchlog->hFile, h);
+        SVCBATCH_CS_LEAVE(svcbatchlog);
+
+        if (rc != ERROR_NO_MORE_FILES) {
+            xsyserror(rc, L"Log write", NULL);
+            createstopthread(rc);
+        }
+        return rc;
+    }
+    if (haslogrotate && rotatebysize) {
         if (InterlockedCompareExchange64(&svcbatchlog->nWritten, 0, 0) >= rotatesiz.QuadPart) {
             if (canrotatelogs()) {
                 InterlockedExchange64(&svcbatchlog->nWritten, 0);
@@ -2360,14 +2372,9 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
             }
         }
     }
+    InterlockedExchangePointer(&svcbatchlog->hFile, h);
     SVCBATCH_CS_LEAVE(svcbatchlog);
-    if (rc != 0) {
-        if (rc != ERROR_NO_MORE_FILES) {
-            xsyserror(rc, L"Log write", NULL);
-            createstopthread(rc);
-        }
-    }
-    return rc;
+    return 0;
 }
 
 static DWORD WINAPI wrpipethread(void *wh)
@@ -2538,8 +2545,8 @@ static DWORD WINAPI rotatethread(void *unused)
     }
 
 finished:
-    DBG_PRINTS("done");
     SAFE_CLOSE_HANDLE(wt);
+    DBG_PRINTS("done");
     return rc > 1 ? rc : 0;
 }
 
@@ -2723,14 +2730,13 @@ static DWORD WINAPI workerthread(void *unused)
 
 finished:
     xclearprocess(svcxcmdproc);
-    if (svcbatchlog) {
-        SAFE_CLOSE_HANDLE(op.hPipe);
-        SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
-    }
+
+    SAFE_CLOSE_HANDLE(op.hPipe);
+    SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
     SAFE_CLOSE_HANDLE(wr);
-    SetEvent(workfinished);
 
     DBG_PRINTS("done");
+    SetEvent(workfinished);
     return svcxcmdproc->dwExitCode;
 }
 
@@ -3371,7 +3377,8 @@ int wmain(int argc, const wchar_t **wargv)
                 if (bb[0]) {
 #if defined(_DEBUG) && (_DEBUG > 1)
                     xsyswarn(0, L"Option -e is mutually exclusive with option(s)", bb);
-                    rcnt = 0;
+                    rcnt         = 0;
+                    haslogrotate = FALSE;
 #else
                     return xsyserror(0, L"Option -e is mutually exclusive with option(s)", bb);
 #endif
