@@ -2185,7 +2185,7 @@ static DWORD runshutdown(DWORD rt)
     }
     xwcslcpy(svcstopproc->szExe, SVCBATCH_PATH_MAX,  svcmainproc->szExe);
     svcstopproc->lpCommandLine = xappendarg(1, NULL, NULL, svcstopproc->szExe);
-    ip = xsnwprintf(rp, TBUFSIZ, L":: -k%d -", stoptimeout);
+    ip = xsnwprintf(rp, TBUFSIZ, L":: -k%d -", stoptimeout / 1000);
     if (svcbatchlog && svcstoplogn) {
         if (uselocaltime)
             rp[ip++] = L'l';
@@ -2248,7 +2248,8 @@ static DWORD WINAPI stopthread(void *msg)
     ResetEvent(svcstopended);
     SetEvent(svcstopstart);
 
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+    if (msg == NULL)
+        reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
     DBG_PRINTS("started");
     if (svcbatchlog) {
         SVCBATCH_CS_ENTER(svcbatchlog);
@@ -2274,7 +2275,7 @@ static DWORD WINAPI stopthread(void *msg)
         rc = runshutdown(SVCBATCH_STOP_WAIT);
         ri = (int)(GetTickCount64() - rs);
         DBG_PRINTF("shutdown finished in %d ms", ri);
-        reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout);
+        reportsvcstatus(SERVICE_STOP_PENDING, 0);
         ri = stoptimeout - ri;
         if (ri < SVCBATCH_STOP_SYNC)
             ri = SVCBATCH_STOP_SYNC;
@@ -2282,7 +2283,7 @@ static DWORD WINAPI stopthread(void *msg)
         ws = WaitForSingleObject(workfinished, ri);
     }
     if (ws != WAIT_OBJECT_0) {
-        reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout);
+        reportsvcstatus(SERVICE_STOP_PENDING, 0);
         DBG_PRINTS("generating CTRL_C_EVENT");
         SetConsoleCtrlHandler(NULL, TRUE);
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
@@ -2290,7 +2291,7 @@ static DWORD WINAPI stopthread(void *msg)
         SetConsoleCtrlHandler(NULL, FALSE);
     }
 
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_SYNC);
+    reportsvcstatus(SERVICE_STOP_PENDING, 0);
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
         killprocess(svcxcmdproc, 0, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
@@ -2299,7 +2300,7 @@ static DWORD WINAPI stopthread(void *msg)
         DBG_PRINTS("worker process ended");
         killproctree(svcxcmdproc->pInfo.dwProcessId, 0, ERROR_ARENA_TRASHED);
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_SYNC);
+    reportsvcstatus(SERVICE_STOP_PENDING, 0);
     SetEvent(svcstopended);
     DBG_PRINTS("done");
     return rc;
@@ -2792,7 +2793,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             /* fall through */
         case SERVICE_CONTROL_STOP:
             DBG_PRINTF("service %s", msg);
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
+            reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
             xcreatethread(SVCBATCH_STOP_THREAD, 0, stopthread, (LPVOID)msg);
         break;
         case SVCBATCH_CTRL_BREAK:
@@ -3261,7 +3262,8 @@ int wmain(int argc, const wchar_t **wargv)
             case L'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
-                    return xsyserror(0, L"Invalid -k command option value", xwoptarg);
+                    return xsyserror(0, L"The -k command option value is outside valid range", xwoptarg);
+                stoptimeout  = stoptimeout * 1000;
             break;
             /**
              * Options that can be defined

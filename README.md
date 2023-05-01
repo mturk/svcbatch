@@ -278,14 +278,14 @@ make sure to get familiar with `sc.exe` utility.
 
 * **-k [timeout]**
 
-  **Set stop timeout in milliseconds**
+  **Set stop timeout in seconds**
 
   This option sets the **timeout** when service receives
   stop or shutdown signal.
-  The valid **timeout** range is between `2000` and `20000`
-  milliseconds.
+  The valid **timeout** range is between `2` and `120`
+  seconds (two minutes).
 
-  By default this value is set to `10000` milliseconds.
+  By default this value is set to `10` seconds.
 
   Also make sure to check the **WaitToKillServiceTimeout**
   value specified in the following registry key:
