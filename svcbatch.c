@@ -130,7 +130,7 @@ static DWORD     preshutdown      = 0;
 
 static int       svcmaxlogs       = 0;
 static int       svccodepage      = 0;
-static int       stoptimeout      = SVCBATCH_STOP_WAIT;
+static int       stoptimeout      = SVCBATCH_STOP_TIME;
 
 static HANDLE    svcstopstart     = NULL;
 static HANDLE    svcstopended     = NULL;
@@ -2226,7 +2226,7 @@ static DWORD runshutdown(DWORD rt)
                stoptimeout + rt, svcstopproc->pInfo.dwProcessId);
     rc = WaitForSingleObject(svcstopproc->pInfo.hProcess, stoptimeout + rt);
     if (rc == WAIT_TIMEOUT) {
-        DBG_PRINTS("killing shutdown process child processes");
+        DBG_PRINTS("killing shutdown process tree");
         killproctree(svcstopproc->pInfo.dwProcessId, 1, rc);
     }
     else {
@@ -2248,6 +2248,7 @@ static DWORD WINAPI stopthread(void *msg)
     ResetEvent(svcstopended);
     SetEvent(svcstopstart);
 
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
     DBG_PRINTS("started");
     if (svcbatchlog) {
         SVCBATCH_CS_ENTER(svcbatchlog);
@@ -2270,7 +2271,7 @@ static DWORD WINAPI stopthread(void *msg)
 
         DBG_PRINTS("creating shutdown process");
         rs = GetTickCount64();
-        rc = runshutdown(SVCBATCH_STOP_STEP);
+        rc = runshutdown(SVCBATCH_STOP_WAIT);
         ri = (int)(GetTickCount64() - rs);
         DBG_PRINTF("shutdown finished in %d ms", ri);
         reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout);
@@ -2280,8 +2281,8 @@ static DWORD WINAPI stopthread(void *msg)
         DBG_PRINTF("waiting %d ms for worker", ri);
         ws = WaitForSingleObject(workfinished, ri);
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout);
     if (ws != WAIT_OBJECT_0) {
+        reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout);
         DBG_PRINTS("generating CTRL_C_EVENT");
         SetConsoleCtrlHandler(NULL, TRUE);
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
@@ -2289,7 +2290,7 @@ static DWORD WINAPI stopthread(void *msg)
         SetConsoleCtrlHandler(NULL, FALSE);
     }
 
-    reportsvcstatus(SERVICE_STOP_PENDING, 0);
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_SYNC);
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
         killprocess(svcxcmdproc, 0, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
@@ -2298,6 +2299,7 @@ static DWORD WINAPI stopthread(void *msg)
         DBG_PRINTS("worker process ended");
         killproctree(svcxcmdproc->pInfo.dwProcessId, 0, ERROR_ARENA_TRASHED);
     }
+    reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_SYNC);
     SetEvent(svcstopended);
     DBG_PRINTS("done");
     return rc;
@@ -2306,11 +2308,7 @@ static DWORD WINAPI stopthread(void *msg)
 static void createstopthread(DWORD rv)
 {
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
-        if (xcreatethread(SVCBATCH_STOP_THREAD,
-                          0, stopthread, NULL)) {
-            reportsvcstatus(SERVICE_STOP_PENDING, SVCBATCH_STOP_HINT);
-            ResetEvent(svcstopended);
-        }
+        xcreatethread(SVCBATCH_STOP_THREAD, 0, stopthread, NULL);
     }
     if (rv)
         setsvcstatusexit(rv);
@@ -2390,6 +2388,7 @@ static DWORD WINAPI wrpipethread(void *wh)
     else {
         rc = GetLastError();
     }
+    CloseHandle(wh);
 #if defined(_DEBUG)
     if (rc) {
         if (rc == ERROR_BROKEN_PIPE)
@@ -2710,9 +2709,11 @@ static DWORD WINAPI workerthread(void *unused)
         WaitForSingleObject(svcxcmdproc->pInfo.hProcess, INFINITE);
     }
     InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
-    CancelSynchronousIo(svcthread[SVCBATCH_WRITE_THREAD].hThread);
-    WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, SVCBATCH_STOP_SYNC);
-
+    if (WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, SVCBATCH_STOP_STEP)) {
+        DBG_PRINTS("wrpipethread is still active ... canceling sync io");
+        CancelSynchronousIo(svcthread[SVCBATCH_WRITE_THREAD].hThread);
+        WaitForSingleObject(svcthread[SVCBATCH_WRITE_THREAD].hThread, SVCBATCH_STOP_STEP);
+    }
     if (!GetExitCodeProcess(svcxcmdproc->pInfo.hProcess, &rc))
         rc = GetLastError();
     if (rc) {
@@ -2733,7 +2734,6 @@ finished:
 
     SAFE_CLOSE_HANDLE(op.hPipe);
     SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
-    SAFE_CLOSE_HANDLE(wr);
 
     DBG_PRINTS("done");
     SetEvent(workfinished);
@@ -3027,7 +3027,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         ws = WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].hThread, INFINITE);
     }
     DBG_PRINTS("waiting for stop to finish");
-    WaitForSingleObject(svcstopended, SVCBATCH_STOP_WAIT);
+    WaitForSingleObject(svcstopended, stoptimeout);
 
 finished:
     DBG_PRINTS("finishing");
