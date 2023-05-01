@@ -140,9 +140,9 @@
 #define SVCBATCH_MIN_ROTATE_INT 2
 
 #define MS_IN_DAY               86400000
-#define MS_IN_SECOND            1000
-#define MS_IN_MINUTE            60000
-#define MS_IN_HOUR              3600000
+#define MS_IN_SECOND            CPP_INT64_C(1000)
+#define MS_IN_MINUTE            CPP_INT64_C(60000)
+#define MS_IN_HOUR              CPP_INT64_C(3600000)
 #define ONE_MINUTE              CPP_INT64_C(600000000)
 #define ONE_HOUR                CPP_INT64_C(36000000000)
 #define ONE_DAY                 CPP_INT64_C(864000000000)

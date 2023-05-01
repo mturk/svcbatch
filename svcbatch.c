@@ -804,8 +804,8 @@ static int xtimehdr(char *wb, int sz)
     ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
 
     us = (DWORD)((et.QuadPart % CPP_INT64_C(1000000)));
-    ss = (DWORD)((ct.QuadPart / MS_IN_SECOND) % 60);
-    mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % 60);
+    ss = (DWORD)((ct.QuadPart / MS_IN_SECOND) % CPP_INT64_C(60));
+    mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % CPP_INT64_C(60));
     hh = (DWORD)((ct.QuadPart / MS_IN_HOUR));
 
     return xsnprintf(wb, sz, "[%.2lu:%.2lu:%.2lu.%.6lu] ",
