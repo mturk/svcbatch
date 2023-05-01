@@ -121,7 +121,7 @@
 /**
  * Timing definitions
  */
-#define SVCBATCH_START_HINT     5000
+#define SVCBATCH_START_HINT     10000
 #define SVCBATCH_STOP_HINT      20000
 #define SVCBATCH_STOP_WAIT      10000
 #define SVCBATCH_STOP_STEP      5000
