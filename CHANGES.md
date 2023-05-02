@@ -24,10 +24,10 @@ For a full list of changes, see the [git commit log][log]
   * Add SVCBATCH_SERVICE_LOGS environment variable
   * Add SVCBATCH_SERVICE_WORK environment variable
   * Add SVCBATCH_APP_BIN and SVCBATCH_APP_BIN environment variables
-  * Add -h command option (currently a synonym for -w option
+  * Add -h command option that enables to have separate home and work directories
   * Add -k command option for changing default stop timeout
   * Use -c command option to set user defined code page
-  * Add any arguments from service start application to existing batch file arguments
+  * Add arguments from the service start application to the existing batch file arguments
 
 ## v2.0.0
 

@@ -2068,7 +2068,8 @@ static DWORD runshutdown(DWORD rt)
                         svcstopproc->lpCommandLine,
                         NULL, NULL, TRUE,
                         svcstopproc->dwCreationFlags,
-                        NULL, NULL,
+                        NULL,
+                        mainservice->lpWork,
                         &svcstopproc->sInfo,
                         &svcstopproc->pInfo)) {
         rc = GetLastError();
@@ -2458,7 +2459,7 @@ static DWORD WINAPI workerthread(void *unused)
                         NULL, NULL, TRUE,
                         svcxcmdproc->dwCreationFlags,
                         NULL,
-                        mainservice->lpHome,
+                        mainservice->lpWork,
                        &svcxcmdproc->sInfo,
                        &svcxcmdproc->pInfo)) {
         rc = GetLastError();
@@ -2997,6 +2998,7 @@ int wmain(int argc, const wchar_t **wargv)
     const wchar_t *maxlogsparam = NULL;
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
+    const wchar_t *svcworkparam = NULL;
     const wchar_t *sparam[SVCBATCH_MAX_ARGS];
     const wchar_t *rparam[2];
 
@@ -3112,9 +3114,10 @@ int wmain(int argc, const wchar_t **wargv)
                 outdirparam  = xwoptarg;
             break;
             case L'h':
-                /* fall through */
-            case L'w':
                 svchomeparam = xwoptarg;
+            break;
+            case L'w':
+                svcworkparam = xwoptarg;
             break;
             case L'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
@@ -3286,14 +3289,20 @@ int wmain(int argc, const wchar_t **wargv)
          *    directory as home directory or fail if it cannot be resolved.
          *
          */
-         if (svchomeparam) {
-             if (isabsolutepath(svchomeparam)) {
+
+        if (svchomeparam == NULL)
+            svchomeparam = svcworkparam;
+        if (svcworkparam == NULL)
+            svcworkparam = svchomeparam;
+
+        if (svchomeparam) {
+            if (isabsolutepath(svchomeparam)) {
                 mainservice->lpHome = xgetfinalpathname(svchomeparam, 1, NULL, 0);
                 if (IS_EMPTY_WCS(mainservice->lpHome))
                     return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
-             }
-         }
-         if (mainservice->lpHome == NULL) {
+            }
+        }
+        if (mainservice->lpHome == NULL) {
             if (isabsolutepath(batchparam)) {
                 if (!resolvebatchname(batchparam))
                     return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
@@ -3308,8 +3317,8 @@ int wmain(int argc, const wchar_t **wargv)
                         return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
                 }
             }
-         }
-         if (mainservice->lpHome == NULL) {
+        }
+        if (mainservice->lpHome == NULL) {
             if (svchomeparam == NULL) {
                 mainservice->lpHome = svcmainproc->szDir;
             }
@@ -3319,11 +3328,19 @@ int wmain(int argc, const wchar_t **wargv)
                 if (IS_EMPTY_WCS(mainservice->lpHome))
                     return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
             }
-         }
-         SetCurrentDirectoryW(mainservice->lpHome);
-         if (!resolvebatchname(batchparam))
+        }
+        SetCurrentDirectoryW(mainservice->lpHome);
+        if (!resolvebatchname(batchparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
-        mainservice->lpWork = mainservice->lpHome;
+        if (svchomeparam == svcworkparam) {
+            /* Use the same directories for home and work */
+            mainservice->lpWork = mainservice->lpHome;
+        }
+        else {
+            mainservice->lpWork = xgetfinalpathname(svcworkparam, 1, NULL, 0);
+            if (IS_EMPTY_WCS(mainservice->lpHome))
+                return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
+        }
     }
     else {
         mainservice->lpHome = xgetenv(L"SVCBATCH_SERVICE_HOME");

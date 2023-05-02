@@ -275,6 +275,25 @@ will be reported to Windows Event log.
   to use local instead system time.
 
 
+* **-h [path]**
+
+  **Set service home directory**
+
+  This option enables users to explicitly set the
+  home directory.
+
+  The home directory is the location from where all relative
+  path parameters will be resolved.
+
+  If not specified, the home directory is set to the working
+  directory defined using **-w** option.
+
+  If neither are defined, both home and work directories will
+  be set to either the path of the batch file if it was defined
+  as n absolute path. Otherwise directory of the svcbatch.exe
+  will be used as both home and working directory.
+
+
 * **-m [number]**
 
   **Set maximum number of log files**
@@ -551,28 +570,13 @@ will be reported to Windows Event log.
   **Set service working directory**
 
   This option enables users to explicitly set the working
-  directory. This allows for having a relative path
-  for batch file parameters and a common location for
-  svcbatch.exe.
+  directory. When batch file is executed its current directory
+  is set to this path.
 
   If not specified, the working directory is set
-  to the path of the batch file if it was defined
-  as an absolute path. Otherwise directory of svcbatch.exe
-  will be used as the working directory.
+  to the home directory defined using **-h** option.
 
-
-* **-h [path]**
-
-  **Set service home directory**
-
-  This option is currently synonym for the **-w**
-  command option.
-
-  Currently both **-h** and **-w** options sets the
-  **SVCBATCH_SERVICE_HOME** variable. However, in future versions,
-  the **-w** option will be used to set the **SVCBATCH_SERVICE_WORK**
-  environment variable, which will then have an option to have a
-  different value.
+  Check **-h** command option for more details.
 
 
 ## Private Environment Variables
