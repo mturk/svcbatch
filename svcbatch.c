@@ -3294,6 +3294,8 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Too many -s arguments", xwoptarg);
             break;
             case L'n':
+                if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
+                    return xsyserror(0, L"Found invalid filename characters", xwoptarg);
                 if (ncnt < 2)
                     nparam[ncnt++] = xwoptarg;
                 else
@@ -3385,6 +3387,14 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Option -e is mutually exclusive with option(s)", bb);
 #endif
                 }
+            }
+            if ((scnt == 0) && (ncnt > 1)) {
+#if defined(_DEBUG) && (_DEBUG > 1)
+                xsyswarn(0, L"Additional -n option defined without -s option(s)", nparam[1]);
+                ncnt = 1;
+#else
+                return xsyserror(0, L"Additional -n option defined without -s option(s)", nparam[1]);
+#endif
             }
             svclogfname = SVCBATCH_LOGNAME;
             svcstoplogn = SHUTDOWN_LOGNAME;
@@ -3510,8 +3520,6 @@ int wmain(int argc, const wchar_t **wargv)
             if (wcslen(nparam[0]) < 4)
                 return xsyserror(0, L"Log file name must have at least four characters", nparam[0]);
             svclogfname = nparam[0];
-            if (wcspbrk(nparam[0], L"/\\:;<>?*|\""))
-                return xsyserror(0, L"Found invalid filename characters", nparam[0]);
             if (wcschr(nparam[0], L'@')) {
                 wchar_t *p = xwcsdup(nparam[0]);
                 /**
@@ -3521,17 +3529,11 @@ int wmain(int argc, const wchar_t **wargv)
                 xwchreplace(p, L'@', L'%');
                 svclogfname = p;
             }
-            if (scnt && (ncnt > 1)) {
+            if (ncnt > 1) {
                 if (wcslen(nparam[1]) > 3) {
                     svcstoplogn = nparam[1];
-                    if (wcspbrk(nparam[1], L"/\\:;<>?*|\""))
-                        return xsyserror(0, L"Found invalid filename characters", nparam[1]);
                     if (wcschr(nparam[1], L'@')) {
                         wchar_t *p = xwcsdup(nparam[1]);
-                        /**
-                         * If name is strftime formatted
-                         * replace @ with % so it can be used by strftime
-                         */
                         xwchreplace(p, L'@', L'%');
                         svcstoplogn = p;
                     }

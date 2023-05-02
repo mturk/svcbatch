@@ -349,6 +349,10 @@ For example:
 
   ```
 
+  Define the second **-n** option only if **-s** was defined,
+  or the service will fail to start and report the error to
+  the Windows Event log.
+
   The **log name** must have at least three characters, or
   the service will fail to start.
 
