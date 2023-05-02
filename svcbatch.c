@@ -3344,6 +3344,8 @@ int wmain(int argc, const wchar_t **wargv)
             return xsyserror(0, L"Missing batch file", NULL);
         else
             batchparam = xwcsconcat(mainservice->lpName, L".bat");
+        if (wcspbrk(batchparam, L"/\\:;<>?*|\""))
+            return xsyserror(0, L"Batch filename has invalid characters", batchparam);
     }
     else {
         batchparam = wargv[0];

@@ -218,7 +218,9 @@ For example:
 ```
 
 If `@ServiceName` was defined, and there is no batch file argument, SvcBatch will
-try to use `ServiceName.bat` as batch file.
+try to use `ServiceName.bat` as batch file. If `ServiceName` contain any of the
+invalid file name characters `/\:;<>?*|"`, the service will fail and error message
+will be reported to Windows Event log.
 
 
 * **-b**
