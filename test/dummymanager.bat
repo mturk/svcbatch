@@ -68,11 +68,11 @@ rem set "ROTATE_RULE=-r60 -r 40000B"
 rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-m 0"
 rem
-rem Set log file names instead defaut SvcBatch.log
-rem and SvcBatch.shutdown.log
-rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log\" /n \"%SERVICE_NAME%.stop.log\""
+rem Set log file names instead default SvcBatch.log and SvcBatch.shutdown.log
+rem Both .log and .shutdown.log extensions are added to the -n parameter
+rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%\""
 rem
-set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log\" /N \"%SERVICE_NAME%.@Y-@m-@d.shutdown.log\""
+set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S\""
 rem
 rem
 rem Presuming this is the build tree ...

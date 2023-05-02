@@ -65,8 +65,9 @@
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
-#define SVCBATCH_LOGNAME       L"SvcBatch.log"
-#define SHUTDOWN_LOGNAME       L"SvcBatch.shutdown.log"
+#define SVCBATCH_LOGNAME       L"SvcBatch"
+#define SVCBATCH_LOGFEXT       L".log"
+#define SHUTDOWN_LOGFEXT       L".shutdown.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sp-"
 

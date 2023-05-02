@@ -17,14 +17,15 @@ For a full list of changes, see the [git commit log][log]
   * Ensure that all started processes are properly terminated
   * Deprecate setting locale with -c command option
   * Check for mutually exclusive options at startup
+  * Drop support for multiple -n options. The -n parameter will be used both for service and shutdown log names
 
 ### New Features
 
- * Add SVCBATCH_SERVICE_LOGS environment variable
- * Add SVCBATCH_APP_BIN and SVCBATCH_APP_BIN environment variables
- * Add -k command option for changing default stop timeout
- * Use -c command option to set user defined code page
- * Add any arguments from service start application to existing batch file arguments
+  * Add SVCBATCH_SERVICE_LOGS environment variable
+  * Add SVCBATCH_APP_BIN and SVCBATCH_APP_BIN environment variables
+  * Add -k command option for changing default stop timeout
+  * Use -c command option to set user defined code page
+  * Add any arguments from service start application to existing batch file arguments
 
 ## v2.0.0
 

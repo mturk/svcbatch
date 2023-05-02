@@ -291,40 +291,25 @@ will be reported to Windows Event log.
   log rotation will be disabled.
 
 
-* **-n [log name][shutdown name]**
+* **-n [log name]**
 
   **Set log file name**
 
   This option allows a user to set the alternate log file names.
 
   By default SvcBatch will use `SvcBatch.log` as **log name**
-  and `SvcBatch.shutdown.log` as **shutdown name**.
+  and `SvcBatch.shutdown.log` as shutdown log name.
 
-  To redefine default log names use multiple **-n**
+  To redefine default log names use **-n**
   command options at service install:
 
   ```cmd
-  > sc create ... -n MyService.log -n MyService.shutdown.log ...
+  > sc create ... -n MyService ...
 
   ```
 
-  Define the second **-n** option only if **-s** was defined,
-  or the service will fail to start and report the error to
-  the Windows Event log.
-
-  The **log name** must have at least three characters, or
-  the service will fail to start.
-
-  In case **-s** option is defined the **shutdown name** will be
-  used if provided instead default `SvcBatch.shutdown.log` file name.
-  In case **shutdown name** length is less then four characters,
-  the shutdown logging will be disabled.
-
-  ```cmd
-  > sc create ... -n MyService.log -n NUL ...
-
-  ```
-
+  SvcBatch will at runtime append `.log` or `.shutdown.log` extension
+  to the **log name**.
 
   If **-n** argument includes any `@` characters, they will be replaced
   with `%` character at runtime and treated as a format string
@@ -334,7 +319,7 @@ will be reported to Windows Event log.
   log file name format has enough granularity to produce a different
   file name each time the logs are rotated. Otherwise rotation
   will overwrite the same file instead of starting a new one.
-  For example, if logfile was `service.@Y-@m-@d.log` with log rotation
+  For example, if logfile was `service.@Y-@m-@d` with log rotation
   at `5` megabytes, but `5` megabytes was reached twice in the same day,
   the same log file name would be produced and log rotation would
   overwrite the same file.
@@ -422,11 +407,12 @@ will be reported to Windows Event log.
   Use this option when output from `cmd.exe` is not needed or
   service batch file manages logging on its own.
 
+
   **Notice**
 
   This option is mutually exclusive with other log related
-  command options. Do not use options `m`, `n`, `r`,
-  `t` or `v` together with this option when installing service.
+  command options. Do not use options `m`, `n`, `r`, `t` or `v`
+  together with this option when installing service.
   Service will fail to start, and write an error message
   to the Windows Event log.
 
@@ -523,19 +509,6 @@ will be reported to Windows Event log.
 
   This will truncate existing `SvcBatch.log` and `SvcBatch.shutdown.log`
   on open or rotate instead creating a new file.
-
-  If multiple **-t** options are defined only the service stop log file
-  will be truncated.
-
-  ```cmd
-  > sc create ... -tt ...
-
-  ```
-
-  This will truncate existing `SvcBatch.shutdown.log` instead
-  appending on service shutdown. This feature is usable
-  only if **-s** option is defined.
-
 
 * **-v**
 
