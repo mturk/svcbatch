@@ -30,7 +30,7 @@ rem
 :doCreate
 rem
 rem Presume that svcbatch.exe is in this directory
-sc create sservice binPath= "%cd%\svcbatch.exe -vb sservice.bat run"
+sc create sservice binPath= "%cd%\svcbatch.exe @sservice -v"
 rem
 :End
 exit /B 0

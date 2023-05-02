@@ -3335,8 +3335,16 @@ int wmain(int argc, const wchar_t **wargv)
 
     argc  -= xwoptind;
     wargv += xwoptind;
-    if (argc == 0)
-        return xsyserror(0, L"Missing batch file", NULL);
+    if (argc == 0) {
+        /**
+         * No batch file defined.
+         * If @ServiceName was defined, try with ServiceName.bat
+         */
+        if (IS_EMPTY_WCS(mainservice->lpName))
+            return xsyserror(0, L"Missing batch file", NULL);
+        else
+            batchparam = xwcsconcat(mainservice->lpName, L".bat");
+    }
     else {
         batchparam = wargv[0];
         for (i = 1; i < argc; i++) {

@@ -213,9 +213,12 @@ in case there are errors before the main service function.
 For example:
 
 ```cmd
-> sc create myservice binPath= "%cd%\svcbatch.exe @myservice ... "
+> sc create myservice binPath= "%cd%\svcbatch.exe @myservice [options]  [myservice.bat]"
 
 ```
+
+If `@ServiceName` was defined, and there is no batch file argument, SvcBatch will
+try to use `ServiceName.bat` as batch file.
 
 
 * **-b**
