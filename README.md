@@ -349,9 +349,19 @@ For example:
 
   ```
 
+  The **log name** must have at least three characters, or
+  the service will fail to start.
+
   In case **-s** option is defined the **shutdown name** will be
   used if provided instead default `SvcBatch.shutdown.log` file name.
-  In case **shutdown name** is `NUL`, shutdown logging will be disabled.
+  In case **shutdown name** length is less then four characters,
+  the shutdown logging will be disabled.
+
+  ```cmd
+  > sc create ... -n MyService.log -n NUL ...
+
+  ```
+
 
   If **-n** argument includes any `@` characters, they will be replaced
   with `%` character at runtime and treated as a format string

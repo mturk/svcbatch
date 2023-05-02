@@ -3152,7 +3152,7 @@ int wmain(int argc, const wchar_t **wargv)
     const wchar_t *eparam[SVCBATCH_MAX_ARGS];
     const wchar_t *sparam[SVCBATCH_MAX_ARGS];
     const wchar_t *rparam[2];
-    wchar_t       *nparam[2] = { NULL, NULL };
+    const wchar_t *nparam[2];
 
 
 #if defined(_DEBUG)
@@ -3294,26 +3294,16 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Too many -s arguments", xwoptarg);
             break;
             case L'n':
-                if (ncnt > 1)
+                if (ncnt < 2)
+                    nparam[ncnt++] = xwoptarg;
+                else
                     return xsyserror(0, L"Too many -n options", xwoptarg);
-
-                nparam[ncnt] = xwcsdup(xwoptarg);
-                if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
-                    if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
-                        return xsyserror(0, L"Found invalid filename characters", xwoptarg);
-                    /**
-                     * If name is strftime formatted
-                     * replace @ with % so it can be used by strftime
-                     */
-                    xwchreplace(nparam[ncnt], L'@', L'%');
-                }
-                ncnt++;
             break;
             case L'r':
-                if (rcnt > 1)
-                    return xsyserror(0, L"Too many -r options", xwoptarg);
-                else
+                if (rcnt < 2)
                     rparam[rcnt++] = xwoptarg;
+                else
+                    return xsyserror(0, L"Too many -r options", xwoptarg);
             break;
             case ENOENT:
                 bb[1] = xwoption;
@@ -3517,16 +3507,40 @@ int wmain(int argc, const wchar_t **wargv)
             }
         }
         if (ncnt) {
+            if (wcslen(nparam[0]) < 4)
+                return xsyserror(0, L"Log file name must have at least four characters", nparam[0]);
             svclogfname = nparam[0];
-            if (ncnt > 1) {
-                if (_wcsicmp(nparam[0], nparam[1]) == 0) {
-                    return xsyserror(0, L"Log and shutdown file cannot have the same name", svclogfname);
+            if (wcspbrk(nparam[0], L"/\\:;<>?*|\""))
+                return xsyserror(0, L"Found invalid filename characters", nparam[0]);
+            if (wcschr(nparam[0], L'@')) {
+                wchar_t *p = xwcsdup(nparam[0]);
+                /**
+                 * If name is strftime formatted
+                 * replace @ with % so it can be used by strftime
+                 */
+                xwchreplace(p, L'@', L'%');
+                svclogfname = p;
+            }
+            if (scnt && (ncnt > 1)) {
+                if (wcslen(nparam[1]) > 3) {
+                    svcstoplogn = nparam[1];
+                    if (wcspbrk(nparam[1], L"/\\:;<>?*|\""))
+                        return xsyserror(0, L"Found invalid filename characters", nparam[1]);
+                    if (wcschr(nparam[1], L'@')) {
+                        wchar_t *p = xwcsdup(nparam[1]);
+                        /**
+                         * If name is strftime formatted
+                         * replace @ with % so it can be used by strftime
+                         */
+                        xwchreplace(p, L'@', L'%');
+                        svcstoplogn = p;
+                    }
+                    if (_wcsicmp(svclogfname, svcstoplogn) == 0) {
+                        return xsyserror(0, L"Log and shutdown file cannot have the same name", svclogfname);
+                    }
                 }
                 else {
-                    if (_wcsicmp(nparam[1], L"NUL"))
-                        svcstoplogn = nparam[1];
-                    else
-                        svcstoplogn = NULL;
+                    svcstoplogn = NULL;
                 }
             }
         }
