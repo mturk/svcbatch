@@ -124,6 +124,7 @@ static BOOL      uselocaltime     = FALSE;
 static BOOL      haslogstatus     = FALSE;
 static BOOL      truncatelogs     = FALSE;
 static BOOL      havemainlogs     = TRUE;
+static BOOL      havestoplogs     = TRUE;
 
 static DWORD     preshutdown      = 0;
 static int       svccodepage      = 0;
@@ -2038,7 +2039,7 @@ static DWORD runshutdown(DWORD rt)
     xwcslcpy(svcstopproc->szExe, SVCBATCH_PATH_MAX,  svcmainproc->szExe);
     svcstopproc->lpCommandLine = xappendarg(1, NULL, NULL, svcstopproc->szExe);
     ip = xsnwprintf(rp, TBUFSIZ, L"@@ -k%d -", stoptimeout / 1000);
-    if (havemainlogs) {
+    if (havestoplogs) {
         if (uselocaltime)
             rp[ip++] = L'l';
         if (truncatelogs)
@@ -2054,7 +2055,7 @@ static DWORD runshutdown(DWORD rt)
     rp[ip++] = WNUL;
     svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, NULL,  rp);
     svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, L"-c", codepageopt);
-    if (svclogfname && havemainlogs)
+    if (svclogfname && havestoplogs)
         svcstopproc->lpCommandLine = xappendarg(1, svcstopproc->lpCommandLine, L"-n", svclogfname);
     for (i = 0; i < svcstopproc->nArgc; i++)
         svcstopproc->lpCommandLine = xappendarg(1, svcstopproc->lpCommandLine, NULL, svcstopproc->lpArgv[i]);
@@ -2985,6 +2986,7 @@ int wmain(int argc, const wchar_t **wargv)
     int         opt;
     int         rcnt = 0;
     int         scnt = 0;
+    int         qcnt = 0;
     int         rv;
     HANDLE      h;
     wchar_t     bb[BBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
@@ -3085,9 +3087,6 @@ int wmain(int argc, const wchar_t **wargv)
             case L'p':
                 preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
             break;
-            case L'q':
-                havemainlogs = FALSE;
-            break;
             case L't':
                 truncatelogs = TRUE;
             break;
@@ -3122,6 +3121,11 @@ int wmain(int argc, const wchar_t **wargv)
              * Options that can be defined
              * multiple times
              */
+            case L'q':
+                havestoplogs = FALSE;
+                havemainlogs = FALSE;
+                qcnt++;
+            break;
             case L's':
                 if (scnt < SVCBATCH_MAX_ARGS)
                     sparam[scnt++] = xwoptarg;
@@ -3191,6 +3195,12 @@ int wmain(int argc, const wchar_t **wargv)
     if (IS_EMPTY_WCS(mainservice->lpUuid))
         return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
 
+    if (scnt && qcnt < 2) {
+        /**
+         * Use -qq to disable both service and shutdown logging
+         */
+        havemainlogs = TRUE;
+    }
     if (havemainlogs) {
         svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
