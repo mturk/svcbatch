@@ -727,6 +727,11 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
          * or the entire next argument.
          */
         if (*place) {
+            /* Skip blanks */
+            while (*place == L' ')
+                ++place;
+        }
+        if (*place) {
             xwoptarg = place;
         }
         else if (nargc > ++xwoptind) {
