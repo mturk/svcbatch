@@ -78,7 +78,7 @@ rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
-set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" @%SERVICE_NAME% -pvbL /w \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
+set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" @%SERVICE_NAME% -pvbL /h \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"

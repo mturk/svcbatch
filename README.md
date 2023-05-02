@@ -561,6 +561,20 @@ will be reported to Windows Event log.
   will be used as the working directory.
 
 
+* **-h [path]**
+
+  **Set service home directory**
+
+  This option is currently synonym for the **-w**
+  command option.
+
+  Currently both **-h** and **-w** options sets the
+  **SVCBATCH_SERVICE_HOME** variable. However, in future versions,
+  the **-w** option will be used to set the **SVCBATCH_SERVICE_WORK**
+  environment variable, which will then have an option to have a
+  different value.
+
+
 ## Private Environment Variables
 
 SvcBatch sets a few private environment variables that
@@ -630,6 +644,17 @@ SvcBatch sets for each instance.
   rd /S /Q "%TEMP%\%SVCBATCH_SERVICE_UUID%"
 
   ```
+
+* **SVCBATCH_SERVICE_WORK**
+
+  This variable is set to the service working directory.
+  Currently this variable is the same as **SVCBATCH_SERVICE_HOME**,
+  but in future versions, it will have the option to be configured
+  separately.
+
+  Currently this variable points to the path defined by **-w**
+  command option, and it remain as such.
+
 
 * **SVCBATCH_APP_BIN**
 

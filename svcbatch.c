@@ -101,6 +101,7 @@ typedef struct _SVCBATCH_SERVICE {
     LPWSTR                  lpLogs;
     LPWSTR                  lpName;
     LPWSTR                  lpUuid;
+    LPWSTR                  lpWork;
 
 } SVCBATCH_SERVICE, *LPSVCBATCH_SERVICE;
 
@@ -1529,6 +1530,7 @@ static void logconfig(HANDLE h)
     logwransi(h, "Base directory   : ", mainservice->lpBase);
     logwransi(h, "Home directory   : ", mainservice->lpHome);
     logwransi(h, "Logs directory   : ", svcbatchlog->szDir);
+    logwransi(h, "Work directory   : ", mainservice->lpWork);
 
     logfflush(h);
 }
@@ -2845,6 +2847,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_HOME", mainservice->lpHome);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", mainservice->lpName);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", mainservice->lpUuid);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_WORK", mainservice->lpWork);
 
     if (svcbatchlog) {
         reportsvcstatus(SERVICE_START_PENDING, 0);
@@ -3076,7 +3079,7 @@ int wmain(int argc, const wchar_t **wargv)
     }
     DBG_PRINTS(cnamestamp);
 
-    while ((opt = xwgetopt(argc, wargv, L"bc:k:lm:n:o:pqr:s:tvw:")) != EOF) {
+    while ((opt = xwgetopt(argc, wargv, L"bc:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
         switch (opt) {
             case L'b':
                 hasctrlbreak = TRUE;
@@ -3108,6 +3111,8 @@ int wmain(int argc, const wchar_t **wargv)
             case L'o':
                 outdirparam  = xwoptarg;
             break;
+            case L'h':
+                /* fall through */
             case L'w':
                 svchomeparam = xwoptarg;
             break;
@@ -3318,6 +3323,7 @@ int wmain(int argc, const wchar_t **wargv)
          SetCurrentDirectoryW(mainservice->lpHome);
          if (!resolvebatchname(batchparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
+        mainservice->lpWork = mainservice->lpHome;
     }
     else {
         mainservice->lpHome = xgetenv(L"SVCBATCH_SERVICE_HOME");
@@ -3326,6 +3332,9 @@ int wmain(int argc, const wchar_t **wargv)
         mainservice->lpBase = xgetenv(L"SVCBATCH_SERVICE_BASE");
         if (mainservice->lpBase == NULL)
             return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_BASE", NULL);
+        mainservice->lpWork = xgetenv(L"SVCBATCH_SERVICE_WORK");
+        if (mainservice->lpWork == NULL)
+            return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_WORK", NULL);
         svcxcmdproc->lpArgv[0] = xwcsdup(batchparam);
     }
 
