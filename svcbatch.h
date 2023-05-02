@@ -188,7 +188,6 @@
 #define SVCBATCH_SERVICE_PROCESS    0x00000000   /* Main service process         */
 #define SVCBATCH_SHUTDOWN_PROCESS   0x00000001   /* Shutdown process             */
 #define SVCBATCH_SHELL_PROCESS      0x00000002   /* Shell (cmd.exe) process      */
-#define SVCBATCH_USER_LOG_PROCESS   0x00000003   /* External log process         */
 /**
  * Log state
  */

@@ -247,52 +247,6 @@ will be reported to Windows Event log.
   This will convert all internal logging to **utf-8** code page.
 
 
-* **-e [program][argument]**
-
-  **Set external log program**
-
-  This option allows a user to set the external application
-  which will be used instead log file.
-
-  If set, the **program** will be executed when SvcBatch
-  opens log files and all messages will be send to that
-  program instead of log file.
-
-  The first argument to the **program** is always
-  log file name, unless additional **argument** is not defined.
-
-  To define arguments for external **program** use
-  multiple **-e** command options.
-
-  ```cmd
-  > sc create ... -e program.exe -e external.log -e argument ...
-
-  ```
-
-  To use the Apache Httpd rotatelogs utility for logging,
-  put the `rotatelogs.exe` to the service home directory
-  and use something like this:
-
-  ```cmd
-  > sc create ... -e rotatelogs.exe -e -l -e myservice.@Y-@m-@d.@H@M@S.log -e120
-
-  ```
-
-  The **program** working directory is always set
-  to the service output directory, and exported
-  as **SVCBATCH_SERVICE_LOGS** environment value.
-
-  Also check [pipedlog](test/pipedlog) directory that contains
-  example of a simple application used for log redirection.
-
-  **Notice**
-
-  This option is mutually exclusive with log rotation
-  related options. Do not use options `m`, `r`, or `v`
-  together with this option when installing service.
-  Service will fail to start, and write an error message
-  to the Windows Event log.
-
 * **-k [timeout]**
 
   **Set stop timeout in seconds**
@@ -471,7 +425,7 @@ will be reported to Windows Event log.
   **Notice**
 
   This option is mutually exclusive with other log related
-  command options. Do not use options `-e`, `m`, `n`, `r`,
+  command options. Do not use options `m`, `n`, `r`,
   `t` or `v` together with this option when installing service.
   Service will fail to start, and write an error message
   to the Windows Event log.

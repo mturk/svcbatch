@@ -46,7 +46,6 @@ if not exist "%_TESTS_DIR%\..\.build\dbg" (
 pushd ..\.build\dbg
 set "_BUILD_DIR=%cd%"
 popd
-set "SERVICE_LOG_REDIR="
 set "SERVICE_LOG_FNAME="
 set "SHUTDOWN_ARGS="
 set "ROTATE_RULE="
@@ -69,12 +68,6 @@ rem set "ROTATE_RULE=-r60 -r 40000B"
 rem Uncomment to disable log rotation
 rem set "ROTATE_RULE=-m 0"
 rem
-rem Write log to external program instead to log file
-rem set "SERVICE_LOG_REDIR=-e \"%_BUILD_DIR%\pipedlog.exe\" -e piped.log -e some -e \"dummy arguments\""
-rem
-rem Use Apache Httpd rotatelogs utility for logging
-rem set "SERVICE_LOG_REDIR=-e rotatelogs.exe -e -l -e logrotate.@Y-@m-@d.@H@M@S.log -e120\""
-rem
 rem Set log file names instead defaut SvcBatch.log
 rem and SvcBatch.shutdown.log
 rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.log\" /n \"%SERVICE_NAME%.stop.log\""
@@ -85,7 +78,7 @@ rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
-set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" @%SERVICE_NAME% -pvbL /w \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_REDIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
+set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" @%SERVICE_NAME% -pvbL /w \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"

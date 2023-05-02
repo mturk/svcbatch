@@ -22,7 +22,6 @@ SRCDIR = .
 
 BLDARCH = x64
 PROJECT = svcbatch
-PIPELOG = pipedlog
 SERVICE = sservice
 
 !IF DEFINED(_DEBUG) && "$(_DEBUG)" == ""
@@ -37,7 +36,6 @@ WORKDIR = $(WORKTOP)\rel
 !ENDIF
 PPREFIX = $(SRCDIR)\$(PROJECT)
 POUTPUT = $(WORKDIR)\$(PROJECT).exe
-PLOGOUT = $(WORKDIR)\$(PIPELOG).exe
 SSVCOUT = $(WORKDIR)\$(SERVICE).exe
 
 
@@ -90,9 +88,6 @@ OBJECTS = \
 	$(WORKDIR)\$(PROJECT).obj \
 	$(WORKDIR)\$(PROJECT).res
 
-PLOGOBJ = \
-	$(WORKDIR)\$(PIPELOG).obj
-
 SSVCOBJ = \
 	$(WORKDIR)\$(SERVICE).obj
 
@@ -105,9 +100,6 @@ $(WORKDIR):
 {$(SRCDIR)}.c{$(WORKDIR)}.obj:
 	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PROJECT) -Fo$(WORKDIR)\ $<
 
-{$(SRCDIR)\test\pipedlog}.c{$(WORKDIR)}.obj:
-	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PIPELOG) -Fo$(WORKDIR)\ $<
-
 {$(SRCDIR)\test\sservice}.c{$(WORKDIR)}.obj:
 	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(SERVICE) -Fo$(WORKDIR)\ $<
 
@@ -117,13 +109,10 @@ $(WORKDIR):
 $(POUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LFLAGS) /pdb:$(WORKDIR)\$(PROJECT).pdb /out:$(POUTPUT) $(OBJECTS) $(LDLIBS)
 
-$(PLOGOUT): $(POUTPUT) $(PLOGOBJ)
-	$(LN) $(LFLAGS) /pdb:$(WORKDIR)\$(PIPELOG).pdb /out:$(PLOGOUT) $(PLOGOBJ) $(LDLIBS)
-
-$(SSVCOUT): $(OUTPUT) $(SSVCOBJ)
+$(SSVCOUT): $(POUTPUT) $(SSVCOBJ)
 	$(LN) $(LFLAGS) /pdb:$(WORKDIR)\$(SERVICE).pdb /out:$(SSVCOUT) $(SSVCOBJ) $(LDLIBS)
 
-test: $(PLOGOUT) $(SSVCOUT)
+test: $(SSVCOUT)
 
 clean:
 	@-rd /S /Q $(WORKDIR) 2>NUL

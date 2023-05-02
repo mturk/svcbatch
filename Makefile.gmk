@@ -50,7 +50,6 @@ WORKDIR = $(WORKTOP)/rel
 endif
 
 POUTPUT = $(WORKDIR)/$(TARGET)
-PIPELOG = $(WORKDIR)/pipedlog.exe
 SERVICE = $(WORKDIR)/sservice.exe
 
 WINVER  = 0x0601
@@ -84,9 +83,6 @@ OBJECTS = \
 	$(WORKDIR)/$(PROJECT).o \
 	$(WORKDIR)/$(PROJECT).res
 
-PIPEOBJ = \
-	$(WORKDIR)/pipedlog.o
-
 SSVCOBJ = \
 	$(WORKDIR)/sservice.o
 
@@ -100,9 +96,6 @@ $(WORKDIR):
 $(WORKDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) $<
 
-$(WORKDIR)/%.o: $(SRCDIR)/test/pipedlog/%.c
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) $<
-
 $(WORKDIR)/%.o: $(SRCDIR)/test/sservice/%.c
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) $<
 
@@ -113,13 +106,10 @@ $(POUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
 	$(RL) $(RLOPTS) $@
 
-$(PIPELOG): $(POUTPUT) $(PIPEOBJ)
-	$(LN) $(LNOPTS) -o $@ $(PIPEOBJ) $(LDLIBS)
-
 $(SERVICE): $(POUTPUT) $(SSVCOBJ)
 	$(LN) $(LNOPTS) -o $@ $(SSVCOBJ) $(LDLIBS)
 
-test: $(PIPELOG) $(SERVICE)
+test: $(SERVICE)
 	@:
 
 clean:
