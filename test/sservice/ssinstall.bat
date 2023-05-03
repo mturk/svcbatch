@@ -22,7 +22,7 @@ rem
 rem
 rem Create work directory
 pushd ..
-mkdir work
+mkdir work 2>NUL
 popd
 rem Presume that svcbatch.exe is in this directory
 sc create sservice binPath= "%cd%\svcbatch.exe @sservice  -h . -w ..\work -vlb"

@@ -18,12 +18,15 @@ rem
 setlocal
 rem
 rem
-echo %~nx0: Running inside %SVCBATCH_SERVICE_NAME% Service
-echo %~nx0: Arguments [%*]
+set "_SS_LOG=%SVCBATCH_SERVICE_NAME%.%~nx0.log"
+rem
+echo %~nx0: Running inside %SVCBATCH_SERVICE_NAME% > %_SS_LOG%
+echo %~nx0: Arguments [%*] >> %_SS_LOG%
 echo.
-echo %~nx0: [%TIME%] ... Start > %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
-echo. >> %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
-set >> %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
+echo %~nx0: [%TIME%] ... Start >> %_SS_LOG%
+echo. >> %_SS_LOG%
+set   >> %_SS_LOG%
+echo. >> %_SS_LOG%
 pushd %SVCBATCH_SERVICE_HOME%
 rem
 rem Sleep for one hour
@@ -50,7 +53,7 @@ sservice.exe %*
 rem
 popd
 rem
-echo. >> %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
-echo %~nx0: [%TIME%] ... Done >> %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
+echo. >> %_SS_LOG%
+echo %~nx0: [%TIME%] ... Done >> %_SS_LOG%
 rem
 exit /B 0

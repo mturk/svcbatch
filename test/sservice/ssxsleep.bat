@@ -18,14 +18,18 @@ rem
 setlocal
 rem
 rem
-echo %~nx0: Running inside %SVCBATCH_SERVICE_NAME% Service
-echo %~nx0: Sleep interval [%~1]
-echo.
+set "_SS_LOG=%SVCBATCH_SERVICE_WORK%\%SVCBATCH_SERVICE_NAME%.%~nx0.log"
 rem
-echo %~nx0: [%TIME%] ... Start > %SVCBATCH_SERVICE_WORK%\%SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
+echo %~nx0: Running inside %SVCBATCH_SERVICE_NAME% > %_SS_LOG%
+echo %~nx0: Sleep interval [%~1] >> %_SS_LOG%
+echo. >> %~nx0.log
+rem
+echo %~nx0: [%TIME%] ... Start >> %_SS_LOG%
 rem
 start /wait xsleep.exe %~1
 rem
-echo %~nx0: [%TIME%] ... Done >> %SVCBATCH_SERVICE_WORK%\%SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
+echo %~nx0: [%TIME%] ... Done >> %_SS_LOG%
+rem
+popd
 rem
 exit /b 0
