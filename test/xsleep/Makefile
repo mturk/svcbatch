@@ -21,24 +21,16 @@ RC = rc.exe
 SRCDIR = .
 
 BLDARCH = x64
-PROJECT = svcbatch
+PROJECT = xsleep
 
-!IF DEFINED(_DEBUG) && "$(_DEBUG)" == ""
-!ERROR _DEBUG variable cannot be empty. Use _DEBUG=1, _DEBUG=2, etc...
-!ENDIF
-
-WORKTOP = $(SRCDIR)\.build
+WORKTOP = $(SRCDIR)\..\..\.build
 !IF DEFINED(_DEBUG)
 WORKDIR = $(WORKTOP)\dbg
 !ELSE
 WORKDIR = $(WORKTOP)\rel
 !ENDIF
-PPREFIX = $(SRCDIR)\$(PROJECT)
+
 POUTPUT = $(WORKDIR)\$(PROJECT).exe
-
-SSERVICE = $(WORKDIR)\sservice.exe
-XSLEEP   = $(WORKDIR)\xsleep.exe
-
 
 !IF DEFINED(_STATIC_MSVCRT)
 CRT_CFLAGS = -MT
@@ -63,61 +55,21 @@ LFLAGS = /nologo /INCREMENTAL:NO /OPT:REF /SUBSYSTEM:CONSOLE /MACHINE:$(BLDARCH)
 !IF DEFINED(_DEBUG)
 CFLAGS = $(CFLAGS) -D_DEBUG=$(_DEBUG)
 CLOPTS = $(CLOPTS) -Zi
-RFLAGS = /d _DEBUG=$(_DEBUG)
 LFLAGS = $(LFLAGS) /DEBUG
 !ELSE
 CFLAGS = $(CFLAGS) -DNDEBUG
-RFLAGS = /d NDEBUG
 !ENDIF
 
-RCOPTS = /l 0x409 /n
-RFLAGS = $(RFLAGS) /d WINVER=$(WINVER) /d _WIN32_WINNT=$(WINVER)
-
-LDLIBS = kernel32.lib advapi32.lib bcrypt.lib $(EXTRA_LIBS)
-
-!IF DEFINED(VSCMD_VER)
-RCOPTS = /nologo $(RCOPTS)
-!ENDIF
-
-!IF DEFINED(VERSION_SFX) && "$(VERSION_SFX)" != ""
-CFLAGS = $(CFLAGS) -DVERSION_SFX=$(VERSION_SFX)
-RFLAGS = $(RFLAGS) /d VERSION_SFX=$(VERSION_SFX)
-!ENDIF
-
+LDLIBS = kernel32.lib
 
 OBJECTS = \
-	$(WORKDIR)\$(PROJECT).obj \
-	$(WORKDIR)\$(PROJECT).res
+	$(WORKDIR)\$(PROJECT).obj
 
-TESTAPPS = \
-	$(SRCDIR)\test\sservice \
-	$(SRCDIR)\test\xsleep
-
-.PHONY: $(TESTAPPS)
-
-all : $(WORKDIR) $(POUTPUT)
-
-$(WORKDIR):
-	@-md $(WORKDIR) 2>NUL
+all : $(POUTPUT)
 
 {$(SRCDIR)}.c{$(WORKDIR)}.obj:
 	$(CC) $(CLOPTS) $(CFLAGS) -Fd$(WORKDIR)\$(PROJECT) -Fo$(WORKDIR)\ $<
 
-{$(SRCDIR)}.rc{$(WORKDIR)}.res:
-	$(RC) $(RCOPTS) $(RFLAGS) /fo $@ $<
-
-$(POUTPUT): $(WORKDIR) $(OBJECTS)
+$(POUTPUT): $(OBJECTS)
 	$(LN) $(LFLAGS) /pdb:$(WORKDIR)\$(PROJECT).pdb /out:$(POUTPUT) $(OBJECTS) $(LDLIBS)
 
-$(TESTAPPS): $(POUTPUT)
-	@cd $@
-  $(MAKE) /$(MAKEFLAGS)
-  @cd $(MAKEDIR)
-
-test: $(TESTAPPS)
-
-clean:
-	@-rd /S /Q $(WORKDIR) 2>NUL
-
-distclean:
-	@-rd /S /Q $(WORKTOP) 2>NUL
