@@ -3015,9 +3015,6 @@ int wmain(int argc, const wchar_t **wargv)
      * Make sure child processes are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
-    SetConsoleCtrlHandler(NULL, FALSE);
-    SetConsoleCtrlHandler(consolehandler, TRUE);
-
     rv = xwmaininit();
     if (rv)
         return rv;
@@ -3399,6 +3396,9 @@ int wmain(int argc, const wchar_t **wargv)
     if (IS_INVALID_HANDLE(workfinished))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
     atexit(objectscleanup);
+
+    SetConsoleCtrlHandler(NULL, FALSE);
+    SetConsoleCtrlHandler(consolehandler, TRUE);
 
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         SERVICE_TABLE_ENTRYW se[2];
