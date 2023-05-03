@@ -50,8 +50,6 @@ WORKDIR = $(WORKTOP)/rel
 endif
 
 POUTPUT = $(WORKDIR)/$(TARGET)
-SERVICE = $(WORKDIR)/sservice.exe
-
 WINVER  = 0x0601
 
 ifdef _DEBUG
@@ -83,9 +81,6 @@ OBJECTS = \
 	$(WORKDIR)/$(PROJECT).o \
 	$(WORKDIR)/$(PROJECT).res
 
-SSVCOBJ = \
-	$(WORKDIR)/sservice.o
-
 all : $(WORKDIR) $(POUTPUT)
 	@:
 
@@ -96,21 +91,12 @@ $(WORKDIR):
 $(WORKDIR)/%.o: $(SRCDIR)/%.c $(SRCDIR)/%.h
 	$(CC) $(CLOPTS) -o $@ $(CFLAGS) $<
 
-$(WORKDIR)/%.o: $(SRCDIR)/test/sservice/%.c
-	$(CC) $(CLOPTS) -o $@ $(CFLAGS) $<
-
 $(WORKDIR)/%.res: $(SRCDIR)/%.rc $(SRCDIR)/%.h
 	$(RC) $(RCOPTS) -o $@ $(RFLAGS) $<
 
 $(POUTPUT): $(WORKDIR) $(OBJECTS)
 	$(LN) $(LNOPTS) -o $@ $(OBJECTS) $(LDLIBS)
 	$(RL) $(RLOPTS) $@
-
-$(SERVICE): $(POUTPUT) $(SSVCOBJ)
-	$(LN) $(LNOPTS) -o $@ $(SSVCOBJ) $(LDLIBS)
-
-test: $(SERVICE)
-	@:
 
 clean:
 	@rm -rf $(WORKDIR)
