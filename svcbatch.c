@@ -2085,7 +2085,7 @@ static DWORD runshutdown(DWORD rt)
     rc = WaitForSingleObject(svcstopproc->pInfo.hProcess, stoptimeout + rt);
     if (rc == WAIT_TIMEOUT) {
         DBG_PRINTS("killing shutdown process tree");
-        killproctree(svcstopproc->pInfo.dwProcessId, 1, rc);
+        killproctree(svcstopproc->pInfo.dwProcessId, 2, rc);
     }
     else {
         rc = ERROR_INVALID_FUNCTION;
@@ -2152,11 +2152,11 @@ static DWORD WINAPI stopthread(void *msg)
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(svcxcmdproc, 0, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
+        killprocess(svcxcmdproc, 2, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
     }
     else {
         DBG_PRINTS("worker process ended");
-        killproctree(svcxcmdproc->pInfo.dwProcessId, 0, ERROR_ARENA_TRASHED);
+        killproctree(svcxcmdproc->pInfo.dwProcessId, 2, ERROR_ARENA_TRASHED);
     }
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     SetEvent(svcstopended);
@@ -2186,11 +2186,11 @@ static void stopshutdown(DWORD rt)
 
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(svcxcmdproc, 0, SVCBATCH_STOP_SYNC, ws);
+        killprocess(svcxcmdproc, 1, SVCBATCH_STOP_SYNC, ws);
     }
     else {
         DBG_PRINTS("worker process ended");
-        killproctree(svcxcmdproc->pInfo.dwProcessId, 0, ERROR_ARENA_TRASHED);
+        killproctree(svcxcmdproc->pInfo.dwProcessId, 1, ERROR_ARENA_TRASHED);
     }
 
     DBG_PRINTS("done");

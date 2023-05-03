@@ -18,6 +18,7 @@ rem
 setlocal
 rem
 if /i "x%~1" == "xcreate" goto doCreate
+if /i "x%~1" == "xxsleep" goto doXsleep
 rem
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]
@@ -29,10 +30,24 @@ rem not receive CTRL+C signal. The svcbatch.exe will kill
 rem that process on service stop.
 rem
 start xsleep.exe 3600
+rem
+rem Call this script again to test the
+rem killprocess tree
+rem
+start cmd /C %~nx0 xsleep 1
+start cmd /C %~nx0 xsleep 2
+start cmd /C %~nx0 xsleep 3
+start cmd /C %~nx0 xsleep 4
+rem
 sservice.exe %*
 rem
 goto End
 rem
+:doXsleep
+rem
+xsleep.exe 3600
+rem
+goto End
 :doCreate
 rem
 rem Presume that svcbatch.exe is in this directory
