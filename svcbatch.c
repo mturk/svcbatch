@@ -117,6 +117,8 @@ static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 static LARGE_INTEGER         pcfrequency = {{ 0, 0 }};
 static LARGE_INTEGER         pcstarttime = {{ 0, 0 }};
 
+static volatile LONG         killdepth   = 2;
+
 static BOOL      hasctrlbreak     = FALSE;
 static BOOL      haslogrotate     = FALSE;
 static BOOL      rotatebysize     = FALSE;
@@ -2085,7 +2087,7 @@ static DWORD runshutdown(DWORD rt)
     rc = WaitForSingleObject(svcstopproc->pInfo.hProcess, stoptimeout + rt);
     if (rc == WAIT_TIMEOUT) {
         DBG_PRINTS("killing shutdown process tree");
-        killproctree(svcstopproc->pInfo.dwProcessId, 2, rc);
+        killproctree(svcstopproc->pInfo.dwProcessId, killdepth, rc);
     }
     else {
         rc = ERROR_INVALID_FUNCTION;
@@ -2152,11 +2154,11 @@ static DWORD WINAPI stopthread(void *msg)
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(svcxcmdproc, 2, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
+        killprocess(svcxcmdproc, killdepth, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
     }
     else {
         DBG_PRINTS("worker process ended");
-        killproctree(svcxcmdproc->pInfo.dwProcessId, 2, ERROR_ARENA_TRASHED);
+        killproctree(svcxcmdproc->pInfo.dwProcessId, killdepth, ERROR_ARENA_TRASHED);
     }
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     SetEvent(svcstopended);
@@ -2186,11 +2188,11 @@ static void stopshutdown(DWORD rt)
 
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(svcxcmdproc, 1, SVCBATCH_STOP_SYNC, ws);
+        killprocess(svcxcmdproc, killdepth, SVCBATCH_STOP_SYNC, ws);
     }
     else {
         DBG_PRINTS("worker process ended");
-        killproctree(svcxcmdproc->pInfo.dwProcessId, 1, ERROR_ARENA_TRASHED);
+        killproctree(svcxcmdproc->pInfo.dwProcessId, killdepth, ERROR_ARENA_TRASHED);
     }
 
     DBG_PRINTS("done");
@@ -2649,6 +2651,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             /* fall through */
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
+            InterlockedExchange(&killdepth, 0);
         case SERVICE_CONTROL_STOP:
             DBG_PRINTF("service %s", msg);
             reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
