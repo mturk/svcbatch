@@ -23,6 +23,12 @@ echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
 rem
+rem Sleep for one hour
+rem Note that since started via 'start' the xsleep will
+rem not receive CTRL+C signal. The svcbatch.exe will kill
+rem that process on service stop.
+rem
+start xsleep.exe 3600
 sservice.exe %*
 rem
 goto End
@@ -30,7 +36,7 @@ rem
 :doCreate
 rem
 rem Presume that svcbatch.exe is in this directory
-sc create sservice binPath= "%cd%\svcbatch.exe @sservice -v"
+sc create sservice binPath= "%cd%\svcbatch.exe @sservice -vlb"
 rem
 :End
 exit /B 0
