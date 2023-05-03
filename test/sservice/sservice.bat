@@ -17,12 +17,14 @@ rem
 rem
 setlocal
 rem
-if /i "x%~1" == "xcreate" goto doCreate
-if /i "x%~1" == "xxsleep" goto doXsleep
 rem
-echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Running inside %SVCBATCH_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
+echo %~nx0: [%TIME%] ... Start > %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
+echo. >> %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
+set >> %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
+pushd %SVCBATCH_SERVICE_HOME%
 rem
 rem Sleep for one hour
 rem Note that since started via 'start' the xsleep will
@@ -31,27 +33,24 @@ rem that process on service stop.
 rem
 start xsleep.exe 3600
 rem
+rem Call batch file that calls xsleep.exe
+rem This process will end in 10 seconds
+start cmd /C ssxsleep.bat 10
+rem
+rem
 rem Call this script again to test the
 rem killprocess tree
 rem
-start cmd /C %~nx0 xsleep 1
-start cmd /C %~nx0 xsleep 2
-start cmd /C %~nx0 xsleep 3
-start cmd /C %~nx0 xsleep 4
+rem start cmd /C %~nx0 xsleep 1
+rem cmd /C %~nx0 xsleep 2
+rem cmd /C %~nx0 xsleep 3
+rem cmd /C %~nx0 xsleep 4
 rem
 sservice.exe %*
 rem
-goto End
+popd
 rem
-:doXsleep
+echo. >> %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
+echo %~nx0: [%TIME%] ... Done >> %SVCBATCH_SERVICE_NAME%.%SVCBATCH_SERVICE_UUID%.%~nx0.log
 rem
-xsleep.exe 3600
-rem
-goto End
-:doCreate
-rem
-rem Presume that svcbatch.exe is in this directory
-sc create sservice binPath= "%cd%\svcbatch.exe @sservice -vlb"
-rem
-:End
 exit /B 0
