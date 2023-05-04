@@ -155,7 +155,7 @@ By default SvcBatch, on startup, creates a `Logs` directory inside its
 working directory and creates an SvcBatch.log file that is used both
 for internal logging and capturing output from `cmd.exe`
 
-It also rotates (renames) previous log files if the files are
+It also renames previous log files if the files are
 present inside `Logs` directory using the following procedure:
 
 ```no-highlight
@@ -175,7 +175,8 @@ present inside `Logs` directory using the following procedure:
 
 ```
 
-Users can use `sc.exe control [service name] 234` to initiate a
+In case **-r** option was defined, users can use
+`sc.exe control [service name] 234` to initiate a
 log rotation at any time while the service is running.
 Note that **234** is our custom service control code.
 Number **234** has been randomly chosen, since win32
@@ -188,6 +189,8 @@ for append if already present.
 
 In case the last log rotation was less then `2` minutes ago, no
 log rotation will happen.
+
+
 
 ## Command Line Options
 
@@ -305,9 +308,18 @@ will be reported to Windows Event log.
   > sc create ... -m 4
 
   ```
+
   Instead rotating Svcbatch.log from `1...9` it will rotate
   exiting log files from `1...4.`. In case that number is `0`,
   log rotation will be disabled.
+
+  In case **number** parameter was defined as `1`, SvcBatch will
+  rename existing `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`,
+  and create new `SvcBatch.log`.
+
+  The `YYYYMMDDhhmmss` is the format constructed as four digit year,
+  two digit, two digit day of a month, hour (00 .. 24), minute and
+  second, using current local or system time.
 
 
 * **-n [log name]**
@@ -490,12 +502,9 @@ will be reported to Windows Event log.
       <[minutes|hh:mm:ss]>|<size[B|K|M|G]>
   ```
 
-  When this parameter is defined log rotation will not use
-  the logic defined in [Log Rotation](#log-rotation) section.
-
-  Instead rotating Svcbatch.log from `1...9` it will rename
-  existing `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`.
-  The `YYYYMMDDhhmmss` is the current local or system time.
+  On rotation event, existing `SvcBatch.log` will be renamed to
+  `SvcBatch.log.YYYYMMDDhhmmss`, and new `SvcBatch.log` will be crated,
+  unless the **-t** option was defined.
 
 
 * **-s [batchfile][argument]**
