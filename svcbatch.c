@@ -3338,7 +3338,7 @@ int wmain(int argc, const wchar_t **wargv)
         }
         else {
             mainservice->lpWork = xgetfinalpathname(svcworkparam, 1, NULL, 0);
-            if (IS_EMPTY_WCS(mainservice->lpHome))
+            if (IS_EMPTY_WCS(mainservice->lpWork))
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
         }
     }
