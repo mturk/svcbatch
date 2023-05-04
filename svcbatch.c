@@ -1617,7 +1617,7 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
     }
     ewb[x] = WNUL;
     svcbatchlog->lpFileName = xwcsmkpath(svcbatchlog->szDir, ewb);
-    if (truncatelogs)
+    if (truncatelogs || ssp)
         cm = CREATE_ALWAYS;
     else
         cm = OPEN_ALWAYS;
@@ -1649,7 +1649,7 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
                 logwrtime(h, "Log reused");
         }
         else if (ssp) {
-            logwrtime(h, "Log opened");
+            logwrtime(h, "Log created");
         }
     }
     InterlockedExchangePointer(&svcbatchlog->hFile, h);
@@ -1791,7 +1791,7 @@ static DWORD openlogfile(BOOL ssp)
                 logwrtime(h, "Log reused");
         }
         else if (ssp) {
-            logwrtime(h, "Log opened");
+            logwrtime(h, "Log created");
         }
     }
     InterlockedExchangePointer(&svcbatchlog->hFile, h);
