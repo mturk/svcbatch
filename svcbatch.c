@@ -1600,23 +1600,27 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, 0);
 
-    time(&ctt);
-    if (uselocaltime)
-        ctm = localtime(&ctt);
-    else
-        ctm = gmtime(&ctt);
-    if (wcsftime(ewb, BBUFSIZ, logfn, ctm) == 0)
-        return xsyserror(0, L"Invalid format code", logfn);
-    xfree(svcbatchlog->lpFileName);
-
-    for (i = 0, x = 0; ewb[i]; i++) {
-        wchar_t c = ewb[i];
-
-        if ((c > 127) || (xfnchartype[c] & 1))
-            ewb[x++] = c;
+    if (svcbatchlog->lpFileName && !truncatelogs) {
+        SAFE_MEM_FREE(svcbatchlog->lpFileName);
     }
-    ewb[x] = WNUL;
-    svcbatchlog->lpFileName = xwcsmkpath(svcbatchlog->szDir, ewb);
+    if (svcbatchlog->lpFileName == NULL) {
+        time(&ctt);
+        if (uselocaltime)
+            ctm = localtime(&ctt);
+        else
+            ctm = gmtime(&ctt);
+        if (wcsftime(ewb, BBUFSIZ, logfn, ctm) == 0)
+            return xsyserror(0, L"Invalid format code", logfn);
+
+        for (i = 0, x = 0; ewb[i]; i++) {
+            wchar_t c = ewb[i];
+
+            if ((c > 127) || (xfnchartype[c] & 1))
+                ewb[x++] = c;
+        }
+        ewb[x] = WNUL;
+        svcbatchlog->lpFileName = xwcsmkpath(svcbatchlog->szDir, ewb);
+    }
     if (truncatelogs || ssp)
         cm = CREATE_ALWAYS;
     else
