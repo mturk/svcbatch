@@ -3362,6 +3362,7 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
             }
             haslogrotate = TRUE;
+            svcmaxlogs   = 1;
         }
         if (svclogfname) {
             if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
