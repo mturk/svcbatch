@@ -15,7 +15,7 @@ rem See the License for the specific language governing permissions and
 rem limitations under the License.
 rem
 rem --------------------------------------------------
-rem Apache Tomcat Service Management Tool
+rem SvcBatch Management Tool for Apache Tomcat
 rem
 rem Usage: servicemgr.bat create|delete|rotate|dump|start|stop [service_name]
 rem
@@ -44,9 +44,6 @@ rem Create service
 :doCreate
 pushd %~dp0
 set "SERVICE_BASE=%cd%"
-pushd ..
-set "SERVICE_HOME=%cd%"
-popd
 rem
 rem
 rem Run catalina.bat directly
@@ -59,7 +56,13 @@ rem
 rem Set shutdown file
 set "SHUTDOWN_FILE=bin\shutdown.bat"
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /b /w \"%SERVICE_HOME%\" /s %SHUTDOWN_FILE% %SVCBATCH_FILE% %SVCBATCH_ARGS%"
+rem Enable log rotation
+rem set "ROTATE_RULE=-r1M"
+rem
+rem Set log name
+set "SERVICE_LOGNAME=-n svcbatch.@Y-@m-@d"
+rem
+sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /bl /h ..\ /w work %ROTATE_RULE% %SERVICE_LOGNAME% /s %SHUTDOWN_FILE% %SVCBATCH_FILE% %SVCBATCH_ARGS%"
 sc config "%SERVICE_NAME%" DisplayName= "Apache Tomcat 10.0 %SERVICE_NAME% Service"
 sc description "%SERVICE_NAME%" "Apache Tomcat 10.0.0 Server - https://tomcat.apache.org/"
 rem
@@ -76,7 +79,19 @@ rem
 rem Delete service
 :doDelete
 rem
-sc stop "%SERVICE_NAME%" >NUL
+echo Stopping %SERVICE_NAME%
+rem
+sc stop "%SERVICE_NAME%"
+rem
+if %ERRORLEVEL% equ 0 (
+  echo.
+  echo Waiting for %SERVICE_NAME% service to stop ...
+  ping -n 6 127.0.0.1 >NUL
+  echo.
+)
+rem
+echo Deleting %SERVICE_NAME%
+rem
 sc delete "%SERVICE_NAME%"
 goto End
 rem
