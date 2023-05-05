@@ -77,6 +77,11 @@
 #define SVCBATCH_MAX_LOGS       9
 
 /**
+ * Maximum number of SvcBatch.shutdown.log.N files
+ */
+#define SHUTDOWN_MAX_LOGS       2
+
+/**
  * Maximum number of arguments
  * for shutdown and external log application
  */
