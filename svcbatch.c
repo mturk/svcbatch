@@ -82,7 +82,6 @@ typedef struct _SVCBATCH_LOG {
     volatile LONG       nRotateCount;
     volatile HANDLE     hFile;
     volatile LONG64     nWritten;
-    volatile LONG64     nOpenTime;
     DWORD               dwType;
     CRITICAL_SECTION    csLock;
     LPWSTR              lpFileName;
@@ -1544,16 +1543,8 @@ static BOOL canrotatelogs(void)
     BOOL rv = FALSE;
 
     SVCBATCH_CS_ENTER(svcbatchlog);
-    if (InterlockedCompareExchange(&svcbatchlog->dwCurrentState, 0, 0) == 0) {
-        ULONGLONG cm;
-        ULONGLONG pm;
-
-        cm = GetTickCount64();
-        pm = InterlockedCompareExchange64(&svcbatchlog->nOpenTime, 0, 0);
-
-        if ((cm - pm) > (SVCBATCH_MIN_ROTATE_INT * MS_IN_MINUTE))
-            rv = TRUE;
-    }
+    if (InterlockedCompareExchange(&svcbatchlog->dwCurrentState, 0, 0) == 0)
+        rv = TRUE;
     SVCBATCH_CS_LEAVE(svcbatchlog);
     return rv;
 }
@@ -1661,7 +1652,6 @@ static DWORD openlogfile(BOOL ssp)
     BOOL   rotateprev = FALSE;
     DWORD  rc;
 
-    InterlockedExchange64(&svcbatchlog->nOpenTime, GetTickCount64());
     if (svclogfname)
         xwcslcpy(logfn, BBUFSIZ, svclogfname);
     else
@@ -1852,8 +1842,6 @@ static DWORD rotatelogs(void)
 
 finished:
     InterlockedExchange64(&svcbatchlog->nWritten, 0);
-    InterlockedExchange(&svcbatchlog->dwCurrentState, 0);
-    InterlockedExchange64(&svcbatchlog->nOpenTime, GetTickCount64());
     SVCBATCH_CS_LEAVE(svcbatchlog);
     return rc;
 }
@@ -2326,6 +2314,7 @@ static DWORD WINAPI rotatethread(void *unused)
     wh[2] = logrotatesig;
     wh[3] = NULL;
 
+    InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
     if (rotatetmo.QuadPart) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
@@ -2348,7 +2337,7 @@ static DWORD WINAPI rotatethread(void *unused)
     }
 
     while (rc == 0) {
-        DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
+        DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, SVCBATCH_MIN_ROTATE_INT * 60000);
 
         switch (wc) {
             case WAIT_OBJECT_0:
@@ -2381,11 +2370,22 @@ static DWORD WINAPI rotatethread(void *unused)
                     if (rc)
                         createstopthread(rc);
                 }
+#if defined(_DEBUG)
+                else {
+                    DBG_PRINTS("rotate is busy ... canceling timer");
+                }
+#endif
                 CancelWaitableTimer(wt);
                 if (rotateint > 0)
                     rotatetmo.QuadPart += rotateint;
                 SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
                 ResetEvent(logrotatesig);
+            break;
+            case WAIT_TIMEOUT:
+                DBG_PRINTS("rotate ready");
+                SVCBATCH_CS_ENTER(svcbatchlog);
+                InterlockedExchange(&svcbatchlog->dwCurrentState, 0);
+                SVCBATCH_CS_LEAVE(svcbatchlog);
             break;
             default:
                 rc = wc;
