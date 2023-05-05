@@ -1463,7 +1463,6 @@ static BOOL logfflush(HANDLE h)
 
     if (xseekfend(h)) {
         if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0)) {
-            InterlockedAdd64(&svcbatchlog->nWritten, wr);
             FlushFileBuffers(h);
             return xseekfend(h);
         }
@@ -1471,7 +1470,7 @@ static BOOL logfflush(HANDLE h)
     return FALSE;
 }
 
-static void logwrline(HANDLE h, const char *s)
+static void logwrline(HANDLE h, const char *sb)
 {
     char    wb[TBUFSIZ];
     DWORD   wr;
@@ -1480,13 +1479,10 @@ static void logwrline(HANDLE h, const char *s)
     nw = xtimehdr(wb, TBUFSIZ);
 
     if (nw > 0) {
-        if (WriteFile(h, wb, nw, &wr, NULL) && (wr != 0))
-            InterlockedAdd64(&svcbatchlog->nWritten, wr);
-        nw = xstrlen(s);
-        if (WriteFile(h, s, nw, &wr, NULL) && (wr != 0))
-            InterlockedAdd64(&svcbatchlog->nWritten, wr);
-        if (WriteFile(h, CRLFA, 2, &wr, NULL) && (wr != 0))
-            InterlockedAdd64(&svcbatchlog->nWritten, wr);
+        WriteFile(h, wb, nw, &wr, NULL);
+        nw = xstrlen(sb);
+        WriteFile(h, sb, nw, &wr, NULL);
+        WriteFile(h, CRLFA, 2, &wr, NULL);
     }
 }
 
@@ -1599,7 +1595,6 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
     struct  tm *ctm;
     time_t  ctt;
     DWORD   rc;
-    DWORD   cm;
     HANDLE  h;
     int  i, x;
 
@@ -1627,38 +1622,29 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
         ewb[x] = WNUL;
         svcbatchlog->lpFileName = xwcsmkpath(svcbatchlog->szDir, ewb);
     }
-    if (truncatelogs || ssp)
-        cm = CREATE_ALWAYS;
-    else
-        cm = OPEN_ALWAYS;
+
     h = CreateFileW(svcbatchlog->lpFileName,
                     GENERIC_READ | GENERIC_WRITE,
-                    FILE_SHARE_READ, NULL, cm,
+                    FILE_SHARE_READ, NULL,
+                    CREATE_ALWAYS,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
         xsyserror(rc, L"CreateFile", svcbatchlog->lpFileName);
         return rc;
     }
+#if defined(_DEBUG)
     if (rc == ERROR_ALREADY_EXISTS) {
-        if (cm == CREATE_ALWAYS) {
-            DBG_PRINTF("truncated %S", svcbatchlog->lpFileName);
-        }
-        else {
-            logfflush(h);
-            DBG_PRINTF("reusing %S", svcbatchlog->lpFileName);
-        }
+        DBG_PRINTF("truncated %S", svcbatchlog->lpFileName);
     }
+#endif
     if (haslogstatus) {
         logwrline(h, cnamestamp);
-        if (rc == ERROR_ALREADY_EXISTS) {
-            if (cm == CREATE_ALWAYS)
+        if (ssp) {
+            if (rc == ERROR_ALREADY_EXISTS)
                 logwrtime(h, "Log truncated");
-            else if (ssp)
-                logwrtime(h, "Log reused");
-        }
-        else if (ssp) {
-            logwrtime(h, "Log created");
+            else
+                logwrtime(h, "Log created");
         }
     }
     InterlockedExchange64(&svcbatchlog->nWritten, 0);
@@ -1685,11 +1671,11 @@ static DWORD openlogfile(BOOL ssp)
     if (wcschr(logfn, L'%'))
         return makelogfile(logfn, ssp);
 
-    if ((svcmaxlogs > 0) && !truncatelogs)
+    if (!truncatelogs) {
         renameprev = TRUE;
-    if ((svcmaxlogs > 1) && !truncatelogs && !haslogrotate)
-        rotateprev = TRUE;
-
+        if (svcmaxlogs > 0)
+            rotateprev = TRUE;
+    }
     if (svcbatchlog->lpFileName == NULL)
         svcbatchlog->lpFileName = xwcsmkpath(svcbatchlog->szDir, logfn);
     if (svcbatchlog->lpFileName == NULL)
@@ -1782,25 +1768,28 @@ static DWORD openlogfile(BOOL ssp)
         xsyserror(rc, svcbatchlog->lpFileName, NULL);
         goto failed;
     }
+#if defined(_DEBUG)
     if (rc == ERROR_ALREADY_EXISTS) {
         if (cm == CREATE_ALWAYS) {
             DBG_PRINTF("truncated %S", svcbatchlog->lpFileName);
         }
         else {
-            logfflush(h);
             DBG_PRINTF("reusing %S", svcbatchlog->lpFileName);
         }
     }
+#endif
     if (haslogstatus) {
         logwrline(h, cnamestamp);
-        if (rc == ERROR_ALREADY_EXISTS) {
-            if (cm == CREATE_ALWAYS)
-                logwrtime(h, "Log truncated");
-            else if (ssp)
-                logwrtime(h, "Log reused");
-        }
-        else if (ssp) {
-            logwrtime(h, "Log created");
+        if (ssp) {
+            if (rc == ERROR_ALREADY_EXISTS) {
+                if (cm == CREATE_ALWAYS)
+                    logwrtime(h, "Log truncated");
+                else
+                    logwrtime(h, "Log reused");
+            }
+            else {
+                logwrtime(h, "Log created");
+            }
         }
     }
     InterlockedExchange64(&svcbatchlog->nWritten, 0);
@@ -1820,6 +1809,7 @@ failed:
 static DWORD rotatelogs(void)
 {
     DWORD  rc = 0;
+    LONG   nr;
     HANDLE h  = NULL;
 
     SVCBATCH_CS_ENTER(svcbatchlog);
@@ -1835,9 +1825,10 @@ static DWORD rotatelogs(void)
         rc = ERROR_FILE_NOT_FOUND;
         goto finished;
     }
+    nr = InterlockedIncrement(&svcbatchlog->nRotateCount);
     QueryPerformanceCounter(&pcstarttime);
     FlushFileBuffers(h);
-    if (truncatelogs == 1) {
+    if (truncatelogs) {
         LARGE_INTEGER ee = {{ 0, 0 }};
 
         if (SetFilePointerEx(h, ee, NULL, FILE_BEGIN)) {
@@ -1845,8 +1836,7 @@ static DWORD rotatelogs(void)
                 if (haslogstatus) {
                     logwrline(h, cnamestamp);
                     logwrtime(h, "Log truncated");
-                    logprintf(h, "Log generation   : %lu",
-                              InterlockedIncrement(&svcbatchlog->nRotateCount));
+                    logprintf(h, "Log generation   : %lu", nr);
                     logconfig(h);
                 }
                 DBG_PRINTS("truncated");
@@ -1865,8 +1855,7 @@ static DWORD rotatelogs(void)
     if (rc == 0) {
         if (haslogstatus) {
             logwrtime(svcbatchlog->hFile, "Log rotated");
-            logprintf(svcbatchlog->hFile, "Log generation   : %lu",
-                      InterlockedIncrement(&svcbatchlog->nRotateCount));
+            logprintf(svcbatchlog->hFile, "Log generation   : %lu", nr);
             logconfig(svcbatchlog->hFile);
         }
         DBG_PRINTS("rotated");
@@ -2058,14 +2047,15 @@ static DWORD runshutdown(DWORD rt)
     svcstopproc->lpCommandLine = xappendarg(1, NULL, NULL, svcstopproc->szExe);
     ip = xsnwprintf(rp, TBUFSIZ, L"@@ -k%d -", stoptimeout / 1000);
     if (havestoplogs) {
+        i = ip;
         if (uselocaltime)
             rp[ip++] = L'l';
         if (truncatelogs)
             rp[ip++] = L't';
         if (haslogstatus)
             rp[ip++] = L'v';
-        rp[ip++] = L'm';
-        rp[ip++] = L'0' + svcmaxlogs;
+        if (i == ip)
+            rp[i - 2] = WNUL;
     }
     else {
         rp[ip++] = L'q';
@@ -3229,27 +3219,27 @@ int wmain(int argc, const wchar_t **wargv)
         svcbatchlog->dwType = SVCBATCH_LOG_FILE;
         SVCBATCH_CS_CREATE(svcbatchlog);
 
-        if (maxlogsparam) {
-            svcmaxlogs = xwcstoi(maxlogsparam, NULL);
-            if ((svcmaxlogs < 0) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
-                return xsyserror(0, L"Invalid -m command option value", maxlogsparam);
-        }
         if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
-            if (rcnt && svcmaxlogs == 0) {
+            if (maxlogsparam) {
+                if (truncatelogs) {
 #if defined(_DEBUG) && (_DEBUG > 1)
-                xsyswarn(0, L"Configuration error",
-                         L"Option(s) -r are mutually exclusive with option -m0");
-                rcnt         = 0;
+                    xsyswarn(0, L"Configuration error",
+                             L"Option -t is mutually exclusive with option -m");
 #else
-            return xsyserror(0, L"Configuration error",
-                             L"Option(s) -r are mutually exclusive with option -m0");
+                    return
+                    xsyserror(0, L"Configuration error",
+                             L"Option -t is mutually exclusive with option -m");
 #endif
-
+                }
+                svcmaxlogs = xwcstoi(maxlogsparam, NULL);
+                if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
+                    return xsyserror(0, L"Invalid -m command option value", maxlogsparam);
             }
             svclogfnext = SVCBATCH_LOGFEXT;
         }
         else {
             svclogfnext = SHUTDOWN_LOGFEXT;
+            svcmaxlogs  = 1;
         }
     }
     else {
@@ -3377,7 +3367,7 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
             }
             haslogrotate = TRUE;
-            svcmaxlogs   = 1;
+            svcmaxlogs   = 0;
         }
         if (svclogfname) {
             if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
