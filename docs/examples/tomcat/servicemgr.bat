@@ -48,13 +48,15 @@ rem
 rem
 rem Run catalina.bat directly
 set "SVCBATCH_FILE=bin\catalina.bat"
-set "SVCBATCH_ARGS=run"
 rem Use simple wrapper script if you need
 rem to customize environment before running catalina.bat
 rem set "SVCBATCH_FILE=bin\winservice.bat"
 rem
+rem Set Arguments to the SVCBATCH_FILE
+set "SVCBATCH_ARGS=run"
+rem
 rem Set shutdown file
-set "SHUTDOWN_FILE=bin\shutdown.bat"
+set "SHUTDOWN_FILE=/s bin\shutdown.bat"
 rem
 rem Enable log rotation
 rem set "ROTATE_RULE=-r1M"
@@ -62,7 +64,7 @@ rem
 rem Set log name
 set "SERVICE_LOGNAME=-n svcbatch.@Y-@m-@d"
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /bl /h ..\ /w work %ROTATE_RULE% %SERVICE_LOGNAME% /s %SHUTDOWN_FILE% %SVCBATCH_FILE% %SVCBATCH_ARGS%"
+sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" /bl /h ..\ %ROTATE_RULE% %SERVICE_LOGNAME% %SHUTDOWN_FILE% %SVCBATCH_FILE% %SVCBATCH_ARGS%"
 sc config "%SERVICE_NAME%" DisplayName= "Apache Tomcat 10.0 %SERVICE_NAME% Service"
 sc description "%SERVICE_NAME%" "Apache Tomcat 10.0.0 Server - https://tomcat.apache.org/"
 rem

@@ -28,7 +28,12 @@ rem
 rem eg. set "JAVA_HOME=C:\Your\JDK\location"
 rem     set "JRE_HOME=C:\Your\JRE\location"
 rem
+rem Set CATALINA_HOME and CATALINA_BASE
+rem
+rem     set "CATALINA_HOME=%SVCBATCH_SERVICE_HOME%"
+rem     set "CATALINA_BASE=%SVCBATCH_SERVICE_HOME%\base"
+rem
 rem Run Apache Tomcat
-call "%SVCBATCH_SERVICE_HOME%\bin\catalina.bat" run
+call "%SVCBATCH_SERVICE_HOME%\bin\catalina.bat" run %*
 rem
 
