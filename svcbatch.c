@@ -1560,7 +1560,17 @@ static DWORD createlogsdir(void)
 {
     wchar_t *p;
     wchar_t dp[SVCBATCH_PATH_MAX];
+    wchar_t wp[SVCBATCH_PATH_MAX];
 
+    if (!isabsolutepath(outdirparam)) {
+        if (mainservice->lpHome == mainservice->lpWork)
+            xwcslcpy(wp, SVCBATCH_PATH_MAX, mainservice->lpHome);
+        else
+            xwcslcpy(wp, SVCBATCH_PATH_MAX, mainservice->lpWork);
+        xwcslcat(wp, SVCBATCH_PATH_MAX, L"\\");
+        xwcslcat(wp, SVCBATCH_PATH_MAX, outdirparam);
+        outdirparam = wp;
+    }
     if (xgetfullpathname(outdirparam, dp, SVCBATCH_PATH_MAX) == NULL) {
         xsyserror(0, L"xgetfullpathname", outdirparam);
         return ERROR_BAD_PATHNAME;
@@ -2817,9 +2827,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 #if defined(_DEBUG)
             xsyswarn(ERROR_INVALID_PARAMETER, L"log directory", NULL);
             xsysinfo(L"Use -o option with parameter set to the exiting directory",
-                     L"failing over to SVCBATCH_SERVICE_HOME");
+                     L"failing over to SVCBATCH_SERVICE_WORK");
 #endif
-            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", mainservice->lpHome);
+            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", mainservice->lpWork);
         }
         else {
             wchar_t *op = xgetfinalpathname(outdirparam, 1, NULL, 0);
