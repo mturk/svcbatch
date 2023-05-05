@@ -1660,7 +1660,6 @@ static DWORD openlogfile(BOOL ssp)
     BOOL   renameprev = FALSE;
     BOOL   rotateprev = FALSE;
     DWORD  rc;
-    DWORD  cm;
 
     InterlockedExchange64(&svcbatchlog->nOpenTime, GetTickCount64());
     if (svclogfname)
@@ -1754,14 +1753,11 @@ static DWORD openlogfile(BOOL ssp)
             xfree(logpn);
         }
     }
-    if (truncatelogs)
-        cm = CREATE_ALWAYS;
-    else
-        cm = OPEN_ALWAYS;
 
     h = CreateFileW(svcbatchlog->lpFileName,
                     GENERIC_READ | GENERIC_WRITE,
-                    FILE_SHARE_READ, NULL, cm,
+                    FILE_SHARE_READ, NULL,
+                    CREATE_ALWAYS,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(h)) {
@@ -1770,26 +1766,16 @@ static DWORD openlogfile(BOOL ssp)
     }
 #if defined(_DEBUG)
     if (rc == ERROR_ALREADY_EXISTS) {
-        if (cm == CREATE_ALWAYS) {
-            DBG_PRINTF("truncated %S", svcbatchlog->lpFileName);
-        }
-        else {
-            DBG_PRINTF("reusing %S", svcbatchlog->lpFileName);
-        }
+        DBG_PRINTF("truncated %S", svcbatchlog->lpFileName);
     }
 #endif
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (ssp) {
-            if (rc == ERROR_ALREADY_EXISTS) {
-                if (cm == CREATE_ALWAYS)
-                    logwrtime(h, "Log truncated");
-                else
-                    logwrtime(h, "Log reused");
-            }
-            else {
+            if (rc == ERROR_ALREADY_EXISTS)
+                logwrtime(h, "Log truncated");
+            else
                 logwrtime(h, "Log created");
-            }
         }
     }
     InterlockedExchange64(&svcbatchlog->nWritten, 0);
