@@ -1904,6 +1904,12 @@ static BOOL resolverotate(const wchar_t *rp)
 
     ASSERT_WSTR(rp, FALSE);
 
+    if (*rp == L'S') {
+        rotatebysize = FALSE;
+        rotatebytime = FALSE;
+        DBG_PRINTS("rotate by signal");
+        return TRUE;
+    }
     if (wcspbrk(rp, L"BKMG")) {
         int      val;
         LONGLONG siz;
@@ -2306,7 +2312,7 @@ static DWORD WINAPI rotatethread(void *unused)
     HANDLE wt = NULL;
     DWORD  rc = 0;
     DWORD  nw = 3;
-    DWORD  rw = SVCBATCH_MIN_ROTATE_INT * 60000;
+    DWORD  rw = SVCBATCH_ROTATE_READY;
 
     DBG_PRINTF("started");
 
@@ -2316,7 +2322,7 @@ static DWORD WINAPI rotatethread(void *unused)
     wh[3] = NULL;
 
     InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
-    if (rotatetmo.QuadPart) {
+    if (rotatebytime) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
             rc = xsyserror(GetLastError(), L"CreateWaitableTimer", NULL);
@@ -2350,7 +2356,7 @@ static DWORD WINAPI rotatethread(void *unused)
                         SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
                     }
                     ResetEvent(logrotatesig);
-                    rw = SVCBATCH_MIN_ROTATE_INT * 60000;
+                    rw = SVCBATCH_ROTATE_READY;
                 }
             break;
             case WAIT_OBJECT_3:
@@ -2358,7 +2364,7 @@ static DWORD WINAPI rotatethread(void *unused)
                 if (canrotatelogs()) {
                     DBG_PRINTS("rotate by time");
                     rc = rotatelogs();
-                    rw = SVCBATCH_MIN_ROTATE_INT * 60000;
+                    rw = SVCBATCH_ROTATE_READY;
                 }
 #if defined(_DEBUG)
                 else {

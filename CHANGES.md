@@ -31,6 +31,7 @@ For a full list of changes, see the [git commit log][log]
   * Use -c command option to set user defined code page
   * Add arguments from the service start application to the existing batch file arguments
 
+
 ## v2.0.0
 
 

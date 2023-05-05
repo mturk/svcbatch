@@ -145,6 +145,7 @@
  * rotations in minutes
  */
 #define SVCBATCH_MIN_ROTATE_INT 2
+#define SVCBATCH_ROTATE_READY   120000
 
 #define MS_IN_DAY               86400000
 #define MS_IN_SECOND            CPP_INT64_C(1000)

@@ -464,6 +464,10 @@ will be reported to Windows Event log.
   log files at desired interval, once a day at specific time
   or when log file gets larger then defined size.
 
+  In case the **rule** starts with the capital letter `S`,
+  log will be rotated only by the explicit
+  `sc.exe control [service name] 234` command.
+
   Time and size values can be combined, that allows
   to rotate logs at specific time or size which ever first.
   For example one can define **rule** so that rotate logs
@@ -501,7 +505,7 @@ will be reported to Windows Event log.
   The **rule** parameter uses the following format:
 
   ```no-highlight
-      <[minutes|hh:mm:ss]>|<size[B|K|M|G]>
+      <[minutes|hh:mm:ss]>|<size[B|K|M|G]>|<S[ignal]>
   ```
 
   On rotation event, existing `SvcBatch.log` will be renamed to
