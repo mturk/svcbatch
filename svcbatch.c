@@ -117,8 +117,6 @@ static LARGE_INTEGER         rotatesiz   = {{ 0, 0 }};
 static LARGE_INTEGER         pcfrequency = {{ 0, 0 }};
 static LARGE_INTEGER         pcstarttime = {{ 0, 0 }};
 
-static volatile LONG         killdepth   = 2;
-
 static BOOL      hasctrlbreak     = FALSE;
 static BOOL      haslogrotate     = FALSE;
 static BOOL      rotatebysize     = FALSE;
@@ -133,6 +131,7 @@ static DWORD     preshutdown      = 0;
 static int       svccodepage      = 0;
 static int       svcmaxlogs       = SVCBATCH_MAX_LOGS;
 static int       stoptimeout      = SVCBATCH_STOP_TIME;
+static int       killdepth        = 2;
 
 static HANDLE    svcstopstart     = NULL;
 static HANDLE    svcstopended     = NULL;
@@ -1053,7 +1052,7 @@ static DWORD killproctree(DWORD pid, int rc, DWORD rv)
     DBG_PRINTF("[%d] proc %.4lu", rc, pid);
     c = getproctree(pa, pid);
     for (n = 0; n < c; n++) {
-        if (rc)
+        if (rc > 0)
             r += killproctree(GetProcessId(pa[n]), rc - 1, rv);
         DBG_PRINTF("[%d] kill %.4lu", rc, GetProcessId(pa[n]));
         TerminateProcess(pa[n], rv);
@@ -1066,8 +1065,10 @@ static DWORD killproctree(DWORD pid, int rc, DWORD rv)
 static void killprocess(LPSVCBATCH_PROCESS proc, int rc, DWORD ws, DWORD rv)
 {
 
-    InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
     DBG_PRINTF("proc %.4lu", proc->pInfo.dwProcessId);
+    if (InterlockedCompareExchange(&proc->dwCurrentState, 0, 0) == SVCBATCH_PROCESS_STOPPED)
+        goto finished;
+    InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
 
     if (killproctree(proc->pInfo.dwProcessId, rc, rv)) {
         if (waitprocess(proc, ws) != STILL_ACTIVE)
@@ -2658,7 +2659,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             /* fall through */
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
-            InterlockedExchange(&killdepth, 0);
+            killdepth = 0;
         case SERVICE_CONTROL_STOP:
             DBG_PRINTF("service %s", msg);
             reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
