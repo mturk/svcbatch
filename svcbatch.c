@@ -2318,20 +2318,12 @@ static DWORD WINAPI rotatethread(void *unused)
     if (rotatetmo.QuadPart) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            xsyserror(rc, L"CreateWaitableTimer", NULL);
-            if (WaitForSingleObject(workfinished, SVCBATCH_STOP_SYNC) == WAIT_TIMEOUT)
-                createstopthread(rc);
-            goto finished;
+            rc = xsyserror(GetLastError(), L"CreateWaitableTimer", NULL);
+            goto failed;
         }
         if (!SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            xsyserror(rc, L"SetWaitableTimer", NULL);
-            if (WaitForSingleObject(workfinished, SVCBATCH_STOP_SYNC) == WAIT_TIMEOUT)
-                createstopthread(rc);
-            goto finished;
+            rc = xsyserror(GetLastError(), L"SetWaitableTimer", NULL);
+            goto failed;
         }
         wh[nw++] = wt;
     }
@@ -2392,6 +2384,12 @@ static DWORD WINAPI rotatethread(void *unused)
             break;
         }
     }
+    goto finished;
+
+failed:
+    setsvcstatusexit(rc);
+    if (WaitForSingleObject(workfinished, SVCBATCH_STOP_SYNC) == WAIT_TIMEOUT)
+        createstopthread(rc);
 
 finished:
     SAFE_CLOSE_HANDLE(wt);
