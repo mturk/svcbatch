@@ -3239,7 +3239,7 @@ int wmain(int argc, const wchar_t **wargv)
         }
         else {
             svclogfnext = SHUTDOWN_LOGFEXT;
-            svcmaxlogs  = 1;
+            svcmaxlogs  = SHUTDOWN_MAX_LOGS;
         }
     }
     else {
