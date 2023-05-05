@@ -18,6 +18,7 @@ For a full list of changes, see the [git commit log][log]
   * Deprecate setting locale with -c command option
   * Check for mutually exclusive options at startup
   * Drop support for multiple -n options. The -n parameter will be used both for service and shutdown log names
+  * Disable -m0 command option. Users should use -t option instead
 
 ### New Features
 

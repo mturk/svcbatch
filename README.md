@@ -183,10 +183,6 @@ Number **234** has been randomly chosen, since win32
 API requires that this number must be larger then `127` and
 lower then `255`.
 
-Users can disable log rotation by adding **-m 0** option.
-In that case SvcBatch.log file will be be created or opened
-for append if already present.
-
 In case the last log rotation was less then `2` minutes ago,
 or if there was no data written to the log file from the last
 rotation, SvcBatch will not rotate logs.
@@ -302,7 +298,7 @@ will be reported to Windows Event log.
   **Set maximum number of log files**
 
   In case the **number** contains a single decimal number
-  between `0 and 9` it will be used instead default `1...9`.
+  between `1 and 9` it will be used instead default `1...9`.
 
   ```cmd
   > sc create ... -m 4
@@ -310,18 +306,23 @@ will be reported to Windows Event log.
   ```
 
   Instead rotating Svcbatch.log from `1...9` it will rotate
-  exiting log files from `1...4.`. In case that number is `0`,
-  log rotation will be disabled.
+  exiting log files from `1...4.`.
 
-  In case **number** parameter was defined as `1`, SvcBatch will
-  rename existing `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`,
-  and create new `SvcBatch.log`.
+  In case log rotation was enabled by using **-r** parameter,
+  SvcBatch will rename existing `SvcBatch.log` to
+  `SvcBatch.log.YYYYMMDDhhmmss`, and create new `SvcBatch.log`.
 
   The `YYYYMMDDhhmmss` is the format constructed as four digit year,
   two digit month (01 .. 12), two digit day of a month (01 .. 31,
   hour (00 .. 24), minute (00 .. 59) and second (00 .. 59,
   using current local or system time (depending on **-l** option).
 
+  **Notice**
+
+  This option is mutually exclusive with options `q` and `t`.
+  If this option is defined together with the mentioned options,
+  the service will fail to start, and write an error message
+  to the Windows Event log.
 
 * **-n [log name]**
 
