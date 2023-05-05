@@ -1643,7 +1643,6 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
             DBG_PRINTF("reusing %S", svcbatchlog->lpFileName);
         }
     }
-    InterlockedExchange64(&svcbatchlog->nWritten, 0);
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (rc == ERROR_ALREADY_EXISTS) {
@@ -1656,6 +1655,7 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
             logwrtime(h, "Log created");
         }
     }
+    InterlockedExchange64(&svcbatchlog->nWritten, 0);
     InterlockedExchangePointer(&svcbatchlog->hFile, h);
     return 0;
 }
@@ -1785,7 +1785,6 @@ static DWORD openlogfile(BOOL ssp)
             DBG_PRINTF("reusing %S", svcbatchlog->lpFileName);
         }
     }
-    InterlockedExchange64(&svcbatchlog->nWritten, 0);
     if (haslogstatus) {
         logwrline(h, cnamestamp);
         if (rc == ERROR_ALREADY_EXISTS) {
@@ -1798,6 +1797,7 @@ static DWORD openlogfile(BOOL ssp)
             logwrtime(h, "Log created");
         }
     }
+    InterlockedExchange64(&svcbatchlog->nWritten, 0);
     InterlockedExchangePointer(&svcbatchlog->hFile, h);
     xfree(logpb);
     return 0;
@@ -1819,6 +1819,10 @@ static DWORD rotatelogs(void)
     SVCBATCH_CS_ENTER(svcbatchlog);
     InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
 
+    if (InterlockedCompareExchange64(&svcbatchlog->nWritten, 0, 0) == 0) {
+        DBG_PRINTS("nothing to rotate");
+        goto finished;
+    }
     h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
     if (h == NULL) {
         InterlockedExchange64(&svcbatchlog->nWritten, 0);
@@ -1832,7 +1836,6 @@ static DWORD rotatelogs(void)
 
         if (SetFilePointerEx(h, ee, NULL, FILE_BEGIN)) {
             if (SetEndOfFile(h)) {
-                InterlockedExchange64(&svcbatchlog->nWritten, 0);
                 if (haslogstatus) {
                     logwrline(h, cnamestamp);
                     logwrtime(h, "Log truncated");
@@ -1867,6 +1870,7 @@ static DWORD rotatelogs(void)
     }
 
 finished:
+    InterlockedExchange64(&svcbatchlog->nWritten, 0);
     InterlockedExchange(&svcbatchlog->dwCurrentState, 0);
     InterlockedExchange64(&svcbatchlog->nOpenTime, GetTickCount64());
     SVCBATCH_CS_LEAVE(svcbatchlog);

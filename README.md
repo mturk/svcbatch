@@ -187,9 +187,9 @@ Users can disable log rotation by adding **-m 0** option.
 In that case SvcBatch.log file will be be created or opened
 for append if already present.
 
-In case the last log rotation was less then `2` minutes ago, no
-log rotation will happen.
-
+In case the last log rotation was less then `2` minutes ago,
+or if there was no data written to the log file from the last
+rotation, SvcBatch will not rotate logs.
 
 
 ## Command Line Options
@@ -318,8 +318,9 @@ will be reported to Windows Event log.
   and create new `SvcBatch.log`.
 
   The `YYYYMMDDhhmmss` is the format constructed as four digit year,
-  two digit, two digit day of a month, hour (00 .. 24), minute and
-  second, using current local or system time.
+  two digit month (01 .. 12), two digit day of a month (01 .. 31,
+  hour (00 .. 24), minute (00 .. 59) and second (00 .. 59,
+  using current local or system time (depending on **-l** option).
 
 
 * **-n [log name]**
