@@ -3352,15 +3352,9 @@ int wmain(int argc, const wchar_t **wargv)
             mainservice->lpWork = xgetfinalpathname(svcworkparam, 1, NULL, 0);
             if (IS_EMPTY_WCS(mainservice->lpWork))
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
+            SetCurrentDirectoryW(mainservice->lpWork);
         }
-        if (!resolvebatchname(batchparam)) {
-            if (isrelativepath(batchparam) && (mainservice->lpWork != mainservice->lpHome)) {
-                wchar_t *p = xwcsmkpath(mainservice->lpWork, batchparam);
-                resolvebatchname(p);
-                xfree(p);
-            }
-        }
-        if (!mainservice->lpBase)
+        if (!resolvebatchname(batchparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
     }
     else {
@@ -3403,12 +3397,6 @@ int wmain(int argc, const wchar_t **wargv)
             svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
             svcstopproc->lpArgv[0] = xgetfinalpathname(sparam[0], 0, NULL, 0);
-            if ((svcstopproc->lpArgv[0] == NULL) && isrelativepath(sparam[0]) &&
-                (mainservice->lpWork != mainservice->lpHome)) {
-                wchar_t *p = xwcsmkpath(mainservice->lpWork, sparam[0]);
-                svcstopproc->lpArgv[0] = xgetfinalpathname(p, 0, NULL, 0);
-                xfree(p);
-            }
             if (svcstopproc->lpArgv[0] == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
             for (i = 1; i < scnt; i++)
@@ -3416,6 +3404,8 @@ int wmain(int argc, const wchar_t **wargv)
             svcstopproc->nArgc  = scnt;
             svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
         }
+        if (mainservice->lpHome != mainservice->lpWork)
+            SetCurrentDirectoryW(mainservice->lpHome);
     }
 
     /**

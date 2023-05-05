@@ -588,6 +588,9 @@ will be reported to Windows Event log.
 
   Check **-h** command option for more details.
 
+  If **-h** option was also specified, and service and shutdown file
+  are not absolute paths, they will be resolved relative to the **path**
+  parameter.
 
 ## Private Environment Variables
 
