@@ -2214,7 +2214,7 @@ static DWORD logwrdata(BYTE *buf, DWORD len)
     if (haslogrotate && rotatebysize) {
         if (InterlockedCompareExchange64(&svcbatchlog->nWritten, 0, 0) >= rotatesiz.QuadPart) {
             if (canrotatelogs()) {
-                InterlockedExchange64(&svcbatchlog->nWritten, 0);
+                InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
                 DBG_PRINTS("rotating by size");
                 SetEvent(logrotatesig);
             }
