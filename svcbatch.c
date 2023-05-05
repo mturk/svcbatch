@@ -2306,6 +2306,7 @@ static DWORD WINAPI rotatethread(void *unused)
     HANDLE wt = NULL;
     DWORD  rc = 0;
     DWORD  nw = 3;
+    DWORD  rw = SVCBATCH_MIN_ROTATE_INT * 60000;
 
     DBG_PRINTF("started");
 
@@ -2329,7 +2330,7 @@ static DWORD WINAPI rotatethread(void *unused)
     }
 
     while (rc == 0) {
-        DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, SVCBATCH_MIN_ROTATE_INT * 60000);
+        DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, rw);
 
         switch (wc) {
             case WAIT_OBJECT_0:
@@ -2348,42 +2349,44 @@ static DWORD WINAPI rotatethread(void *unused)
                         CancelWaitableTimer(wt);
                         SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
                     }
+                    ResetEvent(logrotatesig);
+                    rw = SVCBATCH_MIN_ROTATE_INT * 60000;
                 }
-                else {
-                    createstopthread(rc);
-                }
-                ResetEvent(logrotatesig);
             break;
             case WAIT_OBJECT_3:
                 DBG_PRINTS("rotatetimer signaled");
                 if (canrotatelogs()) {
                     DBG_PRINTS("rotate by time");
                     rc = rotatelogs();
-                    if (rc)
-                        createstopthread(rc);
+                    rw = SVCBATCH_MIN_ROTATE_INT * 60000;
                 }
 #if defined(_DEBUG)
                 else {
                     DBG_PRINTS("rotate is busy ... canceling timer");
                 }
 #endif
-                CancelWaitableTimer(wt);
-                if (rotateint > 0)
-                    rotatetmo.QuadPart += rotateint;
-                SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
-                ResetEvent(logrotatesig);
+                if (rc == 0) {
+                    CancelWaitableTimer(wt);
+                    if (rotateint > 0)
+                        rotatetmo.QuadPart += rotateint;
+                    SetWaitableTimer(wt, &rotatetmo, 0, NULL, NULL, FALSE);
+                    ResetEvent(logrotatesig);
+                }
             break;
             case WAIT_TIMEOUT:
                 DBG_PRINTS("rotate ready");
                 SVCBATCH_CS_ENTER(svcbatchlog);
                 InterlockedExchange(&svcbatchlog->dwCurrentState, 0);
                 SVCBATCH_CS_LEAVE(svcbatchlog);
+                rw = INFINITE;
             break;
             default:
                 rc = wc;
             break;
         }
     }
+    if (rc > 1)
+        createstopthread(rc);
     goto finished;
 
 failed:
