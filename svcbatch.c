@@ -2078,8 +2078,7 @@ static DWORD runshutdown(DWORD rt)
                         svcstopproc->lpCommandLine,
                         NULL, NULL, TRUE,
                         svcstopproc->dwCreationFlags,
-                        NULL,
-                        mainservice->lpWork,
+                        NULL, NULL,
                         &svcstopproc->sInfo,
                         &svcstopproc->pInfo)) {
         rc = GetLastError();
