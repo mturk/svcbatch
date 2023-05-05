@@ -27,7 +27,6 @@ echo %~nx0: [%TIME%] ... Start >> %_SS_LOG%
 echo. >> %_SS_LOG%
 set   >> %_SS_LOG%
 echo. >> %_SS_LOG%
-pushd %SVCBATCH_SERVICE_HOME%
 rem
 rem Sleep for one hour
 rem Note that since started via 'start' the xsleep will
@@ -44,15 +43,23 @@ rem
 rem Call this script again to test the
 rem killprocess tree
 rem
-rem start cmd /C %~nx0 xsleep 1
-rem cmd /C %~nx0 xsleep 2
-rem cmd /C %~nx0 xsleep 3
-rem cmd /C %~nx0 xsleep 4
+call :callBack 1.
+call :callBack 2.
+rem
+echo. >> %_SS_LOG%
+echo %~nx0: [%TIME%] ... Starting sservice.exe >> %_SS_LOG%
 rem
 sservice.exe %*
 rem
-popd
+goto End
 rem
+:callBack
+rem
+start cmd /C ssxsleep.bat 20 %~1
+rem
+exit /B 0
+rem
+:End
 echo. >> %_SS_LOG%
 echo %~nx0: [%TIME%] ... Done >> %_SS_LOG%
 rem
