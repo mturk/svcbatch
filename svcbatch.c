@@ -3348,7 +3348,7 @@ int wmain(int argc, const wchar_t **wargv)
             if (IS_EMPTY_WCS(mainservice->lpWork))
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
         }
-        if (resolvebatchname(batchparam))
+        if (!resolvebatchname(batchparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
     }
     else {
