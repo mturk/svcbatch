@@ -3003,6 +3003,7 @@ int wmain(int argc, const wchar_t **wargv)
     int         scnt = 0;
     int         qcnt = 0;
     int         rv;
+    BOOL        svcb = FALSE;
     HANDLE      h;
     wchar_t     bb[BBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
 
@@ -3187,10 +3188,13 @@ int wmain(int argc, const wchar_t **wargv)
          * No batch file defined.
          * If @ServiceName was defined, try with ServiceName.bat
          */
-        if (IS_EMPTY_WCS(mainservice->lpName))
+        if (IS_EMPTY_WCS(mainservice->lpName)) {
             return xsyserror(0, L"Missing batch file", NULL);
-        else
+        }
+        else {
             batchparam = xwcsconcat(mainservice->lpName, L".bat");
+            svcb = TRUE;
+        }
         if (wcspbrk(batchparam, L"/\\:;<>?*|\""))
             return xsyserror(0, L"Batch filename has invalid characters", batchparam);
     }
@@ -3338,8 +3342,21 @@ int wmain(int argc, const wchar_t **wargv)
             }
         }
         SetCurrentDirectoryW(mainservice->lpHome);
-        if (!resolvebatchname(batchparam))
-            return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
+        if (!resolvebatchname(batchparam)) {
+            if (svcb) {
+                /**
+                 * Special case when batchparam is constructed
+                 * from @ServiceName as ServiceName.bat
+                 *
+                 * Try to find ServiceName.bat in svcbatch.exe directory
+                 */
+                SetCurrentDirectoryW(svcmainproc->szDir);
+                resolvebatchname(batchparam);
+                SetCurrentDirectoryW(mainservice->lpHome);
+            }
+            if (IS_EMPTY_WCS(mainservice->lpBase))
+                return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
+        }
         if (svchomeparam == svcworkparam) {
             /* Use the same directories for home and work */
             mainservice->lpWork = mainservice->lpHome;
