@@ -28,12 +28,19 @@ rem
 rem eg. set "JAVA_HOME=C:\Your\JDK\location"
 rem     set "JRE_HOME=C:\Your\JRE\location"
 rem
-rem Set CATALINA_HOME and CATALINA_BASE
+rem If you have created a separate copy using
+rem     makebase.bat ..\nodes\01 -w
+rem
+rem     Set CATALINA_HOME and CATALINA_BASE variables
 rem
 rem     set "CATALINA_HOME=%SVCBATCH_SERVICE_HOME%"
-rem     set "CATALINA_BASE=%SVCBATCH_SERVICE_HOME%\base"
+rem     set "CATALINA_BASE=%SVCBATCH_SERVICE_HOME%\nodes\01"
+rem
+rem     When creating service add '-o nodes\01\logs'
+rem     so that SvcBatch.log is created where
+rem     the Tomcat logs will be created.
 rem
 rem Run Apache Tomcat
-call "%SVCBATCH_SERVICE_HOME%\bin\catalina.bat" run %*
+call "%SVCBATCH_SERVICE_BASE%\catalina.bat" run %*
 rem
 
