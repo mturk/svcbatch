@@ -59,20 +59,19 @@ set "SHUTDOWN_ARGS=-s shutdown /S@@SystemRoot@@ /s\"argument with spaces\""
 rem
 rem
 set "SERVICE_LOG_DIR=-o \"Logs/%SERVICE_NAME%\""
-rem Rotate Log files each 30 minutes or when larger then 100Kbytes
-set "ROTATE_RULE=/R 30 -r100K"
+rem Rotate Log files each 10 minutes or when larger then 100Kbytes
+set "ROTATE_RULE=/R 10 -r100K"
 rem Rotate Log files at midnight
 rem set "ROTATE_RULE=-r0"
 rem Rotate Log files every full hour or when larger then 40000 bytes
 rem set "ROTATE_RULE=-r60 -r 40000B"
-rem Uncomment to disable log rotation
-rem set "ROTATE_RULE=-m 0"
 rem
 rem Set log file names instead default SvcBatch.log and SvcBatch.shutdown.log
 rem Both .log and .shutdown.log extensions are added to the -n parameter
 rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%\""
+rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S\""
 rem
-set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S\""
+set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d\""
 rem
 rem
 rem Presuming this is the build tree ...

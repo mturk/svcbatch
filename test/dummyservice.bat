@@ -45,11 +45,9 @@ rem echo.
 rem
 rem Check if shutdown batch signaled to stop the service
 if exist "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" (
+    echo.
     echo %~nx0: [%TIME%] found shutdown-%SVCBATCH_SERVICE_UUID%
-    ping -n 6 127.0.0.1 >NUL
-    echo %~nx0: [%TIME%] done
-    del /F /Q "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" 2>NUL
-    goto End
+    goto doCleanup
 )
 rem
 rem Send shutdown signal
@@ -60,6 +58,18 @@ echo %~nx0: Simulating failure
 ping -n 6 127.0.0.1 >NUL
 rem SvcBatch will report error if we end without
 rem explicit call to sc stop [service name]
+goto End
+rem
+:doCleanup
+rem
+echo.
+echo %~nx0: [%TIME%] simulating cleanup
+ping -n 3 127.0.0.1 >NUL
+echo.
+echo.
+echo %~nx0: [%TIME%] Service done
+del /F /Q "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" 2>NUL
+rem
 goto End
 rem
 rem
@@ -80,12 +90,16 @@ rem Simulate some work by sleeping for 2 seconds
 ping -n 3 127.0.0.1 >NUL
 rem Simple IPC mechanism to signal the service
 rem to stop by creating unique file
+echo.
 echo %~nx0: [%TIME%] creating shutdown-%SVCBATCH_SERVICE_UUID%
+echo.
 echo Y> "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%"
+rem
 :runShutdown
-ping -n 3 127.0.0.1 >NUL
-echo %~nx0: [%TIME%] ... running
-goto runShutdown
+ping -n 6 127.0.0.1 >NUL
+rem echo %~nx0: [%TIME%] ... running
+rem goto runShutdown
+echo.
 echo %~nx0: [%TIME%] Shutdown done
 rem
 goto End
