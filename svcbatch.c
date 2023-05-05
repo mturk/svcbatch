@@ -1560,17 +1560,7 @@ static DWORD createlogsdir(void)
 {
     wchar_t *p;
     wchar_t dp[SVCBATCH_PATH_MAX];
-    wchar_t wp[SVCBATCH_PATH_MAX];
 
-    if (!isabsolutepath(outdirparam)) {
-        if (mainservice->lpHome == mainservice->lpWork)
-            xwcslcpy(wp, SVCBATCH_PATH_MAX, mainservice->lpHome);
-        else
-            xwcslcpy(wp, SVCBATCH_PATH_MAX, mainservice->lpWork);
-        xwcslcat(wp, SVCBATCH_PATH_MAX, L"\\");
-        xwcslcat(wp, SVCBATCH_PATH_MAX, outdirparam);
-        outdirparam = wp;
-    }
     if (xgetfullpathname(outdirparam, dp, SVCBATCH_PATH_MAX) == NULL) {
         xsyserror(0, L"xgetfullpathname", outdirparam);
         return ERROR_BAD_PATHNAME;
