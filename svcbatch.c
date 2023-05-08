@@ -178,6 +178,7 @@ static const char xfnchartype[128] =
 static volatile LONG    xncmmalloc  = 0;
 static volatile LONG    xncmcalloc  = 0;
 static volatile LONG    xncrealloc  = 0;
+static volatile LONG    xnnrealloc  = 0;
 static volatile LONG    xncfree     = 0;
 static volatile LONG    xnmemalloc  = 0;
 static volatile LONG    xnmemfree   = 0;
@@ -292,18 +293,14 @@ static int dbgmemtag(const char *fn, void *mem, const wchar_t *tag, const char *
 
 static void dbgmemdump(const char *fn)
 {
-    int i;
+    int   i;
+    DWORD sc = 0;
 
-    dbgprints(fn, "total");
     EnterCriticalSection(&dbgmemlock);
     InterlockedIncrement(&xdbgtrace);
     dbgprintf(fn, "allocated  %lu", xnmemalloc);
-    dbgprintf(fn, "free       %lu", xnmemfree);
-    if (xnmemalloc == xnmemfree) {
-        LeaveCriticalSection(&dbgmemlock);
-        return;
-    }
-    dbgprints(fn, "trace");
+    dbgprintf(fn, "freed      %lu", xnmemfree);
+
     for (i = 0; i < TBUFSIZ; i++) {
         if (InterlockedCompareExchangePointer(&(dbgmemory[i].ptr), NULL, NULL)) {
             const wchar_t *tag = dbgmemory[i].tag ? dbgmemory[i].tag : zerostring;
@@ -316,14 +313,15 @@ static void dbgmemdump(const char *fn)
                 dbgprintf(dbgmemory[i].fn, "%-10s %p %2d %6lu %S",
                           dbgmemory[i].fc,  dbgmemory[i].ptr, i + 1,
                           dbgmemory[i].len, tag);
-
+            sc++;
         }
     }
-    dbgprintf(fn, "calls");
     dbgprintf(fn, "malloc     %lu", xncmmalloc);
     dbgprintf(fn, "realloc    %lu", xncrealloc);
     dbgprintf(fn, "calloc     %lu", xncmcalloc);
     dbgprintf(fn, "free       %lu", xncfree);
+    dbgprintf(fn, "used       %lu", xncmmalloc + xncmcalloc + xnnrealloc);
+    dbgprintf(fn, "left       %lu", sc);
     LeaveCriticalSection(&dbgmemlock);
 
 }
@@ -379,6 +377,8 @@ static void *xrealloc_dbg(const char *fn, void *mem, size_t size)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
     dbgmemtrace(fn, "realloc", mem, p, size);
+    if (mem == NULL)
+        InterlockedIncrement(&xnnrealloc);
     InterlockedIncrement(&xncrealloc);
     return p;
 }
@@ -3377,9 +3377,6 @@ int wmain(int argc, const wchar_t **wargv)
 #if defined(_DEBUG)
     dbgsvcmode = '0' + (char)(svcmainproc->dwType - 1);
     dbgprints(__FUNCTION__, cnamestamp);
-# if (_DEBUG > 1)
-    dbgmemdump("memory");
-# endif
 #endif
 
     while ((opt = xwgetopt(argc, wargv, L"bc:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
@@ -3726,7 +3723,9 @@ int wmain(int argc, const wchar_t **wargv)
 
     SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
-
+#if defined(_DEBUG) && (_DEBUG > 1)
+    dbgmemdump("memory");
+#endif
     if (svcmainproc->dwType == SVCBATCH_SERVICE_PROCESS) {
         SERVICE_TABLE_ENTRYW se[2];
 
