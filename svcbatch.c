@@ -1767,12 +1767,14 @@ static DWORD openlogfile(BOOL ssp)
             lognn[npos] = L'0' + i;
             if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
                 if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
-                    rc = xsyserror(GetLastError(), logpn, lognn);
+                    return xsyserror(GetLastError(), logpn, lognn);
                 else if (ssp)
                     reportsvcstatus(SERVICE_START_PENDING, 0);
             }
             else {
-                rc = xsyserror(GetLastError(), logpn, lognn);
+                rc = GetLastError();
+                if (rc != ERROR_FILE_NOT_FOUND)
+                    return xsyserror(rc, logpn, NULL);
             }
         }
     }
@@ -1783,10 +1785,8 @@ static DWORD openlogfile(BOOL ssp)
                     CREATE_ALWAYS,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
-    if (IS_INVALID_HANDLE(h)) {
-        xsyserror(rc, svcbatchlog->lpFileName, NULL);
-        goto failed;
-    }
+    if (IS_INVALID_HANDLE(h))
+        return xsyserror(rc, svcbatchlog->lpFileName, NULL);
 #if defined(_DEBUG)
     if (rc == ERROR_ALREADY_EXISTS) {
         DBG_PRINTF("truncated %S", svcbatchlog->lpFileName);
@@ -1803,13 +1803,8 @@ static DWORD openlogfile(BOOL ssp)
     }
     InterlockedExchange64(&svcbatchlog->nWritten, 0);
     InterlockedExchangePointer(&svcbatchlog->hFile, h);
-    return 0;
 
-failed:
-    SAFE_CLOSE_HANDLE(h);
-    if (pblen)
-        MoveFileExW(logpb, svcbatchlog->lpFileName, MOVEFILE_REPLACE_EXISTING);
-    return rc;
+    return 0;
 }
 
 static DWORD rotatelogs(void)
