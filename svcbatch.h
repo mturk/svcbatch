@@ -282,7 +282,7 @@
 
 #define SAFE_CLOSE_HANDLE(_h)                               \
     if (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))   \
-        CloseHandle((_h));                                  \
+        CloseHandle(_h);                                    \
     (_h) = NULL
 
 #define SAFE_MEM_FREE(_m)                                   \

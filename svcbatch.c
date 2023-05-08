@@ -223,9 +223,9 @@ static void *xrealloc(void *mem, size_t size)
 
 static wchar_t *xwmalloc(size_t size)
 {
-    wchar_t *p = (wchar_t *)xmmalloc(size * sizeof(wchar_t));
+    wchar_t *p = (wchar_t *)xmmalloc((size + 1) * sizeof(wchar_t));
 
-    p[size - 1] = WNUL;
+    p[size] = WNUL;
     return p;
 }
 
@@ -348,7 +348,7 @@ static wchar_t *xgetenv(const wchar_t *s)
 
     n = GetEnvironmentVariableW(s, e, BBUFSIZ);
     if (n != 0) {
-        d = xwmalloc(n + 1);
+        d = xwmalloc(n);
         if (n >= BBUFSIZ) {
             n = GetEnvironmentVariableW(s, d, n);
             if (n == 0) {
@@ -540,6 +540,7 @@ static int xwcscatnum(wchar_t *d, DWORD n)
     wchar_t *s;
     int      c = 0;
 
+    ASSERT_NULL(d, 0);
     s = b + QBUFSIZ;
     *(--s) = WNUL;
     do {
@@ -562,7 +563,7 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     if ((l1 + l2) == 0)
         return NULL;
 
-    cp = xwmalloc(l1 + l2 + 1);
+    cp = xwmalloc(l1 + l2);
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
     if(l2 > 0)
@@ -587,7 +588,7 @@ static wchar_t *xwcsmkpath(const wchar_t *ds, const wchar_t *fs)
         fs += 2;
         nf -= 2;
     }
-    cp = xwmalloc(nd + nf + 2);
+    cp = xwmalloc(nd + nf + 1);
 
     wmemcpy(cp, ds, nd);
     cp[nd++] = L'\\';
@@ -1717,9 +1718,9 @@ static DWORD openlogfile(BOOL ssp)
                 logpb = xwcsconcat(svcbatchlog->lpFileName, L".0");
             }
             else {
-                wchar_t sb[TBUFSIZ];
+                wchar_t sb[QBUFSIZ];
 
-                xmktimedext(sb, TBUFSIZ);
+                xmktimedext(sb, QBUFSIZ);
                 logpb = xwcsconcat(svcbatchlog->lpFileName, sb);
             }
             if (!MoveFileExW(svcbatchlog->lpFileName, logpb, MOVEFILE_REPLACE_EXISTING)) {
@@ -1743,12 +1744,11 @@ static DWORD openlogfile(BOOL ssp)
          * Rotate previous log files
          */
         for (i = svcmaxlogs; i > 0; i--) {
-            wchar_t *logpn  = logpb;
+            wchar_t *logpn;
             wchar_t  sfx[4] = { L'.', WNUL, WNUL, WNUL };
 
             sfx[1] = L'0' + i - 1;
-            if (i > 1)
-                logpn = xwcsconcat(svcbatchlog->lpFileName, sfx);
+            logpn  = xwcsconcat(svcbatchlog->lpFileName, sfx);
             if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
                 wchar_t *lognn;
                 BOOL     logmv = TRUE;
@@ -1778,8 +1778,7 @@ static DWORD openlogfile(BOOL ssp)
                         reportsvcstatus(SERVICE_START_PENDING, 0);
                 }
             }
-            if (logpn != logpb)
-                xfree(logpn);
+            xfree(logpn);
         }
     }
 
