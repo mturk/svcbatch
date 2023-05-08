@@ -1066,6 +1066,7 @@ static int xtimehdr(char *wb, int sz)
  */
 
 static char dbgprocpad[4] = { 0, 0, 0, 0};
+static char dbgsvcmode    = 'x';
 
 static void dbginit(void)
 {
@@ -1088,28 +1089,21 @@ static void dbginit(void)
 
 static void dbgprints(const char *funcname, const char *string)
 {
-    static char m = 'x';
     char b[MBUFSIZ];
 
-    if (svcmainproc && svcmainproc->dwType)
-        m = '0' + svcmainproc->dwType - 1;
     xsnprintf(b, MBUFSIZ, "%s[%.4lu] %c %-16s %s", dbgprocpad,
-              GetCurrentThreadId(), m,
-              funcname, string);
+              GetCurrentThreadId(), dbgsvcmode, funcname, string);
     OutputDebugStringA(b);
 }
 
 static void dbgprintf(const char *funcname, const char *format, ...)
 {
-    static char m = 'x';
     int     n;
     char    b[MBUFSIZ];
     va_list ap;
 
-    if (svcmainproc && svcmainproc->dwType)
-        m = '0' + svcmainproc->dwType - 1;
     n = xsnprintf(b, MBUFSIZ, "%s[%.4lu] %c %-16s ", dbgprocpad,
-                  GetCurrentThreadId(), m, funcname);
+                  GetCurrentThreadId(), dbgsvcmode, funcname);
 
     va_start(ap, format);
     xvsnprintf(b + n, MBUFSIZ - n, format, ap);
@@ -3377,8 +3371,11 @@ int wmain(int argc, const wchar_t **wargv)
             wargv   += 1;
         }
     }
+    if (svcmainproc->dwType == 0)
+        svcmainproc->dwType = SVCBATCH_SERVICE_PROCESS;
 
 #if defined(_DEBUG)
+    dbgsvcmode = '0' + (char)(svcmainproc->dwType - 1);
     dbgprints(__FUNCTION__, cnamestamp);
 # if (_DEBUG > 1)
     dbgmemdump("memory");
