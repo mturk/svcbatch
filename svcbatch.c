@@ -802,17 +802,19 @@ static wchar_t *xuuidstring(wchar_t *b)
     return b;
 }
 
-static void xmktimedext(wchar_t *buf, int siz)
+static int xmktimedext(wchar_t *buf, int siz)
 {
     SYSTEMTIME st;
 
+    if (siz < QBUFSIZ)
+        return 0;
     if (uselocaltime)
         GetLocalTime(&st);
     else
         GetSystemTime(&st);
-    xsnwprintf(buf, siz, L".%.4d%.2d%.2d%.2d%.2d%.2d",
-               st.wYear, st.wMonth, st.wDay,
-               st.wHour, st.wMinute, st.wSecond);
+    return xsnwprintf(buf, siz, L".%.4d%.2d%.2d%.2d%.2d%.2d",
+                      st.wYear, st.wMonth, st.wDay,
+                      st.wHour, st.wMinute, st.wSecond);
 }
 
 static int xtimehdr(char *wb, int sz)
@@ -1687,11 +1689,12 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
 static DWORD openlogfile(BOOL ssp)
 {
     wchar_t  logfn[BBUFSIZ];
-    wchar_t *logpb    = NULL;
+    wchar_t  logpb[SVCBATCH_PATH_MAX];
     HANDLE h          = NULL;
     BOOL   renameprev = FALSE;
     BOOL   rotateprev = FALSE;
     DWORD  rc;
+    int    pblen = 0;
 
     if (svclogfname)
         xwcslcpy(logfn, BBUFSIZ, svclogfname);
@@ -1712,23 +1715,18 @@ static DWORD openlogfile(BOOL ssp)
         return xsyserror(ERROR_FILE_NOT_FOUND, logfn, NULL);
     if (renameprev) {
         if (GetFileAttributesW(svcbatchlog->lpFileName) != INVALID_FILE_ATTRIBUTES) {
+            int i;
+            pblen = xwcslcpy(logpb, SVCBATCH_PATH_MAX, svcbatchlog->lpFileName);
             if (ssp)
                 reportsvcstatus(SERVICE_START_PENDING, 0);
-            if (rotateprev) {
-                logpb = xwcsconcat(svcbatchlog->lpFileName, L".0");
-            }
-            else {
-                wchar_t sb[QBUFSIZ];
-
-                xmktimedext(sb, QBUFSIZ);
-                logpb = xwcsconcat(svcbatchlog->lpFileName, sb);
-            }
-            if (!MoveFileExW(svcbatchlog->lpFileName, logpb, MOVEFILE_REPLACE_EXISTING)) {
-                rc = GetLastError();
-                xsyserror(rc, svcbatchlog->lpFileName, logpb);
-                xfree(logpb);
-                return rc;
-            }
+            if (rotateprev)
+                i = xwcslcat(logpb, SVCBATCH_PATH_MAX, L".0");
+            else
+                i = xmktimedext(logpb + pblen, SVCBATCH_PATH_MAX - pblen);
+            if ((i == 0) || (i >= SVCBATCH_PATH_MAX))
+                return xsyserror(ERROR_OUTOFMEMORY, logpb, NULL);
+            if (!MoveFileExW(svcbatchlog->lpFileName, logpb, MOVEFILE_REPLACE_EXISTING))
+                return xsyserror(GetLastError(), svcbatchlog->lpFileName, logpb);
         }
         else {
             rc = GetLastError();
@@ -1742,17 +1740,20 @@ static DWORD openlogfile(BOOL ssp)
     if (rotateprev) {
         int i;
         int n = svcmaxlogs;
+        int npos;
+        int ppos;
+        wchar_t lognn[SVCBATCH_PATH_MAX];
+        wchar_t logpn[SVCBATCH_PATH_MAX];
+
+        xwcslcpy(lognn, SVCBATCH_PATH_MAX, svcbatchlog->lpFileName);
+        xwcslcpy(logpn, SVCBATCH_PATH_MAX, svcbatchlog->lpFileName);
+        npos = xwcslcat(lognn, SVCBATCH_PATH_MAX, L".0") - 1;
+        ppos = xwcslcat(logpn, SVCBATCH_PATH_MAX, L".0") - 1;
 
         for (i = 2; i < svcmaxlogs; i++) {
-            DWORD    attrs;
-            wchar_t *lognn;
-            wchar_t  sfx[4] = { L'.', WNUL, WNUL, WNUL };
-
-            sfx[1] = L'0' + i;
-            lognn  = xwcsconcat(svcbatchlog->lpFileName, sfx);
-            attrs  = GetFileAttributesW(lognn);
-            xfree(lognn);
-            if (attrs == INVALID_FILE_ATTRIBUTES) {
+            lognn[npos] = L'0' + i;
+            DBG_PRINTF("%d %S", i, lognn);
+            if (GetFileAttributesW(lognn) == INVALID_FILE_ATTRIBUTES) {
                 n = i;
                 break;
             }
@@ -1762,30 +1763,17 @@ static DWORD openlogfile(BOOL ssp)
          * Rotate previous log files
          */
         for (i = n; i > 0; i--) {
-            wchar_t *logpn;
-            wchar_t *lognn;
-            wchar_t  sfx[4] = { L'.', WNUL, WNUL, WNUL };
-
-            sfx[1] = L'0' + i - 1;
-            logpn  = xwcsconcat(svcbatchlog->lpFileName, sfx);
-            sfx[1] = L'0' + i;
-            lognn  = xwcsconcat(svcbatchlog->lpFileName, sfx);
+            logpn[ppos] = L'0' + i - 1;
+            lognn[npos] = L'0' + i;
             if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
-                if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
-                    rc = GetLastError();
-                    xsyserror(rc, logpn, lognn);
-                }
-                else {
-                    if (ssp)
-                        reportsvcstatus(SERVICE_START_PENDING, 0);
-                }
+                if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
+                    rc = xsyserror(GetLastError(), logpn, lognn);
+                else if (ssp)
+                    reportsvcstatus(SERVICE_START_PENDING, 0);
             }
             else {
-                rc = GetLastError();
-                xsyserror(rc, logpn, lognn);
+                rc = xsyserror(GetLastError(), logpn, lognn);
             }
-            xfree(logpn);
-            xfree(lognn);
         }
     }
 
@@ -1815,15 +1803,12 @@ static DWORD openlogfile(BOOL ssp)
     }
     InterlockedExchange64(&svcbatchlog->nWritten, 0);
     InterlockedExchangePointer(&svcbatchlog->hFile, h);
-    xfree(logpb);
     return 0;
 
 failed:
     SAFE_CLOSE_HANDLE(h);
-    if (logpb) {
+    if (pblen)
         MoveFileExW(logpb, svcbatchlog->lpFileName, MOVEFILE_REPLACE_EXISTING);
-        xfree(logpb);
-    }
     return rc;
 }
 
