@@ -178,6 +178,25 @@
 # define DBG_PRINTS(Msg)        (void)0
 #endif
 
+#if defined(_DEBUG) && (_DEBUG > 1)
+# define DBG_WCSTAG(_m, _t, _d) dbgmemtag(__FUNCTION__,   _m,   _t, _d)
+# define DBG_MEMTAG(_m, _d)     dbgmemtag(__FUNCTION__,   _m, NULL, _d)
+# define DBG_STRTAG(_m, _d)     dbgmemtag(__FUNCTION__,   _m,   _m, _d)
+# define DBG_STRTAG_FN(_m, _d)  dbgmemtag(__FUNCTION__, NULL,   _m, _d)
+# define xmmalloc(_s)           xmmalloc_dbg(__FUNCTION__, NULL, _s)
+# define xmcalloc(_n, _s)       xmcalloc_dbg(__FUNCTION__, NULL, _n, _s)
+# define xwmalloc(_s)           xwmalloc_dbg(__FUNCTION__, NULL, _s)
+# define xrealloc(_m, _s)       xrealloc_dbg(__FUNCTION__, _m, _s)
+# define xwcalloc(_s)           xwcalloc_dbg(__FUNCTION__, _s)
+# define xwcsdup(_s)            xwcsdup_dbg( __FUNCTION__, _s)
+# define xfree(_m)              xfree_dbg(   __FUNCTION__, _m)
+#else
+# define DBG_WCSTAG(_m, _t, _d) (void)0
+# define DBG_MEMTAG(_m, _d)     (void)0
+# define DBG_STRTAG(_m, _d)     (void)0
+# define DBG_STRTAG_FN(_m, _d)  (void)0
+#endif
+
 #define xsyserror(_n, _e, _d)   svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_ERROR_TYPE,      _n, _e, _d)
 #define xsyswarn(_n, _e, _d)    svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_WARNING_TYPE,    _n, _e, _d)
 #define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d)
@@ -192,9 +211,9 @@
 /**
  * Process types
  */
-#define SVCBATCH_SERVICE_PROCESS    0x00000000   /* Main service process         */
-#define SVCBATCH_SHUTDOWN_PROCESS   0x00000001   /* Shutdown process             */
-#define SVCBATCH_SHELL_PROCESS      0x00000002   /* Shell (cmd.exe) process      */
+#define SVCBATCH_SERVICE_PROCESS    0x00000001   /* Main service process         */
+#define SVCBATCH_SHUTDOWN_PROCESS   0x00000002   /* Shutdown process             */
+#define SVCBATCH_SHELL_PROCESS      0x00000003   /* Shell (cmd.exe) process      */
 /**
  * Log state
  */
@@ -285,8 +304,7 @@
     (_h) = NULL
 
 #define SAFE_MEM_FREE(_m)                                   \
-    if ((_m) != NULL)                                       \
-        free((_m));                                         \
+    xfree(_m);                                              \
     (_m) = NULL
 
 #define WAIT_OBJECT_1          (WAIT_OBJECT_0 + 1)
