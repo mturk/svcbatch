@@ -1734,51 +1734,58 @@ static DWORD openlogfile(BOOL ssp)
             rc = GetLastError();
             if (rc != ERROR_FILE_NOT_FOUND)
                 return xsyserror(rc, svcbatchlog->lpFileName, NULL);
+            rotateprev = FALSE;
         }
     }
     if (ssp)
         reportsvcstatus(SERVICE_START_PENDING, 0);
     if (rotateprev) {
         int i;
+        int n = svcmaxlogs;
+
+        for (i = 2; i < svcmaxlogs; i++) {
+            DWORD    attrs;
+            wchar_t *lognn;
+            wchar_t  sfx[4] = { L'.', WNUL, WNUL, WNUL };
+
+            sfx[1] = L'0' + i;
+            lognn  = xwcsconcat(svcbatchlog->lpFileName, sfx);
+            attrs  = GetFileAttributesW(lognn);
+            xfree(lognn);
+            if (attrs == INVALID_FILE_ATTRIBUTES) {
+                n = i;
+                break;
+            }
+        }
+        DBG_PRINTF("rotating %d of %d", n, svcmaxlogs);
         /**
          * Rotate previous log files
          */
-        for (i = svcmaxlogs; i > 0; i--) {
+        for (i = n; i > 0; i--) {
             wchar_t *logpn;
+            wchar_t *lognn;
             wchar_t  sfx[4] = { L'.', WNUL, WNUL, WNUL };
 
             sfx[1] = L'0' + i - 1;
             logpn  = xwcsconcat(svcbatchlog->lpFileName, sfx);
+            sfx[1] = L'0' + i;
+            lognn  = xwcsconcat(svcbatchlog->lpFileName, sfx);
             if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
-                wchar_t *lognn;
-                BOOL     logmv = TRUE;
-
-                if (i > 2) {
-                    /**
-                     * Check for gap
-                     */
-                    sfx[1] = L'0' + i - 2;
-                    lognn = xwcsconcat(svcbatchlog->lpFileName, sfx);
-                    if (GetFileAttributesW(lognn) == INVALID_FILE_ATTRIBUTES)
-                        logmv = FALSE;
-                    xfree(lognn);
+                if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
+                    rc = GetLastError();
+                    xsyserror(rc, logpn, lognn);
                 }
-                if (logmv) {
-                    sfx[1] = L'0' + i;
-                    lognn = xwcsconcat(svcbatchlog->lpFileName, sfx);
-                    if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING)) {
-                        rc = GetLastError();
-                        xsyserror(rc, logpn, lognn);
-                        xfree(logpn);
-                        xfree(lognn);
-                        goto failed;
-                    }
-                    xfree(lognn);
+                else {
                     if (ssp)
                         reportsvcstatus(SERVICE_START_PENDING, 0);
                 }
             }
+            else {
+                rc = GetLastError();
+                xsyserror(rc, logpn, lognn);
+            }
             xfree(logpn);
+            xfree(lognn);
         }
     }
 
