@@ -1724,7 +1724,7 @@ static DWORD openlogfile(BOOL ssp)
             else
                 i = xmktimedext(logpb + pblen, SVCBATCH_PATH_MAX - pblen);
             if ((i == 0) || (i >= SVCBATCH_PATH_MAX))
-                return xsyserror(ERROR_OUTOFMEMORY, logpb, NULL);
+                return xsyserror(ERROR_BAD_PATHNAME, logpb, NULL);
             if (!MoveFileExW(svcbatchlog->lpFileName, logpb, MOVEFILE_REPLACE_EXISTING))
                 return xsyserror(GetLastError(), svcbatchlog->lpFileName, logpb);
         }
@@ -1745,9 +1745,11 @@ static DWORD openlogfile(BOOL ssp)
         wchar_t logpn[SVCBATCH_PATH_MAX];
 
         x = xwcslcpy(lognn, SVCBATCH_PATH_MAX, svcbatchlog->lpFileName);
-        x = xwcslcat(lognn, SVCBATCH_PATH_MAX, L".0") - 1;
-        wmemcpy(logpn, lognn, x + 2);
-
+        x = xwcslcat(lognn, SVCBATCH_PATH_MAX, L".0");
+        if (x >= SVCBATCH_PATH_MAX)
+            return xsyserror(ERROR_BAD_PATHNAME, svcbatchlog->lpFileName, NULL);
+        wmemcpy(logpn, lognn, x + 1);
+        x--;
         for (i = 2; i < svcmaxlogs; i++) {
             lognn[x] = L'0' + i;
             if (GetFileAttributesW(lognn) == INVALID_FILE_ATTRIBUTES) {
