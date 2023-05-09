@@ -1663,14 +1663,14 @@ static DWORD makelogfile(const wchar_t *logfn, BOOL ssp)
                     CREATE_ALWAYS,
                     FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
-    if (IS_INVALID_HANDLE(h)) {
-        xsyserror(rc, L"CreateFile", svcbatchlog->lpFileName);
-        return rc;
-    }
+    if (IS_INVALID_HANDLE(h))
+        return xsyserror(rc, L"CreateFile", svcbatchlog->lpFileName);
+
 #if defined(_DEBUG)
-    if (rc == ERROR_ALREADY_EXISTS) {
-        DBG_PRINTF("truncated %S", svcbatchlog->lpFileName);
-    }
+    if (rc == ERROR_ALREADY_EXISTS)
+        dbgprintf(__FUNCTION__, "truncated %S", svcbatchlog->lpFileName);
+    else
+        dbgprintf(__FUNCTION__, "created %S",   svcbatchlog->lpFileName);
 #endif
     if (haslogstatus) {
         logwrline(h, cnamestamp);
@@ -1739,20 +1739,17 @@ static DWORD openlogfile(BOOL ssp)
         reportsvcstatus(SERVICE_START_PENDING, 0);
     if (rotateprev) {
         int i;
+        int x;
         int n = svcmaxlogs;
-        int npos;
-        int ppos;
         wchar_t lognn[SVCBATCH_PATH_MAX];
         wchar_t logpn[SVCBATCH_PATH_MAX];
 
-        xwcslcpy(lognn, SVCBATCH_PATH_MAX, svcbatchlog->lpFileName);
-        xwcslcpy(logpn, SVCBATCH_PATH_MAX, svcbatchlog->lpFileName);
-        npos = xwcslcat(lognn, SVCBATCH_PATH_MAX, L".0") - 1;
-        ppos = xwcslcat(logpn, SVCBATCH_PATH_MAX, L".0") - 1;
+        x = xwcslcpy(lognn, SVCBATCH_PATH_MAX, svcbatchlog->lpFileName);
+        x = xwcslcat(lognn, SVCBATCH_PATH_MAX, L".0") - 1;
+        wmemcpy(logpn, lognn, x + 2);
 
         for (i = 2; i < svcmaxlogs; i++) {
-            lognn[npos] = L'0' + i;
-            DBG_PRINTF("%d %S", i, lognn);
+            lognn[x] = L'0' + i;
             if (GetFileAttributesW(lognn) == INVALID_FILE_ATTRIBUTES) {
                 n = i;
                 break;
@@ -1763,8 +1760,8 @@ static DWORD openlogfile(BOOL ssp)
          * Rotate previous log files
          */
         for (i = n; i > 0; i--) {
-            logpn[ppos] = L'0' + i - 1;
-            lognn[npos] = L'0' + i;
+            logpn[x] = L'0' + i - 1;
+            lognn[x] = L'0' + i;
             if (GetFileAttributesW(logpn) != INVALID_FILE_ATTRIBUTES) {
                 if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
                     return xsyserror(GetLastError(), logpn, lognn);
@@ -1788,9 +1785,10 @@ static DWORD openlogfile(BOOL ssp)
     if (IS_INVALID_HANDLE(h))
         return xsyserror(rc, svcbatchlog->lpFileName, NULL);
 #if defined(_DEBUG)
-    if (rc == ERROR_ALREADY_EXISTS) {
-        DBG_PRINTF("truncated %S", svcbatchlog->lpFileName);
-    }
+    if (rc == ERROR_ALREADY_EXISTS)
+        dbgprintf(__FUNCTION__, "truncated %S", svcbatchlog->lpFileName);
+    else
+        dbgprintf(__FUNCTION__, "created %S",   svcbatchlog->lpFileName);
 #endif
     if (haslogstatus) {
         logwrline(h, cnamestamp);
