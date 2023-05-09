@@ -309,8 +309,9 @@ will be reported to Windows Event log.
   exiting log files from `1...4.`.
 
   In case log rotation was enabled by using **-r** parameter,
-  SvcBatch will rename existing `SvcBatch.log` to
-  `SvcBatch.log.YYYYMMDDhhmmss`, and create new `SvcBatch.log`.
+  or the **number** is `1`, SvcBatch will rename existing
+  `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`,
+  and create a new `SvcBatch.log`.
 
   The `YYYYMMDDhhmmss` is the format constructed as four digit year,
   two digit month (01 .. 12), two digit day of a month (01 .. 31,

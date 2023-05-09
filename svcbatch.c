@@ -1706,7 +1706,7 @@ static DWORD openlogfile(BOOL ssp)
 
     if (!truncatelogs) {
         renameprev = TRUE;
-        if (svcmaxlogs > 0)
+        if (svcmaxlogs > 1)
             rotateprev = TRUE;
     }
     if (svcbatchlog->lpFileName == NULL)
@@ -3393,9 +3393,9 @@ int wmain(int argc, const wchar_t **wargv)
             for (i = 0; i < rcnt; i++) {
                 if (!resolverotate(rparam[i]))
                     return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
+                svcmaxlogs = 0;
             }
             haslogrotate = TRUE;
-            svcmaxlogs   = 0;
         }
         if (svclogfname) {
             if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
