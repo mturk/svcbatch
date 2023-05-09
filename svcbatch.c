@@ -2053,8 +2053,6 @@ static DWORD runshutdown(DWORD rt)
             *(rp++) = L'l';
         if (truncatelogs)
             *(rp++) = L't';
-        if (haslogstatus)
-            *(rp++) = L'v';
     }
     else {
         *(rp++) = L'q';
