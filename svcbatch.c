@@ -1791,7 +1791,6 @@ static DWORD rotatelogs(SVCBATCH_LOG *log)
     }
     h = InterlockedExchangePointer(&log->hFile, NULL);
     if (h == NULL) {
-        InterlockedExchange64(&log->nWritten, 0);
         rc = ERROR_FILE_NOT_FOUND;
         goto finished;
     }
@@ -1819,6 +1818,11 @@ static DWORD rotatelogs(SVCBATCH_LOG *log)
         CloseHandle(h);
     }
     else {
+        if (haslogstatus) {
+            logfflush(h);
+            logwrtime(h, "Log rotated");
+            FlushFileBuffers(h);
+        }
         CloseHandle(h);
         SAFE_MEM_FREE(log->lpFileName);
         rc = openlogfile(log, FALSE);
@@ -2179,6 +2183,9 @@ static DWORD logwrdata(SVCBATCH_LOG *log, BYTE *buf, DWORD len)
     DWORD  rc;
     HANDLE h;
 
+#if defined(_DEBUG) && (_DEBUG > 1)
+    DBG_PRINTF("writing %4lu bytes", len);
+#endif
     SVCBATCH_CS_ENTER(log);
     h = InterlockedExchangePointer(&log->hFile, NULL);
 
@@ -2194,6 +2201,9 @@ static DWORD logwrdata(SVCBATCH_LOG *log, BYTE *buf, DWORD len)
         if (rc != ERROR_NO_MORE_FILES) {
             xsyserror(rc, L"Log write", NULL);
             createstopthread(rc);
+        }
+        else {
+            DBG_PRINTS("logfile closed");
         }
         return rc;
     }
