@@ -20,6 +20,7 @@ For a full list of changes, see the [git commit log][log]
   * Drop support for multiple -n options. The -n parameter will be used both for service and shutdown log names
   * Disable -m0 command option. Users should use -t option instead
   * Always overwrite existing log files
+  * Log status messages to separate SvcBatch.status.log file
 
 ### New Features
 

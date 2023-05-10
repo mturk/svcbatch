@@ -68,6 +68,7 @@
 #define SVCBATCH_LOGNAME       L"SvcBatch"
 #define SVCBATCH_LOGFEXT       L".log"
 #define SHUTDOWN_LOGFEXT       L".shutdown.log"
+#define SBSTATUS_LOGFEXT       L".status.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sp-"
 

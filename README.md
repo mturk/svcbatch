@@ -556,27 +556,28 @@ will be reported to Windows Event log.
   SvcBatch messages.
 
   If enabled SvcBatch will put something like the following
-  when log file is opened:
+  to the `SvcBatch.status.log` file:
 
   ```no-highlight
-    [00:00:00.034518] SvcBatch 2.1.0.0_2.dbg (msc 193532217.1)
-    [00:00:00.034646] Log opened       : 2023-04-30 00:38:32
-    [00:00:00.034711] Service name     : adummysvc
-    [00:00:00.034728] Service uuid     : 0a5c-d10e67f7-c9c1-c420-1fc5-d7e26f223282
-    [00:00:00.034764] Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
-    [00:00:00.034780] Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
-    [00:00:00.034795] Program directory: C:\Workplace\svcbatch\.build\dbg
-    [00:00:00.034842] Base directory   : C:\Workplace\svcbatch\test
-    [00:00:00.034857] Home directory   : C:\Workplace\svcbatch\test
-    [00:00:00.035426] Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
+  [00:00:00.030267] SvcBatch 2.1.0.0_2.dbg (msc 193532217.1)
+  [00:00:00.030469] Log created      : 2023-05-10 10:58:30
+  [00:00:00.030485] Service name     : adummysvc
+  [00:00:00.030501] Service uuid     : 1338-22490bf3-26f0-72d1-8b50-dfa55590410d
+  [00:00:00.030531] Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
+  [00:00:00.030573] Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
+  [00:00:00.030587] Program directory: C:\Workplace\svcbatch\.build\dbg
+  [00:00:00.030636] Base directory   : C:\Workplace\svcbatch\test
+  [00:00:00.030650] Home directory   : C:\Workplace\svcbatch\test
+  [00:00:00.031302] Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
+  [00:00:00.031324] Work directory   : C:\Workplace\svcbatch\test
 
-    ...
+  [00:00:46.426909] Log rotation not ready
+  [00:02:00.052080] Rotate ready     : 2023-05-10 11:00:30
+  [00:03:15.856979] Service signaled : SVCBATCH_CTRL_ROTATE
+  [00:00:00.003623] Log rotated      : 2023-05-10 11:01:46
+  [00:00:46.853600] Service signaled : SERVICE_CONTROL_STOP
 
-    [00:00:11.003626] Service signaled : SERVICE_CONTROL_STOP
-
-    ...
-
-    [00:00:21.059643] Log closed       : 2023-04-30 00:38:53
+  [00:00:54.021071] Log closed       : 2023-05-10 11:02:40
 
   ```
 
@@ -746,7 +747,7 @@ is to open command prompt and type
   ```
 
 The actual version information can be obtained by inspecting
-the top of the service's `SvcBatch.log` file. This information
+the top of the service's `SvcBatch.status.log` file. This information
 will be present in the log file, only if **-v** command
 option was defined at service's install.
 

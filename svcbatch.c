@@ -114,6 +114,7 @@ static LPSVCBATCH_PROCESS    svcmainproc = NULL;
 static LPSVCBATCH_PROCESS    svcxcmdproc = NULL;
 static LPSVCBATCH_SERVICE    mainservice = NULL;
 static LPSVCBATCH_LOG        svcbatchlog = NULL;
+static LPSVCBATCH_LOG        svcbstatlog = NULL;
 
 static LONGLONG              rotateint   = CPP_INT64_C(0);
 static LARGE_INTEGER         rotatetmo   = {{ 0, 0 }};
@@ -1742,7 +1743,7 @@ static DWORD openlogfile(SVCBATCH_LOG *log, BOOL ssp)
         return xsyserror(ERROR_FILE_NOT_FOUND, log->szName, NULL);
 
     if (rp) {
-        rc = rotateprevlogs(svcbatchlog, ssp);
+        rc = rotateprevlogs(log, ssp);
         if (rc)
             return rc;
     }
@@ -1760,7 +1761,7 @@ static DWORD openlogfile(SVCBATCH_LOG *log, BOOL ssp)
     else
         dbgprintf(__FUNCTION__, "created %S",   log->lpFileName);
 #endif
-    if (haslogstatus) {
+    if (log == svcbstatlog) {
         logwrline(fh, cnamestamp);
         if (ssp) {
             if (rc == ERROR_ALREADY_EXISTS)
@@ -1801,12 +1802,6 @@ static DWORD rotatelogs(SVCBATCH_LOG *log)
 
         if (SetFilePointerEx(h, ee, NULL, FILE_BEGIN)) {
             if (SetEndOfFile(h)) {
-                if (haslogstatus) {
-                    logwrline(h, cnamestamp);
-                    logwrtime(h, "Log truncated");
-                    logprintf(h, "Log generation   : %lu", nr);
-                    logconfig(h);
-                }
                 DBG_PRINTS("truncated");
                 InterlockedExchangePointer(&log->hFile, h);
                 goto finished;
@@ -1817,27 +1812,21 @@ static DWORD rotatelogs(SVCBATCH_LOG *log)
         CloseHandle(h);
     }
     else {
-        if (haslogstatus) {
-            logfflush(h);
-            logwrtime(h, "Log rotated");
-            FlushFileBuffers(h);
-        }
         CloseHandle(h);
         SAFE_MEM_FREE(log->lpFileName);
         rc = openlogfile(log, FALSE);
     }
-    if (rc == 0) {
-        if (haslogstatus) {
-            logwrtime(log->hFile, "Log rotated");
-            logprintf(log->hFile, "Log generation   : %lu", nr);
-            logconfig(log->hFile);
+    if (rc) {
+        setsvcstatusexit(rc);
+    }
+    else {
+        if (svcbstatlog) {
+            SVCBATCH_CS_ENTER(svcbstatlog);
+            logwrtime(svcbstatlog->hFile, "Log rotated");
+            SVCBATCH_CS_LEAVE(svcbstatlog);
         }
         DBG_PRINTS("rotated");
     }
-    else {
-        setsvcstatusexit(rc);
-    }
-
 finished:
     InterlockedExchange64(&log->nWritten, 0);
     SVCBATCH_CS_LEAVE(log);
@@ -1856,7 +1845,7 @@ static DWORD closelogfile(SVCBATCH_LOG *log)
     h = InterlockedExchangePointer(&log->hFile, NULL);
     if (h) {
         DBG_PRINTS("flushing");
-        if (haslogstatus) {
+        if (log == svcbstatlog) {
             logfflush(h);
             logwrtime(h, "Log closed");
         }
@@ -2086,24 +2075,17 @@ static DWORD WINAPI stopthread(void *msg)
 
     if (msg == NULL)
         reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
-#if defined(_DEBUG) && (_DEBUG > 1)
     DBG_PRINTS("started");
     if (svcbatchlog) {
         SVCBATCH_CS_ENTER(svcbatchlog);
         InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
-
-        if (haslogstatus && msg) {
-            HANDLE h;
-            h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
-            if (h) {
-                logfflush(h);
-                logprintf(h, "Service signaled : %s", (const char *)msg);
-            }
-            InterlockedExchangePointer(&svcbatchlog->hFile, h);
-        }
         SVCBATCH_CS_LEAVE(svcbatchlog);
+        if (svcbstatlog && msg) {
+            SVCBATCH_CS_ENTER(svcbstatlog);
+            logprintf(svcbstatlog->hFile, "Service signaled : %s", (const char *)msg);
+            SVCBATCH_CS_LEAVE(svcbstatlog);
+        }
     }
-#endif
     if (svcstopproc) {
         int   ri;
         ULONGLONG rs;
@@ -2182,7 +2164,7 @@ static DWORD logwrdata(SVCBATCH_LOG *log, BYTE *buf, DWORD len)
     DWORD  rc;
     HANDLE h;
 
-#if defined(_DEBUG) && (_DEBUG > 1)
+#if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("writing %4lu bytes", len);
 #endif
     SVCBATCH_CS_ENTER(log);
@@ -2271,22 +2253,12 @@ static DWORD WINAPI signalthread(void *unused)
                 rc = FALSE;
             break;
             case WAIT_OBJECT_2:
-#if defined(_DEBUG) && (_DEBUG > 1)
                 DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
-                if (haslogstatus) {
-                    HANDLE h;
-
-                    SVCBATCH_CS_ENTER(svcbatchlog);
-                    h = InterlockedExchangePointer(&svcbatchlog->hFile, NULL);
-
-                    if (h) {
-                        logfflush(h);
-                        logwrline(h, "Signaled SVCBATCH_CTRL_BREAK");
-                    }
-                    InterlockedExchangePointer(&svcbatchlog->hFile, h);
-                    SVCBATCH_CS_LEAVE(svcbatchlog);
+                if (svcbstatlog) {
+                    SVCBATCH_CS_ENTER(svcbstatlog);
+                    logwrline(svcbstatlog->hFile, "Service signaled : SVCBATCH_CTRL_BREAK");
+                    SVCBATCH_CS_LEAVE(svcbstatlog);
                 }
-#endif
                 /**
                  * Danger Zone!!!
                  *
@@ -2387,6 +2359,11 @@ static DWORD WINAPI rotatethread(void *unused)
                 SVCBATCH_CS_ENTER(svcbatchlog);
                 InterlockedExchange(&svcbatchlog->dwCurrentState, 0);
                 SVCBATCH_CS_LEAVE(svcbatchlog);
+                if (svcbstatlog) {
+                    SVCBATCH_CS_ENTER(svcbstatlog);
+                    logwrtime(svcbstatlog->hFile, "Rotate ready");
+                    SVCBATCH_CS_LEAVE(svcbstatlog);
+                }
                 rw = INFINITE;
             break;
             default:
@@ -2680,17 +2657,29 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
         case SVCBATCH_CTRL_ROTATE:
             if (haslogrotate) {
+                HANDLE h = NULL;
                 /**
                  * Signal to rotatethread that
                  * user send custom service control
                  */
+                if (svcbstatlog) {
+                    SVCBATCH_CS_ENTER(svcbstatlog);
+                    h = InterlockedExchangePointer(&svcbstatlog->hFile, NULL);
+                }
                 if (canrotatelogs(svcbatchlog)) {
+                    if (h)
+                        logwrline(h, "Service signaled : SVCBATCH_CTRL_ROTATE");
                     DBG_PRINTS("signaling SVCBATCH_CTRL_ROTATE");
                     SetEvent(logrotatesig);
                 }
                 else {
                     DBG_PRINTS("rotatelogs is busy");
-                    return ERROR_CALL_NOT_IMPLEMENTED;
+                    if (h)
+                        logwrline(h, "Log rotation not ready");
+                }
+                if (svcbstatlog) {
+                    InterlockedExchangePointer(&svcbstatlog->hFile, h);
+                    SVCBATCH_CS_LEAVE(svcbstatlog);
                 }
             }
             else {
@@ -2815,6 +2804,13 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             return;
         }
         SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", svcbatchlog->szDir);
+        if (haslogstatus) {
+            svcbstatlog = (LPSVCBATCH_LOG)xmmalloc(sizeof(SVCBATCH_LOG));
+
+            memcpy(svcbstatlog, svcbatchlog, sizeof(SVCBATCH_LOG));
+            svcbstatlog->lpFileExt = SBSTATUS_LOGFEXT;
+            SVCBATCH_CS_CREATE(svcbstatlog);
+        }
     }
     else {
         if (outdirparam == NULL) {
@@ -2865,6 +2861,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", mainservice->lpUuid);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_WORK", mainservice->lpWork);
 
+    if (svcbstatlog) {
+        rv = openlogfile(svcbstatlog, TRUE);
+        if (rv != 0) {
+            reportsvcstatus(SERVICE_STOPPED, rv);
+            return;
+        }
+        logconfig(svcbstatlog->hFile);
+    }
     if (svcbatchlog) {
         reportsvcstatus(SERVICE_START_PENDING, 0);
 
@@ -2873,8 +2877,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
-        if (haslogstatus)
-            logconfig(svcbatchlog->hFile);
     }
     reportsvcstatus(SERVICE_START_PENDING, 0);
 
@@ -2890,6 +2892,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 finished:
     DBG_PRINTS("finishing");
     closelogfile(svcbatchlog);
+    closelogfile(svcbstatlog);
     threadscleanup();
     reportsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");
@@ -2908,8 +2911,6 @@ static DWORD svcstopmain(void)
         rv = openlogfile(svcbatchlog, FALSE);
         if (rv != 0)
             return rv;
-        if (haslogstatus)
-            logconfig(svcbatchlog->hFile);
     }
 
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
