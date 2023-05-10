@@ -195,7 +195,15 @@
 #define SVCBATCH_SERVICE_PROCESS    0x00000001   /* Main service process         */
 #define SVCBATCH_SHUTDOWN_PROCESS   0x00000002   /* Shutdown process             */
 #define SVCBATCH_SHELL_PROCESS      0x00000003   /* Shell (cmd.exe) process      */
-
+/**
+ * Runtime options
+ */
+#define SVCBATCH_OPT_LOCALTIME      0x00000001   /* Use local time               */
+#define SVCBATCH_OPT_TRUNCATE       0x00000002   /* Truncate Log files           */
+#define SVCBATCH_OPT_QUIET          0x00000004   /* Disable logging              */
+#define SVCBATCH_OPT_VERBOSE        0x00000010   /* Use SvcBatch.status.log      */
+#define SVCBATCH_OPT_BREAK          0x00000020   /* Enable sending CTRL_BREAK    */
+#define SVCBATCH_OPT_ROTATE         0x00000040   /* Enable log rotation          */
 
 /**
  * Helper macros
@@ -205,6 +213,9 @@
 #define IS_VALID_HANDLE(_h)     (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))
 #define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == WNUL))
 #define IS_EMPTY_STR(_s)        (((_s) == NULL) || (*(_s) == '\0'))
+#define IS_SET(_o)              ((svcoptions & (_o)) == (_o))
+#define IS_NOT(_o)              ((svcoptions & (_o)) != (_o))
+
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 
 #define SVCBATCH_CS_CREATE(_o)  if (_o) InitializeCriticalSection(&((_o)->csLock))
