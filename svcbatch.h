@@ -96,8 +96,6 @@
  */
 #define SVCBATCH_PATH_MAX       4096
 
-#define SVCBATCH_NAME_MAX       256
-#define SVCBATCH_RSRC_LEN       64
 
 /**
  * Custom SCM control code that
@@ -196,20 +194,6 @@
 #define SVCBATCH_SERVICE_PROCESS    0x00000001   /* Main service process         */
 #define SVCBATCH_SHUTDOWN_PROCESS   0x00000002   /* Shutdown process             */
 #define SVCBATCH_SHELL_PROCESS      0x00000003   /* Shell (cmd.exe) process      */
-/**
- * Log state
- */
-#define SVCBATCH_LOG_CLOSED         0x00000001   /* The log file is closed       */
-#define SVCBATCH_LOG_OPENING        0x00000002   /* The SvcBatch is opening the log  file    */
-#define SVCBATCH_LOG_CLOSING        0x00000003   /* The log file is closing state            */
-#define SVCBATCH_LOG_OPENED         0x00000004   /* The log file is opened                   */
-#define SVCBATCH_LOG_ROTATING       0x00000005   /* The SvcBatch is rotating log file        */
-/**
- * Log types
- */
-#define SVCBATCH_LOG_FILE           0x00000001   /* The log is standard file                 */
-#define SVCBATCH_LOG_PIPE           0x00000002   /* The log is redirected to user process    */
-
 
 
 /**

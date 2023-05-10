@@ -85,12 +85,11 @@ typedef struct _SVCBATCH_LOG {
     volatile LONG       nRotateCount;
     volatile HANDLE     hFile;
     volatile LONG64     nWritten;
-    DWORD               dwType;
     int                 nMaxLogs;
     CRITICAL_SECTION    csLock;
     LPWSTR              lpFileName;
     LPCWSTR             lpFileExt;
-    WCHAR               szName[BBUFSIZ];
+    WCHAR               szName[_MAX_FNAME];
     WCHAR               szDir[SVCBATCH_PATH_MAX];
 
 } SVCBATCH_LOG, *LPSVCBATCH_LOG;
@@ -1705,7 +1704,7 @@ static DWORD makelogname(SVCBATCH_LOG *log)
         ctm = localtime(&ctt);
     else
         ctm = gmtime(&ctt);
-    if (wcsftime(log->szName, BBUFSIZ - QBUFSIZ, svclogfname, ctm) == 0)
+    if (wcsftime(log->szName, _MAX_FNAME, svclogfname, ctm) == 0)
         return xsyserror(0, L"Invalid format code", svclogfname);
 
     for (i = 0, x = 0; log->szName[i]; i++) {
@@ -3223,9 +3222,8 @@ int wmain(int argc, const wchar_t **wargv)
     if (havemainlogs) {
         const wchar_t *logn = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
         svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
-        svcbatchlog->dwType = SVCBATCH_LOG_FILE;
 
-        xwcslcpy(svcbatchlog->szName, BBUFSIZ, logn);
+        xwcslcpy(svcbatchlog->szName, _MAX_FNAME, logn);
         if (servicemode) {
             svcbatchlog->nMaxLogs  = SVCBATCH_MAX_LOGS;
             svcbatchlog->lpFileExt = SVCBATCH_LOGFEXT;
