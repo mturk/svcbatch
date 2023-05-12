@@ -70,7 +70,8 @@
 #define SHUTDOWN_LOGFEXT       L".shutdown.log"
 #define SBSTATUS_LOGFEXT       L".status.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
-#define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sp-"
+#define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sb-"
+#define SVCBATCH_MMAPPFX       L"Local\\sb-"
 
 /**
  * Maximum number of SvcBatch.log.N files
