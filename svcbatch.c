@@ -1601,7 +1601,7 @@ static void logconfig(HANDLE h)
     logfflush(h);
 }
 
-static BOOL canrotatelogs(SVCBATCH_LOG *log)
+static BOOL canrotatelogs(LPSVCBATCH_LOG log)
 {
     BOOL rv = FALSE;
 
@@ -1614,7 +1614,7 @@ static BOOL canrotatelogs(SVCBATCH_LOG *log)
     return rv;
 }
 
-static DWORD createlogsdir(SVCBATCH_LOG *log)
+static DWORD createlogsdir(LPSVCBATCH_LOG log)
 {
     wchar_t *p;
     wchar_t dp[SVCBATCH_PATH_MAX];
@@ -1644,7 +1644,7 @@ static DWORD createlogsdir(SVCBATCH_LOG *log)
     return 0;
 }
 
-static DWORD rotateprevlogs(SVCBATCH_LOG *log, BOOL ssp)
+static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
 {
     DWORD   rc;
     int     i;
@@ -1709,7 +1709,7 @@ static DWORD rotateprevlogs(SVCBATCH_LOG *log, BOOL ssp)
     return 0;
 }
 
-static DWORD makelogname(SVCBATCH_LOG *log)
+static DWORD makelogname(LPSVCBATCH_LOG log)
 {
     struct  tm *ctm;
     time_t  ctt;
@@ -1734,7 +1734,7 @@ static DWORD makelogname(SVCBATCH_LOG *log)
     return 0;
 }
 
-static DWORD openlogfile(SVCBATCH_LOG *log, BOOL ssp)
+static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
 {
     HANDLE fh = NULL;
     DWORD  rc;
@@ -1791,7 +1791,7 @@ static DWORD openlogfile(SVCBATCH_LOG *log, BOOL ssp)
     return 0;
 }
 
-static DWORD rotatelogs(SVCBATCH_LOG *log)
+static DWORD rotatelogs(LPSVCBATCH_LOG log)
 {
     DWORD  rc = 0;
     LONG   nr;
@@ -1848,7 +1848,7 @@ finished:
     return rc;
 }
 
-static DWORD closelogfile(SVCBATCH_LOG *log)
+static DWORD closelogfile(LPSVCBATCH_LOG log)
 {
     HANDLE h;
 
@@ -2183,7 +2183,7 @@ static void stopshutdown(DWORD rt)
 }
 
 
-static DWORD logwrdata(SVCBATCH_LOG *log, BYTE *buf, DWORD len)
+static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
 {
     DWORD  rc;
     HANDLE h;
