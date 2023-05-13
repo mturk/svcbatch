@@ -42,19 +42,48 @@ echo.
 rem
 :runService
 rem
-echo %~nx0: [%TIME%] ... running %RANDOM%
+rem Set running counter
+set /A _xx=0
+rem
+:doRun
+rem Set working counter
+set /A _cc=0
+echo %~nx0: [%_xx%] [%TIME%] ... running
+:doWork
+rem
+echo %~nx0: [%_cc%] [%TIME%] ... working %RANDOM%
+rem
 rem Simulate work by sleeping for 2 seconds
 ping -n 3 127.0.0.1 >NUL
-rem Uncomment to write more data to SvcBatch.log
-rem echo.
-rem set
-rem echo.
 rem
 rem Check if shutdown batch signaled to stop the service
 if exist "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" (
     echo.
     echo %~nx0: [%TIME%] found shutdown-%SVCBATCH_SERVICE_UUID%
     goto doCleanup
+)
+set /A _cc+=1
+if %_cc% lss 10 (
+    goto doWork
+)
+rem
+rem Dump some lorem ipsum
+echo.
+echo %~nx0: [%_xx%] [%TIME%] ... dumping
+echo.
+echo Lorem ipsum dolor sit amet, consectetur adipiscing elit,
+echo sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
+echo Ut enim ad minim veniam, quis nostrud exercitation ullamco
+echo laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure
+echo dolor in reprehenderit in voluptate velit esse cillum dolore eu
+echo fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
+echo proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+echo.
+rem
+rem Increment counter
+set /A _xx+=1
+if %_xx% lss 10 (
+    goto doRun
 )
 rem
 rem Send shutdown signal
