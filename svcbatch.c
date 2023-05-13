@@ -122,6 +122,8 @@ typedef struct _SVCBATCH_IPC {
     WCHAR   szHomeDir[SVCBATCH_PATH_MAX];
     WCHAR   szWorkDir[SVCBATCH_PATH_MAX];
     WCHAR   szLogsDir[SVCBATCH_PATH_MAX];
+    WCHAR   szShell[SVCBATCH_PATH_MAX];
+    WCHAR   szBatch[SVCBATCH_PATH_MAX];
     WCHAR   lpArgv[SVCBATCH_MAX_ARGS][_MAX_FNAME];
 
 } SVCBATCH_IPC, *LPSVCBATCH_IPC;
@@ -2040,9 +2042,10 @@ static DWORD runshutdown(DWORD rt)
     xwcslcpy(shutdownmem->szWorkDir, SVCBATCH_PATH_MAX, mainservice->lpWork);
     xwcslcpy(shutdownmem->szLogsDir, SVCBATCH_PATH_MAX, mainservice->lpLogs);
     xwcslcpy(shutdownmem->szUuid,    TBUFSIZ,           mainservice->lpUuid);
-
+    xwcslcpy(shutdownmem->szBatch,   SVCBATCH_PATH_MAX, svcstopproc->lpArgv[0]);
+    xwcslcpy(shutdownmem->szShell,   SVCBATCH_PATH_MAX, svcxcmdproc->lpExe);
     shutdownmem->nArgc = svcstopproc->nArgc;
-    for (i = 0; i < svcstopproc->nArgc; i++)
+    for (i = 1; i < svcstopproc->nArgc; i++)
         wmemcpy(shutdownmem->lpArgv[i], svcstopproc->lpArgv[i], _MAX_FNAME);
 
     rc = createiopipes(&svcstopproc->sInfo, NULL, NULL, 0);
@@ -2989,7 +2992,6 @@ static int xwmaininit(void)
     xmemzero(svcthread, SVCBATCH_MAX_THREADS,     sizeof(SVCBATCH_THREAD));
     mainservice = (LPSVCBATCH_SERVICE)xmcalloc(1, sizeof(SVCBATCH_SERVICE));
     svcmainproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
-    svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
     mainservice->dwCurrentState    = SERVICE_START_PENDING;
     svcmainproc->dwCurrentState    = SVCBATCH_PROCESS_RUNNING;
@@ -3013,15 +3015,6 @@ static int xwmaininit(void)
     }
     ASSERT_WSTR(svcmainproc->lpExe, ERROR_BAD_PATHNAME);
     ASSERT_WSTR(svcmainproc->lpDir, ERROR_BAD_PATHNAME);
-    nn = GetEnvironmentVariableW(L"COMSPEC", bb, SVCBATCH_PATH_MAX);
-    if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
-        return GetLastError();
-    svcxcmdproc->lpExe = xgetfinalpath(bb, 0, NULL, 0);
-    ASSERT_WSTR(svcxcmdproc->lpExe, ERROR_BAD_PATHNAME);
-
-    /* Reserve lpArgv[0] for batch file */
-    svcxcmdproc->nArgc  = 1;
-    svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
     SVCBATCH_CS_CREATE(mainservice);
 
     return 0;
@@ -3109,7 +3102,6 @@ int wmain(int argc, const wchar_t **wargv)
                                                 0, 0, DSIZEOF(SVCBATCH_IPC));
                 if (shutdownmem == NULL)
                     return GetLastError();
-                servicemode = FALSE;
                 cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
                 wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
                 cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
@@ -3123,8 +3115,12 @@ int wmain(int argc, const wchar_t **wargv)
                 dbgprintf(__FUNCTION__, "opts 0x%08x", shutdownmem->dwOptions);
                 dbgprintf(__FUNCTION__, "time %lu", stoptimeout);
 #endif
-                svcxcmdproc->nArgc = shutdownmem->nArgc;
-                for (x = 0; x < svcxcmdproc->nArgc; x++)
+                svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+                svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
+                svcxcmdproc->lpExe  = shutdownmem->szShell;
+                svcxcmdproc->nArgc  = shutdownmem->nArgc;
+                svcxcmdproc->lpArgv[0] = shutdownmem->szBatch;
+                for (x = 1; x < svcxcmdproc->nArgc; x++)
                     svcxcmdproc->lpArgv[x] = shutdownmem->lpArgv[x];
                 mainservice->lpHome = shutdownmem->szHomeDir;
                 mainservice->lpWork = shutdownmem->szWorkDir;
@@ -3168,6 +3164,19 @@ int wmain(int argc, const wchar_t **wargv)
     }
 #endif
     if (servicemode) {
+        DWORD nn;
+        WCHAR cb[SVCBATCH_PATH_MAX];
+        svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+        svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
+        /* Reserve lpArgv[0] for batch file */
+        svcxcmdproc->nArgc  = 1;
+        nn = GetEnvironmentVariableW(L"COMSPEC", cb, SVCBATCH_PATH_MAX);
+        if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
+            return GetLastError();
+        svcxcmdproc->lpExe = xgetfinalpath(cb, 0, NULL, 0);
+        ASSERT_WSTR(svcxcmdproc->lpExe, ERROR_BAD_PATHNAME);
+
+
         while ((opt = xwgetopt(argc, wargv, L"bc:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
                 case L'b':
