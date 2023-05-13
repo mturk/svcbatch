@@ -1775,9 +1775,9 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
         return xsyserror(rc, log->lpFileName, NULL);
 #if defined(_DEBUG)
     if (rc == ERROR_ALREADY_EXISTS)
-        dbgprintf(__FUNCTION__, "%p truncated %S", fh, log->lpFileName);
+        dbgprintf(__FUNCTION__, "truncated %S", log->lpFileName);
     else
-        dbgprintf(__FUNCTION__, "%p created %S",   fh, log->lpFileName);
+        dbgprintf(__FUNCTION__, "created %S",   log->lpFileName);
 #endif
     if (log == svcbstatlog) {
         logwrline(fh, cnamestamp);
@@ -2194,7 +2194,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     HANDLE h;
 
 #if defined(_DEBUG) && (_DEBUG > 2)
-    DBG_PRINTF("writing %4lu bytes to %p %p", len, log, log->hFile);
+    DBG_PRINTF("writing %4lu bytes", len);
 #endif
     SVCBATCH_CS_ENTER(log);
     h = InterlockedExchangePointer(&log->hFile, NULL);
@@ -2217,6 +2217,9 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
 #endif
         return rc;
     }
+#if defined(_DEBUG) && (_DEBUG > 2)
+    DBG_PRINTF("wrote   %4lu bytes", len);
+#endif
     if (IS_SET(SVCBATCH_OPT_ROTATE) && rotatebysize) {
         if (InterlockedCompareExchange64(&log->nWritten, 0, 0) >= rotatesiz.QuadPart) {
             if (canrotatelogs(log)) {

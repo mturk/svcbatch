@@ -24,7 +24,15 @@ echo %~nx0: Started
 echo %~nx0: Arguments [%*]
 rem
 echo.
-echo %~nx0: Current environment variables
+echo %~nx0: System Information
+echo.
+rem Display machine specific properties and configuration
+systeminfo
+chcp
+echo.
+echo %~nx0: Environment Variables
+echo.
+rem Display environment variables
 set
 echo.
 echo.
@@ -43,8 +51,8 @@ echo.
 rem
 :doWork
 rem
-echo %~nx0: [%_cc%] [%TIME%] ... working
-ping -n 6 127.0.0.1 >NUL
+echo %~nx0: [%_cc%] [%TIME%] ... working %RANDOM%
+ping -n 3 127.0.0.1 >NUL
 rem
 set /A _cc+=1
 if %_cc% lss 10 (
@@ -60,7 +68,7 @@ echo sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
 echo Ut enim ad minim veniam, quis nostrud exercitation ullamco
 echo laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure
 echo dolor in reprehenderit in voluptate velit esse cillum dolore eu
-ecgo fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
+echo fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
 echo proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 rem
 ping -n 6 127.0.0.1 >NUL

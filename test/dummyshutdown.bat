@@ -23,8 +23,15 @@ rem
 echo %~nx0: Called from %SVCBATCH_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
+echo %~nx0: System Information
 echo.
-rem Dump environment variables to SvcBatch.shutdown.log file
+rem Display machine specific properties and configuration
+systeminfo
+chcp
+echo.
+echo %~nx0: Environment Variables
+echo.
+rem Display environment variables
 set
 echo.
 echo.

@@ -27,15 +27,22 @@ rem
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
+echo %~nx0: System Information
 echo.
-rem Dump environment variables to log file
+rem Display machine specific properties and configuration
+systeminfo
+chcp
+echo.
+echo %~nx0: Environment Variables
+echo.
+rem Display environment variables
 set
 echo.
 echo.
 rem
 :runService
 rem
-echo %~nx0: [%TIME%] ... running 😀
+echo %~nx0: [%TIME%] ... running %RANDOM%
 rem Simulate work by sleeping for 2 seconds
 ping -n 3 127.0.0.1 >NUL
 rem Uncomment to write more data to SvcBatch.log
@@ -63,7 +70,7 @@ rem
 :doCleanup
 rem
 echo.
-echo %~nx0: [%TIME%] simulating cleanup
+echo %~nx0: [%TIME%] Simulating cleanup
 ping -n 3 127.0.0.1 >NUL
 echo.
 echo.
@@ -78,8 +85,15 @@ rem
 echo %~nx0: Called from %SVCBATCH_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
+echo %~nx0: System Information
 echo.
-rem Dump environment variables to SvcBatch.shutdown.log file
+rem Display machine specific properties and configuration
+systeminfo
+chcp
+echo.
+echo %~nx0: Environment Variables
+echo.
+rem Display environment variables
 set
 echo.
 echo.
@@ -91,7 +105,7 @@ ping -n 3 127.0.0.1 >NUL
 rem Simple IPC mechanism to signal the service
 rem to stop by creating unique file
 echo.
-echo %~nx0: [%TIME%] creating shutdown-%SVCBATCH_SERVICE_UUID%
+echo %~nx0: [%TIME%] Creating shutdown-%SVCBATCH_SERVICE_UUID%
 echo.
 echo Y> "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%"
 rem
