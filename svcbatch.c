@@ -1587,35 +1587,38 @@ static void logwrtime(HANDLE h, const char *hdr)
 
 static void logconfig(HANDLE h)
 {
-    OSVERSIONINFOEXW os = { sizeof(os), 0, 0, 0, 0, {0}, 0, 0};
+    OSVERSIONINFOEXA os = { sizeof(os), 0, 0, 0, 0, {0}, 0, 0};
     char             pb[NBUFSIZ] = { 0, 0};
     char             pd[NBUFSIZ] = { 0, 0};
     const char      *pn = NULL;
+    const char      *pv;
     DWORD            bn = 0;
     HKEY             hk;
 
+    /**
+     * C4996: 'GetVersionExA': was declared deprecated
+     */
+    GetVersionExA((LPOSVERSIONINFOA)&os);
+    pv = os.szCSDVersion;
     if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
                       "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
                       0, KEY_READ, &hk) == ERROR_SUCCESS) {
         DWORD sz;
 
         sz = NBUFSIZ - 1;
-        RegGetValueA(hk, NULL, "ProductName", RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
-                     NULL, pb, &sz);
+        if (RegGetValueA(hk, NULL, "ProductName", RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
+                         NULL, pb, &sz) == ERROR_SUCCESS)
+            pn = pb;
         sz = NBUFSIZ - 1;
-        RegGetValueA(hk, NULL, "DisplayVersion", RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
-                     NULL, pd, &sz);
+        if (RegGetValueA(hk, NULL, "DisplayVersion", RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
+                         NULL, pd, &sz) == ERROR_SUCCESS)
+            pv = pd;
         sz = 4;
         RegGetValueA(hk, NULL, "UBR", RRF_RT_REG_DWORD | RRF_ZEROONFAILURE,
                      NULL, (PVOID)&bn, &sz);
         CloseHandle(hk);
-        pn = pb;
     }
 
-    /**
-     * C4996: 'GetVersionExW': was declared deprecated
-     */
-    GetVersionExW((LPOSVERSIONINFOW)&os);
     if (pn == NULL) {
         DWORD vn = os.dwMajorVersion + os.dwMinorVersion;
 
@@ -1660,7 +1663,7 @@ static void logconfig(HANDLE h)
             xsnprintf(pb, NBUFSIZ, "Windows Server %lu%s", vn, px);
         }
     }
-    logprintf(h, "OS Name          : %s %s", pb, pd);
+    logprintf(h, "OS Name          : %s %s", pb, pv);
     logprintf(h, "OS Version       : %lu.%lu.%lu",
               os.dwMajorVersion, os.dwMinorVersion, os.dwBuildNumber);
     logprintf(h, "OS Build         : %lu.%lu\r\n",  os.dwBuildNumber, bn);
