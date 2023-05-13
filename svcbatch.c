@@ -1587,13 +1587,10 @@ static void logwrtime(HANDLE h, const char *hdr)
 
 static void logconfig(HANDLE h)
 {
-    OSVERSIONINFOEXW os = { DSIZEOF(os), 0, 0, 0, 0, {0}, 0, 0};
-    SYSTEM_INFO      si;
+    OSVERSIONINFOEXW os = { sizeof(os), 0, 0, 0, 0, {0}, 0, 0};
     char             pb[NBUFSIZ] = { 0, 0};
     char             pd[NBUFSIZ] = { 0, 0};
     const char      *pn = NULL;
-    const char      *pa;
-    DWORD            vn;
     DWORD            bn = 0;
     HKEY             hk;
 
@@ -1602,10 +1599,10 @@ static void logconfig(HANDLE h)
                       0, KEY_READ, &hk) == ERROR_SUCCESS) {
         DWORD sz;
 
-        sz = NBUFSIZ;
+        sz = NBUFSIZ - 1;
         RegGetValueA(hk, NULL, "ProductName", RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
                      NULL, pb, &sz);
-        sz = NBUFSIZ;
+        sz = NBUFSIZ - 1;
         RegGetValueA(hk, NULL, "DisplayVersion", RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
                      NULL, pd, &sz);
         sz = 4;
@@ -1619,46 +1616,34 @@ static void logconfig(HANDLE h)
      * C4996: 'GetVersionExW': was declared deprecated
      */
     GetVersionExW((LPOSVERSIONINFOW)&os);
-    GetSystemInfo(&si);
+    if (pn == NULL) {
+        DWORD vn = os.dwMajorVersion + os.dwMinorVersion;
 
-    switch (si.wProcessorArchitecture) {
-        case PROCESSOR_ARCHITECTURE_AMD64:
-            pa = "x64";
-        break;
-        case PROCESSOR_ARCHITECTURE_ARM64:
-            pa = "arm64";
-        break;
-        default:
-            pa = "unknown";
-        break;
-    }
-    vn = os.dwMajorVersion + os.dwMinorVersion;
-    if (os.wProductType == VER_NT_WORKSTATION) {
-        if (vn == 10) {
-            if (os.dwBuildNumber >= 22000);
-                vn = 11;
-        }
-        if (pn == NULL)
+        if (os.wProductType == VER_NT_WORKSTATION) {
+            if (vn == 10) {
+                if (os.dwBuildNumber >= 22000);
+                    vn = 11;
+            }
             xsnprintf(pb, NBUFSIZ, "Windows %lu Workstation", vn);
-    }
-    else {
-        if (vn == 10) {
-            if (os.dwBuildNumber >= 20348)
-                vn = 2022;
-            else if (os.dwBuildNumber >= 17763)
-                vn = 2019;
-            else
-                vn = 2016;
         }
         else {
-            if (vn > 7)
-                vn = 2012;
-            else
-                vn = 2008;
-        }
-        if (pn == NULL) {
             DWORD       pi;
             const char *px;
+
+            if (vn == 10) {
+                if (os.dwBuildNumber >= 20348)
+                    vn = 2022;
+                else if (os.dwBuildNumber >= 17763)
+                    vn = 2019;
+                else
+                    vn = 2016;
+            }
+            else {
+                if (vn > 7)
+                    vn = 2012;
+                else
+                    vn = 2008;
+            }
 
             GetProductInfo(6, 1, 0, 0, &pi);
             switch (pi) {
@@ -1675,10 +1660,10 @@ static void logconfig(HANDLE h)
             xsnprintf(pb, NBUFSIZ, "Windows Server %lu%s", vn, px);
         }
     }
-    logprintf(h, "OS Name          : %s (%s)", pb, pa);
-    logprintf(h, "OS Version       : %lu.%lu.%lu Build %lu.%lu %s\r\n",
-              os.dwMajorVersion, os.dwMinorVersion, os.dwBuildNumber,
-              os.dwBuildNumber, bn, pd);
+    logprintf(h, "OS Name          : %s %s", pb, pd);
+    logprintf(h, "OS Version       : %lu.%lu.%lu",
+              os.dwMajorVersion, os.dwMinorVersion, os.dwBuildNumber);
+    logprintf(h, "OS Build         : %lu.%lu\r\n",  os.dwBuildNumber, bn);
     logwransi(h, "Service name     : ", mainservice->lpName);
     logwransi(h, "Service uuid     : ", mainservice->lpUuid);
     logwransi(h, "Batch file       : ", svcxcmdproc->lpArgv[0]);
