@@ -20,10 +20,11 @@
 /**
  * Disable or reduce the frequency of...
  *   C4100: unreferenced formal parameter
- *   C4702: unreachable code
  *   C4244: int to char/short - precision loss
+ *   C4702: unreachable code
+ *   C4996: function was declared deprecated
  */
-# pragma warning(disable: 4100 4244 4702)
+# pragma warning(disable: 4100 4244 4702 4996)
 #endif
 
 #if defined(_MSC_VER)

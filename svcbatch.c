@@ -1587,6 +1587,98 @@ static void logwrtime(HANDLE h, const char *hdr)
 
 static void logconfig(HANDLE h)
 {
+    OSVERSIONINFOEXW os = { DSIZEOF(os), 0, 0, 0, 0, {0}, 0, 0};
+    SYSTEM_INFO      si;
+    char             pb[NBUFSIZ] = { 0, 0};
+    char             pd[NBUFSIZ] = { 0, 0};
+    const char      *pn = NULL;
+    const char      *pa;
+    DWORD            vn;
+    DWORD            bn = 0;
+    HKEY             hk;
+
+    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
+                      "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
+                      0, KEY_READ, &hk) == ERROR_SUCCESS) {
+        DWORD sz;
+
+        sz = NBUFSIZ;
+        RegGetValueA(hk, NULL, "ProductName", RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
+                     NULL, pb, &sz);
+        sz = NBUFSIZ;
+        RegGetValueA(hk, NULL, "DisplayVersion", RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
+                     NULL, pd, &sz);
+        sz = 4;
+        RegGetValueA(hk, NULL, "UBR", RRF_RT_REG_DWORD | RRF_ZEROONFAILURE,
+                     NULL, (PVOID)&bn, &sz);
+        CloseHandle(hk);
+        pn = pb;
+    }
+
+    /**
+     * C4996: 'GetVersionExW': was declared deprecated
+     */
+    GetVersionExW((LPOSVERSIONINFOW)&os);
+    GetSystemInfo(&si);
+
+    switch (si.wProcessorArchitecture) {
+        case PROCESSOR_ARCHITECTURE_AMD64:
+            pa = "x64";
+        break;
+        case PROCESSOR_ARCHITECTURE_ARM64:
+            pa = "arm64";
+        break;
+        default:
+            pa = "unknown";
+        break;
+    }
+    vn = os.dwMajorVersion + os.dwMinorVersion;
+    if (os.wProductType == VER_NT_WORKSTATION) {
+        if (vn == 10) {
+            if (os.dwBuildNumber >= 22000);
+                vn = 11;
+        }
+        if (pn == NULL)
+            xsnprintf(pb, NBUFSIZ, "Windows %lu Workstation", vn);
+    }
+    else {
+        if (vn == 10) {
+            if (os.dwBuildNumber >= 20348)
+                vn = 2022;
+            else if (os.dwBuildNumber >= 17763)
+                vn = 2019;
+            else
+                vn = 2016;
+        }
+        else {
+            if (vn > 7)
+                vn = 2012;
+            else
+                vn = 2008;
+        }
+        if (pn == NULL) {
+            DWORD       pi;
+            const char *px;
+
+            GetProductInfo(6, 1, 0, 0, &pi);
+            switch (pi) {
+                case PRODUCT_STANDARD_SERVER:
+                    px = " Standard";
+                break;
+                case PRODUCT_DATACENTER_SERVER:
+                    px = " Datacenter";
+                break;
+                default:
+                    px = "";
+                break;
+            }
+            xsnprintf(pb, NBUFSIZ, "Windows Server %lu%s", vn, px);
+        }
+    }
+    logprintf(h, "OS Name          : %s (%s)", pb, pa);
+    logprintf(h, "OS Version       : %lu.%lu.%lu Build %lu.%lu %s\r\n",
+              os.dwMajorVersion, os.dwMinorVersion, os.dwBuildNumber,
+              os.dwBuildNumber, bn, pd);
     logwransi(h, "Service name     : ", mainservice->lpName);
     logwransi(h, "Service uuid     : ", mainservice->lpUuid);
     logwransi(h, "Batch file       : ", svcxcmdproc->lpArgv[0]);
@@ -1775,19 +1867,12 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
         return xsyserror(rc, log->lpFileName, NULL);
 #if defined(_DEBUG)
     if (rc == ERROR_ALREADY_EXISTS)
-        dbgprintf(__FUNCTION__, "truncated %S", log->lpFileName);
+        dbgprintf(ssp ? "createlogfile" : "openlogfile",
+                  "truncated %S", log->lpFileName);
     else
-        dbgprintf(__FUNCTION__, "created %S",   log->lpFileName);
+        dbgprintf(ssp ? "createlogfile" : "openlogfile",
+                  "created %S",   log->lpFileName);
 #endif
-    if (log == svcbstatlog) {
-        logwrline(fh, cnamestamp);
-        if (ssp) {
-            if (rc == ERROR_ALREADY_EXISTS)
-                logwrtime(fh, "Log truncated");
-            else
-                logwrtime(fh, "Log created");
-        }
-    }
     InterlockedExchange64(&log->nWritten, 0);
     InterlockedExchangePointer(&log->hFile, fh);
 
@@ -1813,7 +1898,6 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
         goto finished;
     }
     nr = InterlockedIncrement(&log->nRotateCount);
-    QueryPerformanceCounter(&pcstarttime);
     FlushFileBuffers(h);
     if (IS_SET(SVCBATCH_OPT_TRUNCATE)) {
         LARGE_INTEGER ee = {{ 0, 0 }};
@@ -2226,7 +2310,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
                 DBG_PRINTS("rotating by size");
                 if (svcbstatlog) {
                     SVCBATCH_CS_ENTER(svcbstatlog);
-                    logprintf(svcbstatlog->hFile, "Rotate by size   : %llu", rotatesiz.QuadPart);
+                    logwrtime(svcbstatlog->hFile, "Rotate by size");
                     SVCBATCH_CS_LEAVE(svcbstatlog);
                 }
                 SetEvent(logrotatesig);
@@ -2401,7 +2485,6 @@ static DWORD WINAPI rotatethread(void *unused)
                 if (svcbstatlog) {
                     SVCBATCH_CS_ENTER(svcbstatlog);
                     logwrtime(svcbstatlog->hFile, "Rotate ready");
-                    logfflush(svcbstatlog->hFile);
                     SVCBATCH_CS_LEAVE(svcbstatlog);
                 }
                 rw = INFINITE;
@@ -2910,6 +2993,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
+        logwrline(svcbstatlog->hFile, cnamestamp);
         logconfig(svcbstatlog->hFile);
     }
     if (svcbatchlog) {
