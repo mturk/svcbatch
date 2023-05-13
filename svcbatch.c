@@ -172,8 +172,6 @@ static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static const wchar_t *wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
 static const wchar_t *cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static const wchar_t *outdirparam = NULL;
-static const wchar_t *codepageopt = NULL;
-static const wchar_t *svclogfname = NULL;
 
 static int            xwoptind    = 1;
 static wchar_t        xwoption    = WNUL;
@@ -1711,7 +1709,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
     return 0;
 }
 
-static DWORD makelogname(LPSVCBATCH_LOG log)
+static DWORD makelogname(LPWSTR dst, int siz, LPCWSTR src)
 {
     struct  tm *ctm;
     time_t  ctt;
@@ -1722,42 +1720,45 @@ static DWORD makelogname(LPSVCBATCH_LOG log)
         ctm = localtime(&ctt);
     else
         ctm = gmtime(&ctt);
-    if (wcsftime(log->szName, _MAX_FNAME, svclogfname, ctm) == 0)
-        return xsyserror(0, L"Invalid format code", svclogfname);
+    if (wcsftime(dst, siz, src, ctm) == 0)
+        return xsyserror(0, L"Invalid format code", src);
 
-    for (i = 0, x = 0; log->szName[i]; i++) {
-        wchar_t c = log->szName[i];
+    for (i = 0, x = 0; dst[i]; i++) {
+        wchar_t c = dst[i];
 
         if ((c > 127) || (xfnchartype[c] & 1))
-            log->szName[x++] = c;
+            dst[x++] = c;
     }
-    log->szName[x] = WNUL;
-    DBG_PRINTF("%S -> %S", svclogfname, log->szName);
+    dst[x] = WNUL;
+    DBG_PRINTF("%S -> %S", src, dst);
     return 0;
 }
 
 static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
 {
-    HANDLE fh = NULL;
-    DWORD  rc;
-    BOOL   rp = IS_NOT(SVCBATCH_OPT_TRUNCATE);
+    HANDLE  fh = NULL;
+    DWORD   rc;
+    WCHAR   nb[_MAX_FNAME];
+    BOOL    rp = IS_NOT(SVCBATCH_OPT_TRUNCATE);
+    LPCWSTR np = log->szName;
 
 
-    if (svclogfname && wcschr(svclogfname, L'%')) {
-        rc = makelogname(log);
-        if (rc)
-            return rc;
-        else
-            rp = FALSE;
-    }
 #if defined(_DEBUG)
     if (log->lpFileName) {
         DBG_PRINTF("!found %S", log->lpFileName);
     }
 #endif
-    log->lpFileName = xwcsmkpath(log->szDir, log->szName, log->lpFileExt);
+    if (wcschr(np, L'%')) {
+        rc = makelogname(nb, _MAX_FNAME, np);
+        if (rc)
+            return rc;
+        rp = FALSE;
+        np = nb;
+    }
+
+    log->lpFileName = xwcsmkpath(log->szDir, np, log->lpFileExt);
     if (log->lpFileName == NULL)
-        return xsyserror(ERROR_FILE_NOT_FOUND, log->szName, NULL);
+        return xsyserror(ERROR_FILE_NOT_FOUND, np, NULL);
 
     if (rp) {
         rc = rotateprevlogs(log, ssp);
@@ -2036,7 +2037,8 @@ static DWORD runshutdown(DWORD rt)
     shutdownmem->dwOptions   = svcoptions & 0x0000000F;
     shutdownmem->dwTimeout   = stoptimeout;
     shutdownmem->dwCodePage  = svccodepage;
-    xwcslcpy(shutdownmem->szLogName,     _MAX_FNAME,    svclogfname);
+    if (svcbatchlog)
+        xwcslcpy(shutdownmem->szLogName, _MAX_FNAME,    svcbatchlog->szName);
     xwcslcpy(shutdownmem->szServiceName, _MAX_FNAME,    mainservice->lpName);
     xwcslcpy(shutdownmem->szHomeDir, SVCBATCH_PATH_MAX, mainservice->lpHome);
     xwcslcpy(shutdownmem->szWorkDir, SVCBATCH_PATH_MAX, mainservice->lpWork);
@@ -3035,6 +3037,8 @@ int wmain(int argc, const wchar_t **wargv)
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
     const wchar_t *svcworkparam = NULL;
+    const wchar_t *codepageopt  = NULL;
+    const wchar_t *svclogfname  = NULL;
     const wchar_t *sparam[SVCBATCH_MAX_ARGS];
     const wchar_t *rparam[2];
 
@@ -3129,14 +3133,7 @@ int wmain(int argc, const wchar_t **wargv)
                 if (IS_NOT(SVCBATCH_OPT_QUIET)) {
                     svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
-                    if (shutdownmem->szLogName[0]) {
-                        svclogfname = shutdownmem->szLogName;
-                        xwcslcpy(svcbatchlog->szName, _MAX_FNAME, shutdownmem->szLogName);
-                    }
-                    else {
-                        /* Use default log name */
-                        xwcslcpy(svcbatchlog->szName, _MAX_FNAME, SVCBATCH_LOGNAME);
-                    }
+                    xwcslcpy(svcbatchlog->szName, _MAX_FNAME, shutdownmem->szLogName);
                     svcbatchlog->nMaxLogs  = SHUTDOWN_MAX_LOGS;
                     svcbatchlog->lpFileExt = SHUTDOWN_LOGFEXT;
                     SVCBATCH_CS_CREATE(svcbatchlog);
@@ -3205,6 +3202,9 @@ int wmain(int argc, const wchar_t **wargv)
                 break;
                 case L'n':
                     svclogfname  = xwoptarg;
+                    if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
+                        return xsyserror(0, L"Found invalid filename characters", svclogfname);
+
                 break;
                 case L'o':
                     outdirparam  = xwoptarg;
@@ -3315,14 +3315,8 @@ int wmain(int argc, const wchar_t **wargv)
             svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
             xwcslcpy(svcbatchlog->szName, _MAX_FNAME, logn);
-            if (servicemode) {
-                svcbatchlog->nMaxLogs  = SVCBATCH_MAX_LOGS;
-                svcbatchlog->lpFileExt = SVCBATCH_LOGFEXT;
-            }
-            else {
-                svcbatchlog->nMaxLogs  = SHUTDOWN_MAX_LOGS;
-                svcbatchlog->lpFileExt = SHUTDOWN_LOGFEXT;
-            }
+            svcbatchlog->nMaxLogs  = SVCBATCH_MAX_LOGS;
+            svcbatchlog->lpFileExt = SVCBATCH_LOGFEXT;
             if (maxlogsparam) {
                 if (IS_SET(SVCBATCH_OPT_TRUNCATE)) {
 #if defined(_DEBUG) && (_DEBUG > 1)
@@ -3457,17 +3451,12 @@ int wmain(int argc, const wchar_t **wargv)
             svcoptions |= SVCBATCH_OPT_ROTATE;
         }
         if (svclogfname) {
-            if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
-                return xsyserror(0, L"Found invalid filename characters", svclogfname);
-
-            if (wcschr(svclogfname, L'@')) {
-                wchar_t *p = xwcsdup(svclogfname);
+            if (wcschr(svcbatchlog->szName, L'@')) {
                 /**
                  * If name is strftime formatted
                  * replace @ with % so it can be used by strftime
                  */
-                xwchreplace(p, L'@', L'%');
-                svclogfname = p;
+                xwchreplace(svcbatchlog->szName, L'@', L'%');
             }
         }
         if (scnt) {
