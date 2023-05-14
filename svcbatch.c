@@ -80,10 +80,10 @@ typedef struct _SVCBATCH_PROCESS {
 } SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
 
 typedef struct _SVCBATCH_LOG {
+    volatile LONG64     nWritten;
+    volatile HANDLE     hFile;
     volatile LONG       dwCurrentState;
     volatile LONG       nRotateCount;
-    volatile HANDLE     hFile;
-    volatile LONG64     nWritten;
     int                 nMaxLogs;
     CRITICAL_SECTION    csLock;
     LPWSTR              lpFileName;
@@ -1525,10 +1525,9 @@ static void logwrtime(HANDLE h, int nl, const char *hdr)
 
 static void logwinver(HANDLE h)
 {
-    OSVERSIONINFOEXA os = { sizeof(os), 0, 0, 0, 0, {0}, 0, 0};
+    OSVERSIONINFOEXW os;
     char             nb[NBUFSIZ] = { 0, 0};
     char             vb[NBUFSIZ] = { 0, 0};
-    const char      *pn = NULL;
     const char      *pv = NULL;
     DWORD            sz;
     DWORD            br = 0;
@@ -1540,16 +1539,17 @@ static void logwinver(HANDLE h)
         return;
 
     /**
-     * C4996: 'GetVersionExA': was declared deprecated
+     * C4996: 'GetVersionExW': was declared deprecated
      */
-    GetVersionExA((LPOSVERSIONINFOA)&os);
+    ZeroMemory(&os, sizeof(OSVERSIONINFOEXW));
+    os.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
+    GetVersionExW((LPOSVERSIONINFOW)&os);
 
     sz = NBUFSIZ - 1;
     if (RegGetValueA(hk, NULL, "ProductName",
                      RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
                      NULL, nb, &sz) != ERROR_SUCCESS)
         goto finished;
-    pn = nb;
     sz = NBUFSIZ - 1;
     if (RegGetValueA(hk, NULL, "ReleaseId",
                      RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
