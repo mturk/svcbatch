@@ -40,36 +40,55 @@ set
 echo.
 echo.
 rem
-:runService
+:doMain
 rem
-rem Set running counter
-set /A _xx=0
+set /A _qc=0
 rem
 :doRun
-rem Set working counter
-set /A _cc=0
-echo %~nx0: [%_xx%] [%TIME%] ... running
-:doWork
+rem Set running counter
+set /A _rc=0
 rem
-echo %~nx0: [%_cc%] [%TIME%] ... working %RANDOM%
+:doWork
+rem Set working counter
+set /A _wc=0
+rem
+if %_qc% lss 15 (
+    echo %~nx0: [%_rc%] [%TIME%] ... running
+)
+rem
+:doLoop
+rem
+if %_qc% lss 15 (
+    echo %~nx0: [%_wc%] [%TIME%] ... working %RANDOM%
+)
 rem
 rem Simulate work by sleeping for 2 seconds
 ping -n 3 127.0.0.1 >NUL
 rem
 rem Check if shutdown batch signaled to stop the service
 if exist "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" (
-    echo.
-    echo %~nx0: [%TIME%] found shutdown-%SVCBATCH_SERVICE_UUID%
     goto doCleanup
 )
-set /A _cc+=1
-if %_cc% lss 10 (
-    goto doWork
+rem Increment counter
+set /A _wc+=1
+if %_wc% lss 10 (
+    goto doLoop
+)
+rem
+set /A _qc+=1
+if %_qc% gtr 50 (
+    echo %~nx0: [%_rc%] [%TIME%] ... leaving quiet mode
+    echo.
+    goto doMain
+)
+rem
+if %_qc% gtr 15 (
+    goto doRun
 )
 rem
 rem Dump some lorem ipsum
 echo.
-echo %~nx0: [%_xx%] [%TIME%] ... dumping
+echo %~nx0: [%_rc%] [%TIME%] ... dumping
 echo.
 echo Lorem ipsum dolor sit amet, consectetur adipiscing elit,
 echo sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.
@@ -80,17 +99,22 @@ echo fugiat nulla pariatur. Excepteur sint occaecat cupidatat non
 echo proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 echo.
 rem
+if %_qc% geq 15 (
+    echo.
+    echo %~nx0: [%_rc%] [%TIME%] ... entering quiet mode
+)
 rem Increment counter
-set /A _xx+=1
-if %_xx% lss 10 (
-    goto doRun
+set /A _rc+=1
+rem
+if %_rc% lss 10 (
+    goto doWork
 )
 rem
 rem Send shutdown signal
 rem sc stop %SVCBATCH_SERVICE_NAME%
-goto runService
+goto doRun
 rem Comment above goto to simulate failure
-echo %~nx0: Simulating failure
+echo %~nx0: [%TIME%] Simulating failure
 ping -n 6 127.0.0.1 >NUL
 rem SvcBatch will report error if we end without
 rem explicit call to sc stop [service name]
@@ -99,6 +123,7 @@ rem
 :doCleanup
 rem
 echo.
+echo %~nx0: [%TIME%] Found shutdown-%SVCBATCH_SERVICE_UUID%
 echo %~nx0: [%TIME%] Simulating cleanup
 ping -n 3 127.0.0.1 >NUL
 echo.
@@ -138,10 +163,10 @@ echo %~nx0: [%TIME%] Creating shutdown-%SVCBATCH_SERVICE_UUID%
 echo.
 echo Y> "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%"
 rem
-:runShutdown
+:doShutdownWork
 ping -n 6 127.0.0.1 >NUL
 rem echo %~nx0: [%TIME%] ... running
-rem goto runShutdown
+rem goto doShutdownWork
 echo.
 echo %~nx0: [%TIME%] Shutdown done
 rem
