@@ -2410,8 +2410,9 @@ static DWORD WINAPI rotatethread(void *unused)
     }
 
     while (rc == 0) {
-        DWORD wc = WaitForMultipleObjects(nw, wh, FALSE, rw);
+        DWORD wc;
 
+        wc = WaitForMultipleObjects(nw, wh, FALSE, rw);
         switch (wc) {
             case WAIT_OBJECT_0:
                 rc = 1;
@@ -2460,8 +2461,16 @@ static DWORD WINAPI rotatethread(void *unused)
                 DBG_PRINTS("rotate ready");
                 SVCBATCH_CS_ENTER(svcbatchlog);
                 InterlockedExchange(&svcbatchlog->dwCurrentState, 0);
-                SVCBATCH_CS_LEAVE(svcbatchlog);
                 logwrstat(svcbstatlog, 1, 1, "Rotate ready");
+                if (rotatebysize) {
+                    if (InterlockedCompareExchange64(&svcbatchlog->nWritten, 0, 0) >= rotatesiz.QuadPart) {
+                        InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
+                        DBG_PRINTS("rotating by size");
+                        logwrstat(svcbstatlog, 0, 0, "Rotating by size");
+                        SetEvent(logrotatesig);
+                    }
+                }
+                SVCBATCH_CS_LEAVE(svcbatchlog);
                 rw = INFINITE;
             break;
             default:
