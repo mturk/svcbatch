@@ -63,7 +63,8 @@ if %_qc% lss 15 (
 )
 rem
 rem Simulate work by sleeping for 2 seconds
-ping -n 3 127.0.0.1 >NUL
+rem ping -n 3 127.0.0.1 >NUL
+%SVCBATCH_APP_DIR%\xsleep.exe 2
 rem
 rem Check if shutdown batch signaled to stop the service
 if exist "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" (
@@ -115,21 +116,27 @@ rem sc stop %SVCBATCH_SERVICE_NAME%
 goto doRun
 rem Comment above goto to simulate failure
 echo %~nx0: [%TIME%] Simulating failure
-ping -n 6 127.0.0.1 >NUL
+rem ping -n 6 127.0.0.1 >NUL
+%SVCBATCH_APP_DIR%\xsleep.exe 5
 rem SvcBatch will report error if we end without
 rem explicit call to sc stop [service name]
 goto End
 rem
 :doCleanup
 rem
+del /F /Q "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" 2>NUL
+if %_qc% geq 15 (
+    %SVCBATCH_APP_DIR%\xsleep.exe 2
+    goto End
+)
 echo.
 echo %~nx0: [%TIME%] Found shutdown-%SVCBATCH_SERVICE_UUID%
 echo %~nx0: [%TIME%] Simulating cleanup
-ping -n 3 127.0.0.1 >NUL
+rem ping -n 3 127.0.0.1 >NUL
+%SVCBATCH_APP_DIR%\xsleep.exe 2
 echo.
 echo.
 echo %~nx0: [%TIME%] Service done
-del /F /Q "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" 2>NUL
 rem
 goto End
 rem
@@ -155,7 +162,8 @@ rem
 rem
 echo %~nx0: [%TIME%] Shutdown running
 rem Simulate some work by sleeping for 2 seconds
-ping -n 3 127.0.0.1 >NUL
+rem ping -n 3 127.0.0.1 >NUL
+%SVCBATCH_APP_DIR%\xsleep.exe 2
 rem Simple IPC mechanism to signal the service
 rem to stop by creating unique file
 echo.
@@ -164,7 +172,8 @@ echo.
 echo Y> "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%"
 rem
 :doShutdownWork
-ping -n 6 127.0.0.1 >NUL
+rem ping -n 6 127.0.0.1 >NUL
+%SVCBATCH_APP_DIR%\xsleep.exe 5
 rem echo %~nx0: [%TIME%] ... running
 rem goto doShutdownWork
 echo.

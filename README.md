@@ -684,6 +684,10 @@ SvcBatch sets for each instance.
 
   Set to the current SvcBatch executable running the service
 
+* **SVCBATCH_APP_DIR**
+
+  Set to the directory of the SvcBatch executable running the service
+
 * **SVCBATCH_APP_VER**
 
   This environment variable is set to the current version

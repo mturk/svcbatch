@@ -26,7 +26,7 @@ For a full list of changes, see the [git commit log][log]
 
   * Add SVCBATCH_SERVICE_LOGS environment variable
   * Add SVCBATCH_SERVICE_WORK environment variable
-  * Add SVCBATCH_APP_BIN and SVCBATCH_APP_BIN environment variables
+  * Add SVCBATCH_APP_BIN, SVCBATCH_APP_DIR and SVCBATCH_APP_VER environment variables
   * Add -h command option that enables to have separate home and work directories
   * Add -k command option for changing default stop timeout
   * Use -c command option to set user defined code page
