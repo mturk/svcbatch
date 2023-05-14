@@ -2906,7 +2906,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             svcbstatlog = (LPSVCBATCH_LOG)xmmalloc(sizeof(SVCBATCH_LOG));
 
             memcpy(svcbstatlog, svcbatchlog, sizeof(SVCBATCH_LOG));
-            svcbstatlog->nMaxLogs  = SBSTATUS_MAX_LOGS;
+            svcbstatlog->nMaxLogs  = SVCBATCH_DEF_LOGS;
             svcbstatlog->lpFileExt = SBSTATUS_LOGFEXT;
             SVCBATCH_CS_INIT(svcbstatlog);
         }
@@ -3192,7 +3192,7 @@ int wmain(int argc, const wchar_t **wargv)
                     svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
                     xwcslcpy(svcbatchlog->szName, _MAX_FNAME, shutdownmem->szLogName);
-                    svcbatchlog->nMaxLogs  = SHUTDOWN_MAX_LOGS;
+                    svcbatchlog->nMaxLogs  = SVCBATCH_DEF_LOGS;
                     svcbatchlog->lpFileExt = SHUTDOWN_LOGFEXT;
                     SVCBATCH_CS_INIT(svcbatchlog);
                 }

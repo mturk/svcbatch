@@ -75,19 +75,15 @@
 #define SVCBATCH_MMAPPFX       L"Local\\sb-"
 
 /**
- * Maximum number of SvcBatch.log.N files
+ * Maximum number of the SvcBatch.log.N files
  */
 #define SVCBATCH_MAX_LOGS       9
 
 /**
- * Maximum number of SvcBatch.shutdown.log.N files
+ * Default maximum number of the
+ * SvcBatch.shutdown.log.N and SvcBatch.status.log.N files
  */
-#define SHUTDOWN_MAX_LOGS       2
-
-/**
- * Maximum number of SvcBatch.status.log.N files
- */
-#define SBSTATUS_MAX_LOGS       2
+#define SVCBATCH_DEF_LOGS       2
 
 /**
  * Maximum number of arguments
