@@ -164,7 +164,6 @@ static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
 
 static wchar_t      zerostring[2] = { WNUL, WNUL };
 static const wchar_t *CRLFW       = L"\r\n";
-static const char    *CRLFA       =  "\r\n";
 static const char    *YYES        =  "Y\r\n";
 
 static const char    *cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
@@ -1459,12 +1458,11 @@ static BOOL logwlines(HANDLE h, int nl, const char *sb, const char *xb)
     ASSERT_HANDLE(h, FALSE);
     nw = xtimehdr(wb, TBUFSIZ);
     if (nl) {
-        wb[nw + 1] = '\r';
-        wb[nw + 2] = '\n';
-        WriteFile(h, wb, nw + 2, &wr, NULL);
+        wb[nw] = '\n';
+        WriteFile(h, wb, nw + 1, &wr, NULL);
     }
     if (sb || xb) {
-        wb[nw + 1] = ' ';
+        wb[nw] = ' ';
         WriteFile(h, wb, nw + 1, &wr, NULL);
 
         nw = xstrlen(sb);
@@ -1473,7 +1471,8 @@ static BOOL logwlines(HANDLE h, int nl, const char *sb, const char *xb)
         nw = xstrlen(xb);
         if (nw)
             WriteFile(h, xb, nw, &wr, NULL);
-        WriteFile(h, CRLFA,   2, &wr, NULL);
+        wb[0] = '\n';
+        WriteFile(h, wb, 1, &wr, NULL);
     }
     return TRUE;
 }
