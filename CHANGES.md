@@ -8,7 +8,6 @@ For a full list of changes, see the [git commit log][log]
 
 ## v2.1.0
 
-  * In development
   * Drop complex and unstable external log application support.
   * Drop experimental console mode with _DEBUG builds
   * Use object structures instead global variables
