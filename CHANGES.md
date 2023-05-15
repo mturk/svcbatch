@@ -6,6 +6,12 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v2.1.1
+
+  * In development
+
+
+
 ## v2.1.0
 
   * Drop complex and unstable external log application support.
