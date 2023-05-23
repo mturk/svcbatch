@@ -206,20 +206,27 @@ static int xfatalerr(const char *func, int err)
 
 static void *xmmalloc(size_t size)
 {
-    void *p;
+    LONG64 *p;
+    size_t  n;
 
-    p = malloc(size);
+    n = MEM_ALIGN_DEFAULT(size);
+    p = (LONG64 *)malloc(n);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
+        return NULL;
     }
+    n = (n >> 3) - 1;
+    *(p + n) = INT64_ZERO;
     return p;
 }
 
 static void *xmcalloc(size_t number, size_t size)
 {
-    void *p;
+    void   *p;
+    size_t  n = number * size;;
 
-    p = calloc(number, size);
+    n = MEM_ALIGN_DEFAULT(n);
+    p = calloc(n, 1);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
@@ -228,21 +235,28 @@ static void *xmcalloc(size_t number, size_t size)
 
 static void *xrealloc(void *mem, size_t size)
 {
-    void *p;
+    LONG64 *p;
+    size_t  n;
 
-    p = realloc(mem, size);
+    if (size == 0) {
+        if (mem)
+            free(mem);
+        return NULL;
+    }
+    n = MEM_ALIGN_DEFAULT(size);
+    p = (LONG64 *)realloc(mem, n);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
+        return NULL;
     }
+    n = (n >> 3) - 1;
+    *(p + n) = INT64_ZERO;
     return p;
 }
 
-static wchar_t *xwmalloc(size_t size)
+static __inline wchar_t *xwmalloc(size_t size)
 {
-    wchar_t *p = (wchar_t *)xmmalloc((size + 1) * sizeof(wchar_t));
-
-    p[size] = WNUL;
-    return p;
+    return (wchar_t *)xmmalloc(size * sizeof(wchar_t));
 }
 
 static __inline wchar_t *xwcalloc(size_t size)
@@ -364,8 +378,8 @@ static wchar_t *xgetenv(const wchar_t *s)
 
     n = GetEnvironmentVariableW(s, e, BBUFSIZ);
     if (n != 0) {
-        d = xwmalloc(n);
         if (n >= BBUFSIZ) {
+            d = xwmalloc(n);
             n = GetEnvironmentVariableW(s, d, n);
             if (n == 0) {
                 xfree(d);
@@ -373,7 +387,7 @@ static wchar_t *xgetenv(const wchar_t *s)
             }
         }
         else {
-            wmemcpy(d, e, n);
+            d = _wcsdup(e);
         }
     }
     return d;
@@ -555,7 +569,7 @@ static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
     if ((l1 + l2) == 0)
         return NULL;
 
-    cp = xwmalloc(l1 + l2);
+    cp = xwmalloc(l1 + l2 + 1);
     if(l1 > 0)
         wmemcpy(cp, s1, l1);
     if(l2 > 0)
@@ -580,7 +594,7 @@ static wchar_t *xwcsmkpath(const wchar_t *ds,
     nf = xwcslen(fs);
     nx = xwcslen(fx);
 
-    cp = xwmalloc(nd + nf + nx + 1);
+    cp = xwmalloc(nd + nf + nx + 2);
     wmemcpy(cp, ds, nd);
     cp[nd++] = L'\\';
     if (nf)

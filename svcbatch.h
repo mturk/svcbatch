@@ -30,9 +30,13 @@
 #if defined(_MSC_VER)
 # define CPP_INT64_C(_v)    (_v##I64)
 # define CPP_UINT64_C(_v)   (_v##UI64)
+# define INT64_ZERO         0I64
+# define UINT64_ZERO        0U64
 #else
 # define CPP_INT64_C(_v)    (_v##LL)
 # define CPP_UINT64_C(_v)   (_v##ULL)
+# define INT64_ZERO         0LL
+# define UINT64_ZERO        0ULL
 #endif
 
 /**
@@ -158,6 +162,11 @@
 #define ONE_DAY                 CPP_INT64_C(864000000000)
 #define KILOBYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1024))
 #define MEGABYTES(_x)           (CPP_INT64_C(_x) * CPP_INT64_C(1048576))
+
+/** Memory alignment */
+#define MEM_ALIGN(size, boundary) \
+    (((size) + ((boundary) - 1)) & ~((boundary) - 1))
+#define MEM_ALIGN_DEFAULT(size) MEM_ALIGN(size, 8)
 
 /**
  * Misc buffer size definitions
