@@ -1461,17 +1461,6 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
     return 0;
 }
 
-static DWORD logappend(HANDLE h, LPCVOID buf, DWORD len)
-{
-    DWORD wr;
-
-    if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0)) {
-        InterlockedAdd64(&svcbatchlog->nWritten, wr);
-        return 0;
-    }
-    return GetLastError();
-}
-
 static BOOL logwlines(HANDLE h, int nl, const char *sb, const char *xb)
 {
     char    wb[TBUFSIZ];
@@ -2284,7 +2273,8 @@ static void stopshutdown(DWORD rt)
 
 static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
 {
-    DWORD  rc;
+    DWORD  rc = 0;
+    DWORD  wr = 0;
     HANDLE h;
 
 #if defined(_DEBUG) && (_DEBUG > 2)
@@ -2292,27 +2282,22 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
 #endif
     SVCBATCH_CS_ENTER(log);
     h = InterlockedExchangePointer(&log->hFile, NULL);
-
-    if (h)
-        rc = logappend(h, buf, len);
+    if (h == NULL) {
+        SVCBATCH_CS_LEAVE(log);
+        DBG_PRINTS("logfile closed");
+        return ERROR_NO_MORE_FILES;
+    }
+    if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0))
+        InterlockedAdd64(&log->nWritten, wr);
     else
-        rc = ERROR_NO_MORE_FILES;
+        rc = GetLastError();
 
     InterlockedExchangePointer(&log->hFile, h);
     SVCBATCH_CS_LEAVE(log);
-    if (rc) {
-        if (rc != ERROR_NO_MORE_FILES) {
-            xsyserror(rc, L"Log write", NULL);
-        }
-#if defined(_DEBUG)
-        else {
-            DBG_PRINTS("logfile closed");
-        }
-#endif
-        return rc;
-    }
+    if (rc)
+        return xsyserror(rc, L"Log write", NULL);
 #if defined(_DEBUG) && (_DEBUG > 2)
-    DBG_PRINTF("wrote   %4lu bytes", len);
+    DBG_PRINTF("wrote   %4lu bytes", wr);
 #endif
     if (IS_SET(SVCBATCH_OPT_ROTATE) && rotatebysize) {
         if (InterlockedCompareExchange64(&log->nWritten, 0, 0) >= rotatesiz.QuadPart) {
