@@ -380,17 +380,17 @@ static wchar_t *xgetenv(const wchar_t *s)
 }
 
 /**
- * Simple atoi with range between 0 and 2147483639.
+ * Simple atoi with range between 0 and INT_MAX.
  * Leading white space characters are ignored.
  * Returns negative value on error.
  */
 static int xwcstoi(const wchar_t *sp, wchar_t **ep)
 {
-    int rv = 0;
-    int dc = 0;
+    INT64 rv = CPP_INT64_C(0);
+    int   dc = 0;
 
     ASSERT_WSTR(sp, -1);
-    while(iswspace(*sp))
+    while(iswblank(*sp))
         sp++;
 
     while(iswdigit(*sp)) {
@@ -400,7 +400,7 @@ static int xwcstoi(const wchar_t *sp, wchar_t **ep)
             rv *= 10;
             rv += dv;
         }
-        if (rv < 0) {
+        if (rv > INT_MAX) {
             SetLastError(ERROR_INVALID_DATA);
             return -1;
         }
@@ -413,7 +413,7 @@ static int xwcstoi(const wchar_t *sp, wchar_t **ep)
     }
     if (ep != NULL)
         *ep = (wchar_t *)sp;
-    return rv;
+    return (int)rv;
 }
 
 
@@ -423,12 +423,9 @@ static int xwcstoi(const wchar_t *sp, wchar_t **ep)
  * At most siz-1 characters will be copied.
  *
  * Always NUL terminates (unless siz == 0).
- * Returns wcslen(initial dst) + wcslen(src),
- * not counting terminating NUL.
+ * Returns siz if wcslen(initial dst) + wcslen(src),
+ * is larger then siz.
  *
- * If retval >= siz, no data will be appended to dst.
- * In that case call the function again with dst
- * string buffer resized to at least retval+1.
  */
 static int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
 {
@@ -438,18 +435,22 @@ static int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
     int      c;
 
     ASSERT_NULL(dst, 0);
-    ASSERT_SIZE(siz, 1, 0);
+    ASSERT_SIZE(siz, 2, 0);
 
     while ((n-- != 0) && (*d != WNUL))
         d++;
     c = (int)(d - dst);
-    n = siz - c;
-    if ((n == 0) || IS_EMPTY_WCS(src))
+    if (IS_EMPTY_WCS(src))
         return c;
-    while ((n-- != 0) && (*s != WNUL))
+    n = siz - c;
+    if (n < 2)
+        return siz;
+    while ((n-- != 1) && (*s != WNUL))
         *d++ = *s++;
 
     *d = WNUL;
+    if (*s != WNUL)
+        d++;
     return (int)(d - dst);
 }
 
@@ -460,15 +461,17 @@ static int xwcslcpy(wchar_t *dst, int siz, const wchar_t *src)
     int      n = siz;
 
     ASSERT_NULL(dst, 0);
-    ASSERT_SIZE(siz, 1, 0);
+    ASSERT_SIZE(siz, 2, 0);
     *d = WNUL;
     ASSERT_WSTR(src, 0);
 
-    while ((n-- != 0) && (*s != WNUL))
+    while ((n-- != 1) && (*s != WNUL))
         *d++ = *s++;
 
     *d = WNUL;
-    return (int)(s - src);
+    if (*s != WNUL)
+        d++;
+    return (int)(d - dst);
 }
 
 static int xvsnwprintf(wchar_t *dst, int siz,
@@ -483,8 +486,10 @@ static int xvsnwprintf(wchar_t *dst, int siz,
 
     dst[0] = WNUL;
     n = _vsnwprintf(dst, c, fmt, ap);
-    if (n < 0 || n > c)
-        n = c;
+    if ((n < 0) || (n > c)) {
+        dst[c] = WNUL;
+        return siz;
+    }
     dst[n] = WNUL;
     return n;
 }
@@ -517,8 +522,10 @@ static int xvsnprintf(char *dst, int siz,
 
     dst[0] = '\0';
     n = _vsnprintf(dst, c, fmt, ap);
-    if (n < 0 || n > c)
-        n = c;
+    if ((n < 0) || (n > c)) {
+        dst[c] = '\0';
+        return siz;
+    }
     dst[n] = '\0';
     return n;
 }
@@ -718,6 +725,7 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
         oli = wcschr(opts, towlower(xwoption));
     }
     if (oli == NULL) {
+        xwoptind++;
         place = zerostring;
         return EINVAL;
     }
