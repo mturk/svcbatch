@@ -270,13 +270,6 @@ static __inline void xfree(void *mem)
         free(mem);
 }
 
-static __inline wchar_t *xwcsdup(const wchar_t *s)
-{
-    if (IS_EMPTY_WCS(s))
-        return NULL;
-    return _wcsdup(s);
-}
-
 static __inline void xmemzero(void *mem, size_t number, size_t size)
 {
     memset(mem, 0, number * size);
@@ -298,6 +291,26 @@ static __inline int xstrlen(const char *s)
         return (int)strlen(s);
 }
 
+#if defined(_DEBUG) && (_DEBUG > 1)
+static wchar_t *xwcsdup(const wchar_t *s)
+{
+    size_t   n;
+    wchar_t *d;
+
+    if (IS_EMPTY_WCS(s))
+        return NULL;
+    n = wcslen(s);
+    d = xwmalloc(n + 1);
+    return wmemcpy(d, s, n);
+}
+#else
+static __inline wchar_t *xwcsdup(const wchar_t *s)
+{
+    if (IS_EMPTY_WCS(s))
+        return NULL;
+    return _wcsdup(s);
+}
+#endif
 static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
 {
     int r = 0;
@@ -387,7 +400,7 @@ static wchar_t *xgetenv(const wchar_t *s)
             }
         }
         else {
-            d = _wcsdup(e);
+            d = xwcsdup(e);
         }
     }
     return d;
