@@ -2536,7 +2536,9 @@ static DWORD WINAPI workerthread(void *unused)
         goto finished;
     }
     svcxcmdproc->lpCommandLine = xappendarg(1, NULL, NULL, svcxcmdproc->lpExe);
-    svcxcmdproc->lpCommandLine = xappendarg(1, svcxcmdproc->lpCommandLine, L"/D /C", svcxcmdproc->lpArgv[0]);
+    svcxcmdproc->lpCommandLine = xappendarg(1, svcxcmdproc->lpCommandLine,
+                                            L"/D /E:ON /V:OFF /C",
+                                            svcxcmdproc->lpArgv[0]);
     for (i = 1; i < svcxcmdproc->nArgc; i++) {
         xwchreplace(svcxcmdproc->lpArgv[i], L'@', L'%');
         svcxcmdproc->lpCommandLine = xappendarg(1, svcxcmdproc->lpCommandLine, NULL, svcxcmdproc->lpArgv[i]);
