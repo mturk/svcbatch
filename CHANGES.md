@@ -9,8 +9,10 @@ For a full list of changes, see the [git commit log][log]
 ## v2.1.1
 
   * In development
-  * Use default /E:ON option to enable command extensions when starting cmd.exe
-  * Use default /V:OFF option to disable delayed environment expansion when starting cmd.exe
+
+### New Features
+
+  * Add /E:ON and /V:OFF switches when starting cmd.exe to disable system registry settings influencing services
 
 
 ## v2.1.0
