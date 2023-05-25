@@ -58,7 +58,7 @@ typedef struct _SVCBATCH_THREAD {
 typedef struct _SVCBATCH_PIPE {
     OVERLAPPED  o;
     HANDLE      pipe;
-    BYTE        buffer[HBUFSIZ];
+    BYTE        buffer[SVCBATCH_PIPE_LEN];
     DWORD       read;
     DWORD       state;
 } SVCBATCH_PIPE, *LPSVCBATCH_PIPE;
@@ -87,7 +87,7 @@ typedef struct _SVCBATCH_LOG {
     CRITICAL_SECTION    cs;
     LPWSTR              fileName;
     LPCWSTR             fileExt;
-    WCHAR               logName[_MAX_FNAME];
+    WCHAR               logName[SVCBATCH_NAME_MAX];
     WCHAR               logPath[SVCBATCH_PATH_MAX];
 
 } SVCBATCH_LOG, *LPSVCBATCH_LOG;
@@ -113,15 +113,15 @@ typedef struct _SVCBATCH_IPC {
     DWORD   options;
     DWORD   timeout;
     DWORD   argc;
-    WCHAR   uuid[TBUFSIZ];
-    WCHAR   name[_MAX_FNAME];
-    WCHAR   logName[_MAX_FNAME];
+    WCHAR   uuid[SVCBATCH_UUID_MAX];
+    WCHAR   name[SVCBATCH_NAME_MAX];
+    WCHAR   logName[SVCBATCH_NAME_MAX];
     WCHAR   home[SVCBATCH_PATH_MAX];
     WCHAR   work[SVCBATCH_PATH_MAX];
     WCHAR   logs[SVCBATCH_PATH_MAX];
     WCHAR   application[SVCBATCH_PATH_MAX];
     WCHAR   batchFile[SVCBATCH_PATH_MAX];
-    WCHAR   args[SVCBATCH_MAX_ARGS][_MAX_FNAME];
+    WCHAR   args[SVCBATCH_MAX_ARGS][SVCBATCH_NAME_MAX];
 
 } SVCBATCH_IPC, *LPSVCBATCH_IPC;
 
@@ -756,7 +756,7 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
          */
         if (*place) {
             /* Skip blanks */
-            while (*place == L' ')
+            while (iswblank(*place))
                 ++place;
         }
         if (*place) {
@@ -784,19 +784,21 @@ static int xwgetopt(int nargc, const wchar_t **nargv, const wchar_t *opts)
 
 static wchar_t *xuuidstring(wchar_t *b)
 {
-    static wchar_t s[TBUFSIZ];
+    static WORD    w = 0;
+    static wchar_t s[SVCBATCH_UUID_MAX];
     unsigned char  d[20];
     const wchar_t  xb16[] = L"0123456789abcdef";
-    int i, x;
+    int  i, x;
 
     if (BCryptGenRandom(NULL, d + 2, 16,
                         BCRYPT_USE_SYSTEM_PREFERRED_RNG) != 0)
         return NULL;
-
+    if (w == 0)
+        w = LOWORD(GetCurrentProcessId());
     if (b == NULL)
         b = s;
-    d[0] = HIBYTE(svcmainproc->pInfo.dwProcessId);
-    d[1] = LOBYTE(svcmainproc->pInfo.dwProcessId);
+    d[0] = HIBYTE(w);
+    d[1] = LOBYTE(w);
     for (i = 0, x = 0; i < 18; i++) {
         if (i == 2 || i == 6 || i == 8 || i == 10 || i == 12)
             b[x++] = '-';
@@ -809,14 +811,14 @@ static wchar_t *xuuidstring(wchar_t *b)
 
 static wchar_t *xmktimedext(void)
 {
-    static wchar_t b[QBUFSIZ];
+    static wchar_t b[TBUFSIZ];
     SYSTEMTIME st;
 
     if (IS_SET(SVCBATCH_OPT_LOCALTIME))
         GetLocalTime(&st);
     else
         GetSystemTime(&st);
-    xsnwprintf(b, QBUFSIZ, L".%.4d%.2d%.2d%.2d%.2d%.2d",
+    xsnwprintf(b, TBUFSIZ, L".%.4d%.2d%.2d%.2d%.2d%.2d",
                st.wYear, st.wMonth, st.wDay,
                st.wHour, st.wMinute, st.wSecond);
     return b;
@@ -855,15 +857,15 @@ static int xtimehdr(char *wb, int sz)
 static void dbgprintf(const char *funcname, const char *format, ...)
 {
     int     n;
-    char    b[MBUFSIZ];
+    char    b[SVCBATCH_LINE_MAX];
     va_list ap;
 
-    n = xsnprintf(b, MBUFSIZ, "[%.4lu] %c %-16s ",
+    n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
                   GetCurrentThreadId(),
                   dbgsvcmode, funcname);
 
     va_start(ap, format);
-    xvsnprintf(b + n, MBUFSIZ - n, format, ap);
+    xvsnprintf(b + n, SVCBATCH_LINE_MAX - n, format, ap);
     va_end(ap);
     OutputDebugStringA(b);
 }
@@ -949,26 +951,26 @@ finished:
 
 static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wchar_t *err, const wchar_t *eds)
 {
-    wchar_t        hdr[MBUFSIZ];
-    wchar_t        erb[MBUFSIZ];
+    wchar_t        hdr[SVCBATCH_LINE_MAX];
+    wchar_t        erb[SVCBATCH_LINE_MAX];
     const wchar_t *errarg[10];
     int            c, i = 0;
 
     errarg[i++] = wnamestamp;
     if (mainservice->name)
         errarg[i++] = mainservice->name;
-    xwcslcpy(hdr, MBUFSIZ, CRLFW);
+    xwcslcpy(hdr, SVCBATCH_LINE_MAX, CRLFW);
     if (typ != EVENTLOG_INFORMATION_TYPE) {
         if (typ == EVENTLOG_ERROR_TYPE)
             errarg[i++] = L"\r\nreported the following error:";
-        xsnwprintf(hdr + 2, MBUFSIZ - 2,
+        xsnwprintf(hdr + 2, SVCBATCH_LINE_MAX - 2,
                    L"svcbatch.c(%.4d, %S) ", line, fn);
     }
-    xwcslcat(hdr, MBUFSIZ, err);
+    xwcslcat(hdr, SVCBATCH_LINE_MAX, err);
     if (eds) {
         if (err)
-            xwcslcat(hdr, MBUFSIZ, L": ");
-        xwcslcat(hdr, MBUFSIZ, eds);
+            xwcslcat(hdr, SVCBATCH_LINE_MAX, L": ");
+        xwcslcat(hdr, SVCBATCH_LINE_MAX, eds);
     }
     errarg[i++] = hdr;
     if (ern == 0) {
@@ -978,8 +980,8 @@ static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wc
 #endif
     }
     else {
-        c = xsnwprintf(erb, TBUFSIZ, L"\r\nerror(%lu) ", ern);
-        xwinapierror(erb + c, MBUFSIZ - c, ern);
+        c = xsnwprintf(erb,   SVCBATCH_LINE_MAX, L"\r\nerror(%lu) ", ern);
+        xwinapierror(erb + c, SVCBATCH_LINE_MAX - c, ern);
         errarg[i++] = erb;
 #if defined(_DEBUG)
         dbgprintf(fn, "%S, %S", hdr + 2, erb + 2);
@@ -1059,7 +1061,7 @@ static DWORD getproctree(LPHANDLE pa, DWORD pid)
                     CloseHandle(p);
             }
         }
-        if (r == RBUFSIZ) {
+        if (r == SVCBATCH_PROC_MAX) {
             DBG_PRINTS("overflow");
             break;
         }
@@ -1073,7 +1075,7 @@ static DWORD killproctree(DWORD pid, int rc, DWORD rv)
     DWORD  c;
     DWORD  n;
     DWORD  r = 0;
-    HANDLE pa[RBUFSIZ];
+    HANDLE pa[SVCBATCH_PROC_MAX];
 
     DBG_PRINTF("[%d] proc %.4lu", rc, pid);
     c = getproctree(pa, pid);
@@ -1220,7 +1222,7 @@ static BOOL isrelativepath(const wchar_t *p)
 
 static DWORD fixshortpath(wchar_t *buf, DWORD len)
 {
-    if ((len > 5) && (len < _MAX_FNAME)) {
+    if ((len > 5) && (len < SVCBATCH_NAME_MAX)) {
         /**
          * Strip leading \\?\ for short paths
          * but not \\?\UNC\* paths
@@ -1357,14 +1359,14 @@ finished:
 
 static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
 {
-    wchar_t  name[TBUFSIZ];
+    wchar_t  name[SVCBATCH_UUID_MAX];
     SECURITY_ATTRIBUTES sa;
 
     sa.nLength              = DSIZEOF(SECURITY_ATTRIBUTES);
     sa.lpSecurityDescriptor = NULL;
     sa.bInheritHandle       = TRUE;
 
-    xwcslcpy(name, TBUFSIZ, SVCBATCH_PIPEPFX);
+    xwcslcpy(name, SVCBATCH_UUID_MAX, SVCBATCH_PIPEPFX);
     xuuidstring(name + _countof(SVCBATCH_PIPEPFX) - 1);
 
     *rd = CreateNamedPipeW(name,
@@ -1372,7 +1374,7 @@ static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
                            PIPE_TYPE_BYTE,
                            1,
                            0,
-                           HBUFSIZ,
+                           SVCBATCH_PIPE_LEN,
                            0,
                            &sa);
     if (IS_INVALID_HANDLE(*rd))
@@ -1467,12 +1469,12 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
 
 static BOOL logwlines(HANDLE h, int nl, const char *sb, const char *xb)
 {
-    char    wb[TBUFSIZ];
+    char    wb[SBUFSIZ];
     DWORD   wr;
     DWORD   nw;
 
     ASSERT_HANDLE(h, FALSE);
-    nw = xtimehdr(wb, TBUFSIZ);
+    nw = xtimehdr(wb, SBUFSIZ);
     if (nl) {
         WriteFile(h, wb,     nw, &wr, NULL);
         WriteFile(h, CRLFA,   2, &wr, NULL);
@@ -1500,13 +1502,13 @@ static BOOL logwrline(HANDLE h, int nl, const char *sb)
 static void logprintf(HANDLE h, int nl, const char *format, ...)
 {
     int     c;
-    char    buf[FBUFSIZ];
+    char    buf[SVCBATCH_LINE_MAX];
     va_list ap;
 
     if (IS_INVALID_HANDLE(h))
         return;
     va_start(ap, format);
-    c = xvsnprintf(buf, FBUFSIZ, format, ap);
+    c = xvsnprintf(buf, SVCBATCH_LINE_MAX, format, ap);
     va_end(ap);
     if (c > 0)
         logwrline(h, nl, buf);
@@ -1514,11 +1516,11 @@ static void logprintf(HANDLE h, int nl, const char *format, ...)
 
 static void logwransi(HANDLE h, int nl, const char *hdr, const wchar_t *wcs)
 {
-    char buf[FBUFSIZ];
+    char buf[SVCBATCH_LINE_MAX];
 
     if (IS_INVALID_HANDLE(h))
         return;
-    xwcstombs(svccodepage, buf, FBUFSIZ, wcs);
+    xwcstombs(svccodepage, buf, SVCBATCH_LINE_MAX, wcs);
     logwlines(h, nl, hdr, buf);
 }
 
@@ -1540,8 +1542,8 @@ static void logwrtime(HANDLE h, int nl, const char *hdr)
 static void logwinver(HANDLE h)
 {
     OSVERSIONINFOEXW os;
-    char             nb[NBUFSIZ] = { 0, 0};
-    char             vb[NBUFSIZ] = { 0, 0};
+    char             nb[SVCBATCH_NAME_MAX] = { 0, 0};
+    char             vb[SVCBATCH_NAME_MAX] = { 0, 0};
     const char      *pv = NULL;
     DWORD            sz;
     DWORD            br = 0;
@@ -1559,17 +1561,17 @@ static void logwinver(HANDLE h)
     os.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
     GetVersionExW((LPOSVERSIONINFOW)&os);
 
-    sz = NBUFSIZ - 1;
+    sz = SVCBATCH_NAME_MAX - 1;
     if (RegGetValueA(hk, NULL, "ProductName",
                      RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
                      NULL, nb, &sz) != ERROR_SUCCESS)
         goto finished;
-    sz = NBUFSIZ - 1;
+    sz = SVCBATCH_NAME_MAX - 1;
     if (RegGetValueA(hk, NULL, "ReleaseId",
                      RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
                      NULL, vb, &sz) == ERROR_SUCCESS)
         pv = vb;
-    sz = NBUFSIZ - 1;
+    sz = SVCBATCH_NAME_MAX - 1;
     if (RegGetValueA(hk, NULL, "DisplayVersion",
                      RRF_RT_REG_SZ,
                      NULL, vb, &sz) == ERROR_SUCCESS)
@@ -1795,7 +1797,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
 {
     HANDLE  fh = NULL;
     DWORD   rc;
-    WCHAR   nb[_MAX_FNAME];
+    WCHAR   nb[SVCBATCH_NAME_MAX];
     BOOL    rp = TRUE;
     LPCWSTR np = log->logName;
 
@@ -1813,7 +1815,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         rp = IS_NOT(SVCBATCH_OPT_TRUNCATE);
     }
     if (wcschr(np, L'%')) {
-        rc = makelogname(nb, _MAX_FNAME, np);
+        rc = makelogname(nb, SVCBATCH_NAME_MAX, np);
         if (rc)
             return rc;
         rp = FALSE;
@@ -2105,11 +2107,11 @@ static BOOL resolverotate(const wchar_t *rp)
 
 static DWORD runshutdown(DWORD rt)
 {
-    wchar_t  rb[TBUFSIZ];
+    wchar_t  rb[SVCBATCH_UUID_MAX];
     DWORD i, rc = 0;
 
     DBG_PRINTS("started");
-    i = xwcslcpy(rb, TBUFSIZ, L"@@" SVCBATCH_MMAPPFX);
+    i = xwcslcpy(rb, SVCBATCH_UUID_MAX, L"@@" SVCBATCH_MMAPPFX);
     xuuidstring(rb + i);
     shutdownmmap = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL,
                                       PAGE_READWRITE, 0,
@@ -2128,17 +2130,17 @@ static DWORD runshutdown(DWORD rt)
     shutdownmem->timeout   = stoptimeout;
     shutdownmem->codePage  = svccodepage;
     if (svcbatchlog)
-        xwcslcpy(shutdownmem->logName, _MAX_FNAME,    svcbatchlog->logName);
-    xwcslcpy(shutdownmem->name, _MAX_FNAME,    mainservice->name);
+        xwcslcpy(shutdownmem->logName, SVCBATCH_NAME_MAX, svcbatchlog->logName);
+    xwcslcpy(shutdownmem->name, SVCBATCH_NAME_MAX, mainservice->name);
     xwcslcpy(shutdownmem->home, SVCBATCH_PATH_MAX, mainservice->home);
     xwcslcpy(shutdownmem->work, SVCBATCH_PATH_MAX, mainservice->work);
     xwcslcpy(shutdownmem->logs, SVCBATCH_PATH_MAX, mainservice->logs);
-    xwcslcpy(shutdownmem->uuid, TBUFSIZ,           mainservice->uuid);
+    xwcslcpy(shutdownmem->uuid, SVCBATCH_UUID_MAX, mainservice->uuid);
     xwcslcpy(shutdownmem->batchFile,   SVCBATCH_PATH_MAX, svcstopproc->args[0]);
     xwcslcpy(shutdownmem->application, SVCBATCH_PATH_MAX, svcxcmdproc->application);
     shutdownmem->argc = svcstopproc->argc;
     for (i = 1; i < svcstopproc->argc; i++)
-        wmemcpy(shutdownmem->args[i], svcstopproc->args[i], _MAX_FNAME);
+        wmemcpy(shutdownmem->args[i], svcstopproc->args[i], SVCBATCH_NAME_MAX);
 
     rc = createiopipes(&svcstopproc->sInfo, NULL, NULL, 0);
     if (rc != 0) {
@@ -2924,7 +2926,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             svcbstatlog = (LPSVCBATCH_LOG)xmmalloc(sizeof(SVCBATCH_LOG));
 
             memcpy(svcbstatlog, svcbatchlog, sizeof(SVCBATCH_LOG));
-            svcbstatlog->maxLogs  = SVCBATCH_DEF_LOGS;
+            svcbstatlog->maxLogs = SVCBATCH_DEF_LOGS;
             svcbstatlog->fileExt = SBSTATUS_LOGFEXT;
             SVCBATCH_CS_INIT(svcbstatlog);
         }
@@ -3107,7 +3109,7 @@ int wmain(int argc, const wchar_t **wargv)
     int         qcnt = 0;
     int         rv;
     HANDLE      h;
-    wchar_t     bb[BBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
+    wchar_t     bb[TBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
 
     const wchar_t *maxlogsparam = NULL;
     const wchar_t *batchparam   = NULL;
@@ -3209,7 +3211,7 @@ int wmain(int argc, const wchar_t **wargv)
                 if (IS_NOT(SVCBATCH_OPT_QUIET)) {
                     svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
-                    xwcslcpy(svcbatchlog->logName, _MAX_FNAME, shutdownmem->logName);
+                    xwcslcpy(svcbatchlog->logName, SVCBATCH_NAME_MAX, shutdownmem->logName);
                     svcbatchlog->maxLogs  = SVCBATCH_DEF_LOGS;
                     svcbatchlog->fileExt = SHUTDOWN_LOGFEXT;
                     SVCBATCH_CS_INIT(svcbatchlog);
@@ -3367,7 +3369,7 @@ int wmain(int argc, const wchar_t **wargv)
                 /**
                  * Add arguments for batch file
                  */
-                if (xwcslen(wargv[i]) >= _MAX_FNAME)
+                if (xwcslen(wargv[i]) >= SVCBATCH_NAME_MAX)
                     return xsyserror(0, L"The argument is too large", wargv[i]);
 
                 if (i < SVCBATCH_MAX_ARGS)
@@ -3391,8 +3393,8 @@ int wmain(int argc, const wchar_t **wargv)
             const wchar_t *logn = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
             svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
-            xwcslcpy(svcbatchlog->logName, _MAX_FNAME, logn);
-            svcbatchlog->maxLogs  = SVCBATCH_MAX_LOGS;
+            xwcslcpy(svcbatchlog->logName, SVCBATCH_NAME_MAX, logn);
+            svcbatchlog->maxLogs = SVCBATCH_MAX_LOGS;
             svcbatchlog->fileExt = SVCBATCH_LOGFEXT;
             if (maxlogsparam) {
                 svcbatchlog->maxLogs = xwcstoi(maxlogsparam, NULL);

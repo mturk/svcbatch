@@ -93,7 +93,7 @@
  * Maximum number of arguments
  * for shutdown and external log application
  */
-#define SVCBATCH_MAX_ARGS       16
+#define SVCBATCH_MAX_ARGS      16
 
 /**
  * Maximum length for the path and
@@ -102,7 +102,39 @@
  * in length, we set the limit to more
  * realistic number.
  */
-#define SVCBATCH_PATH_MAX       4096
+#define SVCBATCH_PATH_MAX     4096
+
+/**
+ * Maximum length for the object names.
+ *
+ * Although some object names are limited
+ * to MAX_PATH (260 characters), we limit that
+ * to _MAX_FNAME (256) characters
+ */
+#define SVCBATCH_NAME_MAX      256
+
+/**
+ * Maximum length for the UUID based object names.
+ *
+ */
+#define SVCBATCH_UUID_MAX       64
+
+/**
+ * Size of the pipe read buffer in bytes.
+ */
+#define SVCBATCH_PIPE_LEN    16384
+
+/**
+ * Maximum number of characters in one line
+ * written to the file or event log
+ */
+#define SVCBATCH_LINE_MAX     2048
+
+/**
+ * Maximum number of the child processes
+ * to monitor.
+ */
+#define SVCBATCH_PROC_MAX       64
 
 
 /**
@@ -171,16 +203,9 @@
 /**
  * Misc buffer size definitions
  */
-#define QBUFSIZ                 16
-#define TBUFSIZ                 64
-#define RBUFSIZ                 128
-#define NBUFSIZ                 256
-#define BBUFSIZ                 512
-#define SBUFSIZ                 1024
-#define MBUFSIZ                 2048
-#define FBUFSIZ                 8192
-#define HBUFSIZ                 16384
-#define EBUFSIZ                 32768
+#define TBUFSIZ                 32
+#define SBUFSIZ                128
+#define BBUFSIZ                512
 
 #if defined(_DEBUG)
 # define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
