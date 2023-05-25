@@ -2509,13 +2509,12 @@ static DWORD WINAPI workerthread(void *unused)
     HANDLE   rd = NULL;
     LPHANDLE rp = NULL;
     DWORD    rc = 0;
-    SVCBATCH_PIPE op;
+    LPSVCBATCH_PIPE op = NULL;
 
     DBG_PRINTS("started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     InterlockedExchange(&svcxcmdproc->state, SVCBATCH_PROCESS_STARTING);
 
-    xmemzero(&op, 1, sizeof(SVCBATCH_PIPE));
     if (svcbatchlog)
         rp = &rd;
     rc = createiopipes(&svcxcmdproc->sInfo, &wr, rp, FILE_FLAG_OVERLAPPED);
@@ -2534,11 +2533,12 @@ static DWORD WINAPI workerthread(void *unused)
         svcxcmdproc->commandLine = xappendarg(1, svcxcmdproc->commandLine, NULL, svcxcmdproc->args[i]);
     }
     if (svcbatchlog) {
-        op.pipe = rd;
-        op.o.hEvent = CreateEventEx(NULL, NULL,
+        op = (LPSVCBATCH_PIPE)xmcalloc(1, sizeof(SVCBATCH_PIPE));
+        op->pipe = rd;
+        op->o.hEvent = CreateEventEx(NULL, NULL,
                                            CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
                                            EVENT_MODIFY_STATE | SYNCHRONIZE);
-        if (IS_INVALID_HANDLE(op.o.hEvent)) {
+        if (IS_INVALID_HANDLE(op->o.hEvent)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
             xsyserror(rc, L"CreateEvent", NULL);
@@ -2615,7 +2615,7 @@ static DWORD WINAPI workerthread(void *unused)
         DWORD  nw = 2;
 
         wh[0] = svcxcmdproc->pInfo.hProcess;
-        wh[1] = op.o.hEvent;
+        wh[1] = op->o.hEvent;
         do {
             DWORD ws;
 
@@ -2626,32 +2626,32 @@ static DWORD WINAPI workerthread(void *unused)
                     DBG_PRINTS("process signaled");
                 break;
                 case WAIT_OBJECT_1:
-                    if (op.state == ERROR_IO_PENDING) {
-                        if (!GetOverlappedResult(op.pipe, (LPOVERLAPPED)&op,
-                                                &op.read, FALSE)) {
-                            op.state = GetLastError();
+                    if (op->state == ERROR_IO_PENDING) {
+                        if (!GetOverlappedResult(op->pipe, (LPOVERLAPPED)op,
+                                                &op->read, FALSE)) {
+                            op->state = GetLastError();
                         }
                         else {
-                            op.state = 0;
-                            rc = logwrdata(svcbatchlog, op.buffer, op.read);
+                            op->state = 0;
+                            rc = logwrdata(svcbatchlog, op->buffer, op->read);
                         }
                     }
                     else {
-                        if (ReadFile(op.pipe, op.buffer, DSIZEOF(op.buffer),
-                                    &op.read, (LPOVERLAPPED)&op) && op.read) {
-                            op.state = 0;
-                            rc = logwrdata(svcbatchlog, op.buffer, op.read);
-                            SetEvent(op.o.hEvent);
+                        if (ReadFile(op->pipe, op->buffer, DSIZEOF(op->buffer),
+                                    &op->read, (LPOVERLAPPED)op) && op->read) {
+                            op->state = 0;
+                            rc = logwrdata(svcbatchlog, op->buffer, op->read);
+                            SetEvent(op->o.hEvent);
                         }
                         else {
-                            op.state = GetLastError();
-                            if (op.state != ERROR_IO_PENDING)
-                                rc = op.state;
+                            op->state = GetLastError();
+                            if (op->state != ERROR_IO_PENDING)
+                                rc = op->state;
                         }
                     }
                     if (rc) {
-                        SAFE_CLOSE_HANDLE(op.pipe);
-                        ResetEvent(op.o.hEvent);
+                        SAFE_CLOSE_HANDLE(op->pipe);
+                        ResetEvent(op->o.hEvent);
                         nw = 1;
 #if defined(_DEBUG)
                         if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
@@ -2697,8 +2697,11 @@ static DWORD WINAPI workerthread(void *unused)
                svcxcmdproc->exitCode);
 
 finished:
-    SAFE_CLOSE_HANDLE(op.pipe);
-    SAFE_CLOSE_HANDLE(op.o.hEvent);
+    if (op != NULL) {
+        SAFE_CLOSE_HANDLE(op->pipe);
+        SAFE_CLOSE_HANDLE(op->o.hEvent);
+        free(op);
+    }
     xclearprocess(svcxcmdproc);
 
     DBG_PRINTS("done");
