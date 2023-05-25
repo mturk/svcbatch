@@ -133,11 +133,11 @@ static LPSVCBATCH_LOG        outputlog   = NULL;
 static LPSVCBATCH_LOG        statuslog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
 
+static LONGLONG              counterbase    = CPP_INT64_C(0);
+static LONGLONG              counterfreq    = CPP_INT64_C(0);
 static LONGLONG              rotateinterval = CPP_INT64_C(0);
 static LONGLONG              rotatesize     = CPP_INT64_C(0);
 static LARGE_INTEGER         rotatetime     = {{ 0, 0 }};
-static LARGE_INTEGER         pcfrequency = {{ 0, 0 }};
-static LARGE_INTEGER         pcstarttime = {{ 0, 0 }};
 
 static BOOL      rotatebysize   = FALSE;
 static BOOL      rotatebytime   = FALSE;
@@ -156,7 +156,7 @@ static HANDLE    breaksignal    = NULL;
 static HANDLE    dologrotate    = NULL;
 static HANDLE    sharedmmap     = NULL;
 
-static SVCBATCH_THREAD svcthread[SVCBATCH_MAX_THREADS];
+static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
 static wchar_t      zerostring[2] = { WNUL, WNUL };
 static const wchar_t *CRLFW       = L"\r\n";
@@ -829,13 +829,13 @@ static int xtimehdr(char *wb, int sz)
     DWORD   ss, us, mm, hh;
 
     QueryPerformanceCounter(&ct);
-    et.QuadPart = ct.QuadPart - pcstarttime.QuadPart;
+    et.QuadPart = ct.QuadPart - counterbase;
 
     /**
      * Convert to microseconds
      */
     et.QuadPart *= CPP_INT64_C(1000000);
-    et.QuadPart /= pcfrequency.QuadPart;
+    et.QuadPart /= counterfreq;
     ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
 
     us = (DWORD)((et.QuadPart % CPP_INT64_C(1000000)));
@@ -1184,21 +1184,21 @@ static BOOL xcreatethread(SVCBATCH_THREAD_ID id,
                           LPTHREAD_START_ROUTINE threadfn,
                           LPVOID param)
 {
-    if (InterlockedCompareExchange(&svcthread[id].started, 1, 0)) {
+    if (InterlockedCompareExchange(&threads[id].started, 1, 0)) {
         /**
          * Already started
          */
          SetLastError(ERROR_BUSY);
          return FALSE;
     }
-    svcthread[id].id           = id;
-    svcthread[id].startAddress = threadfn;
-    svcthread[id].parameter    = param;
-    svcthread[id].thread       = CreateThread(NULL, 0, xrunthread, &svcthread[id],
+    threads[id].id           = id;
+    threads[id].startAddress = threadfn;
+    threads[id].parameter    = param;
+    threads[id].thread       = CreateThread(NULL, 0, xrunthread, &threads[id],
                                               suspended ? CREATE_SUSPENDED : 0, NULL);
-    if (svcthread[id].thread == NULL) {
-        svcthread[id].exitCode = GetLastError();
-        InterlockedExchange(&svcthread[id].started, 0);
+    if (threads[id].thread == NULL) {
+        threads[id].exitCode = GetLastError();
+        InterlockedExchange(&threads[id].started, 0);
         return FALSE;
     }
     return TRUE;
@@ -2598,15 +2598,15 @@ static DWORD WINAPI workerthread(void *unused)
     }
 
     ResumeThread(cmdproc->pInfo.hThread);
-    ResumeThread(svcthread[SVCBATCH_WRPIPE_THREAD].thread);
+    ResumeThread(threads[SVCBATCH_WRPIPE_THREAD].thread);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_RUNNING);
 
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     if (breaksignal)
-        ResumeThread(svcthread[SVCBATCH_SIGNAL_THREAD].thread);
+        ResumeThread(threads[SVCBATCH_SIGNAL_THREAD].thread);
     if (IS_SET(SVCBATCH_OPT_ROTATE))
-        ResumeThread(svcthread[SVCBATCH_ROTATE_THREAD].thread);
+        ResumeThread(threads[SVCBATCH_ROTATE_THREAD].thread);
     DBG_PRINTF("running process %lu", cmdproc->pInfo.dwProcessId);
     if (outputlog) {
         HANDLE wh[2];
@@ -2674,10 +2674,10 @@ static DWORD WINAPI workerthread(void *unused)
     }
     DBG_PRINTS("stopping");
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_STOPPING);
-    if (WaitForSingleObject(svcthread[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
+    if (WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
         DBG_PRINTS("wrpipethread is still active ... calling CancelSynchronousIo");
-        CancelSynchronousIo(svcthread[SVCBATCH_WRPIPE_THREAD].thread);
-        WaitForSingleObject(svcthread[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP);
+        CancelSynchronousIo(threads[SVCBATCH_WRPIPE_THREAD].thread);
+        WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP);
     }
     if (!GetExitCodeProcess(cmdproc->pInfo.hProcess, &rc))
         rc = GetLastError();
@@ -2817,19 +2817,19 @@ static void __cdecl threadscleanup(void)
     int i;
 
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
-        if (InterlockedCompareExchange(&svcthread[i].started, 0, 0) > 0) {
-            DBG_PRINTF("svcthread[%d]    x", i);
-            svcthread[i].exitCode = ERROR_DISCARDED;
-            TerminateThread(svcthread[i].thread, svcthread[i].exitCode);
+        if (InterlockedCompareExchange(&threads[i].started, 0, 0) > 0) {
+            DBG_PRINTF("threads[%d]    x", i);
+            threads[i].exitCode = ERROR_DISCARDED;
+            TerminateThread(threads[i].thread, threads[i].exitCode);
         }
-        if (svcthread[i].thread) {
+        if (threads[i].thread) {
 #if defined(_DEBUG)
-            DBG_PRINTF("svcthread[%d] %4lu %10llums", i,
-                        svcthread[i].exitCode,
-                        svcthread[i].duration);
+            DBG_PRINTF("threads[%d] %4lu %10llums", i,
+                        threads[i].exitCode,
+                        threads[i].duration);
 #endif
-            CloseHandle(svcthread[i].thread);
-            svcthread[i].thread = NULL;
+            CloseHandle(threads[i].thread);
+            threads[i].thread = NULL;
         }
     }
 }
@@ -3006,7 +3006,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         rv = xsyserror(GetLastError(), L"Worker thread", NULL);
         goto finished;
     }
-    WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].thread, INFINITE);
+    WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, INFINITE);
     DBG_PRINTS("waiting for stop to finish");
     WaitForSingleObject(svcstopdone, stoptimeout);
 
@@ -3041,7 +3041,7 @@ static DWORD svcstopmain(void)
         setsvcstatusexit(rv);
         goto finished;
     }
-    ws = WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].thread, stoptimeout);
+    ws = WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, stoptimeout);
     if (ws == WAIT_TIMEOUT) {
         DBG_PRINTS("stop timeout");
         stopshutdown(SVCBATCH_STOP_SYNC);
@@ -3061,15 +3061,18 @@ static int xwmaininit(void)
 {
     wchar_t  bb[SVCBATCH_PATH_MAX];
     DWORD    nn;
+    LARGE_INTEGER i;
 
     /**
      * On systems that run Windows XP or later,
      * this functions will always succeed.
      */
-    QueryPerformanceFrequency(&pcfrequency);
-    QueryPerformanceCounter(&pcstarttime);
+    QueryPerformanceFrequency(&i);
+    counterfreq = i.QuadPart;
+    QueryPerformanceCounter(&i);
+    counterbase = i.QuadPart;
 
-    xmemzero(svcthread, SVCBATCH_MAX_THREADS,     sizeof(SVCBATCH_THREAD));
+    xmemzero(threads, SVCBATCH_MAX_THREADS,   sizeof(SVCBATCH_THREAD));
     service = (LPSVCBATCH_SERVICE)xmcalloc(1, sizeof(SVCBATCH_SERVICE));
     program = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
