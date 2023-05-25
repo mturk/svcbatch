@@ -65,7 +65,6 @@ typedef struct _SVCBATCH_PIPE {
 
 typedef struct _SVCBATCH_PROCESS {
     volatile LONG       state;
-    DWORD               type;
     HANDLE              rdPipe;
     HANDLE              wrPipe;
     PROCESS_INFORMATION pInfo;
@@ -1516,11 +1515,11 @@ static void logprintf(HANDLE h, int nl, const char *format, ...)
 
 static void logwransi(HANDLE h, int nl, const char *hdr, const wchar_t *wcs)
 {
-    char buf[SVCBATCH_LINE_MAX];
+    char buf[SVCBATCH_PATH_MAX];
 
     if (IS_INVALID_HANDLE(h))
         return;
-    xwcstombs(svccodepage, buf, SVCBATCH_LINE_MAX, wcs);
+    xwcstombs(svccodepage, buf, SVCBATCH_PATH_MAX, wcs);
     logwlines(h, nl, hdr, buf);
 }
 
@@ -3198,7 +3197,6 @@ int wmain(int argc, const wchar_t **wargv)
                 dbgprintf(__FUNCTION__, "time %lu", stoptimeout);
 #endif
                 svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
-                svcxcmdproc->type = SVCBATCH_SHELL_PROCESS;
                 svcxcmdproc->application = shutdownmem->application;
                 svcxcmdproc->argc    = shutdownmem->argc;
                 svcxcmdproc->args[0] = shutdownmem->batchFile;
@@ -3227,10 +3225,6 @@ int wmain(int argc, const wchar_t **wargv)
             wargv   += 1;
         }
     }
-    if (servicemode)
-        svcmainproc->type = SVCBATCH_SERVICE_PROCESS;
-    else
-        svcmainproc->type = SVCBATCH_SHUTDOWN_PROCESS;
 
 #if defined(_DEBUG)
     if (servicemode) {
@@ -3242,7 +3236,6 @@ int wmain(int argc, const wchar_t **wargv)
         DWORD nn;
         WCHAR cb[SVCBATCH_PATH_MAX];
         svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
-        svcxcmdproc->type = SVCBATCH_SHELL_PROCESS;
         /* Reserve args[0] for batch file */
         svcxcmdproc->argc  = 1;
         nn = GetEnvironmentVariableW(L"COMSPEC", cb, SVCBATCH_PATH_MAX);
@@ -3538,7 +3531,6 @@ int wmain(int argc, const wchar_t **wargv)
             for (i = 1; i < scnt; i++)
                 svcstopproc->args[i] = xwcsdup(sparam[i]);
             svcstopproc->argc  = scnt;
-            svcstopproc->type = SVCBATCH_SHUTDOWN_PROCESS;
         }
         if (mainservice->home != mainservice->work)
             SetCurrentDirectoryW(mainservice->home);

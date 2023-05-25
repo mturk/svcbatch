@@ -226,12 +226,7 @@
 #define SVCBATCH_PROCESS_STARTING   0x00000002  /* The process is starting      */
 #define SVCBATCH_PROCESS_STOPPING   0x00000003  /* The process is stopping      */
 #define SVCBATCH_PROCESS_RUNNING    0x00000004  /* The process is running       */
-/**
- * Process types
- */
-#define SVCBATCH_SERVICE_PROCESS    0x00000001   /* Main service process         */
-#define SVCBATCH_SHUTDOWN_PROCESS   0x00000002   /* Shutdown process             */
-#define SVCBATCH_SHELL_PROCESS      0x00000003   /* Shell (cmd.exe) process      */
+
 /**
  * Runtime options
  */
