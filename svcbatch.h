@@ -79,6 +79,23 @@
 #define SVCBATCH_MMAPPFX       L"Local\\sb-"
 
 /**
+ * Default arguments for cmd.exe
+ *
+ * /D     Disable execution of AutoRun commands from registry
+ * /E:ON  Enable command extensions
+ *        In a batch file, the SETLOCAL ENABLEEXTENSIONS
+          or DISABLEEXTENSIONS arguments takes precedence
+ *        over this switch.
+ *
+ * /V:OFF Disable delayed environment expansion.
+ *        In a batch file the SETLOCAL ENABLEDELAYEDEXPANSION
+ *        or DISABLEDELAYEDEXPANSION arguments takes precedence
+ *        over this switch.
+ *
+ */
+#define SVCBATCH_DEF_ARGS      L"/D /E:ON /V:OFF"
+
+/**
  * Maximum number of the SvcBatch.log.N files
  */
 #define SVCBATCH_MAX_LOGS       9
