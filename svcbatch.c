@@ -50,9 +50,10 @@ typedef struct _SVCBATCH_THREAD {
     HANDLE                 thread;
     LPVOID                 parameter;
     DWORD                  id;
-    DWORD                  threadId;
     DWORD                  exitCode;
+#if defined(_DEBUG)
     ULONGLONG              duration;
+#endif
 } SVCBATCH_THREAD, *LPSVCBATCH_THREAD;
 
 typedef struct _SVCBATCH_PIPE {
@@ -65,8 +66,6 @@ typedef struct _SVCBATCH_PIPE {
 
 typedef struct _SVCBATCH_PROCESS {
     volatile LONG       state;
-    HANDLE              rdPipe;
-    HANDLE              wrPipe;
     PROCESS_INFORMATION pInfo;
     STARTUPINFOW        sInfo;
     DWORD               exitCode;
@@ -1167,7 +1166,6 @@ static DWORD WINAPI xrunthread(LPVOID param)
 #if defined(_DEBUG)
     p->duration = GetTickCount64();
 #endif
-    p->threadId = GetCurrentThreadId();
     p->exitCode = (*p->startAddress)(p->parameter);
 #if defined(_DEBUG)
     p->duration = GetTickCount64() - p->duration;
