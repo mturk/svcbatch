@@ -45,85 +45,83 @@ typedef enum {
 } SVCBATCH_THREAD_ID;
 
 typedef struct _SVCBATCH_THREAD {
-    volatile LONG          nStarted;
-    LPTHREAD_START_ROUTINE lpStartAddress;
-    HANDLE                 hThread;
-    LPVOID                 lpParameter;
-    DWORD                  dwId;
-    DWORD                  dwThreadId;
-    DWORD                  dwExitCode;
-    ULONGLONG              dwDuration;
+    volatile LONG          started;
+    LPTHREAD_START_ROUTINE startAddress;
+    HANDLE                 thread;
+    LPVOID                 parameter;
+    DWORD                  id;
+    DWORD                  threadId;
+    DWORD                  exitCode;
+    ULONGLONG              duration;
 } SVCBATCH_THREAD, *LPSVCBATCH_THREAD;
 
 typedef struct _SVCBATCH_PIPE {
-    OVERLAPPED  oOverlap;
-    HANDLE      hPipe;
-    BYTE        bBuffer[HBUFSIZ];
-    DWORD       nRead;
-    DWORD       dwState;
+    OVERLAPPED  o;
+    HANDLE      pipe;
+    BYTE        buffer[HBUFSIZ];
+    DWORD       read;
+    DWORD       state;
 } SVCBATCH_PIPE, *LPSVCBATCH_PIPE;
 
 typedef struct _SVCBATCH_PROCESS {
-    volatile LONG       dwCurrentState;
-    DWORD               dwType;
-    DWORD               dwCreationFlags;
-    HANDLE              hRdPipe;
-    HANDLE              hWrPipe;
+    volatile LONG       state;
+    DWORD               type;
+    HANDLE              rdPipe;
+    HANDLE              wrPipe;
     PROCESS_INFORMATION pInfo;
     STARTUPINFOW        sInfo;
-    DWORD               dwExitCode;
-    DWORD               nArgc;
-    LPWSTR              lpCommandLine;
-    LPWSTR              lpExe;
-    LPWSTR              lpDir;
-    LPWSTR              lpArgv[SVCBATCH_MAX_ARGS];
+    DWORD               exitCode;
+    DWORD               argc;
+    LPWSTR              commandLine;
+    LPWSTR              application;
+    LPWSTR              directory;
+    LPWSTR              args[SVCBATCH_MAX_ARGS];
 } SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
 
 typedef struct _SVCBATCH_LOG {
-    volatile LONG64     nWritten;
-    volatile HANDLE     hFile;
-    volatile LONG       dwCurrentState;
-    volatile LONG       nRotateCount;
-    int                 nMaxLogs;
-    CRITICAL_SECTION    csLock;
-    LPWSTR              lpFileName;
-    LPCWSTR             lpFileExt;
-    WCHAR               szName[_MAX_FNAME];
-    WCHAR               szDir[SVCBATCH_PATH_MAX];
+    volatile LONG64     size;
+    volatile HANDLE     fd;
+    volatile LONG       state;
+    volatile LONG       rotateCount;
+    int                 maxLogs;
+    CRITICAL_SECTION    cs;
+    LPWSTR              fileName;
+    LPCWSTR             fileExt;
+    WCHAR               logName[_MAX_FNAME];
+    WCHAR               logPath[SVCBATCH_PATH_MAX];
 
 } SVCBATCH_LOG, *LPSVCBATCH_LOG;
 
 typedef struct _SVCBATCH_SERVICE {
-    volatile LONG           dwCurrentState;
-    SERVICE_STATUS_HANDLE   hStatus;
-    SERVICE_STATUS          sStatus;
-    CRITICAL_SECTION        csLock;
+    volatile LONG           state;
+    SERVICE_STATUS_HANDLE   handle;
+    SERVICE_STATUS          status;
+    CRITICAL_SECTION        cs;
 
-    LPWSTR                  lpLogName;
-    LPWSTR                  lpBase;
-    LPWSTR                  lpHome;
-    LPWSTR                  lpLogs;
-    LPWSTR                  lpName;
-    LPWSTR                  lpUuid;
-    LPWSTR                  lpWork;
+    LPWSTR                  base;
+    LPWSTR                  home;
+    LPWSTR                  logs;
+    LPWSTR                  name;
+    LPWSTR                  uuid;
+    LPWSTR                  work;
 
 } SVCBATCH_SERVICE, *LPSVCBATCH_SERVICE;
 
 typedef struct _SVCBATCH_IPC {
-    DWORD   dwProcessId;
-    DWORD   dwCodePage;
-    DWORD   dwOptions;
-    DWORD   dwTimeout;
-    DWORD   nArgc;
-    WCHAR   szUuid[TBUFSIZ];
-    WCHAR   szServiceName[_MAX_FNAME];
-    WCHAR   szLogName[_MAX_FNAME];
-    WCHAR   szHomeDir[SVCBATCH_PATH_MAX];
-    WCHAR   szWorkDir[SVCBATCH_PATH_MAX];
-    WCHAR   szLogsDir[SVCBATCH_PATH_MAX];
-    WCHAR   szShell[SVCBATCH_PATH_MAX];
-    WCHAR   szBatch[SVCBATCH_PATH_MAX];
-    WCHAR   lpArgv[SVCBATCH_MAX_ARGS][_MAX_FNAME];
+    DWORD   processId;
+    DWORD   codePage;
+    DWORD   options;
+    DWORD   timeout;
+    DWORD   argc;
+    WCHAR   uuid[TBUFSIZ];
+    WCHAR   name[_MAX_FNAME];
+    WCHAR   logName[_MAX_FNAME];
+    WCHAR   home[SVCBATCH_PATH_MAX];
+    WCHAR   work[SVCBATCH_PATH_MAX];
+    WCHAR   logs[SVCBATCH_PATH_MAX];
+    WCHAR   application[SVCBATCH_PATH_MAX];
+    WCHAR   batchFile[SVCBATCH_PATH_MAX];
+    WCHAR   args[SVCBATCH_MAX_ARGS][_MAX_FNAME];
 
 } SVCBATCH_IPC, *LPSVCBATCH_IPC;
 
@@ -222,11 +220,9 @@ static void *xmmalloc(size_t size)
 
 static void *xmcalloc(size_t number, size_t size)
 {
-    void   *p;
-    size_t  n = number * size;;
+    void *p;
 
-    n = MEM_ALIGN_DEFAULT(n);
-    p = calloc(n, 1);
+    p = calloc(number, size);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
@@ -257,11 +253,6 @@ static void *xrealloc(void *mem, size_t size)
 static __inline wchar_t *xwmalloc(size_t size)
 {
     return (wchar_t *)xmmalloc(size * sizeof(wchar_t));
-}
-
-static __inline wchar_t *xwcalloc(size_t size)
-{
-    return (wchar_t *)xmcalloc(size, sizeof(wchar_t));
 }
 
 static __inline void xfree(void *mem)
@@ -964,8 +955,8 @@ static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wc
     int            c, i = 0;
 
     errarg[i++] = wnamestamp;
-    if (mainservice->lpName)
-        errarg[i++] = mainservice->lpName;
+    if (mainservice->name)
+        errarg[i++] = mainservice->name;
     xwcslcpy(hdr, MBUFSIZ, CRLFW);
     if (typ != EVENTLOG_INFORMATION_TYPE) {
         if (typ == EVENTLOG_ERROR_TYPE)
@@ -1015,26 +1006,26 @@ static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wc
 
 static void xclearprocess(LPSVCBATCH_PROCESS p)
 {
-    InterlockedExchange(&p->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
+    InterlockedExchange(&p->state, SVCBATCH_PROCESS_STOPPED);
 
-    DBG_PRINTF("%.4lu %lu %S", p->pInfo.dwProcessId, p->dwExitCode, p->lpExe);
+    DBG_PRINTF("%.4lu %lu %S", p->pInfo.dwProcessId, p->exitCode, p->application);
     SAFE_CLOSE_HANDLE(p->pInfo.hProcess);
     SAFE_CLOSE_HANDLE(p->pInfo.hThread);
     SAFE_CLOSE_HANDLE(p->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(p->sInfo.hStdError);
-    SAFE_MEM_FREE(p->lpCommandLine);
+    SAFE_MEM_FREE(p->commandLine);
 }
 
 static DWORD waitprocess(LPSVCBATCH_PROCESS p, DWORD w)
 {
     ASSERT_NULL(p, ERROR_INVALID_PARAMETER);
 
-    if (InterlockedCompareExchange(&p->dwCurrentState, 0, 0) > SVCBATCH_PROCESS_STOPPED) {
+    if (InterlockedCompareExchange(&p->state, 0, 0) > SVCBATCH_PROCESS_STOPPED) {
         if (w > 0)
             WaitForSingleObject(p->pInfo.hProcess, w);
-        GetExitCodeProcess(p->pInfo.hProcess, &p->dwExitCode);
+        GetExitCodeProcess(p->pInfo.hProcess, &p->exitCode);
     }
-    return p->dwExitCode;
+    return p->exitCode;
 }
 
 static DWORD getproctree(LPHANDLE pa, DWORD pid)
@@ -1101,20 +1092,20 @@ static void killprocess(LPSVCBATCH_PROCESS proc, int rc, DWORD ws, DWORD rv)
 {
 
     DBG_PRINTF("proc %.4lu", proc->pInfo.dwProcessId);
-    if (InterlockedCompareExchange(&proc->dwCurrentState, 0, 0) == SVCBATCH_PROCESS_STOPPED)
+    if (InterlockedCompareExchange(&proc->state, 0, 0) == SVCBATCH_PROCESS_STOPPED)
         goto finished;
-    InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
+    InterlockedExchange(&proc->state, SVCBATCH_PROCESS_STOPPING);
 
     if (killproctree(proc->pInfo.dwProcessId, rc, rv)) {
         if (waitprocess(proc, ws) != STILL_ACTIVE)
             goto finished;
     }
     DBG_PRINTF("kill %.4lu", proc->pInfo.dwProcessId);
-    proc->dwExitCode = rv;
-    TerminateProcess(proc->pInfo.hProcess, proc->dwExitCode);
+    proc->exitCode = rv;
+    TerminateProcess(proc->pInfo.hProcess, proc->exitCode);
 
 finished:
-    InterlockedExchange(&proc->dwCurrentState, SVCBATCH_PROCESS_STOPPED);
+    InterlockedExchange(&proc->state, SVCBATCH_PROCESS_STOPPED);
     DBG_PRINTF("done %.4lu", proc->pInfo.dwProcessId);
 }
 
@@ -1174,18 +1165,18 @@ static DWORD WINAPI xrunthread(LPVOID param)
     LPSVCBATCH_THREAD p = (LPSVCBATCH_THREAD)param;
 
 #if defined(_DEBUG)
-    p->dwDuration = GetTickCount64();
+    p->duration = GetTickCount64();
 #endif
-    p->dwThreadId = GetCurrentThreadId();
-    p->dwExitCode = (*p->lpStartAddress)(p->lpParameter);
+    p->threadId = GetCurrentThreadId();
+    p->exitCode = (*p->startAddress)(p->parameter);
 #if defined(_DEBUG)
-    p->dwDuration = GetTickCount64() - p->dwDuration;
-    DBG_PRINTF("%lu ended %lu", p->dwId, p->dwExitCode);
+    p->duration = GetTickCount64() - p->duration;
+    DBG_PRINTF("%lu ended %lu", p->id, p->exitCode);
 #endif
-    InterlockedExchange(&p->nStarted, 0);
-    ExitThread(p->dwExitCode);
+    InterlockedExchange(&p->started, 0);
+    ExitThread(p->exitCode);
 
-    return p->dwExitCode;
+    return p->exitCode;
 }
 
 static BOOL xcreatethread(SVCBATCH_THREAD_ID id,
@@ -1193,21 +1184,21 @@ static BOOL xcreatethread(SVCBATCH_THREAD_ID id,
                           LPTHREAD_START_ROUTINE threadfn,
                           LPVOID param)
 {
-    if (InterlockedCompareExchange(&svcthread[id].nStarted, 1, 0)) {
+    if (InterlockedCompareExchange(&svcthread[id].started, 1, 0)) {
         /**
          * Already started
          */
          SetLastError(ERROR_BUSY);
          return FALSE;
     }
-    svcthread[id].dwId           = id;
-    svcthread[id].lpStartAddress = threadfn;
-    svcthread[id].lpParameter    = param;
-    svcthread[id].hThread        = CreateThread(NULL, 0, xrunthread, &svcthread[id],
-                                                suspended ? CREATE_SUSPENDED : 0, NULL);
-    if (svcthread[id].hThread == NULL) {
-        svcthread[id].dwExitCode = GetLastError();
-        InterlockedExchange(&svcthread[id].nStarted, 0);
+    svcthread[id].id           = id;
+    svcthread[id].startAddress = threadfn;
+    svcthread[id].parameter    = param;
+    svcthread[id].thread       = CreateThread(NULL, 0, xrunthread, &svcthread[id],
+                                              suspended ? CREATE_SUSPENDED : 0, NULL);
+    if (svcthread[id].thread == NULL) {
+        svcthread[id].exitCode = GetLastError();
+        InterlockedExchange(&svcthread[id].started, 0);
         return FALSE;
     }
     return TRUE;
@@ -1294,21 +1285,21 @@ static BOOL resolvebatchname(const wchar_t *bp)
 {
     wchar_t *p;
 
-    if (svcxcmdproc->lpArgv[0])
+    if (svcxcmdproc->args[0])
         return TRUE;
-    svcxcmdproc->lpArgv[0] = xgetfinalpath(bp, 0, NULL, 0);
-    if (IS_EMPTY_WCS(svcxcmdproc->lpArgv[0]))
+    svcxcmdproc->args[0] = xgetfinalpath(bp, 0, NULL, 0);
+    if (IS_EMPTY_WCS(svcxcmdproc->args[0]))
         return FALSE;
-    p = wcsrchr(svcxcmdproc->lpArgv[0], L'\\');
+    p = wcsrchr(svcxcmdproc->args[0], L'\\');
     if (p) {
         *p = WNUL;
-        mainservice->lpBase = xwcsdup(svcxcmdproc->lpArgv[0]);
+        mainservice->base = xwcsdup(svcxcmdproc->args[0]);
         *p = L'\\';
         return TRUE;
     }
     else {
-        SAFE_MEM_FREE(svcxcmdproc->lpArgv[0]);
-        mainservice->lpBase = NULL;
+        SAFE_MEM_FREE(svcxcmdproc->args[0]);
+        mainservice->base = NULL;
         return FALSE;
     }
 }
@@ -1316,7 +1307,7 @@ static BOOL resolvebatchname(const wchar_t *bp)
 static void setsvcstatusexit(DWORD e)
 {
     SVCBATCH_CS_ENTER(mainservice);
-    mainservice->sStatus.dwServiceSpecificExitCode = e;
+    mainservice->status.dwServiceSpecificExitCode = e;
     SVCBATCH_CS_LEAVE(mainservice);
 }
 
@@ -1327,38 +1318,38 @@ static void reportsvcstatus(DWORD status, DWORD param)
     if (!servicemode)
         return;
     SVCBATCH_CS_ENTER(mainservice);
-    if (InterlockedExchange(&mainservice->dwCurrentState, SERVICE_STOPPED) == SERVICE_STOPPED)
+    if (InterlockedExchange(&mainservice->state, SERVICE_STOPPED) == SERVICE_STOPPED)
         goto finished;
-    mainservice->sStatus.dwControlsAccepted = 0;
-    mainservice->sStatus.dwCheckPoint       = 0;
-    mainservice->sStatus.dwWaitHint         = 0;
+    mainservice->status.dwControlsAccepted = 0;
+    mainservice->status.dwCheckPoint       = 0;
+    mainservice->status.dwWaitHint         = 0;
 
     if (status == SERVICE_RUNNING) {
-        mainservice->sStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP |
-                                                  SERVICE_ACCEPT_SHUTDOWN |
-                                                  preshutdown;
+        mainservice->status.dwControlsAccepted = SERVICE_ACCEPT_STOP |
+                                                 SERVICE_ACCEPT_SHUTDOWN |
+                                                 preshutdown;
         cpcnt = 1;
     }
     else if (status == SERVICE_STOPPED) {
         if (param != 0)
-            mainservice->sStatus.dwServiceSpecificExitCode = param;
-        if (mainservice->sStatus.dwServiceSpecificExitCode == 0 &&
-            mainservice->sStatus.dwCurrentState != SERVICE_STOP_PENDING) {
-            mainservice->sStatus.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
+            mainservice->status.dwServiceSpecificExitCode = param;
+        if (mainservice->status.dwServiceSpecificExitCode == 0 &&
+            mainservice->status.dwCurrentState != SERVICE_STOP_PENDING) {
+            mainservice->status.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
             xsyserror(0, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
         }
-        if (mainservice->sStatus.dwServiceSpecificExitCode != 0)
-            mainservice->sStatus.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
+        if (mainservice->status.dwServiceSpecificExitCode != 0)
+            mainservice->status.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
     else {
-        mainservice->sStatus.dwCheckPoint = cpcnt++;
-        mainservice->sStatus.dwWaitHint   = param;
+        mainservice->status.dwCheckPoint = cpcnt++;
+        mainservice->status.dwWaitHint   = param;
     }
-    mainservice->sStatus.dwCurrentState = status;
-    InterlockedExchange(&mainservice->dwCurrentState, status);
-    if (!SetServiceStatus(mainservice->hStatus, &mainservice->sStatus)) {
+    mainservice->status.dwCurrentState = status;
+    InterlockedExchange(&mainservice->state, status);
+    if (!SetServiceStatus(mainservice->handle, &mainservice->status)) {
         xsyserror(GetLastError(), L"SetServiceStatus", NULL);
-        InterlockedExchange(&mainservice->dwCurrentState, SERVICE_STOPPED);
+        InterlockedExchange(&mainservice->state, SERVICE_STOPPED);
     }
 finished:
     SVCBATCH_CS_LEAVE(mainservice);
@@ -1603,16 +1594,16 @@ static void logconfig(HANDLE h)
 {
     logwrline(h, 0, cnamestamp);
     logwinver(h);
-    logwransi(h, 1, "Service name     : ", mainservice->lpName);
-    logwransi(h, 0, "Service uuid     : ", mainservice->lpUuid);
-    logwransi(h, 0, "Batch file       : ", svcxcmdproc->lpArgv[0]);
+    logwransi(h, 1, "Service name     : ", mainservice->name);
+    logwransi(h, 0, "Service uuid     : ", mainservice->uuid);
+    logwransi(h, 0, "Batch file       : ", svcxcmdproc->args[0]);
     if (svcstopproc)
-        logwransi(h, 0, "Shutdown batch   : ", svcstopproc->lpArgv[0]);
-    logwransi(h, 0, "Program directory: ", svcmainproc->lpDir);
-    logwransi(h, 0, "Base directory   : ", mainservice->lpBase);
-    logwransi(h, 0, "Home directory   : ", mainservice->lpHome);
-    logwransi(h, 0, "Logs directory   : ", svcbatchlog->szDir);
-    logwransi(h, 0, "Work directory   : ", mainservice->lpWork);
+        logwransi(h, 0, "Shutdown batch   : ", svcstopproc->args[0]);
+    logwransi(h, 0, "Program directory: ", svcmainproc->directory);
+    logwransi(h, 0, "Base directory   : ", mainservice->base);
+    logwransi(h, 0, "Home directory   : ", mainservice->home);
+    logwransi(h, 0, "Logs directory   : ", svcbatchlog->logPath);
+    logwransi(h, 0, "Work directory   : ", mainservice->work);
 
     FlushFileBuffers(h);
 }
@@ -1624,17 +1615,17 @@ static void logwrstat(LPSVCBATCH_LOG log, int nl, int wt, const char *hdr)
     if (log == NULL)
         return;
     SVCBATCH_CS_ENTER(log);
-    h = InterlockedExchangePointer(&log->hFile, NULL);
+    h = InterlockedExchangePointer(&log->fd, NULL);
     if (h == NULL)
         goto finished;
-    if (nl && (InterlockedIncrement(&log->nRotateCount) > 1))
+    if (nl && (InterlockedIncrement(&log->rotateCount) > 1))
         nl--;
     if (wt)
         logwrtime(h, nl, hdr);
     else
         logwrline(h, nl, hdr);
 finished:
-    InterlockedExchangePointer(&log->hFile, h);
+    InterlockedExchangePointer(&log->fd, h);
     SVCBATCH_CS_LEAVE(log);
 }
 
@@ -1643,9 +1634,9 @@ static BOOL canrotatelogs(LPSVCBATCH_LOG log)
     BOOL rv = FALSE;
 
     SVCBATCH_CS_ENTER(log);
-    if (InterlockedCompareExchange(&log->dwCurrentState, 0, 0) == 0) {
-        if (InterlockedCompareExchange64(&log->nWritten, 0, 0)) {
-            InterlockedExchange(&log->dwCurrentState, 1);
+    if (InterlockedCompareExchange(&log->state, 0, 0) == 0) {
+        if (InterlockedCompareExchange64(&log->size, 0, 0)) {
+            InterlockedExchange(&log->state, 1);
             rv = TRUE;
         }
     }
@@ -1662,7 +1653,7 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
         xsyserror(0, L"xgetfullpath", outdirparam);
         return ERROR_BAD_PATHNAME;
     }
-    p = xgetfinalpath(dp, 1, log->szDir, SVCBATCH_PATH_MAX);
+    p = xgetfinalpath(dp, 1, log->logPath, SVCBATCH_PATH_MAX);
     if (p == NULL) {
         DWORD rc = GetLastError();
 
@@ -1672,12 +1663,12 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
         rc = xcreatedir(dp);
         if (rc != 0)
             return xsyserror(rc, L"xcreatedir", dp);
-        p = xgetfinalpath(dp, 1, log->szDir, SVCBATCH_PATH_MAX);
+        p = xgetfinalpath(dp, 1, log->logPath, SVCBATCH_PATH_MAX);
         if (p == NULL)
             return xsyserror(GetLastError(), L"xgetfinalpath", dp);
     }
-    if (_wcsicmp(log->szDir, mainservice->lpHome) == 0) {
-        xsyserror(0, L"Logs directory cannot be the same as home directory", log->szDir);
+    if (_wcsicmp(log->logPath, mainservice->home) == 0) {
+        xsyserror(0, L"Logs directory cannot be the same as home directory", log->logPath);
         return ERROR_INVALID_PARAMETER;
     }
     return 0;
@@ -1691,47 +1682,47 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     wchar_t lognn[SVCBATCH_PATH_MAX];
     WIN32_FILE_ATTRIBUTE_DATA ad;
 
-    xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->lpFileName);
-    if (log->nMaxLogs > 1)
+    xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->fileName);
+    if (log->maxLogs > 1)
         x = xwcslcat(lognn, SVCBATCH_PATH_MAX, L".0");
     else
         x = xwcslcat(lognn, SVCBATCH_PATH_MAX, xmktimedext());
     if (x >= SVCBATCH_PATH_MAX)
         return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
 
-    if (GetFileAttributesExW(log->lpFileName, GetFileExInfoStandard, &ad)) {
+    if (GetFileAttributesExW(log->fileName, GetFileExInfoStandard, &ad)) {
         if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
             DBG_PRINTS("empty log");
             if (ssh) {
                 logwrline(ssh, 0, "Empty");
-                logwransi(ssh, 0, "- ", log->lpFileName);
+                logwransi(ssh, 0, "- ", log->fileName);
             }
             return 0;
         }
-        if (!MoveFileExW(log->lpFileName, lognn, MOVEFILE_REPLACE_EXISTING))
-            return xsyserror(GetLastError(), log->lpFileName, lognn);
+        if (!MoveFileExW(log->fileName, lognn, MOVEFILE_REPLACE_EXISTING))
+            return xsyserror(GetLastError(), log->fileName, lognn);
         if (ssp)
             reportsvcstatus(SERVICE_START_PENDING, 0);
         if (ssh) {
             logwrline(ssh, 0, "Moving");
-            logwransi(ssh, 0, "  ", log->lpFileName);
+            logwransi(ssh, 0, "  ", log->fileName);
             logwransi(ssh, 0, "> ", lognn);
         }
     }
     else {
         rc = GetLastError();
         if (rc != ERROR_FILE_NOT_FOUND)
-            return xsyserror(rc, log->lpFileName, NULL);
+            return xsyserror(rc, log->fileName, NULL);
         else
             return 0;
     }
-    if (log->nMaxLogs > 1) {
-        int n = log->nMaxLogs;
+    if (log->maxLogs > 1) {
+        int n = log->maxLogs;
         wchar_t logpn[SVCBATCH_PATH_MAX];
 
         wmemcpy(logpn, lognn, x + 1);
         x--;
-        for (i = 2; i < log->nMaxLogs; i++) {
+        for (i = 2; i < log->maxLogs; i++) {
             lognn[x] = L'0' + i;
 
             if (!GetFileAttributesExW(lognn, GetFileExInfoStandard, &ad))
@@ -1741,7 +1732,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         }
         n = i;
         if (ssh)
-            logprintf(ssh, 0, "Rotating %d of %d", n, log->nMaxLogs);
+            logprintf(ssh, 0, "Rotating %d of %d", n, log->maxLogs);
         /**
          * Rotate previous log files
          */
@@ -1806,12 +1797,12 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     DWORD   rc;
     WCHAR   nb[_MAX_FNAME];
     BOOL    rp = TRUE;
-    LPCWSTR np = log->szName;
+    LPCWSTR np = log->logName;
 
 
 #if defined(_DEBUG)
-    if (log->lpFileName) {
-        DBG_PRINTF("!found %S", log->lpFileName);
+    if (log->fileName) {
+        DBG_PRINTF("!found %S", log->fileName);
     }
 #endif
     if (ssp) {
@@ -1829,8 +1820,8 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         np = nb;
     }
 
-    log->lpFileName = xwcsmkpath(log->szDir, np, log->lpFileExt);
-    if (log->lpFileName == NULL)
+    log->fileName = xwcsmkpath(log->logPath, np, log->fileExt);
+    if (log->fileName == NULL)
         return xsyserror(ERROR_FILE_NOT_FOUND, np, NULL);
 
     if (rp) {
@@ -1838,32 +1829,32 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         if (rc)
             return rc;
     }
-    fh = CreateFileW(log->lpFileName,
+    fh = CreateFileW(log->fileName,
                      GENERIC_READ | GENERIC_WRITE,
                      FILE_SHARE_READ, NULL,
                      CREATE_ALWAYS,
                      FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(fh))
-        return xsyserror(rc, log->lpFileName, NULL);
+        return xsyserror(rc, log->fileName, NULL);
     if (ssh) {
         if (rc == ERROR_ALREADY_EXISTS)
-            logwransi(ssh, 0, "x ", log->lpFileName);
+            logwransi(ssh, 0, "x ", log->fileName);
         else
-            logwransi(ssh, 0, "+ ", log->lpFileName);
+            logwransi(ssh, 0, "+ ", log->fileName);
         if (ssp)
             logwrtime(ssh, 0, "Log opened");
     }
 #if defined(_DEBUG)
     if (rc == ERROR_ALREADY_EXISTS)
         dbgprintf(ssp ? "createlogfile" : "openlogfile",
-                  "truncated %S", log->lpFileName);
+                  "truncated %S", log->fileName);
     else
         dbgprintf(ssp ? "createlogfile" : "openlogfile",
-                  "created %S",   log->lpFileName);
+                  "created %S",   log->fileName);
 #endif
-    InterlockedExchange64(&log->nWritten, 0);
-    InterlockedExchangePointer(&log->hFile, fh);
+    InterlockedExchange64(&log->size, 0);
+    InterlockedExchangePointer(&log->fd, fh);
 
     return 0;
 }
@@ -1876,24 +1867,24 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
     HANDLE s  = NULL;
 
     SVCBATCH_CS_ENTER(log);
-    InterlockedExchange(&log->dwCurrentState, 1);
+    InterlockedExchange(&log->state, 1);
 
     if (svcbstatlog) {
         SVCBATCH_CS_ENTER(svcbstatlog);
-        s = InterlockedExchangePointer(&svcbstatlog->hFile, NULL);
+        s = InterlockedExchangePointer(&svcbstatlog->fd, NULL);
         logwrline(s, 0, "Rotating");
     }
-    h = InterlockedExchangePointer(&log->hFile, NULL);
+    h = InterlockedExchangePointer(&log->fd, NULL);
     if (h == NULL) {
         rc = ERROR_FILE_NOT_FOUND;
         goto finished;
     }
-    nr = InterlockedIncrement(&log->nRotateCount);
+    nr = InterlockedIncrement(&log->rotateCount);
     FlushFileBuffers(h);
     if (s) {
         LARGE_INTEGER sz;
 
-        logwransi(s, 0, "  ", log->lpFileName);
+        logwransi(s, 0, "  ", log->fileName);
         if (GetFileSizeEx(h, &sz))
         logprintf(s, 0, "  size           : %lld", sz.QuadPart);
         if (rotatebysize)
@@ -1906,17 +1897,17 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
         if (SetFilePointerEx(h, ee, NULL, FILE_BEGIN)) {
             if (SetEndOfFile(h)) {
                 logwrtime(s, 0, "Log truncated");
-                InterlockedExchangePointer(&log->hFile, h);
+                InterlockedExchangePointer(&log->fd, h);
                 goto finished;
             }
         }
         rc = GetLastError();
-        xsyserror(rc, log->lpFileName, NULL);
+        xsyserror(rc, log->fileName, NULL);
         CloseHandle(h);
     }
     else {
         CloseHandle(h);
-        SAFE_MEM_FREE(log->lpFileName);
+        SAFE_MEM_FREE(log->fileName);
         rc = openlogfile(log, FALSE, s);
     }
     if (rc)
@@ -1925,11 +1916,11 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
 
 finished:
     if (svcbstatlog) {
-        InterlockedExchangePointer(&svcbstatlog->hFile, s);
-        InterlockedExchange(&svcbstatlog->nRotateCount, 0);
+        InterlockedExchangePointer(&svcbstatlog->fd, s);
+        InterlockedExchange(&svcbstatlog->rotateCount, 0);
         SVCBATCH_CS_LEAVE(svcbstatlog);
     }
-    InterlockedExchange64(&log->nWritten, 0);
+    InterlockedExchange64(&log->size, 0);
     SVCBATCH_CS_LEAVE(log);
     return rc;
 }
@@ -1942,21 +1933,21 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
     if (log == NULL)
         return ERROR_FILE_NOT_FOUND;
     SVCBATCH_CS_ENTER(log);
-    DBG_PRINTF("%d %S", log->dwCurrentState, log->lpFileName);
-    InterlockedExchange(&log->dwCurrentState, 1);
+    DBG_PRINTF("%d %S", log->state, log->fileName);
+    InterlockedExchange(&log->state, 1);
     if (svcbstatlog && (log != svcbstatlog)) {
 
         SVCBATCH_CS_ENTER(svcbstatlog);
-        s = InterlockedExchangePointer(&svcbstatlog->hFile, NULL);
+        s = InterlockedExchangePointer(&svcbstatlog->fd, NULL);
     }
 
-    h = InterlockedExchangePointer(&log->hFile, NULL);
+    h = InterlockedExchangePointer(&log->fd, NULL);
     if (h) {
         if (log == svcbstatlog)
             logwrtime(h, 0, "Status closed");
         if (s) {
             logwrline(s, 0, "Closing");
-            logwransi(s, 0, "  ", log->lpFileName);
+            logwransi(s, 0, "  ", log->fileName);
         }
         FlushFileBuffers(h);
         CloseHandle(h);
@@ -1964,11 +1955,11 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
             logwrtime(s, 0, "Log closed");
     }
     if (svcbstatlog && (log != svcbstatlog)) {
-        InterlockedExchangePointer(&svcbstatlog->hFile, s);
+        InterlockedExchangePointer(&svcbstatlog->fd, s);
         SVCBATCH_CS_LEAVE(svcbstatlog);
     }
 
-    xfree(log->lpFileName);
+    xfree(log->fileName);
     SVCBATCH_CS_LEAVE(log);
     SVCBATCH_CS_CLOSE(log);
     SAFE_MEM_FREE(log);
@@ -2132,43 +2123,41 @@ static DWORD runshutdown(DWORD rt)
     if (shutdownmem == NULL)
         return GetLastError();
     ZeroMemory(shutdownmem, sizeof(SVCBATCH_IPC));
-    shutdownmem->dwProcessId = GetCurrentProcessId();
-    shutdownmem->dwOptions   = svcoptions & 0x0000000F;
-    shutdownmem->dwTimeout   = stoptimeout;
-    shutdownmem->dwCodePage  = svccodepage;
+    shutdownmem->processId = GetCurrentProcessId();
+    shutdownmem->options   = svcoptions & 0x0000000F;
+    shutdownmem->timeout   = stoptimeout;
+    shutdownmem->codePage  = svccodepage;
     if (svcbatchlog)
-        xwcslcpy(shutdownmem->szLogName, _MAX_FNAME,    svcbatchlog->szName);
-    xwcslcpy(shutdownmem->szServiceName, _MAX_FNAME,    mainservice->lpName);
-    xwcslcpy(shutdownmem->szHomeDir, SVCBATCH_PATH_MAX, mainservice->lpHome);
-    xwcslcpy(shutdownmem->szWorkDir, SVCBATCH_PATH_MAX, mainservice->lpWork);
-    xwcslcpy(shutdownmem->szLogsDir, SVCBATCH_PATH_MAX, mainservice->lpLogs);
-    xwcslcpy(shutdownmem->szUuid,    TBUFSIZ,           mainservice->lpUuid);
-    xwcslcpy(shutdownmem->szBatch,   SVCBATCH_PATH_MAX, svcstopproc->lpArgv[0]);
-    xwcslcpy(shutdownmem->szShell,   SVCBATCH_PATH_MAX, svcxcmdproc->lpExe);
-    shutdownmem->nArgc = svcstopproc->nArgc;
-    for (i = 1; i < svcstopproc->nArgc; i++)
-        wmemcpy(shutdownmem->lpArgv[i], svcstopproc->lpArgv[i], _MAX_FNAME);
+        xwcslcpy(shutdownmem->logName, _MAX_FNAME,    svcbatchlog->logName);
+    xwcslcpy(shutdownmem->name, _MAX_FNAME,    mainservice->name);
+    xwcslcpy(shutdownmem->home, SVCBATCH_PATH_MAX, mainservice->home);
+    xwcslcpy(shutdownmem->work, SVCBATCH_PATH_MAX, mainservice->work);
+    xwcslcpy(shutdownmem->logs, SVCBATCH_PATH_MAX, mainservice->logs);
+    xwcslcpy(shutdownmem->uuid, TBUFSIZ,           mainservice->uuid);
+    xwcslcpy(shutdownmem->batchFile,   SVCBATCH_PATH_MAX, svcstopproc->args[0]);
+    xwcslcpy(shutdownmem->application, SVCBATCH_PATH_MAX, svcxcmdproc->application);
+    shutdownmem->argc = svcstopproc->argc;
+    for (i = 1; i < svcstopproc->argc; i++)
+        wmemcpy(shutdownmem->args[i], svcstopproc->args[i], _MAX_FNAME);
 
     rc = createiopipes(&svcstopproc->sInfo, NULL, NULL, 0);
     if (rc != 0) {
         DBG_PRINTF("createiopipes failed with %lu", rc);
         return rc;
     }
-    svcstopproc->lpExe = svcmainproc->lpExe;
-    svcstopproc->lpCommandLine = xappendarg(1, NULL, NULL, svcstopproc->lpExe);
-    svcstopproc->lpCommandLine = xappendarg(0, svcstopproc->lpCommandLine, NULL,  rb);
-    DBG_PRINTF("cmdline %S", svcstopproc->lpCommandLine);
-    svcstopproc->dwCreationFlags = CREATE_UNICODE_ENVIRONMENT |
-                                   CREATE_NEW_CONSOLE;
-    if (!CreateProcessW(svcstopproc->lpExe,
-                        svcstopproc->lpCommandLine,
+    svcstopproc->application = svcmainproc->application;
+    svcstopproc->commandLine = xappendarg(1, NULL, NULL, svcstopproc->application);
+    svcstopproc->commandLine = xappendarg(0, svcstopproc->commandLine, NULL,  rb);
+    DBG_PRINTF("cmdline %S", svcstopproc->commandLine);
+    if (!CreateProcessW(svcstopproc->application,
+                        svcstopproc->commandLine,
                         NULL, NULL, TRUE,
-                        svcstopproc->dwCreationFlags,
+                        CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
                         NULL, NULL,
                         &svcstopproc->sInfo,
                         &svcstopproc->pInfo)) {
         rc = GetLastError();
-        xsyserror(rc, L"CreateProcess", svcstopproc->lpExe);
+        xsyserror(rc, L"CreateProcess", svcstopproc->application);
         goto finished;
     }
     SAFE_CLOSE_HANDLE(svcstopproc->pInfo.hThread);
@@ -2187,7 +2176,7 @@ static DWORD runshutdown(DWORD rt)
         GetExitCodeProcess(svcstopproc->pInfo.hProcess, &rc);
     }
 finished:
-    svcstopproc->dwExitCode = rc;
+    svcstopproc->exitCode = rc;
     xclearprocess(svcstopproc);
     DBG_PRINTF("done %lu", rc);
     return rc;
@@ -2206,7 +2195,7 @@ static DWORD WINAPI stopthread(void *msg)
     DBG_PRINTS("started");
     if (svcbatchlog) {
         SVCBATCH_CS_ENTER(svcbatchlog);
-        InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
+        InterlockedExchange(&svcbatchlog->state, 1);
         SVCBATCH_CS_LEAVE(svcbatchlog);
         if (svcbstatlog && msg)
             logwrstat(svcbstatlog, 2, 0, msg);
@@ -2294,18 +2283,18 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     DBG_PRINTF("writing %4lu bytes", len);
 #endif
     SVCBATCH_CS_ENTER(log);
-    h = InterlockedExchangePointer(&log->hFile, NULL);
+    h = InterlockedExchangePointer(&log->fd, NULL);
     if (h == NULL) {
         SVCBATCH_CS_LEAVE(log);
         DBG_PRINTS("logfile closed");
         return ERROR_NO_MORE_FILES;
     }
     if (WriteFile(h, buf, len, &wr, NULL) && (wr != 0))
-        InterlockedAdd64(&log->nWritten, wr);
+        InterlockedAdd64(&log->size, wr);
     else
         rc = GetLastError();
 
-    InterlockedExchangePointer(&log->hFile, h);
+    InterlockedExchangePointer(&log->fd, h);
     SVCBATCH_CS_LEAVE(log);
     if (rc)
         return xsyserror(rc, L"Log write", NULL);
@@ -2313,7 +2302,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     DBG_PRINTF("wrote   %4lu bytes", wr);
 #endif
     if (IS_SET(SVCBATCH_OPT_ROTATE) && rotatebysize) {
-        if (InterlockedCompareExchange64(&log->nWritten, 0, 0) >= rotatesiz.QuadPart) {
+        if (InterlockedCompareExchange64(&log->size, 0, 0) >= rotatesiz.QuadPart) {
             if (canrotatelogs(log)) {
                 DBG_PRINTS("rotating by size");
                 logwrstat(svcbstatlog, 0, 1, "Rotate by size");
@@ -2414,7 +2403,7 @@ static DWORD WINAPI rotatethread(void *unused)
     wh[2] = logrotatesig;
     wh[3] = NULL;
 
-    InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
+    InterlockedExchange(&svcbatchlog->state, 1);
     if (rotatebytime) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
@@ -2463,7 +2452,7 @@ static DWORD WINAPI rotatethread(void *unused)
                 }
                 else {
                     DBG_PRINTS("rotate is busy ... canceling timer");
-                    if (InterlockedCompareExchange64(&svcbatchlog->nWritten, 0, 0))
+                    if (InterlockedCompareExchange64(&svcbatchlog->size, 0, 0))
                         logwrstat(svcbstatlog, 0, 0, "Canceling timer  : Rotate busy");
                     else
                         logwrstat(svcbstatlog, 0, 0, "Canceling timer  : Log empty");
@@ -2479,11 +2468,11 @@ static DWORD WINAPI rotatethread(void *unused)
             case WAIT_TIMEOUT:
                 DBG_PRINTS("rotate ready");
                 SVCBATCH_CS_ENTER(svcbatchlog);
-                InterlockedExchange(&svcbatchlog->dwCurrentState, 0);
+                InterlockedExchange(&svcbatchlog->state, 0);
                 logwrstat(svcbstatlog, 1, 1, "Rotate ready");
                 if (rotatebysize) {
-                    if (InterlockedCompareExchange64(&svcbatchlog->nWritten, 0, 0) >= rotatesiz.QuadPart) {
-                        InterlockedExchange(&svcbatchlog->dwCurrentState, 1);
+                    if (InterlockedCompareExchange64(&svcbatchlog->size, 0, 0) >= rotatesiz.QuadPart) {
+                        InterlockedExchange(&svcbatchlog->state, 1);
                         DBG_PRINTS("rotating by size");
                         logwrstat(svcbstatlog, 0, 0, "Rotating by size");
                         SetEvent(logrotatesig);
@@ -2523,7 +2512,7 @@ static DWORD WINAPI workerthread(void *unused)
 
     DBG_PRINTS("started");
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STARTING);
+    InterlockedExchange(&svcxcmdproc->state, SVCBATCH_PROCESS_STARTING);
 
     xmemzero(&op, 1, sizeof(SVCBATCH_PIPE));
     if (svcbatchlog)
@@ -2532,45 +2521,44 @@ static DWORD WINAPI workerthread(void *unused)
     if (rc != 0) {
         DBG_PRINTF("createiopipes failed with %lu", rc);
         setsvcstatusexit(rc);
-        svcxcmdproc->dwExitCode = rc;
+        svcxcmdproc->exitCode = rc;
         goto finished;
     }
-    svcxcmdproc->lpCommandLine = xappendarg(1, NULL, NULL, svcxcmdproc->lpExe);
-    svcxcmdproc->lpCommandLine = xappendarg(1, svcxcmdproc->lpCommandLine,
+    svcxcmdproc->commandLine = xappendarg(1, NULL, NULL, svcxcmdproc->application);
+    svcxcmdproc->commandLine = xappendarg(1, svcxcmdproc->commandLine,
                                             L"/D /E:ON /V:OFF /C",
-                                            svcxcmdproc->lpArgv[0]);
-    for (i = 1; i < svcxcmdproc->nArgc; i++) {
-        xwchreplace(svcxcmdproc->lpArgv[i], L'@', L'%');
-        svcxcmdproc->lpCommandLine = xappendarg(1, svcxcmdproc->lpCommandLine, NULL, svcxcmdproc->lpArgv[i]);
+                                            svcxcmdproc->args[0]);
+    for (i = 1; i < svcxcmdproc->argc; i++) {
+        xwchreplace(svcxcmdproc->args[i], L'@', L'%');
+        svcxcmdproc->commandLine = xappendarg(1, svcxcmdproc->commandLine, NULL, svcxcmdproc->args[i]);
     }
     if (svcbatchlog) {
-        op.hPipe = rd;
-        op.oOverlap.hEvent = CreateEventEx(NULL, NULL,
+        op.pipe = rd;
+        op.o.hEvent = CreateEventEx(NULL, NULL,
                                            CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
                                            EVENT_MODIFY_STATE | SYNCHRONIZE);
-        if (IS_INVALID_HANDLE(op.oOverlap.hEvent)) {
+        if (IS_INVALID_HANDLE(op.o.hEvent)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
             xsyserror(rc, L"CreateEvent", NULL);
-            svcxcmdproc->dwExitCode = rc;
+            svcxcmdproc->exitCode = rc;
             goto finished;
         }
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-    svcxcmdproc->dwCreationFlags = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
-    DBG_PRINTF("cmdline %S", svcxcmdproc->lpCommandLine);
-    if (!CreateProcessW(svcxcmdproc->lpExe,
-                        svcxcmdproc->lpCommandLine,
+    DBG_PRINTF("cmdline %S", svcxcmdproc->commandLine);
+    if (!CreateProcessW(svcxcmdproc->application,
+                        svcxcmdproc->commandLine,
                         NULL, NULL, TRUE,
-                        svcxcmdproc->dwCreationFlags,
+                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
                         NULL,
-                        mainservice->lpWork,
+                        mainservice->work,
                        &svcxcmdproc->sInfo,
                        &svcxcmdproc->pInfo)) {
         rc = GetLastError();
         setsvcstatusexit(rc);
-        xsyserror(rc, L"CreateProcess", svcxcmdproc->lpExe);
-        svcxcmdproc->dwExitCode = rc;
+        xsyserror(rc, L"CreateProcess", svcxcmdproc->application);
+        svcxcmdproc->exitCode = rc;
         goto finished;
     }
     /**
@@ -2585,7 +2573,7 @@ static DWORD WINAPI workerthread(void *unused)
         setsvcstatusexit(rc);
         xsyserror(rc, L"Write thread", NULL);
         TerminateProcess(svcxcmdproc->pInfo.hProcess, rc);
-        svcxcmdproc->dwExitCode = rc;
+        svcxcmdproc->exitCode = rc;
         goto finished;
     }
     if (IS_SET(SVCBATCH_OPT_ROTATE)) {
@@ -2595,7 +2583,7 @@ static DWORD WINAPI workerthread(void *unused)
             setsvcstatusexit(rc);
             xsyserror(rc, L"Rotate thread", NULL);
             TerminateProcess(svcxcmdproc->pInfo.hProcess, rc);
-            svcxcmdproc->dwExitCode = rc;
+            svcxcmdproc->exitCode = rc;
             goto finished;
         }
     }
@@ -2606,27 +2594,27 @@ static DWORD WINAPI workerthread(void *unused)
             setsvcstatusexit(rc);
             xsyserror(rc, L"Monitor thread", NULL);
             TerminateProcess(svcxcmdproc->pInfo.hProcess, rc);
-            svcxcmdproc->dwExitCode = rc;
+            svcxcmdproc->exitCode = rc;
         }
     }
 
     ResumeThread(svcxcmdproc->pInfo.hThread);
-    ResumeThread(svcthread[SVCBATCH_WRPIPE_THREAD].hThread);
-    InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_RUNNING);
+    ResumeThread(svcthread[SVCBATCH_WRPIPE_THREAD].thread);
+    InterlockedExchange(&svcxcmdproc->state, SVCBATCH_PROCESS_RUNNING);
 
     SAFE_CLOSE_HANDLE(svcxcmdproc->pInfo.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
     if (ctrlbreaksig)
-        ResumeThread(svcthread[SVCBATCH_SIGNAL_THREAD].hThread);
+        ResumeThread(svcthread[SVCBATCH_SIGNAL_THREAD].thread);
     if (IS_SET(SVCBATCH_OPT_ROTATE))
-        ResumeThread(svcthread[SVCBATCH_ROTATE_THREAD].hThread);
+        ResumeThread(svcthread[SVCBATCH_ROTATE_THREAD].thread);
     DBG_PRINTF("running process %lu", svcxcmdproc->pInfo.dwProcessId);
     if (svcbatchlog) {
         HANDLE wh[2];
         DWORD  nw = 2;
 
         wh[0] = svcxcmdproc->pInfo.hProcess;
-        wh[1] = op.oOverlap.hEvent;
+        wh[1] = op.o.hEvent;
         do {
             DWORD ws;
 
@@ -2637,32 +2625,32 @@ static DWORD WINAPI workerthread(void *unused)
                     DBG_PRINTS("process signaled");
                 break;
                 case WAIT_OBJECT_1:
-                    if (op.dwState == ERROR_IO_PENDING) {
-                        if (!GetOverlappedResult(op.hPipe, (LPOVERLAPPED)&op,
-                                                &op.nRead, FALSE)) {
-                            op.dwState = GetLastError();
+                    if (op.state == ERROR_IO_PENDING) {
+                        if (!GetOverlappedResult(op.pipe, (LPOVERLAPPED)&op,
+                                                &op.read, FALSE)) {
+                            op.state = GetLastError();
                         }
                         else {
-                            op.dwState = 0;
-                            rc = logwrdata(svcbatchlog, op.bBuffer, op.nRead);
+                            op.state = 0;
+                            rc = logwrdata(svcbatchlog, op.buffer, op.read);
                         }
                     }
                     else {
-                        if (ReadFile(op.hPipe, op.bBuffer, DSIZEOF(op.bBuffer),
-                                    &op.nRead, (LPOVERLAPPED)&op) && op.nRead) {
-                            op.dwState = 0;
-                            rc = logwrdata(svcbatchlog, op.bBuffer, op.nRead);
-                            SetEvent(op.oOverlap.hEvent);
+                        if (ReadFile(op.pipe, op.buffer, DSIZEOF(op.buffer),
+                                    &op.read, (LPOVERLAPPED)&op) && op.read) {
+                            op.state = 0;
+                            rc = logwrdata(svcbatchlog, op.buffer, op.read);
+                            SetEvent(op.o.hEvent);
                         }
                         else {
-                            op.dwState = GetLastError();
-                            if (op.dwState != ERROR_IO_PENDING)
-                                rc = op.dwState;
+                            op.state = GetLastError();
+                            if (op.state != ERROR_IO_PENDING)
+                                rc = op.state;
                         }
                     }
                     if (rc) {
-                        SAFE_CLOSE_HANDLE(op.hPipe);
-                        ResetEvent(op.oOverlap.hEvent);
+                        SAFE_CLOSE_HANDLE(op.pipe);
+                        ResetEvent(op.o.hEvent);
                         nw = 1;
 #if defined(_DEBUG)
                         if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
@@ -2686,11 +2674,11 @@ static DWORD WINAPI workerthread(void *unused)
         WaitForSingleObject(svcxcmdproc->pInfo.hProcess, INFINITE);
     }
     DBG_PRINTS("stopping");
-    InterlockedExchange(&svcxcmdproc->dwCurrentState, SVCBATCH_PROCESS_STOPPING);
-    if (WaitForSingleObject(svcthread[SVCBATCH_WRPIPE_THREAD].hThread, SVCBATCH_STOP_STEP)) {
+    InterlockedExchange(&svcxcmdproc->state, SVCBATCH_PROCESS_STOPPING);
+    if (WaitForSingleObject(svcthread[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
         DBG_PRINTS("wrpipethread is still active ... calling CancelSynchronousIo");
-        CancelSynchronousIo(svcthread[SVCBATCH_WRPIPE_THREAD].hThread);
-        WaitForSingleObject(svcthread[SVCBATCH_WRPIPE_THREAD].hThread, SVCBATCH_STOP_STEP);
+        CancelSynchronousIo(svcthread[SVCBATCH_WRPIPE_THREAD].thread);
+        WaitForSingleObject(svcthread[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP);
     }
     if (!GetExitCodeProcess(svcxcmdproc->pInfo.hProcess, &rc))
         rc = GetLastError();
@@ -2700,21 +2688,21 @@ static DWORD WINAPI workerthread(void *unused)
               * 255 is exit code when CTRL_C is send to cmd.exe
               */
             setsvcstatusexit(rc);
-            svcxcmdproc->dwExitCode = rc;
+            svcxcmdproc->exitCode = rc;
         }
     }
     DBG_PRINTF("finished process %lu with %lu",
                svcxcmdproc->pInfo.dwProcessId,
-               svcxcmdproc->dwExitCode);
+               svcxcmdproc->exitCode);
 
 finished:
-    SAFE_CLOSE_HANDLE(op.hPipe);
-    SAFE_CLOSE_HANDLE(op.oOverlap.hEvent);
+    SAFE_CLOSE_HANDLE(op.pipe);
+    SAFE_CLOSE_HANDLE(op.o.hEvent);
     xclearprocess(svcxcmdproc);
 
     DBG_PRINTS("done");
     SetEvent(workfinished);
-    return svcxcmdproc->dwExitCode;
+    return svcxcmdproc->exitCode;
 }
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
@@ -2800,7 +2788,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 }
                 else {
                     DBG_PRINTS("rotatelogs is busy");
-                    if (InterlockedCompareExchange64(&svcbatchlog->nWritten, 0, 0))
+                    if (InterlockedCompareExchange64(&svcbatchlog->size, 0, 0))
                         logwrstat(svcbstatlog, 0, 1, "Log is busy");
                     else
                         logwrstat(svcbstatlog, 0, 1, "Log is empty");
@@ -2827,19 +2815,19 @@ static void __cdecl threadscleanup(void)
     int i;
 
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
-        if (InterlockedCompareExchange(&svcthread[i].nStarted, 0, 0) > 0) {
+        if (InterlockedCompareExchange(&svcthread[i].started, 0, 0) > 0) {
             DBG_PRINTF("svcthread[%d]    x", i);
-            svcthread[i].dwExitCode = ERROR_DISCARDED;
-            TerminateThread(svcthread[i].hThread, svcthread[i].dwExitCode);
+            svcthread[i].exitCode = ERROR_DISCARDED;
+            TerminateThread(svcthread[i].thread, svcthread[i].exitCode);
         }
-        if (svcthread[i].hThread) {
+        if (svcthread[i].thread) {
 #if defined(_DEBUG)
             DBG_PRINTF("svcthread[%d] %4lu %10llums", i,
-                        svcthread[i].dwExitCode,
-                        svcthread[i].dwDuration);
+                        svcthread[i].exitCode,
+                        svcthread[i].duration);
 #endif
-            CloseHandle(svcthread[i].hThread);
-            svcthread[i].hThread = NULL;
+            CloseHandle(svcthread[i].thread);
+            svcthread[i].thread = NULL;
         }
     }
 }
@@ -2898,23 +2886,23 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     DWORD  i;
     HANDLE sh = NULL;
 
-    mainservice->sStatus.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
-    mainservice->sStatus.dwCurrentState = SERVICE_START_PENDING;
+    mainservice->status.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
+    mainservice->status.dwCurrentState = SERVICE_START_PENDING;
 
     if (argc > 0) {
-        xfree(mainservice->lpName);
-        mainservice->lpName = xwcsdup(argv[0]);
+        xfree(mainservice->name);
+        mainservice->name = xwcsdup(argv[0]);
     }
-    if (IS_EMPTY_WCS(mainservice->lpName)) {
+    if (IS_EMPTY_WCS(mainservice->name)) {
         xsyserror(ERROR_INVALID_PARAMETER, L"Service name", NULL);
         exit(1);
     }
-    mainservice->hStatus = RegisterServiceCtrlHandlerExW(mainservice->lpName, servicehandler, NULL);
-    if (IS_INVALID_HANDLE(mainservice->hStatus)) {
-        xsyserror(GetLastError(), L"RegisterServiceCtrlHandlerEx", mainservice->lpName);
+    mainservice->handle = RegisterServiceCtrlHandlerExW(mainservice->name, servicehandler, NULL);
+    if (IS_INVALID_HANDLE(mainservice->handle)) {
+        xsyserror(GetLastError(), L"RegisterServiceCtrlHandlerEx", mainservice->name);
         exit(1);
     }
-    DBG_PRINTF("%S", mainservice->lpName);
+    DBG_PRINTF("%S", mainservice->name);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
     rv = createevents();
@@ -2931,13 +2919,13 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
-        SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", svcbatchlog->szDir);
+        SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", svcbatchlog->logPath);
         if (IS_SET(SVCBATCH_OPT_VERBOSE)) {
             svcbstatlog = (LPSVCBATCH_LOG)xmmalloc(sizeof(SVCBATCH_LOG));
 
             memcpy(svcbstatlog, svcbatchlog, sizeof(SVCBATCH_LOG));
-            svcbstatlog->nMaxLogs  = SVCBATCH_DEF_LOGS;
-            svcbstatlog->lpFileExt = SBSTATUS_LOGFEXT;
+            svcbstatlog->maxLogs  = SVCBATCH_DEF_LOGS;
+            svcbstatlog->fileExt = SBSTATUS_LOGFEXT;
             SVCBATCH_CS_INIT(svcbstatlog);
         }
     }
@@ -2948,7 +2936,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             xsysinfo(L"Use -o option with parameter set to the exiting directory",
                      L"failing over to SVCBATCH_SERVICE_WORK");
 #endif
-            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", mainservice->lpWork);
+            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", mainservice->work);
         }
         else {
             wchar_t *op = xgetfinalpath(outdirparam, 1, NULL, 0);
@@ -2970,9 +2958,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * eg, sc.exe start myservice param1 param2 ...
      */
     for (i = 1; i < argc; i++) {
-        DBG_PRINTF("argv[%lu] %S", svcxcmdproc->nArgc, argv[i]);
-        if (svcxcmdproc->nArgc < SVCBATCH_MAX_ARGS)
-            svcxcmdproc->lpArgv[svcxcmdproc->nArgc++] = xwcsdup(argv[i]);
+        DBG_PRINTF("argv[%lu] %S", svcxcmdproc->argc, argv[i]);
+        if (svcxcmdproc->argc < SVCBATCH_MAX_ARGS)
+            svcxcmdproc->args[svcxcmdproc->argc++] = xwcsdup(argv[i]);
         else
             xsyswarn(0, L"The argument has exceeded the argument number limit", argv[i]);
     }
@@ -2981,15 +2969,15 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
      * Add additional environment variables
      * They are unique to this service instance
      */
-    SetEnvironmentVariableW(L"SVCBATCH_APP_BIN",      svcmainproc->lpExe);
-    SetEnvironmentVariableW(L"SVCBATCH_APP_DIR",      svcmainproc->lpDir);
+    SetEnvironmentVariableW(L"SVCBATCH_APP_BIN",      svcmainproc->application);
+    SetEnvironmentVariableW(L"SVCBATCH_APP_DIR",      svcmainproc->directory);
     SetEnvironmentVariableW(L"SVCBATCH_APP_VER",      SVCBATCH_VERSION_VER);
 
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_BASE", mainservice->lpBase);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_HOME", mainservice->lpHome);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", mainservice->lpName);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", mainservice->lpUuid);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_WORK", mainservice->lpWork);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_BASE", mainservice->base);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_HOME", mainservice->home);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", mainservice->name);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", mainservice->uuid);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_WORK", mainservice->work);
 
     if (svcbstatlog) {
         rv = openlogfile(svcbstatlog, TRUE, NULL);
@@ -2997,7 +2985,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
-        sh = svcbstatlog->hFile;
+        sh = svcbstatlog->fd;
         logconfig(sh);
     }
     if (svcbatchlog) {
@@ -3016,7 +3004,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         rv = xsyserror(GetLastError(), L"Worker thread", NULL);
         goto finished;
     }
-    WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].hThread, INFINITE);
+    WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].thread, INFINITE);
     DBG_PRINTS("waiting for stop to finish");
     WaitForSingleObject(svcstopended, stoptimeout);
 
@@ -3035,10 +3023,10 @@ static DWORD svcstopmain(void)
     DWORD  rv = 0;
     DWORD  ws;
 
-    DBG_PRINTF("%S", mainservice->lpName);
+    DBG_PRINTF("%S", mainservice->name);
     if (svcbatchlog)
         GetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS",
-                                svcbatchlog->szDir, SVCBATCH_PATH_MAX);
+                                svcbatchlog->logPath, SVCBATCH_PATH_MAX);
     if (svcbatchlog) {
         rv = openlogfile(svcbatchlog, FALSE, NULL);
         if (rv != 0)
@@ -3051,7 +3039,7 @@ static DWORD svcstopmain(void)
         setsvcstatusexit(rv);
         goto finished;
     }
-    ws = WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].hThread, stoptimeout);
+    ws = WaitForSingleObject(svcthread[SVCBATCH_WORKER_THREAD].thread, stoptimeout);
     if (ws == WAIT_TIMEOUT) {
         DBG_PRINTS("stop timeout");
         stopshutdown(SVCBATCH_STOP_SYNC);
@@ -3064,7 +3052,7 @@ finished:
     closelogfile(svcbatchlog);
     threadscleanup();
     DBG_PRINTS("done");
-    return mainservice->sStatus.dwServiceSpecificExitCode;
+    return mainservice->status.dwServiceSpecificExitCode;
 }
 
 static int xwmaininit(void)
@@ -3083,8 +3071,8 @@ static int xwmaininit(void)
     mainservice = (LPSVCBATCH_SERVICE)xmcalloc(1, sizeof(SVCBATCH_SERVICE));
     svcmainproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
-    mainservice->dwCurrentState    = SERVICE_START_PENDING;
-    svcmainproc->dwCurrentState    = SVCBATCH_PROCESS_RUNNING;
+    mainservice->state             = SERVICE_START_PENDING;
+    svcmainproc->state             = SVCBATCH_PROCESS_RUNNING;
     svcmainproc->pInfo.hProcess    = GetCurrentProcess();
     svcmainproc->pInfo.dwProcessId = GetCurrentProcessId();
     svcmainproc->pInfo.dwThreadId  = GetCurrentThreadId();
@@ -3095,16 +3083,16 @@ static int xwmaininit(void)
     if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
         return ERROR_BAD_PATHNAME;
     nn = fixshortpath(bb, nn);
-    svcmainproc->lpExe = xwcsdup(bb);
+    svcmainproc->application = xwcsdup(bb);
     while (--nn > 2) {
         if (bb[nn] == L'\\') {
             bb[nn] = WNUL;
-            svcmainproc->lpDir = xwcsdup(bb);
+            svcmainproc->directory = xwcsdup(bb);
             break;
         }
     }
-    ASSERT_WSTR(svcmainproc->lpExe, ERROR_BAD_PATHNAME);
-    ASSERT_WSTR(svcmainproc->lpDir, ERROR_BAD_PATHNAME);
+    ASSERT_WSTR(svcmainproc->application, ERROR_BAD_PATHNAME);
+    ASSERT_WSTR(svcmainproc->directory,   ERROR_BAD_PATHNAME);
     SVCBATCH_CS_INIT(mainservice);
 
     return 0;
@@ -3197,39 +3185,39 @@ int wmain(int argc, const wchar_t **wargv)
                 cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
                 wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
                 cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
-                stoptimeout = shutdownmem->dwTimeout;
-                svcoptions  = shutdownmem->dwOptions;
-                svccodepage = shutdownmem->dwCodePage;
+                stoptimeout = shutdownmem->timeout;
+                svcoptions  = shutdownmem->options;
+                svccodepage = shutdownmem->codePage;
 #if defined(_DEBUG)
                 dbgsvcmode = '1';
                 dbgprints(__FUNCTION__, cnamestamp);
-                dbgprintf(__FUNCTION__, "ppid %lu", shutdownmem->dwProcessId);
-                dbgprintf(__FUNCTION__, "opts 0x%08x", shutdownmem->dwOptions);
+                dbgprintf(__FUNCTION__, "ppid %lu", shutdownmem->processId);
+                dbgprintf(__FUNCTION__, "opts 0x%08x", shutdownmem->options);
                 dbgprintf(__FUNCTION__, "time %lu", stoptimeout);
 #endif
                 svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
-                svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
-                svcxcmdproc->lpExe  = shutdownmem->szShell;
-                svcxcmdproc->nArgc  = shutdownmem->nArgc;
-                svcxcmdproc->lpArgv[0] = shutdownmem->szBatch;
-                for (x = 1; x < svcxcmdproc->nArgc; x++)
-                    svcxcmdproc->lpArgv[x] = shutdownmem->lpArgv[x];
-                mainservice->lpHome = shutdownmem->szHomeDir;
-                mainservice->lpWork = shutdownmem->szWorkDir;
-                mainservice->lpName = shutdownmem->szServiceName;
-                mainservice->lpUuid = shutdownmem->szUuid;
+                svcxcmdproc->type = SVCBATCH_SHELL_PROCESS;
+                svcxcmdproc->application = shutdownmem->application;
+                svcxcmdproc->argc    = shutdownmem->argc;
+                svcxcmdproc->args[0] = shutdownmem->batchFile;
+                for (x = 1; x < svcxcmdproc->argc; x++)
+                    svcxcmdproc->args[x] = shutdownmem->args[x];
+                mainservice->home = shutdownmem->home;
+                mainservice->work = shutdownmem->work;
+                mainservice->name = shutdownmem->name;
+                mainservice->uuid = shutdownmem->uuid;
                 if (IS_NOT(SVCBATCH_OPT_QUIET)) {
                     svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
-                    xwcslcpy(svcbatchlog->szName, _MAX_FNAME, shutdownmem->szLogName);
-                    svcbatchlog->nMaxLogs  = SVCBATCH_DEF_LOGS;
-                    svcbatchlog->lpFileExt = SHUTDOWN_LOGFEXT;
+                    xwcslcpy(svcbatchlog->logName, _MAX_FNAME, shutdownmem->logName);
+                    svcbatchlog->maxLogs  = SVCBATCH_DEF_LOGS;
+                    svcbatchlog->fileExt = SHUTDOWN_LOGFEXT;
                     SVCBATCH_CS_INIT(svcbatchlog);
                 }
             }
             else {
-                mainservice->lpName = xwcsdup(p + 1);
-                if (IS_EMPTY_WCS(mainservice->lpName))
+                mainservice->name = xwcsdup(p + 1);
+                if (IS_EMPTY_WCS(mainservice->name))
                     return ERROR_INVALID_PARAMETER;
             }
             wargv[1] = wargv[0];
@@ -3238,9 +3226,9 @@ int wmain(int argc, const wchar_t **wargv)
         }
     }
     if (servicemode)
-        svcmainproc->dwType = SVCBATCH_SERVICE_PROCESS;
+        svcmainproc->type = SVCBATCH_SERVICE_PROCESS;
     else
-        svcmainproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
+        svcmainproc->type = SVCBATCH_SHUTDOWN_PROCESS;
 
 #if defined(_DEBUG)
     if (servicemode) {
@@ -3252,14 +3240,14 @@ int wmain(int argc, const wchar_t **wargv)
         DWORD nn;
         WCHAR cb[SVCBATCH_PATH_MAX];
         svcxcmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
-        svcxcmdproc->dwType = SVCBATCH_SHELL_PROCESS;
-        /* Reserve lpArgv[0] for batch file */
-        svcxcmdproc->nArgc  = 1;
+        svcxcmdproc->type = SVCBATCH_SHELL_PROCESS;
+        /* Reserve args[0] for batch file */
+        svcxcmdproc->argc  = 1;
         nn = GetEnvironmentVariableW(L"COMSPEC", cb, SVCBATCH_PATH_MAX);
         if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
             return GetLastError();
-        svcxcmdproc->lpExe = xgetfinalpath(cb, 0, NULL, 0);
-        ASSERT_WSTR(svcxcmdproc->lpExe, ERROR_BAD_PATHNAME);
+        svcxcmdproc->application = xgetfinalpath(cb, 0, NULL, 0);
+        ASSERT_WSTR(svcxcmdproc->application, ERROR_BAD_PATHNAME);
 
 
         while ((opt = xwgetopt(argc, wargv, L"bc:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
@@ -3365,10 +3353,10 @@ int wmain(int argc, const wchar_t **wargv)
              * No batch file defined.
              * If @ServiceName was defined, try with ServiceName.bat
              */
-            if (IS_EMPTY_WCS(mainservice->lpName))
+            if (IS_EMPTY_WCS(mainservice->name))
                 return xsyserror(0, L"Missing batch file", NULL);
             else
-                batchparam = xwcsconcat(mainservice->lpName, L".bat");
+                batchparam = xwcsconcat(mainservice->name, L".bat");
 
             if (wcspbrk(batchparam, L"/\\:;<>?*|\""))
                 return xsyserror(0, L"Batch filename has invalid characters", batchparam);
@@ -3383,14 +3371,14 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"The argument is too large", wargv[i]);
 
                 if (i < SVCBATCH_MAX_ARGS)
-                    svcxcmdproc->lpArgv[i] = xwcsdup(wargv[i]);
+                    svcxcmdproc->args[i] = xwcsdup(wargv[i]);
                 else
                     return xsyserror(0, L"Too many batch arguments", wargv[i]);
             }
-            svcxcmdproc->nArgc = i;
+            svcxcmdproc->argc = i;
         }
-        mainservice->lpUuid = xuuidstring(NULL);
-        if (IS_EMPTY_WCS(mainservice->lpUuid))
+        mainservice->uuid = xuuidstring(NULL);
+        if (IS_EMPTY_WCS(mainservice->uuid))
             return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
 
         if (scnt && qcnt < 2) {
@@ -3403,12 +3391,12 @@ int wmain(int argc, const wchar_t **wargv)
             const wchar_t *logn = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
             svcbatchlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
-            xwcslcpy(svcbatchlog->szName, _MAX_FNAME, logn);
-            svcbatchlog->nMaxLogs  = SVCBATCH_MAX_LOGS;
-            svcbatchlog->lpFileExt = SVCBATCH_LOGFEXT;
+            xwcslcpy(svcbatchlog->logName, _MAX_FNAME, logn);
+            svcbatchlog->maxLogs  = SVCBATCH_MAX_LOGS;
+            svcbatchlog->fileExt = SVCBATCH_LOGFEXT;
             if (maxlogsparam) {
-                svcbatchlog->nMaxLogs = xwcstoi(maxlogsparam, NULL);
-                if ((svcbatchlog->nMaxLogs < 1) || (svcbatchlog->nMaxLogs > SVCBATCH_MAX_LOGS))
+                svcbatchlog->maxLogs = xwcstoi(maxlogsparam, NULL);
+                if ((svcbatchlog->maxLogs < 1) || (svcbatchlog->maxLogs > SVCBATCH_MAX_LOGS))
                     return xsyserror(0, L"Invalid -m command option value", maxlogsparam);
             }
             SVCBATCH_CS_INIT(svcbatchlog);
@@ -3469,48 +3457,48 @@ int wmain(int argc, const wchar_t **wargv)
 
         if (svchomeparam) {
             if (isabsolutepath(svchomeparam)) {
-                mainservice->lpHome = xgetfinalpath(svchomeparam, 1, NULL, 0);
-                if (IS_EMPTY_WCS(mainservice->lpHome))
+                mainservice->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
+                if (IS_EMPTY_WCS(mainservice->home))
                     return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
             }
         }
-        if (mainservice->lpHome == NULL) {
+        if (mainservice->home == NULL) {
             if (isabsolutepath(batchparam)) {
                 if (!resolvebatchname(batchparam))
                     return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
 
                 if (svchomeparam == NULL) {
-                    mainservice->lpHome = mainservice->lpBase;
+                    mainservice->home = mainservice->base;
                 }
                 else {
-                    SetCurrentDirectoryW(mainservice->lpBase);
-                    mainservice->lpHome = xgetfinalpath(svchomeparam, 1, NULL, 0);
-                    if (IS_EMPTY_WCS(mainservice->lpHome))
+                    SetCurrentDirectoryW(mainservice->base);
+                    mainservice->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
+                    if (IS_EMPTY_WCS(mainservice->home))
                         return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
                 }
             }
         }
-        if (mainservice->lpHome == NULL) {
+        if (mainservice->home == NULL) {
             if (svchomeparam == NULL) {
-                mainservice->lpHome = svcmainproc->lpDir;
+                mainservice->home = svcmainproc->directory;
             }
             else {
-                SetCurrentDirectoryW(svcmainproc->lpDir);
-                mainservice->lpHome = xgetfinalpath(svchomeparam, 1, NULL, 0);
-                if (IS_EMPTY_WCS(mainservice->lpHome))
+                SetCurrentDirectoryW(svcmainproc->directory);
+                mainservice->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
+                if (IS_EMPTY_WCS(mainservice->home))
                     return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
             }
         }
-        SetCurrentDirectoryW(mainservice->lpHome);
+        SetCurrentDirectoryW(mainservice->home);
         if (svchomeparam == svcworkparam) {
             /* Use the same directories for home and work */
-            mainservice->lpWork = mainservice->lpHome;
+            mainservice->work = mainservice->home;
         }
         else {
-            mainservice->lpWork = xgetfinalpath(svcworkparam, 1, NULL, 0);
-            if (IS_EMPTY_WCS(mainservice->lpWork))
+            mainservice->work = xgetfinalpath(svcworkparam, 1, NULL, 0);
+            if (IS_EMPTY_WCS(mainservice->work))
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
-            SetCurrentDirectoryW(mainservice->lpWork);
+            SetCurrentDirectoryW(mainservice->work);
         }
         if (!resolvebatchname(batchparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
@@ -3527,31 +3515,31 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
             }
             if (rotatebysize || rotatebytime)
-                svcbatchlog->nMaxLogs = 0;
+                svcbatchlog->maxLogs = 0;
 
             svcoptions |= SVCBATCH_OPT_ROTATE;
         }
         if (svclogfname) {
-            if (wcschr(svcbatchlog->szName, L'@')) {
+            if (wcschr(svcbatchlog->logName, L'@')) {
                 /**
                  * If name is strftime formatted
                  * replace @ with % so it can be used by strftime
                  */
-                xwchreplace(svcbatchlog->szName, L'@', L'%');
+                xwchreplace(svcbatchlog->logName, L'@', L'%');
             }
         }
         if (scnt) {
             svcstopproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
-            svcstopproc->lpArgv[0] = xgetfinalpath(sparam[0], 0, NULL, 0);
-            if (svcstopproc->lpArgv[0] == NULL)
+            svcstopproc->args[0] = xgetfinalpath(sparam[0], 0, NULL, 0);
+            if (svcstopproc->args[0] == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
             for (i = 1; i < scnt; i++)
-                svcstopproc->lpArgv[i] = xwcsdup(sparam[i]);
-            svcstopproc->nArgc  = scnt;
-            svcstopproc->dwType = SVCBATCH_SHUTDOWN_PROCESS;
+                svcstopproc->args[i] = xwcsdup(sparam[i]);
+            svcstopproc->argc  = scnt;
+            svcstopproc->type = SVCBATCH_SHUTDOWN_PROCESS;
         }
-        if (mainservice->lpHome != mainservice->lpWork)
-            SetCurrentDirectoryW(mainservice->lpHome);
+        if (mainservice->home != mainservice->work)
+            SetCurrentDirectoryW(mainservice->home);
     } /* servicemode */
 
     /**

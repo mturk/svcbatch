@@ -230,10 +230,10 @@
 
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 
-#define SVCBATCH_CS_INIT(_o)    if (_o) InitializeCriticalSection(&((_o)->csLock))
-#define SVCBATCH_CS_CLOSE(_o)   if (_o) DeleteCriticalSection(&((_o)->csLock))
-#define SVCBATCH_CS_ENTER(_o)   if (_o) EnterCriticalSection(&((_o)->csLock))
-#define SVCBATCH_CS_LEAVE(_o)   if (_o) LeaveCriticalSection(&((_o)->csLock))
+#define SVCBATCH_CS_INIT(_o)    if (_o) InitializeCriticalSection(&((_o)->cs))
+#define SVCBATCH_CS_CLOSE(_o)   if (_o) DeleteCriticalSection(&((_o)->cs))
+#define SVCBATCH_CS_ENTER(_o)   if (_o) EnterCriticalSection(&((_o)->cs))
+#define SVCBATCH_CS_LEAVE(_o)   if (_o) LeaveCriticalSection(&((_o)->cs))
 
 /**
  * Assertion macros
@@ -245,7 +245,7 @@
     } (void)0
 
 #define ASSERT_CSTR(_s, _r)                                 \
-    if (((_s) == NULL) || (*(_s) == 0)) {                   \
+    if (((_s) == NULL) || (*(_s) == '\0')) {                \
         SetLastError(ERROR_INVALID_PARAMETER);              \
         return (_r);                                        \
     } (void)0
