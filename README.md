@@ -82,7 +82,7 @@ is to put `svcbatch.exe` in the same directory where your
 `myservice.bat` file is located. Open the command prompt and
 type something like this...
 
-```cnd
+```cmd
 > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat"
 
 ```
@@ -110,7 +110,7 @@ detailed usage.
   service start application to the batch file's existing arguments
   defined at install time.
 
-  ```cnd
+  ```cmd
   > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat param1"
 
   ...
