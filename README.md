@@ -514,6 +514,15 @@ will be reported to Windows Event log.
   unless the **-t** option was defined.
 
 
+  Maximum two rule options are allowed at install time.
+  If the **rule** starts with the capital letter `S`, then
+  no additional rules are allowed.
+
+  Service will fail to start, and write an error message
+  to the Windows Event log if the upper limits are broken.
+
+
+
 * **-s [batchfile][argument]**
 
   **Execute batch file on service stop or shutdown**

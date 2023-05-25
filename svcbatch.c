@@ -2001,6 +2001,10 @@ static BOOL resolverotate(const wchar_t *rp)
 
     ASSERT_WSTR(rp, FALSE);
 
+    if (*rp == L'S') {
+        DBG_PRINTS("rotate by signal");
+        return TRUE;
+    }
     if (wcspbrk(rp, L"BKMG")) {
         int      val;
         LONGLONG siz;
@@ -3496,13 +3500,14 @@ int wmain(int argc, const wchar_t **wargv)
         if (!resolvebatchname(batchparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
         if (rcnt) {
+            int rs = 0;
             for (i = 0; i < rcnt; i++) {
-                if (rparam[i][0] == L'S') {
-                    DBG_PRINTS("rotate by signal");
-                    rcnt = 0;
-                    break;
-                }
+                if (*(rparam[i]) == L'S')
+                    rs = rcnt;
             }
+            if (rs > 1)
+                return xsyserror(0, L"Too many rotate parameters", NULL);
+
             for (i = 0; i < rcnt; i++) {
                 if (!resolverotate(rparam[i]))
                     return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
