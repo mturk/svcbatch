@@ -86,7 +86,6 @@ typedef struct _SVCBATCH_LOG {
     LPCWSTR             fileExt;
     LPCWSTR             logName;
     WCHAR               logFile[SVCBATCH_PATH_MAX];
-    WCHAR               logPath[SVCBATCH_PATH_MAX];
 
 } SVCBATCH_LOG, *LPSVCBATCH_LOG;
 
@@ -98,10 +97,10 @@ typedef struct _SVCBATCH_SERVICE {
 
     LPWSTR                  base;
     LPWSTR                  home;
-    LPWSTR                  logs;
     LPWSTR                  name;
     LPWSTR                  uuid;
     LPWSTR                  work;
+    WCHAR                   logs[SVCBATCH_PATH_MAX];
 
 } SVCBATCH_SERVICE, *LPSVCBATCH_SERVICE;
 
@@ -1580,7 +1579,7 @@ static void logconfig(HANDLE h)
     logwransi(h, 0, "Program directory: ", program->directory);
     logwransi(h, 0, "Base directory   : ", service->base);
     logwransi(h, 0, "Home directory   : ", service->home);
-    logwransi(h, 0, "Logs directory   : ", outputlog->logPath);
+    logwransi(h, 0, "Logs directory   : ", service->logs);
     logwransi(h, 0, "Work directory   : ", service->work);
 
     FlushFileBuffers(h);
@@ -1631,7 +1630,7 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
         xsyserror(0, L"xgetfullpath", outdirparam);
         return ERROR_BAD_PATHNAME;
     }
-    p = xgetfinalpath(dp, 1, log->logPath, SVCBATCH_PATH_MAX);
+    p = xgetfinalpath(dp, 1, service->logs, SVCBATCH_PATH_MAX);
     if (p == NULL) {
         DWORD rc = GetLastError();
 
@@ -1641,12 +1640,12 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
         rc = xcreatedir(dp);
         if (rc != 0)
             return xsyserror(rc, L"xcreatedir", dp);
-        p = xgetfinalpath(dp, 1, log->logPath, SVCBATCH_PATH_MAX);
+        p = xgetfinalpath(dp, 1, service->logs, SVCBATCH_PATH_MAX);
         if (p == NULL)
             return xsyserror(GetLastError(), L"xgetfinalpath", dp);
     }
-    if (_wcsicmp(log->logPath, service->home) == 0) {
-        xsyserror(0, L"Logs directory cannot be the same as home directory", log->logPath);
+    if (_wcsicmp(service->logs, service->home) == 0) {
+        xsyserror(0, L"Logs directory cannot be the same as home directory", service->logs);
         return ERROR_INVALID_PARAMETER;
     }
     return 0;
@@ -1792,7 +1791,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         rp = FALSE;
         np = nb;
     }
-    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, 0, log->logPath);
+    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, 0, service->logs);
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, L"\\");
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, np);
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, log->fileExt);
@@ -2896,7 +2895,6 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
-        SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", outputlog->logPath);
         if (IS_SET(SVCBATCH_OPT_VERBOSE)) {
             statuslog = (LPSVCBATCH_LOG)xmmalloc(sizeof(SVCBATCH_LOG));
 
@@ -2913,18 +2911,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             xsysinfo(L"Use -o option with parameter set to the exiting directory",
                      L"failing over to SVCBATCH_SERVICE_WORK");
 #endif
-            SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", service->work);
+            xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
         }
         else {
-            wchar_t *op = xgetfinalpath(outdirparam, 1, NULL, 0);
+            wchar_t *op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
             if (op == NULL) {
                 rv = xsyserror(GetLastError(), L"xgetfinalpath", outdirparam);
                 reportsvcstatus(SERVICE_STOPPED, rv);
                 return;
-            }
-            else {
-                SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", op);
-                xfree(op);
             }
         }
     }
@@ -2952,6 +2946,7 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
 
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_BASE", service->base);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_HOME", service->home);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", service->logs);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", service->name);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", service->uuid);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_WORK", service->work);
@@ -3001,9 +2996,6 @@ static DWORD svcstopmain(void)
     DWORD  ws;
 
     DBG_PRINTF("%S", service->name);
-    if (outputlog)
-        GetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS",
-                                outputlog->logPath, SVCBATCH_PATH_MAX);
     if (outputlog) {
         rv = openlogfile(outputlog, FALSE, NULL);
         if (rv != 0)
