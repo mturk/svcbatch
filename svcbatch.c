@@ -110,6 +110,7 @@ typedef struct _SVCBATCH_IPC {
     DWORD   options;
     DWORD   timeout;
     DWORD   argc;
+    DWORD   killdepth;
     WCHAR   uuid[SVCBATCH_UUID_MAX];
     WCHAR   name[SVCBATCH_NAME_MAX];
     WCHAR   logName[SVCBATCH_NAME_MAX];
@@ -1067,25 +1068,31 @@ static DWORD killproctree(DWORD pid, int rc, DWORD rv)
     return c + r;
 }
 
-static void killprocess(LPSVCBATCH_PROCESS proc, DWORD ws, DWORD rv)
+static void killprocess(int cc, LPSVCBATCH_PROCESS proc, DWORD rv)
 {
 
-    DBG_PRINTF("proc %.4lu", proc->pInfo.dwProcessId);
+    DBG_PRINTF("[%d] proc %.4lu", cc, proc->pInfo.dwProcessId);
+
+    if (cc) {
+        if (killdepth)
+            killproctree(proc->pInfo.dwProcessId, killdepth, rv);
+        goto finished;
+    }
     if (proc->state == SVCBATCH_PROCESS_STOPPED)
         goto finished;
     InterlockedExchange(&proc->state, SVCBATCH_PROCESS_STOPPING);
 
-    if (killproctree(proc->pInfo.dwProcessId, killdepth, rv)) {
-        if (waitprocess(proc, ws) != STILL_ACTIVE)
+    if (killdepth && killproctree(proc->pInfo.dwProcessId, killdepth, rv)) {
+        if (waitprocess(proc, SVCBATCH_STOP_SYNC) != STILL_ACTIVE)
             goto finished;
     }
-    DBG_PRINTF("kill %.4lu", proc->pInfo.dwProcessId);
+    DBG_PRINTF("[%d] kill %.4lu", cc, proc->pInfo.dwProcessId);
     proc->exitCode = rv;
     TerminateProcess(proc->pInfo.hProcess, proc->exitCode);
 
 finished:
     InterlockedExchange(&proc->state, SVCBATCH_PROCESS_STOPPED);
-    DBG_PRINTF("done %.4lu", proc->pInfo.dwProcessId);
+    DBG_PRINTF("[%d] done %.4lu", cc, proc->pInfo.dwProcessId);
 }
 
 static DWORD xmdparent(wchar_t *path)
@@ -2078,7 +2085,7 @@ static BOOL resolverotate(const wchar_t *rp)
     return TRUE;
 }
 
-static DWORD runshutdown(DWORD rt)
+static DWORD runshutdown(void)
 {
     wchar_t  rb[SVCBATCH_UUID_MAX];
     DWORD i, rc = 0;
@@ -2101,6 +2108,7 @@ static DWORD runshutdown(DWORD rt)
     sharedmem->options   = svcoptions & 0x0000000F;
     sharedmem->timeout   = stoptimeout;
     sharedmem->codePage  = svccodepage;
+    sharedmem->killdepth = killdepth;
     if (outputlog)
         xwcslcpy(sharedmem->logName, SVCBATCH_NAME_MAX, outputlog->logName);
     xwcslcpy(sharedmem->name, SVCBATCH_NAME_MAX, service->name);
@@ -2139,16 +2147,11 @@ static DWORD runshutdown(DWORD rt)
     SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdError);
 
     DBG_PRINTF("waiting %lu ms for shutdown process %lu",
-               stoptimeout + rt, svcstop->pInfo.dwProcessId);
-    rc = WaitForSingleObject(svcstop->pInfo.hProcess, stoptimeout + rt);
-    if (rc == WAIT_TIMEOUT) {
-        DBG_PRINTS("killing shutdown process tree");
-        killproctree(svcstop->pInfo.dwProcessId, killdepth, rc);
-    }
-    else {
-        rc = ERROR_INVALID_FUNCTION;
+               stoptimeout, svcstop->pInfo.dwProcessId);
+    rc = WaitForSingleObject(svcstop->pInfo.hProcess, stoptimeout);
+    if (rc == WAIT_OBJECT_0)
         GetExitCodeProcess(svcstop->pInfo.hProcess, &rc);
-    }
+
 finished:
     svcstop->exitCode = rc;
     xclearprocess(svcstop);
@@ -2180,7 +2183,7 @@ static DWORD WINAPI stopthread(void *msg)
 
         DBG_PRINTS("creating shutdown process");
         rs = GetTickCount64();
-        rc = runshutdown(SVCBATCH_STOP_WAIT);
+        rc = runshutdown();
         ri = (int)(GetTickCount64() - rs);
         DBG_PRINTF("shutdown finished in %d ms", ri);
         reportsvcstatus(SERVICE_STOP_PENDING, 0);
@@ -2203,11 +2206,11 @@ static DWORD WINAPI stopthread(void *msg)
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(cmdproc, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
+        killprocess(0, cmdproc, ws);
     }
     else {
         DBG_PRINTS("worker process ended");
-        killproctree(cmdproc->pInfo.dwProcessId, killdepth, ERROR_ARENA_TRASHED);
+        killprocess(1, cmdproc, ERROR_ARENA_TRASHED);
     }
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     SetEvent(svcstopdone);
@@ -2237,11 +2240,11 @@ static void stopshutdown(DWORD rt)
 
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(cmdproc, SVCBATCH_STOP_SYNC, ws);
+        killprocess(0, cmdproc, ws);
     }
     else {
         DBG_PRINTS("worker process ended");
-        killproctree(cmdproc->pInfo.dwProcessId, killdepth, ERROR_ARENA_TRASHED);
+        killprocess(1, cmdproc, ERROR_ARENA_TRASHED);
     }
 
     DBG_PRINTS("done");
@@ -3159,6 +3162,7 @@ int wmain(int argc, const wchar_t **wargv)
                 stoptimeout = sharedmem->timeout;
                 svcoptions  = sharedmem->options;
                 svccodepage = sharedmem->codePage;
+                killdepth   = sharedmem->killdepth;
 #if defined(_DEBUG)
                 dbgsvcmode = '1';
                 dbgprints(__FUNCTION__, cnamestamp);

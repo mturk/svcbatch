@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v2.1.1
 
   * In development
+  * Do not wait for shutdown process cleanup on timeout
 
 ### New Features
 
