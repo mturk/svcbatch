@@ -83,9 +83,9 @@ typedef struct _SVCBATCH_LOG {
     volatile LONG       rotateCount;
     int                 maxLogs;
     CRITICAL_SECTION    cs;
-    LPWSTR              fileName;
     LPCWSTR             fileExt;
-    WCHAR               logName[SVCBATCH_NAME_MAX];
+    LPCWSTR             logName;
+    WCHAR               logFile[SVCBATCH_PATH_MAX];
     WCHAR               logPath[SVCBATCH_PATH_MAX];
 
 } SVCBATCH_LOG, *LPSVCBATCH_LOG;
@@ -469,6 +469,31 @@ static int xwcslcat(wchar_t *dst, int siz, const wchar_t *src)
     return (int)(d - dst);
 }
 
+static int xwcsncat(wchar_t *dst, int siz, int pos, const wchar_t *src)
+{
+    const wchar_t *s = src;
+    wchar_t *d = dst + pos;
+    int      n;
+    int      c;
+
+    ASSERT_NULL(dst, 0);
+    ASSERT_SIZE(siz, 2, 0);
+
+    c = (int)(d - dst);
+    if (IS_EMPTY_WCS(src))
+        return c;
+    n = siz - c;
+    if (n < 2)
+        return siz;
+    while ((n-- != 1) && (*s != WNUL))
+        *d++ = *s++;
+
+    *d = WNUL;
+    if (*s != WNUL)
+        d++;
+    return (int)(d - dst);
+}
+
 static int xwcslcpy(wchar_t *dst, int siz, const wchar_t *src)
 {
     const wchar_t *s = src;
@@ -559,51 +584,6 @@ static int xsnprintf(char *dst, int siz, const char *fmt, ...)
     va_end(ap);
     return rv;
 
-}
-
-static wchar_t *xwcsconcat(const wchar_t *s1, const wchar_t *s2)
-{
-    wchar_t *cp;
-    int l1 = xwcslen(s1);
-    int l2 = xwcslen(s2);
-
-    if ((l1 + l2) == 0)
-        return NULL;
-
-    cp = xwmalloc(l1 + l2 + 1);
-    if(l1 > 0)
-        wmemcpy(cp, s1, l1);
-    if(l2 > 0)
-        wmemcpy(cp + l1, s2, l2);
-
-    return cp;
-}
-
-static wchar_t *xwcsmkpath(const wchar_t *ds,
-                           const wchar_t *fs,
-                           const wchar_t *fx)
-{
-    wchar_t *cp;
-    int nd;
-    int nf;
-    int nx;
-
-    nd = xwcslen(ds);
-    if (nd == 0)
-        return NULL;
-
-    nf = xwcslen(fs);
-    nx = xwcslen(fx);
-
-    cp = xwmalloc(nd + nf + nx + 2);
-    wmemcpy(cp, ds, nd);
-    cp[nd++] = L'\\';
-    if (nf)
-        wmemcpy(cp + nd, fs, nf);
-    if (nx)
-        wmemcpy(cp + nd + nf, fx, nx);
-
-    return cp;
 }
 
 static wchar_t *xappendarg(int nq, wchar_t *s1, const wchar_t *s2, const wchar_t *s3)
@@ -1680,7 +1660,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     wchar_t lognn[SVCBATCH_PATH_MAX];
     WIN32_FILE_ATTRIBUTE_DATA ad;
 
-    xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->fileName);
+    xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->logFile);
     if (log->maxLogs > 1)
         x = xwcslcat(lognn, SVCBATCH_PATH_MAX, L".0");
     else
@@ -1688,29 +1668,29 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     if (x >= SVCBATCH_PATH_MAX)
         return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
 
-    if (GetFileAttributesExW(log->fileName, GetFileExInfoStandard, &ad)) {
+    if (GetFileAttributesExW(log->logFile, GetFileExInfoStandard, &ad)) {
         if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
             DBG_PRINTS("empty log");
             if (ssh) {
                 logwrline(ssh, 0, "Empty");
-                logwransi(ssh, 0, "- ", log->fileName);
+                logwransi(ssh, 0, "- ", log->logFile);
             }
             return 0;
         }
-        if (!MoveFileExW(log->fileName, lognn, MOVEFILE_REPLACE_EXISTING))
-            return xsyserror(GetLastError(), log->fileName, lognn);
+        if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
+            return xsyserror(GetLastError(), log->logFile, lognn);
         if (ssp)
             reportsvcstatus(SERVICE_START_PENDING, 0);
         if (ssh) {
             logwrline(ssh, 0, "Moving");
-            logwransi(ssh, 0, "  ", log->fileName);
+            logwransi(ssh, 0, "  ", log->logFile);
             logwransi(ssh, 0, "> ", lognn);
         }
     }
     else {
         rc = GetLastError();
         if (rc != ERROR_FILE_NOT_FOUND)
-            return xsyserror(rc, log->fileName, NULL);
+            return xsyserror(rc, log->logFile, NULL);
         else
             return 0;
     }
@@ -1796,13 +1776,8 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     WCHAR   nb[SVCBATCH_NAME_MAX];
     BOOL    rp = TRUE;
     LPCWSTR np = log->logName;
+    int     i;
 
-
-#if defined(_DEBUG)
-    if (log->fileName) {
-        DBG_PRINTF("!found %S", log->fileName);
-    }
-#endif
     if (ssp) {
         if (ssh)
             logwrtime(ssh, 1, "Log create");
@@ -1817,39 +1792,39 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         rp = FALSE;
         np = nb;
     }
-
-    log->fileName = xwcsmkpath(log->logPath, np, log->fileExt);
-    if (log->fileName == NULL)
-        return xsyserror(ERROR_FILE_NOT_FOUND, np, NULL);
+    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, 0, log->logPath);
+    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, L"\\");
+    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, np);
+    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, log->fileExt);
 
     if (rp) {
         rc = rotateprevlogs(log, ssp, ssh);
         if (rc)
             return rc;
     }
-    fh = CreateFileW(log->fileName,
+    fh = CreateFileW(log->logFile,
                      GENERIC_READ | GENERIC_WRITE,
                      FILE_SHARE_READ, NULL,
                      CREATE_ALWAYS,
                      FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(fh))
-        return xsyserror(rc, log->fileName, NULL);
+        return xsyserror(rc, log->logFile, NULL);
     if (ssh) {
         if (rc == ERROR_ALREADY_EXISTS)
-            logwransi(ssh, 0, "x ", log->fileName);
+            logwransi(ssh, 0, "x ", log->logFile);
         else
-            logwransi(ssh, 0, "+ ", log->fileName);
+            logwransi(ssh, 0, "+ ", log->logFile);
         if (ssp)
             logwrtime(ssh, 0, "Log opened");
     }
 #if defined(_DEBUG)
     if (rc == ERROR_ALREADY_EXISTS)
         dbgprintf(ssp ? "createlogfile" : "openlogfile",
-                  "truncated %S", log->fileName);
+                  "truncated %S", log->logFile);
     else
         dbgprintf(ssp ? "createlogfile" : "openlogfile",
-                  "created %S",   log->fileName);
+                  "created %S",   log->logFile);
 #endif
     InterlockedExchange64(&log->size, 0);
     InterlockedExchangePointer(&log->fd, fh);
@@ -1882,7 +1857,7 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
     if (s) {
         LARGE_INTEGER sz;
 
-        logwransi(s, 0, "  ", log->fileName);
+        logwransi(s, 0, "  ", log->logFile);
         if (GetFileSizeEx(h, &sz))
         logprintf(s, 0, "  size           : %lld", sz.QuadPart);
         if (rotatebysize)
@@ -1900,12 +1875,11 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
             }
         }
         rc = GetLastError();
-        xsyserror(rc, log->fileName, NULL);
+        xsyserror(rc, log->logFile, NULL);
         CloseHandle(h);
     }
     else {
         CloseHandle(h);
-        SAFE_MEM_FREE(log->fileName);
         rc = openlogfile(log, FALSE, s);
     }
     if (rc)
@@ -1931,7 +1905,7 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
     if (log == NULL)
         return ERROR_FILE_NOT_FOUND;
     SVCBATCH_CS_ENTER(log);
-    DBG_PRINTF("%d %S", log->state, log->fileName);
+    DBG_PRINTF("%d %S", log->state, log->logFile);
     InterlockedExchange(&log->state, 1);
     if (statuslog && (log != statuslog)) {
 
@@ -1945,7 +1919,7 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
             logwrtime(h, 0, "Status closed");
         if (s) {
             logwrline(s, 0, "Closing");
-            logwransi(s, 0, "  ", log->fileName);
+            logwransi(s, 0, "  ", log->logFile);
         }
         FlushFileBuffers(h);
         CloseHandle(h);
@@ -1957,7 +1931,6 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
         SVCBATCH_CS_LEAVE(statuslog);
     }
 
-    xfree(log->fileName);
     SVCBATCH_CS_LEAVE(log);
     SVCBATCH_CS_CLOSE(log);
     SAFE_MEM_FREE(log);
@@ -3116,12 +3089,12 @@ int wmain(int argc, const wchar_t **wargv)
     HANDLE      h;
     wchar_t     bb[TBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
 
+    wchar_t       *svclogfname  = NULL;
     const wchar_t *maxlogsparam = NULL;
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
     const wchar_t *svcworkparam = NULL;
     const wchar_t *codepageopt  = NULL;
-    const wchar_t *svclogfname  = NULL;
     const wchar_t *sparam[SVCBATCH_MAX_ARGS];
     const wchar_t *rparam[2];
 
@@ -3214,8 +3187,8 @@ int wmain(int argc, const wchar_t **wargv)
                 if (IS_NOT(SVCBATCH_OPT_QUIET)) {
                     outputlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
-                    xwcslcpy(outputlog->logName, SVCBATCH_NAME_MAX, sharedmem->logName);
-                    outputlog->maxLogs  = SVCBATCH_DEF_LOGS;
+                    outputlog->logName = sharedmem->logName;
+                    outputlog->maxLogs = SVCBATCH_DEF_LOGS;
                     outputlog->fileExt = SHUTDOWN_LOGFEXT;
                     SVCBATCH_CS_INIT(outputlog);
                 }
@@ -3238,16 +3211,22 @@ int wmain(int argc, const wchar_t **wargv)
     }
 #endif
     if (servicemode) {
-        DWORD nn;
-        WCHAR cb[SVCBATCH_PATH_MAX];
-        cmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
-        /* Reserve args[0] for batch file */
-        cmdproc->argc  = 1;
-        nn = GetEnvironmentVariableW(L"COMSPEC", cb, SVCBATCH_PATH_MAX);
-        if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
+        DWORD  nn;
+        WCHAR  wb[SVCBATCH_PATH_MAX];
+        LPWSTR wp;
+
+        nn = GetEnvironmentVariableW(L"COMSPEC", wb, SVCBATCH_PATH_MAX);
+        if (nn == 0)
             return GetLastError();
-        cmdproc->application = xgetfinalpath(cb, 0, NULL, 0);
-        ASSERT_WSTR(cmdproc->application, ERROR_BAD_PATHNAME);
+        if (nn >= SVCBATCH_PATH_MAX)
+            return ERROR_INSUFFICIENT_BUFFER;
+        wp = xgetfinalpath(wb, 0, NULL, 0);
+        if (wp == NULL)
+            return ERROR_BAD_ENVIRONMENT;
+
+        cmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+        cmdproc->argc        = 1;
+        cmdproc->application = wp;
 
 
         while ((opt = xwgetopt(argc, wargv, L"bc:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
@@ -3277,10 +3256,16 @@ int wmain(int argc, const wchar_t **wargv)
                     maxlogsparam = xwoptarg;
                 break;
                 case L'n':
-                    svclogfname  = xwoptarg;
-                    if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
-                        return xsyserror(0, L"Found invalid filename characters", svclogfname);
-
+                    if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
+                        return xsyserror(0, L"Found invalid filename characters", xwoptarg);
+                    svclogfname  = xwcsdup(xwoptarg);
+                    if (wcschr(svclogfname, L'@')) {
+                        /**
+                         * If name is strftime formatted
+                         * replace @ with % so it can be used by strftime
+                         */
+                        xwchreplace(svclogfname, L'@', L'%');
+                    }
                 break;
                 case L'o':
                     outdirparam  = xwoptarg;
@@ -3350,13 +3335,12 @@ int wmain(int argc, const wchar_t **wargv)
              * No batch file defined.
              * If @ServiceName was defined, try with ServiceName.bat
              */
-            if (IS_EMPTY_WCS(service->name))
+            if (IS_EMPTY_WCS(service->name) || wcspbrk(service->name, L"/\\:;<>?*|\""))
                 return xsyserror(0, L"Missing batch file", NULL);
-            else
-                batchparam = xwcsconcat(service->name, L".bat");
 
-            if (wcspbrk(batchparam, L"/\\:;<>?*|\""))
-                return xsyserror(0, L"Batch filename has invalid characters", batchparam);
+            i = xwcsncat(wb, BBUFSIZ, 0, service->name);
+            i = xwcsncat(wb, BBUFSIZ, i, L".bat");
+            batchparam = wb;
         }
         else {
             batchparam = wargv[0];
@@ -3385,10 +3369,9 @@ int wmain(int argc, const wchar_t **wargv)
             qcnt = 0;
         }
         if (qcnt == 0) {
-            const wchar_t *logn = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
             outputlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
 
-            xwcslcpy(outputlog->logName, SVCBATCH_NAME_MAX, logn);
+            outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
             outputlog->maxLogs = SVCBATCH_MAX_LOGS;
             outputlog->fileExt = SVCBATCH_LOGFEXT;
             if (maxlogsparam) {
@@ -3516,15 +3499,6 @@ int wmain(int argc, const wchar_t **wargv)
                 outputlog->maxLogs = 0;
 
             svcoptions |= SVCBATCH_OPT_ROTATE;
-        }
-        if (svclogfname) {
-            if (wcschr(outputlog->logName, L'@')) {
-                /**
-                 * If name is strftime formatted
-                 * replace @ with % so it can be used by strftime
-                 */
-                xwchreplace(outputlog->logName, L'@', L'%');
-            }
         }
         if (scnt) {
             svcstop = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
