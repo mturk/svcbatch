@@ -232,20 +232,6 @@ will be reported to Windows Event log.
   See [Custom Control Codes](#custom-control-codes) section below for more details
 
 
-* **-c [code page]**
-
-  **Sets run-time code page**
-
-  This option allows to change default system code page.
-  If defined, all internal logging will be translated to **code page**.
-
-  ```cmd
-  > sc create ... -v -c utf-8 ...
-
-  ```
-  This will convert all internal logging to **utf-8** code page.
-
-
 * **-k [timeout]**
 
   **Set stop timeout in seconds**

@@ -106,7 +106,6 @@ typedef struct _SVCBATCH_SERVICE {
 
 typedef struct _SVCBATCH_IPC {
     DWORD   processId;
-    DWORD   codePage;
     DWORD   options;
     DWORD   timeout;
     DWORD   argc;
@@ -146,7 +145,6 @@ static BOOL      servicemode    = TRUE;
 
 static DWORD     svcoptions     = 0;
 static DWORD     preshutdown    = 0;
-static int       svccodepage    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 
 static HANDLE    stopstarted    = NULL;
@@ -300,31 +298,26 @@ static __inline wchar_t *xwcsdup(const wchar_t *s)
     return _wcsdup(s);
 }
 #endif
-static char *xwcstombs(int cp, char *dst, int siz, const wchar_t *src)
+
+static char *xwcstombs(char *dst, int siz, const wchar_t *src)
 {
-    int r = 0;
+    int r;
     int n = siz - 1;
 
-    ASSERT_NULL(dst, NULL);
-    *dst = 0;
-    ASSERT_NULL(src, dst);
-
-    if (!*src)
+    *dst = '\0';
+    if (IS_EMPTY_STR(src))
         return dst;
 
-    if (cp) {
-        r = WideCharToMultiByte(cp, 0, src, -1, dst, siz, NULL, NULL);
-        dst[n] = 0;
-    }
+    r = WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, siz, NULL, NULL);
+    dst[n] = '\0';
     if (r == 0) {
         for (r = 0; *src; src++, r++) {
             if (r == n)
                 break;
             dst[r] = *src < 128 ? (char)*src : '?';
         }
-        dst[r] = 0;
+        dst[r] = '\0';
     }
-
     return dst;
 }
 
@@ -1501,13 +1494,13 @@ static void logprintf(HANDLE h, int nl, const char *format, ...)
         logwrline(h, nl, buf);
 }
 
-static void logwransi(HANDLE h, int nl, const char *hdr, const wchar_t *wcs)
+static void logwwrite(HANDLE h, int nl, const char *hdr, const wchar_t *wcs)
 {
-    char buf[SVCBATCH_PATH_MAX];
+    char buf[SVCBATCH_PATH_MAX * 2];
 
     if (IS_INVALID_HANDLE(h))
         return;
-    xwcstombs(svccodepage, buf, SVCBATCH_PATH_MAX, wcs);
+    xwcstombs(buf, SVCBATCH_PATH_MAX * 2, wcs);
     logwlines(h, nl, hdr, buf);
 }
 
@@ -1583,16 +1576,16 @@ static void logconfig(HANDLE h)
 {
     logwrline(h, 0, cnamestamp);
     logwinver(h);
-    logwransi(h, 1, "Service name     : ", service->name);
-    logwransi(h, 0, "Service uuid     : ", service->uuid);
-    logwransi(h, 0, "Batch file       : ", cmdproc->args[0]);
+    logwwrite(h, 1, "Service name     : ", service->name);
+    logwwrite(h, 0, "Service uuid     : ", service->uuid);
+    logwwrite(h, 0, "Batch file       : ", cmdproc->args[0]);
     if (svcstop)
-        logwransi(h, 0, "Shutdown batch   : ", svcstop->args[0]);
-    logwransi(h, 0, "Program directory: ", program->directory);
-    logwransi(h, 0, "Base directory   : ", service->base);
-    logwransi(h, 0, "Home directory   : ", service->home);
-    logwransi(h, 0, "Logs directory   : ", service->logs);
-    logwransi(h, 0, "Work directory   : ", service->work);
+        logwwrite(h, 0, "Shutdown batch   : ", svcstop->args[0]);
+    logwwrite(h, 0, "Program directory: ", program->directory);
+    logwwrite(h, 0, "Base directory   : ", service->base);
+    logwwrite(h, 0, "Home directory   : ", service->home);
+    logwwrite(h, 0, "Logs directory   : ", service->logs);
+    logwwrite(h, 0, "Work directory   : ", service->work);
 
     FlushFileBuffers(h);
 }
@@ -1684,7 +1677,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
             DBG_PRINTS("empty log");
             if (ssh) {
                 logwrline(ssh, 0, "Empty");
-                logwransi(ssh, 0, "- ", log->logFile);
+                logwwrite(ssh, 0, "- ", log->logFile);
             }
             return 0;
         }
@@ -1694,8 +1687,8 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
             reportsvcstatus(SERVICE_START_PENDING, 0);
         if (ssh) {
             logwrline(ssh, 0, "Moving");
-            logwransi(ssh, 0, "  ", log->logFile);
-            logwransi(ssh, 0, "> ", lognn);
+            logwwrite(ssh, 0, "  ", log->logFile);
+            logwwrite(ssh, 0, "> ", lognn);
         }
     }
     else {
@@ -1731,7 +1724,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
             if (GetFileAttributesExW(logpn, GetFileExInfoStandard, &ad)) {
                 if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
                     if (ssh)
-                        logwransi(ssh, 0, "- ", logpn);
+                        logwwrite(ssh, 0, "- ", logpn);
                 }
                 else {
                     if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
@@ -1739,8 +1732,8 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
                     if (ssp)
                         reportsvcstatus(SERVICE_START_PENDING, 0);
                     if (ssh) {
-                        logwransi(ssh, 0, "  ", logpn);
-                        logwransi(ssh, 0, "> ", lognn);
+                        logwwrite(ssh, 0, "  ", logpn);
+                        logwwrite(ssh, 0, "> ", lognn);
                     }
                 }
             }
@@ -1823,9 +1816,9 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         return xsyserror(rc, log->logFile, NULL);
     if (ssh) {
         if (rc == ERROR_ALREADY_EXISTS)
-            logwransi(ssh, 0, "x ", log->logFile);
+            logwwrite(ssh, 0, "x ", log->logFile);
         else
-            logwransi(ssh, 0, "+ ", log->logFile);
+            logwwrite(ssh, 0, "+ ", log->logFile);
         if (ssp)
             logwrtime(ssh, 0, "Log opened");
     }
@@ -1868,7 +1861,7 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
     if (s) {
         LARGE_INTEGER sz;
 
-        logwransi(s, 0, "  ", log->logFile);
+        logwwrite(s, 0, "  ", log->logFile);
         if (GetFileSizeEx(h, &sz))
         logprintf(s, 0, "  size           : %lld", sz.QuadPart);
         if (rotatebysize)
@@ -1930,7 +1923,7 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
             logwrtime(h, 0, "Status closed");
         if (s) {
             logwrline(s, 0, "Closing");
-            logwransi(s, 0, "  ", log->logFile);
+            logwwrite(s, 0, "  ", log->logFile);
         }
         FlushFileBuffers(h);
         CloseHandle(h);
@@ -2111,7 +2104,6 @@ static DWORD runshutdown(void)
     sharedmem->processId = GetCurrentProcessId();
     sharedmem->options   = svcoptions & 0x0000000F;
     sharedmem->timeout   = stoptimeout;
-    sharedmem->codePage  = svccodepage;
     sharedmem->killdepth = killdepth;
     if (outputlog)
         xwcslcpy(sharedmem->logName, SVCBATCH_NAME_MAX, outputlog->logName);
@@ -3130,7 +3122,6 @@ int wmain(int argc, const wchar_t **wargv)
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
     const wchar_t *svcworkparam = NULL;
-    const wchar_t *codepageopt  = NULL;
     const wchar_t *sparam[SVCBATCH_MAX_ARGS];
     const wchar_t *rparam[2];
 
@@ -3202,7 +3193,6 @@ int wmain(int argc, const wchar_t **wargv)
                 cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
                 stoptimeout = sharedmem->timeout;
                 svcoptions  = sharedmem->options;
-                svccodepage = sharedmem->codePage;
                 killdepth   = sharedmem->killdepth;
 #if defined(_DEBUG)
                 dbgsvcmode = '1';
@@ -3267,7 +3257,7 @@ int wmain(int argc, const wchar_t **wargv)
         cmdproc->application = wp;
 
 
-        while ((opt = xwgetopt(argc, wargv, L"bc:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
+        while ((opt = xwgetopt(argc, wargv, L"bh:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
                 case L'b':
                     svcoptions  |= SVCBATCH_OPT_BREAK;
@@ -3287,9 +3277,6 @@ int wmain(int argc, const wchar_t **wargv)
                 /**
                  * Options with arguments
                  */
-                case L'c':
-                    codepageopt  = xwoptarg;
-                break;
                 case L'm':
                     maxlogsparam = xwoptarg;
                 break;
@@ -3349,21 +3336,6 @@ int wmain(int argc, const wchar_t **wargv)
                     return xsyserror(0, L"Invalid command line option", bb);
                 break;
             }
-        }
-
-        if (codepageopt) {
-            if (xwstartswith(codepageopt, L"UTF")) {
-                if (wcschr(codepageopt + 3, L'8'))
-                    svccodepage = 65001;
-                else
-                    return xsyserror(0, L"Invalid -c command option value", codepageopt);
-            }
-            else {
-                svccodepage = xwcstoi(codepageopt, NULL);
-                if (svccodepage < 0)
-                    return xsyserror(0, L"Invalid -c command option value", codepageopt);
-            }
-            DBG_PRINTF("using code page %d", svccodepage);
         }
 
         argc  -= xwoptind;
