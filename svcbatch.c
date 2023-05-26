@@ -2899,6 +2899,14 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
+    if (IS_SET(SVCBATCH_OPT_VERBOSE)) {
+        statuslog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
+
+        statuslog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
+        statuslog->maxLogs = SVCBATCH_DEF_LOGS;
+        statuslog->fileExt = SBSTATUS_LOGFEXT;
+        SVCBATCH_CS_INIT(statuslog);
+    }
     if (outputlog) {
         if (outdirparam == NULL)
             outdirparam = SVCBATCH_LOGSDIR;
@@ -2907,24 +2915,9 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
-        if (IS_SET(SVCBATCH_OPT_VERBOSE)) {
-            statuslog = (LPSVCBATCH_LOG)xmmalloc(sizeof(SVCBATCH_LOG));
-
-            memcpy(statuslog, outputlog, sizeof(SVCBATCH_LOG));
-            statuslog->maxLogs = SVCBATCH_DEF_LOGS;
-            statuslog->fileExt = SBSTATUS_LOGFEXT;
-            SVCBATCH_CS_INIT(statuslog);
-        }
     }
     else {
-        if (IS_SET(SVCBATCH_OPT_VERBOSE)) {
-            statuslog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
-
-            statuslog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
-            statuslog->maxLogs = SVCBATCH_DEF_LOGS;
-            statuslog->fileExt = SBSTATUS_LOGFEXT;
-            SVCBATCH_CS_INIT(statuslog);
-
+        if (statuslog) {
             if (outdirparam == NULL)
                 outdirparam = SVCBATCH_LOGSDIR;
             rv = createlogsdir(statuslog);
