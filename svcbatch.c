@@ -80,7 +80,7 @@ typedef struct _SVCBATCH_LOG {
     volatile LONG64     size;
     volatile HANDLE     fd;
     volatile LONG       state;
-    volatile LONG       rotateCount;
+    volatile LONG       count;
     int                 maxLogs;
     CRITICAL_SECTION    cs;
     LPCWSTR             fileExt;
@@ -1569,7 +1569,9 @@ static void logwrstat(LPSVCBATCH_LOG log, int nl, int wt, const char *hdr)
     h = InterlockedExchangePointer(&log->fd, NULL);
     if (h == NULL)
         goto finished;
-    if (nl && (InterlockedIncrement(&log->rotateCount) > 1))
+    if (InterlockedCompareExchange(&log->count, 1, 0) == 0)
+        nl = 1;
+    else if (nl)
         nl--;
     if (wt)
         logwrtime(h, nl, hdr);
@@ -1825,7 +1827,7 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
         rc = ERROR_FILE_NOT_FOUND;
         goto finished;
     }
-    nr = InterlockedIncrement(&log->rotateCount);
+    nr = InterlockedIncrement(&log->count);
     FlushFileBuffers(h);
     if (s) {
         LARGE_INTEGER sz;
@@ -1862,7 +1864,7 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
 finished:
     if (statuslog) {
         InterlockedExchangePointer(&statuslog->fd, s);
-        InterlockedExchange(&statuslog->rotateCount, 0);
+        InterlockedExchange(&statuslog->count, 0);
         SVCBATCH_CS_LEAVE(statuslog);
     }
     InterlockedExchange64(&log->size, 0);
