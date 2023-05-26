@@ -10,6 +10,7 @@ For a full list of changes, see the [git commit log][log]
 
   * In development
   * Do not wait for shutdown process cleanup on timeout
+  * Kill all child processes if service terminates without stop signal
 
 ### New Features
 

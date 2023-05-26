@@ -132,7 +132,7 @@ static LPSVCBATCH_LOG        outputlog   = NULL;
 static LPSVCBATCH_LOG        statuslog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
 
-static volatile LONG         killdepth   = 9;
+static volatile LONG         killdepth   = 4;
 
 static LONGLONG              counterbase    = CPP_INT64_C(0);
 static LONGLONG              counterfreq    = CPP_INT64_C(0);
@@ -2986,6 +2986,15 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         goto finished;
     }
     WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, INFINITE);
+    SVCBATCH_CS_ENTER(service);
+    if (service->state != SERVICE_STOP_PENDING) {
+        /**
+         * Service ended without stop signal
+         */
+        DBG_PRINTS("ended without SERVICE_CONTROL_STOP");
+        cleanprocess(cmdproc);
+    }
+    SVCBATCH_CS_LEAVE(service);
     DBG_PRINTS("waiting for stop to finish");
     WaitForSingleObject(svcstopdone, stoptimeout);
 
