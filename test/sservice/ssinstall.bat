@@ -19,14 +19,22 @@ setlocal
 rem
 if /i "x%~1" == "xdelete" goto doDelete
 rem
+rem goto doStressTest
+rem
+sc create sservice binPath= "%cd%\svcbatch.exe @sservice -vlb -rS"
+rem
+goto End
+rem
+:doStressTest
 rem
 rem Create work directory
+rem
 mkdir work 2>NUL
 copy /Y sservice.bat work\ > nul
 copy /Y ssxsleep.bat work\ > nul
 copy /Y sservice.exe work\ > nul
 copy /Y xsleep.exe work\ > nul
-
+rem
 rem Presume that svcbatch.exe is in this directory
 sc create sservice binPath= "%cd%\svcbatch.exe @sservice  -h . -w work -vlb"
 rem

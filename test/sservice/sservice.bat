@@ -17,6 +17,21 @@ rem
 rem
 setlocal
 rem
+rem goto doStressTest
+rem
+echo %~nx0: Running inside %SVCBATCH_SERVICE_NAME%
+echo.
+echo %~nx0: [%TIME%] ... Start
+echo.
+rem
+sservice.exe %*
+rem
+echo.
+echo %~nx0: [%TIME%] ... Done
+rem
+exit /B 0
+rem
+:doStressTest
 rem
 set "_SS_LOG=%SVCBATCH_SERVICE_NAME%.%~nx0.log"
 rem
