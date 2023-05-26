@@ -131,6 +131,8 @@ static LPSVCBATCH_LOG        outputlog   = NULL;
 static LPSVCBATCH_LOG        statuslog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
 
+static volatile LONG         killdepth   = 2;
+
 static LONGLONG              counterbase    = CPP_INT64_C(0);
 static LONGLONG              counterfreq    = CPP_INT64_C(0);
 static LONGLONG              rotateinterval = CPP_INT64_C(0);
@@ -145,7 +147,6 @@ static DWORD     svcoptions     = 0;
 static DWORD     preshutdown    = 0;
 static int       svccodepage    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIME;
-static int       killdepth      = 2;
 
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
@@ -1066,7 +1067,7 @@ static DWORD killproctree(DWORD pid, int rc, DWORD rv)
     return c + r;
 }
 
-static void killprocess(LPSVCBATCH_PROCESS proc, int rc, DWORD ws, DWORD rv)
+static void killprocess(LPSVCBATCH_PROCESS proc, DWORD ws, DWORD rv)
 {
 
     DBG_PRINTF("proc %.4lu", proc->pInfo.dwProcessId);
@@ -1074,7 +1075,7 @@ static void killprocess(LPSVCBATCH_PROCESS proc, int rc, DWORD ws, DWORD rv)
         goto finished;
     InterlockedExchange(&proc->state, SVCBATCH_PROCESS_STOPPING);
 
-    if (killproctree(proc->pInfo.dwProcessId, rc, rv)) {
+    if (killproctree(proc->pInfo.dwProcessId, killdepth, rv)) {
         if (waitprocess(proc, ws) != STILL_ACTIVE)
             goto finished;
     }
@@ -2159,6 +2160,7 @@ static DWORD WINAPI stopthread(void *msg)
 {
     DWORD rc = 0;
     DWORD ws = WAIT_OBJECT_1;
+    int   ri = stoptimeout;
 
     ResetEvent(svcstopdone);
     SetEvent(stopstarted);
@@ -2174,7 +2176,6 @@ static DWORD WINAPI stopthread(void *msg)
             logwrstat(statuslog, 2, 0, msg);
     }
     if (svcstop) {
-        int   ri;
         ULONGLONG rs;
 
         DBG_PRINTS("creating shutdown process");
@@ -2194,14 +2195,15 @@ static DWORD WINAPI stopthread(void *msg)
         DBG_PRINTS("generating CTRL_C_EVENT");
         SetConsoleCtrlHandler(NULL, TRUE);
         GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        ws = WaitForSingleObject(workerended, stoptimeout);
+        DBG_PRINTF("waiting %d ms for worker", ri);
+        ws = WaitForSingleObject(workerended, ri);
         SetConsoleCtrlHandler(NULL, FALSE);
     }
 
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(cmdproc, killdepth, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
+        killprocess(cmdproc, SVCBATCH_STOP_SYNC, WAIT_TIMEOUT);
     }
     else {
         DBG_PRINTS("worker process ended");
@@ -2235,7 +2237,7 @@ static void stopshutdown(DWORD rt)
 
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(cmdproc, killdepth, SVCBATCH_STOP_SYNC, ws);
+        killprocess(cmdproc, SVCBATCH_STOP_SYNC, ws);
     }
     else {
         DBG_PRINTS("worker process ended");
@@ -2734,7 +2736,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             /* fall through */
         case SERVICE_CONTROL_SHUTDOWN:
             /* fall through */
-            killdepth = 0;
+            InterlockedExchange(&killdepth, 0);
         case SERVICE_CONTROL_STOP:
             DBG_PRINTF("service %s", msg);
             reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
@@ -3041,7 +3043,6 @@ static int xwmaininit(void)
     service = (LPSVCBATCH_SERVICE)xmcalloc(1, sizeof(SVCBATCH_SERVICE));
     program = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
 
-    service->state             = SERVICE_START_PENDING;
     program->state             = SVCBATCH_PROCESS_RUNNING;
     program->pInfo.hProcess    = GetCurrentProcess();
     program->pInfo.dwProcessId = GetCurrentProcessId();
@@ -3050,8 +3051,10 @@ static int xwmaininit(void)
     GetStartupInfoW(&program->sInfo);
 
     nn = GetModuleFileNameW(NULL, bb, SVCBATCH_PATH_MAX);
-    if ((nn == 0) || (nn >= SVCBATCH_PATH_MAX))
-        return ERROR_BAD_PATHNAME;
+    if (nn == 0)
+        return GetLastError();
+    if (nn >= SVCBATCH_PATH_MAX)
+        return ERROR_INSUFFICIENT_BUFFER;
     nn = fixshortpath(bb, nn);
     program->application = xwcsdup(bb);
     while (--nn > 2) {
@@ -3063,7 +3066,6 @@ static int xwmaininit(void)
     }
     ASSERT_WSTR(program->application, ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->directory,   ERROR_BAD_PATHNAME);
-    SVCBATCH_CS_INIT(service);
 
     return 0;
 }
@@ -3511,6 +3513,7 @@ int wmain(int argc, const wchar_t **wargv)
                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(workerended))
         return xsyserror(GetLastError(), L"CreateEvent", NULL);
+    SVCBATCH_CS_INIT(service);
     atexit(objectscleanup);
 
     SetConsoleCtrlHandler(NULL, FALSE);
