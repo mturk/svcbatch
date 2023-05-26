@@ -999,7 +999,7 @@ static DWORD waitprocess(LPSVCBATCH_PROCESS p, DWORD w)
 {
     ASSERT_NULL(p, ERROR_INVALID_PARAMETER);
 
-    if (InterlockedCompareExchange(&p->state, 0, 0) > SVCBATCH_PROCESS_STOPPED) {
+    if (p->state > SVCBATCH_PROCESS_STOPPED) {
         if (w > 0)
             WaitForSingleObject(p->pInfo.hProcess, w);
         GetExitCodeProcess(p->pInfo.hProcess, &p->exitCode);
@@ -1071,7 +1071,7 @@ static void killprocess(LPSVCBATCH_PROCESS proc, DWORD ws, DWORD rv)
 {
 
     DBG_PRINTF("proc %.4lu", proc->pInfo.dwProcessId);
-    if (InterlockedCompareExchange(&proc->state, 0, 0) == SVCBATCH_PROCESS_STOPPED)
+    if (proc->state == SVCBATCH_PROCESS_STOPPED)
         goto finished;
     InterlockedExchange(&proc->state, SVCBATCH_PROCESS_STOPPING);
 
@@ -1612,8 +1612,8 @@ static BOOL canrotatelogs(LPSVCBATCH_LOG log)
     BOOL rv = FALSE;
 
     SVCBATCH_CS_ENTER(log);
-    if (InterlockedCompareExchange(&log->state, 0, 0) == 0) {
-        if (InterlockedCompareExchange64(&log->size, 0, 0)) {
+    if (log->state == 0) {
+        if (log->size) {
             InterlockedExchange(&log->state, 1);
             rv = TRUE;
         }
@@ -2277,7 +2277,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     DBG_PRINTF("wrote   %4lu bytes", wr);
 #endif
     if (IS_SET(SVCBATCH_OPT_ROTATE) && rotatebysize) {
-        if (InterlockedCompareExchange64(&log->size, 0, 0) >= rotatesize) {
+        if (log->size >= rotatesize) {
             if (canrotatelogs(log)) {
                 DBG_PRINTS("rotating by size");
                 logwrstat(statuslog, 0, 1, "Rotate by size");
@@ -2427,7 +2427,7 @@ static DWORD WINAPI rotatethread(void *unused)
                 }
                 else {
                     DBG_PRINTS("rotate is busy ... canceling timer");
-                    if (InterlockedCompareExchange64(&outputlog->size, 0, 0))
+                    if (outputlog->size)
                         logwrstat(statuslog, 0, 0, "Canceling timer  : Rotate busy");
                     else
                         logwrstat(statuslog, 0, 0, "Canceling timer  : Log empty");
@@ -2446,7 +2446,7 @@ static DWORD WINAPI rotatethread(void *unused)
                 InterlockedExchange(&outputlog->state, 0);
                 logwrstat(statuslog, 1, 1, "Rotate ready");
                 if (rotatebysize) {
-                    if (InterlockedCompareExchange64(&outputlog->size, 0, 0) >= rotatesize) {
+                    if (outputlog->size >= rotatesize) {
                         InterlockedExchange(&outputlog->state, 1);
                         DBG_PRINTS("rotating by size");
                         logwrstat(statuslog, 0, 0, "Rotating by size");
@@ -2766,7 +2766,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 }
                 else {
                     DBG_PRINTS("rotatelogs is busy");
-                    if (InterlockedCompareExchange64(&outputlog->size, 0, 0))
+                    if (outputlog->size)
                         logwrstat(statuslog, 0, 1, "Log is busy");
                     else
                         logwrstat(statuslog, 0, 1, "Log is empty");
@@ -2793,7 +2793,7 @@ static void __cdecl threadscleanup(void)
     int i;
 
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
-        if (InterlockedCompareExchange(&threads[i].started, 0, 0) > 0) {
+        if (threads[i].started) {
             DBG_PRINTF("threads[%d]    x", i);
             threads[i].exitCode = ERROR_DISCARDED;
             TerminateThread(threads[i].thread, threads[i].exitCode);
