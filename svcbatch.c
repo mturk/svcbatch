@@ -132,7 +132,7 @@ static LPSVCBATCH_LOG        outputlog   = NULL;
 static LPSVCBATCH_LOG        statuslog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
 
-static volatile LONG         killdepth   = 2;
+static volatile LONG         killdepth   = 9;
 
 static LONGLONG              counterbase    = CPP_INT64_C(0);
 static LONGLONG              counterfreq    = CPP_INT64_C(0);
@@ -147,7 +147,7 @@ static BOOL      servicemode    = TRUE;
 static DWORD     svcoptions     = 0;
 static DWORD     preshutdown    = 0;
 static int       svccodepage    = 0;
-static int       stoptimeout    = SVCBATCH_STOP_TIME;
+static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
@@ -984,7 +984,7 @@ static DWORD svcsyserror(const char *fn, int line, WORD typ, DWORD ern, const wc
     return ern;
 }
 
-static void xclearprocess(LPSVCBATCH_PROCESS p)
+static void closeprocess(LPSVCBATCH_PROCESS p)
 {
     InterlockedExchange(&p->state, SVCBATCH_PROCESS_STOPPED);
 
@@ -1039,7 +1039,7 @@ static DWORD getproctree(LPHANDLE pa, DWORD pid)
                     CloseHandle(p);
             }
         }
-        if (r == SVCBATCH_PROC_MAX) {
+        if (r == TBUFSIZ) {
             DBG_PRINTS("overflow");
             break;
         }
@@ -1053,7 +1053,7 @@ static DWORD killproctree(DWORD pid, int rc, DWORD rv)
     DWORD  c;
     DWORD  n;
     DWORD  r = 0;
-    HANDLE pa[SVCBATCH_PROC_MAX];
+    HANDLE pa[TBUFSIZ];
 
     DBG_PRINTF("[%d] proc %.4lu", rc, pid);
     c = getproctree(pa, pid);
@@ -1068,31 +1068,36 @@ static DWORD killproctree(DWORD pid, int rc, DWORD rv)
     return c + r;
 }
 
-static void killprocess(int cc, LPSVCBATCH_PROCESS proc, DWORD rv)
+static void killprocess(LPSVCBATCH_PROCESS proc, DWORD rv)
 {
 
-    DBG_PRINTF("[%d] proc %.4lu", cc, proc->pInfo.dwProcessId);
+    DBG_PRINTF("proc %.4lu", proc->pInfo.dwProcessId);
 
-    if (cc) {
-        if (killdepth)
-            killproctree(proc->pInfo.dwProcessId, killdepth, rv);
-        goto finished;
-    }
     if (proc->state == SVCBATCH_PROCESS_STOPPED)
         goto finished;
     InterlockedExchange(&proc->state, SVCBATCH_PROCESS_STOPPING);
 
     if (killdepth && killproctree(proc->pInfo.dwProcessId, killdepth, rv)) {
-        if (waitprocess(proc, SVCBATCH_STOP_SYNC) != STILL_ACTIVE)
+        if (waitprocess(proc, SVCBATCH_STOP_STEP) != STILL_ACTIVE)
             goto finished;
     }
-    DBG_PRINTF("[%d] kill %.4lu", cc, proc->pInfo.dwProcessId);
+    DBG_PRINTF("kill %.4lu", proc->pInfo.dwProcessId);
     proc->exitCode = rv;
     TerminateProcess(proc->pInfo.hProcess, proc->exitCode);
 
 finished:
     InterlockedExchange(&proc->state, SVCBATCH_PROCESS_STOPPED);
-    DBG_PRINTF("[%d] done %.4lu", cc, proc->pInfo.dwProcessId);
+    DBG_PRINTF("done %.4lu", proc->pInfo.dwProcessId);
+}
+
+static void cleanprocess(LPSVCBATCH_PROCESS proc)
+{
+
+    DBG_PRINTF("proc %.4lu", proc->pInfo.dwProcessId);
+
+    if (killdepth)
+        killproctree(proc->pInfo.dwProcessId, killdepth, ERROR_ARENA_TRASHED);
+    DBG_PRINTF("done %.4lu", proc->pInfo.dwProcessId);
 }
 
 static DWORD xmdparent(wchar_t *path)
@@ -2154,7 +2159,7 @@ static DWORD runshutdown(void)
 
 finished:
     svcstop->exitCode = rc;
-    xclearprocess(svcstop);
+    closeprocess(svcstop);
     DBG_PRINTF("done %lu", rc);
     return rc;
 }
@@ -2206,11 +2211,11 @@ static DWORD WINAPI stopthread(void *msg)
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(0, cmdproc, ws);
+        killprocess(cmdproc, ws);
     }
     else {
         DBG_PRINTS("worker process ended");
-        killprocess(1, cmdproc, ERROR_ARENA_TRASHED);
+        cleanprocess(cmdproc);
     }
     reportsvcstatus(SERVICE_STOP_PENDING, 0);
     SetEvent(svcstopdone);
@@ -2233,20 +2238,18 @@ static void stopshutdown(DWORD rt)
 
     DBG_PRINTS("started");
     SetConsoleCtrlHandler(NULL, TRUE);
-    DBG_PRINTS("generating CTRL_C_EVENT");
     GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
     ws = WaitForSingleObject(workerended, rt);
     SetConsoleCtrlHandler(NULL, FALSE);
 
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
-        killprocess(0, cmdproc, ws);
+        killprocess(cmdproc, ws);
     }
     else {
         DBG_PRINTS("worker process ended");
-        killprocess(1, cmdproc, ERROR_ARENA_TRASHED);
+        cleanprocess(cmdproc);
     }
-
     DBG_PRINTS("done");
 }
 
@@ -2663,8 +2666,8 @@ static DWORD WINAPI workerthread(void *unused)
     if (rc) {
         if (rc != 255) {
             /**
-              * 255 is exit code when CTRL_C is send to cmd.exe
-              */
+             * 255 is exit code when CTRL_C is send to cmd.exe
+             */
             setsvcstatusexit(rc);
             cmdproc->exitCode = rc;
         }
@@ -2679,7 +2682,7 @@ finished:
         SAFE_CLOSE_HANDLE(op->o.hEvent);
         free(op);
     }
-    xclearprocess(cmdproc);
+    closeprocess(cmdproc);
 
     DBG_PRINTS("done");
     SetEvent(workerended);
@@ -2797,7 +2800,10 @@ static void __cdecl threadscleanup(void)
 
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
         if (threads[i].started) {
+#if defined(_DEBUG)
             DBG_PRINTF("threads[%d]    x", i);
+            threads[i].duration = GetTickCount64() - threads[i].duration;
+#endif
             threads[i].exitCode = ERROR_DISCARDED;
             TerminateThread(threads[i].thread, threads[i].exitCode);
         }
@@ -2984,8 +2990,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     WaitForSingleObject(svcstopdone, stoptimeout);
 
 finished:
-    DBG_PRINTS("finishing");
-    xclearprocess(cmdproc);
+    DBG_PRINTS("closing");
+    closeprocess(cmdproc);
     closelogfile(outputlog);
     closelogfile(statuslog);
     threadscleanup();
@@ -2995,32 +3001,32 @@ finished:
 
 static DWORD svcstopmain(void)
 {
-    DWORD  rv = 0;
-    DWORD  ws;
+    DWORD rc;
 
     DBG_PRINTF("%S", service->name);
     if (outputlog) {
-        rv = openlogfile(outputlog, FALSE, NULL);
-        if (rv != 0)
-            return rv;
+        rc = openlogfile(outputlog, FALSE, NULL);
+        if (rc)
+            return rc;
     }
 
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
-        rv = xsyserror(GetLastError(), L"Worker thread", NULL);
-        setsvcstatusexit(rv);
+        rc = xsyserror(GetLastError(), L"Worker thread", NULL);
+        setsvcstatusexit(rc);
         goto finished;
     }
-    ws = WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, stoptimeout);
-    if (ws == WAIT_TIMEOUT) {
+    rc = WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, stoptimeout);
+    if (rc != WAIT_OBJECT_0) {
         DBG_PRINTS("stop timeout");
         stopshutdown(SVCBATCH_STOP_SYNC);
-        setsvcstatusexit(WAIT_TIMEOUT);
+        setsvcstatusexit(rc);
+        DBG_PRINTS("waiting for worker thread to finish");
+        WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, SVCBATCH_STOP_WAIT);
     }
 
 finished:
-    DBG_PRINTS("finishing");
-
+    DBG_PRINTS("closing");
     closelogfile(outputlog);
     threadscleanup();
     DBG_PRINTS("done");

@@ -148,13 +148,6 @@
 #define SVCBATCH_LINE_MAX     2048
 
 /**
- * Maximum number of the child processes
- * to monitor.
- */
-#define SVCBATCH_PROC_MAX       64
-
-
-/**
  * Custom SCM control code that
  * sends CTRL_BREAK_EVENT to the child processes.
  *
@@ -184,12 +177,16 @@
  */
 #define SVCBATCH_START_HINT     10000
 #define SVCBATCH_STOP_HINT      20000
-#define SVCBATCH_STOP_TIME      10000
 #define SVCBATCH_STOP_WAIT      5000
 #define SVCBATCH_STOP_SYNC      2000
 #define SVCBATCH_STOP_STEP      1000
 #define SVCBATCH_STOP_TMIN      2
 #define SVCBATCH_STOP_TMAX      180
+
+/**
+ * Default stop timeout in milliseconds
+ */
+#define SVCBATCH_STOP_TIMEOUT   10000
 
 /**
  * Minimum rotate size in kilobytes
