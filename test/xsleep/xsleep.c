@@ -34,6 +34,12 @@ int wmain(int argc, const wchar_t **wargv)
     }
     if (secs < 1)
         secs = 1;
+    if (secs > 1800) {
+        /**
+         * Enable CTRL+C
+         */
+        SetConsoleCtrlHandler(NULL, FALSE);
+    }
     /**
      * Do an actual sleep
      */

@@ -82,6 +82,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fprintf(stdout, "[%.4lu] [%.2d] %S\n", pid, e + 1, wenv[e]);
         e++;
     }
+    SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
     fprintf(stdout, "\n\n[%.4lu] Program running\n", pid);
     i = 1;
