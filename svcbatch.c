@@ -299,54 +299,6 @@ static __inline wchar_t *xwcsdup(const wchar_t *s)
 }
 #endif
 
-static char *xwcstombs(char *dst, int siz, const wchar_t *src)
-{
-    int r;
-    int n = siz - 1;
-
-    *dst = '\0';
-    if (IS_EMPTY_STR(src))
-        return dst;
-
-    r = WideCharToMultiByte(CP_UTF8, 0, src, -1, dst, siz, NULL, NULL);
-    dst[n] = '\0';
-    if (r == 0) {
-        for (r = 0; *src; src++, r++) {
-            if (r == n)
-                break;
-            dst[r] = *src < 128 ? (char)*src : '?';
-        }
-        dst[r] = '\0';
-    }
-    return dst;
-}
-
-static wchar_t *xmbstowcs(int cp, wchar_t *dst, int siz, const char *src)
-{
-    int r = 0;
-    int n = siz - 1;
-
-    ASSERT_NULL(dst, NULL);
-    *dst = 0;
-    ASSERT_NULL(src, dst);
-
-    if (!*src)
-        return dst;
-    if (cp) {
-        r = MultiByteToWideChar(cp, 0, src, -1, dst, siz);
-        dst[n] = 0;
-    }
-    if (r == 0) {
-        for (r = 0; *src; src++, r++) {
-            if (r == n)
-                break;
-            dst[r] = (BYTE)*src < 128 ? (wchar_t)*src : L'?';
-        }
-        dst[r] = 0;
-    }
-    return dst;
-}
-
 static void xwchreplace(wchar_t *s, wchar_t c, wchar_t r)
 {
     wchar_t *d;
@@ -1496,12 +1448,29 @@ static void logprintf(HANDLE h, int nl, const char *format, ...)
 
 static void logwwrite(HANDLE h, int nl, const char *hdr, const wchar_t *wcs)
 {
-    char buf[SVCBATCH_PATH_MAX * 2];
+    char buf[UBUFSIZ];
+    int  len;
 
     if (IS_INVALID_HANDLE(h))
         return;
-    xwcstombs(buf, SVCBATCH_PATH_MAX * 2, wcs);
-    logwlines(h, nl, hdr, buf);
+    len = xwcslen(wcs);
+    if (len) {
+        int c = UBUFSIZ - 1;
+        int r;
+
+        r = WideCharToMultiByte(CP_UTF8, 0, wcs, len, buf, c, NULL, NULL);
+        if ((r == 0) || (r >= c)) {
+            r = GetLastError();
+            logwlines(h, nl, hdr, r == ERROR_INSUFFICIENT_BUFFER ? "<OVERFLOW>" : "<INVALID>");
+        }
+        else {
+            buf[r] = '\0';
+            logwlines(h, nl, hdr, buf);
+        }
+    }
+    else {
+        logwlines(h, nl, hdr, NULL);
+    }
 }
 
 static void logwrtime(HANDLE h, int nl, const char *hdr)

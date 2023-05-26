@@ -215,11 +215,12 @@
 #define MEM_ALIGN_DEFAULT(size) MEM_ALIGN(size, 8)
 
 /**
- * Misc buffer size definitions
+ * Misc internal buffer size definitions
  */
 #define TBUFSIZ                 32
 #define SBUFSIZ                128
 #define BBUFSIZ                512
+#define UBUFSIZ               8192
 
 #if defined(_DEBUG)
 # define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
