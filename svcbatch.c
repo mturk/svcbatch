@@ -1316,18 +1316,17 @@ static void reportsvcstatus(DWORD status, DWORD param)
 
     if (status == SERVICE_RUNNING) {
         service->status.dwControlsAccepted = SERVICE_ACCEPT_STOP |
-                                                 SERVICE_ACCEPT_SHUTDOWN |
-                                                 preshutdown;
+                                             SERVICE_ACCEPT_SHUTDOWN |
+                                             preshutdown;
         cpcnt = 1;
     }
     else if (status == SERVICE_STOPPED) {
-        if (param != 0)
-            service->status.dwServiceSpecificExitCode = param;
-        if (service->status.dwServiceSpecificExitCode == 0 &&
-            service->status.dwCurrentState != SERVICE_STOP_PENDING) {
-            service->status.dwServiceSpecificExitCode = ERROR_PROCESS_ABORTED;
-            xsyserror(0, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+        if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
+            xsyserror(param, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+            exit(1);
         }
+        if (param != 0)
+            service->status.dwServiceSpecificExitCode  = param;
         if (service->status.dwServiceSpecificExitCode != 0)
             service->status.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
@@ -2659,7 +2658,6 @@ static DWORD WINAPI workerthread(void *unused)
     if (WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
         DBG_PRINTS("wrpipethread is still active ... calling CancelSynchronousIo");
         CancelSynchronousIo(threads[SVCBATCH_WRPIPE_THREAD].thread);
-        WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP);
     }
     if (!GetExitCodeProcess(cmdproc->pInfo.hProcess, &rc))
         rc = GetLastError();
@@ -2745,8 +2743,12 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             InterlockedExchange(&killdepth, 0);
         case SERVICE_CONTROL_STOP:
             DBG_PRINTF("service %s", msg);
-            reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
-            xcreatethread(SVCBATCH_STOP_THREAD, 0, stopthread, (LPVOID)msg);
+            SVCBATCH_CS_ENTER(service);
+            if (service->state == SERVICE_RUNNING) {
+                reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
+                xcreatethread(SVCBATCH_STOP_THREAD, 0, stopthread, (LPVOID)msg);
+            }
+            SVCBATCH_CS_LEAVE(service);
         break;
         case SVCBATCH_CTRL_BREAK:
             if (breaksignal) {
@@ -2794,10 +2796,11 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
     return 0;
 }
 
-static void __cdecl threadscleanup(void)
+static void threadscleanup(void)
 {
     int i;
 
+    DBG_PRINTS("started");
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
         if (threads[i].started) {
 #if defined(_DEBUG)
@@ -2817,11 +2820,33 @@ static void __cdecl threadscleanup(void)
             threads[i].thread = NULL;
         }
     }
+    DBG_PRINTS("done");
+}
+
+static void waitforthreads(DWORD ms)
+{
+    int i;
+    HANDLE wh[SVCBATCH_MAX_THREADS];
+    DWORD  nw = 0;
+
+    DBG_PRINTS("started");
+    for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
+        if (threads[i].started) {
+#if defined(_DEBUG)
+            DBG_PRINTF("threads[%d]", i);
+#endif
+            wh[nw++] = threads[i].thread;
+        }
+    }
+    if (nw)
+        WaitForMultipleObjects(nw, wh, TRUE, ms);
+    DBG_PRINTF("done %d", nw);
 }
 
 static void __cdecl cconsolecleanup(void)
 {
     FreeConsole();
+    DBG_PRINTS("done");
 }
 
 static void __cdecl objectscleanup(void)
@@ -2834,8 +2859,8 @@ static void __cdecl objectscleanup(void)
     if (sharedmem)
         UnmapViewOfFile(sharedmem);
     SAFE_CLOSE_HANDLE(sharedmmap);
-
     SVCBATCH_CS_CLOSE(service);
+    DBG_PRINTS("done");
 }
 
 static DWORD createevents(void)
@@ -2987,16 +3012,17 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     }
     WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, INFINITE);
     SVCBATCH_CS_ENTER(service);
-    if (service->state != SERVICE_STOP_PENDING) {
+    if (InterlockedExchange(&service->state, SERVICE_STOP_PENDING) != SERVICE_STOP_PENDING) {
         /**
          * Service ended without stop signal
          */
         DBG_PRINTS("ended without SERVICE_CONTROL_STOP");
-        cleanprocess(cmdproc);
+        logwrstat(statuslog, 2, 0, "Service stopped without SERVICE_CONTROL_STOP");
     }
     SVCBATCH_CS_LEAVE(service);
     DBG_PRINTS("waiting for stop to finish");
     WaitForSingleObject(svcstopdone, stoptimeout);
+    waitforthreads(SVCBATCH_STOP_STEP);
 
 finished:
     DBG_PRINTS("closing");
@@ -3031,8 +3057,8 @@ static DWORD svcstopmain(void)
         stopshutdown(SVCBATCH_STOP_SYNC);
         setsvcstatusexit(rc);
         DBG_PRINTS("waiting for worker thread to finish");
-        WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, SVCBATCH_STOP_WAIT);
     }
+    waitforthreads(SVCBATCH_STOP_WAIT);
 
 finished:
     DBG_PRINTS("closing");

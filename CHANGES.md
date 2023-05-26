@@ -9,6 +9,7 @@ For a full list of changes, see the [git commit log][log]
 ## v2.1.1
 
   * In development
+  * Enable service recovery if service terminates without stop signal
   * Do not wait for shutdown process cleanup on timeout
   * Kill all child processes if service terminates without stop signal
 
