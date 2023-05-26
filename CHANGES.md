@@ -13,6 +13,7 @@ For a full list of changes, see the [git commit log][log]
   * Do not wait for shutdown process cleanup on timeout
   * Kill all child processes if service terminates without stop signal
   * Drop useless -c command option
+  * Enable log rotation by signal, only if -rS option was defined at install time
 
 ### New Features
 

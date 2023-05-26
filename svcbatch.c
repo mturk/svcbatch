@@ -141,6 +141,7 @@ static LARGE_INTEGER         rotatetime     = {{ 0, 0 }};
 
 static BOOL      rotatebysize   = FALSE;
 static BOOL      rotatebytime   = FALSE;
+static BOOL      rotatebysignal = FALSE;
 static BOOL      servicemode    = TRUE;
 
 static DWORD     svcoptions     = 0;
@@ -1950,7 +1951,12 @@ static BOOL resolverotate(const wchar_t *rp)
     ASSERT_WSTR(rp, FALSE);
 
     if (*rp == L'S') {
+        if (rotatebysignal) {
+            DBG_PRINTS("rotate by signal already defined");
+            return FALSE;
+        }
         DBG_PRINTS("rotate by signal");
+        rotatebysignal = TRUE;
         return TRUE;
     }
     if (wcspbrk(rp, L"BKMG")) {
@@ -1958,6 +1964,10 @@ static BOOL resolverotate(const wchar_t *rp)
         LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(0);
 
+        if (rotatebysize) {
+            DBG_PRINTS("rotate by size already defined");
+            return FALSE;
+        }
         val = xwcstoi(rp, &ep);
         if (val < 1)
             return FALSE;
@@ -1982,8 +1992,7 @@ static BOOL resolverotate(const wchar_t *rp)
         if (siz < KILOBYTES(SVCBATCH_MIN_ROTATE_SIZ)) {
             DBG_PRINTF("rotate size %S is less then %dK",
                        rp, SVCBATCH_MIN_ROTATE_SIZ);
-            rotatesize   = CPP_INT64_C(0);
-            rotatebysize = FALSE;
+            return FALSE;
         }
         else {
             DBG_PRINTF("rotate if larger then %S", rp);
@@ -1992,8 +2001,11 @@ static BOOL resolverotate(const wchar_t *rp)
         }
     }
     else {
-        rotateinterval    = CPP_INT64_C(0);
-        rotatebytime = FALSE;
+        if (rotatebytime) {
+            DBG_PRINTS("rotate by time already defined");
+            return FALSE;
+        }
+        rotateinterval      = CPP_INT64_C(0);
         rotatetime.QuadPart = CPP_INT64_C(0);
 
         if (wcschr(rp, L':')) {
@@ -2724,7 +2736,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
         break;
         case SVCBATCH_CTRL_ROTATE:
-            if (IS_SET(SVCBATCH_OPT_ROTATE)) {
+            if (rotatebysignal) {
                 BOOL rb = canrotatelogs(outputlog);
                 /**
                  * Signal to rotatethread that
@@ -3094,7 +3106,7 @@ int wmain(int argc, const wchar_t **wargv)
     const wchar_t *svchomeparam = NULL;
     const wchar_t *svcworkparam = NULL;
     const wchar_t *sparam[SVCBATCH_MAX_ARGS];
-    const wchar_t *rparam[2];
+    const wchar_t *rparam[3];
 
 
 #if defined(_DEBUG)
@@ -3293,7 +3305,7 @@ int wmain(int argc, const wchar_t **wargv)
                         return xsyserror(0, L"Too many -s arguments", xwoptarg);
                 break;
                 case L'r':
-                    if (rcnt < 2)
+                    if (rcnt < 3)
                         rparam[rcnt++] = xwoptarg;
                     else
                         return xsyserror(0, L"Too many -r options", xwoptarg);
@@ -3464,14 +3476,6 @@ int wmain(int argc, const wchar_t **wargv)
         if (!resolvebatchname(batchparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
         if (rcnt) {
-            int rs = 0;
-            for (i = 0; i < rcnt; i++) {
-                if (*(rparam[i]) == L'S')
-                    rs = rcnt;
-            }
-            if (rs > 1)
-                return xsyserror(0, L"Too many rotate parameters", NULL);
-
             for (i = 0; i < rcnt; i++) {
                 if (!resolverotate(rparam[i]))
                     return xsyserror(0, L"Invalid rotate parameter", rparam[i]);

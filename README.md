@@ -452,7 +452,7 @@ will be reported to Windows Event log.
   or when log file gets larger then defined size.
 
   In case the **rule** starts with the capital letter `S`,
-  log will be rotated only by the explicit
+  log rotation will be enabled by using the
   `sc.exe control [service name] 234` command.
 
   Time and size values can be combined, that allows
@@ -498,15 +498,6 @@ will be reported to Windows Event log.
   On rotation event, existing `SvcBatch.log` will be renamed to
   `SvcBatch.log.YYYYMMDDhhmmss`, and new `SvcBatch.log` will be crated,
   unless the **-t** option was defined.
-
-
-  Maximum two rule options are allowed at install time.
-  If the **rule** starts with the capital letter `S`, then
-  no additional rules are allowed.
-
-  Service will fail to start, and write an error message
-  to the Windows Event log if the upper limits are broken.
-
 
 
 * **-s [batchfile][argument]**
