@@ -3184,6 +3184,7 @@ int wmain(int argc, const wchar_t **wargv)
                     outputlog->fileExt = SHUTDOWN_LOGFEXT;
                     SVCBATCH_CS_INIT(outputlog);
                 }
+                xwcslcpy(service->logs, SVCBATCH_PATH_MAX, sharedmem->logs);
             }
             else {
                 service->name = p + 1;
