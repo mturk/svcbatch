@@ -157,6 +157,7 @@ static HANDLE    sharedmmap     = NULL;
 
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
+static wchar_t     *svclogfname   = NULL;
 static wchar_t      zerostring[2] = { WNUL, WNUL };
 static const wchar_t *CRLFW       = L"\r\n";
 static const char    *CRLFA       =  "\r\n";
@@ -1880,13 +1881,15 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
 
     if (log == NULL)
         return ERROR_FILE_NOT_FOUND;
+
     SVCBATCH_CS_ENTER(log);
     DBG_PRINTF("%d %S", log->state, log->logFile);
     InterlockedExchange(&log->state, 1);
-    if (statuslog && (log != statuslog)) {
-
-        SVCBATCH_CS_ENTER(statuslog);
-        s = InterlockedExchangePointer(&statuslog->fd, NULL);
+    if (log != statuslog) {
+        if (statuslog) {
+            SVCBATCH_CS_ENTER(statuslog);
+            s = InterlockedExchangePointer(&statuslog->fd, NULL);
+        }
     }
 
     h = InterlockedExchangePointer(&log->fd, NULL);
@@ -1902,7 +1905,7 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
         if (s)
             logwrtime(s, 0, "Log closed");
     }
-    if (statuslog && (log != statuslog)) {
+    if (s) {
         InterlockedExchangePointer(&statuslog->fd, s);
         SVCBATCH_CS_LEAVE(statuslog);
     }
@@ -2154,9 +2157,9 @@ static DWORD WINAPI stopthread(void *msg)
         SVCBATCH_CS_ENTER(outputlog);
         InterlockedExchange(&outputlog->state, 1);
         SVCBATCH_CS_LEAVE(outputlog);
-        if (statuslog && msg)
-            logwrstat(statuslog, 2, 0, msg);
     }
+    if (statuslog && msg)
+        logwrstat(statuslog, 2, 0, msg);
     if (svcstop) {
         ULONGLONG rs;
 
@@ -2914,20 +2917,38 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
         }
     }
     else {
-        if (outdirparam == NULL) {
-#if defined(_DEBUG)
-            xsyswarn(ERROR_INVALID_PARAMETER, L"log directory", NULL);
-            xsysinfo(L"Use -o option with parameter set to the exiting directory",
-                     L"failing over to SVCBATCH_SERVICE_WORK");
-#endif
-            xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
-        }
-        else {
-            wchar_t *op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
-            if (op == NULL) {
-                rv = xsyserror(GetLastError(), L"xgetfinalpath", outdirparam);
+        if (IS_SET(SVCBATCH_OPT_VERBOSE)) {
+            statuslog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
+
+            statuslog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
+            statuslog->maxLogs = SVCBATCH_DEF_LOGS;
+            statuslog->fileExt = SBSTATUS_LOGFEXT;
+            SVCBATCH_CS_INIT(statuslog);
+
+            if (outdirparam == NULL)
+                outdirparam = SVCBATCH_LOGSDIR;
+            rv = createlogsdir(statuslog);
+            if (rv) {
                 reportsvcstatus(SERVICE_STOPPED, rv);
                 return;
+            }
+        }
+        else {
+            if (outdirparam == NULL) {
+#if defined(_DEBUG)
+                xsyswarn(ERROR_INVALID_PARAMETER, L"log directory", NULL);
+                xsysinfo(L"Use -o option with parameter set to the exiting directory",
+                         L"failing over to SVCBATCH_SERVICE_WORK");
+#endif
+                xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
+            }
+            else {
+                wchar_t *op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
+                if (op == NULL) {
+                    rv = xsyserror(GetLastError(), L"xgetfinalpath", outdirparam);
+                    reportsvcstatus(SERVICE_STOPPED, rv);
+                    return;
+                }
             }
         }
     }
@@ -3100,7 +3121,6 @@ int wmain(int argc, const wchar_t **wargv)
     HANDLE      h;
     wchar_t     bb[TBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
 
-    wchar_t       *svclogfname  = NULL;
     const wchar_t *maxlogsparam = NULL;
     const wchar_t *batchparam   = NULL;
     const wchar_t *svchomeparam = NULL;
@@ -3382,19 +3402,14 @@ int wmain(int argc, const wchar_t **wargv)
             bb[0] = WNUL;
             if (maxlogsparam)
                 xwcslcat(bb, TBUFSIZ, L"-m ");
-            if (svclogfname)
-                xwcslcat(bb, TBUFSIZ, L"-n ");
             if (rcnt)
                 xwcslcat(bb, TBUFSIZ, L"-r ");
             if (IS_SET(SVCBATCH_OPT_TRUNCATE))
                 xwcslcat(bb, TBUFSIZ, L"-t ");
-            if (IS_SET(SVCBATCH_OPT_VERBOSE))
-                xwcslcat(bb, TBUFSIZ, L"-v ");
             if (bb[0]) {
 #if defined(_DEBUG) && (_DEBUG > 1)
                 xsyswarn(0, L"Option -q is mutually exclusive with option(s)", bb);
                 rcnt       = 0;
-                svcoptions = 0;
 #else
                 return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
 #endif

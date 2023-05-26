@@ -434,7 +434,7 @@ will be reported to Windows Event log.
   **Notice**
 
   This option is mutually exclusive with other log related
-  command options. Do not use options `m`, `n`, `r`, `t` or `v`
+  command options. Do not use options `m`, `r` or `t`
   together with this option when installing service.
   Service will fail to start, and write an error message
   to the Windows Event log.
