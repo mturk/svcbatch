@@ -95,9 +95,9 @@ typedef struct _SVCBATCH_SERVICE {
     SERVICE_STATUS          status;
     CRITICAL_SECTION        cs;
 
+    LPCWSTR                 name;
     LPWSTR                  base;
     LPWSTR                  home;
-    LPWSTR                  name;
     LPWSTR                  uuid;
     LPWSTR                  work;
     WCHAR                   logs[SVCBATCH_PATH_MAX];
@@ -2865,10 +2865,8 @@ static void WINAPI servicemain(DWORD argc, wchar_t **argv)
     service->status.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     service->status.dwCurrentState = SERVICE_START_PENDING;
 
-    if (argc > 0) {
-        xfree(service->name);
-        service->name = xwcsdup(argv[0]);
-    }
+    if (argc > 0)
+        service->name = argv[0];
     if (IS_EMPTY_WCS(service->name)) {
         xsyserror(ERROR_INVALID_PARAMETER, L"Service name", NULL);
         exit(1);
@@ -3186,7 +3184,7 @@ int wmain(int argc, const wchar_t **wargv)
                 }
             }
             else {
-                service->name = xwcsdup(p + 1);
+                service->name = p + 1;
                 if (IS_EMPTY_WCS(service->name))
                     return ERROR_INVALID_PARAMETER;
             }
