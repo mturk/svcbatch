@@ -93,8 +93,6 @@ TESTAPPS = \
 	$(SRCDIR)\test\sservice \
 	$(SRCDIR)\test\xsleep
 
-.PHONY: $(TESTAPPS)
-
 all : $(WORKDIR) $(POUTPUT)
 
 $(WORKDIR):
@@ -114,7 +112,7 @@ $(TESTAPPS): $(POUTPUT)
   $(MAKE) /$(MAKEFLAGS)
   @cd $(MAKEDIR)
 
-test: $(TESTAPPS)
+tests: $(TESTAPPS)
 
 clean:
 	@-rd /S /Q $(WORKDIR) 2>NUL
