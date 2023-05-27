@@ -39,7 +39,6 @@ typedef enum {
     SVCBATCH_WORKER_THREAD = 0,
     SVCBATCH_WRPIPE_THREAD,
     SVCBATCH_STOP_THREAD,
-    SVCBATCH_SIGNAL_THREAD,
     SVCBATCH_ROTATE_THREAD,
     SVCBATCH_MAX_THREADS
 } SVCBATCH_THREAD_ID;
@@ -151,7 +150,6 @@ static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
-static HANDLE    breaksignal    = NULL;
 static HANDLE    dologrotate    = NULL;
 static HANDLE    sharedmmap     = NULL;
 
@@ -2177,9 +2175,15 @@ static DWORD WINAPI stopthread(void *msg)
     }
     if (ws != WAIT_OBJECT_0) {
         reportsvcstatus(SERVICE_STOP_PENDING, 0);
-        DBG_PRINTS("generating CTRL_C_EVENT");
         SetConsoleCtrlHandler(NULL, TRUE);
-        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+        if (IS_SET(SVCBATCH_OPT_BREAK)) {
+            DBG_PRINTS("generating CTRL_BREAK_EVENT");
+            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+        }
+        else {
+            DBG_PRINTS("generating CTRL_C_EVENT");
+            GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+        }
         DBG_PRINTF("waiting %d ms for worker", ri);
         ws = WaitForSingleObject(workerended, ri);
         SetConsoleCtrlHandler(NULL, FALSE);
@@ -2215,7 +2219,10 @@ static void stopshutdown(DWORD rt)
 
     DBG_PRINTS("started");
     SetConsoleCtrlHandler(NULL, TRUE);
-    GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+    if (IS_SET(SVCBATCH_OPT_BREAK))
+        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+    else
+        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
     ws = WaitForSingleObject(workerended, rt);
     SetConsoleCtrlHandler(NULL, FALSE);
 
@@ -2296,55 +2303,6 @@ static DWORD WINAPI wrpipethread(void *wh)
 #endif
     return rc;
 }
-
-static DWORD WINAPI signalthread(void *unused)
-{
-    HANDLE wh[3];
-    BOOL   rc = TRUE;
-
-    DBG_PRINTS("started");
-
-    wh[0] = workerended;
-    wh[1] = stopstarted;
-    wh[2] = breaksignal;
-
-    do {
-        DWORD ws;
-
-        ws = WaitForMultipleObjects(3, wh, FALSE, INFINITE);
-        switch (ws) {
-            case WAIT_OBJECT_0:
-                DBG_PRINTS("workerended signaled");
-                rc = FALSE;
-            break;
-            case WAIT_OBJECT_1:
-                DBG_PRINTS("stopstarted signaled");
-                rc = FALSE;
-            break;
-            case WAIT_OBJECT_2:
-                DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
-                logwrstat(statuslog, 2, 0, "Service signaled : SVCBATCH_CTRL_BREAK");
-                /**
-                 * Danger Zone!!!
-                 *
-                 * Send CTRL_BREAK_EVENT to the child process.
-                 * This is useful if batch file is running java
-                 * CTRL_BREAK signal tells JDK to dump thread stack
-                 *
-                 */
-                GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-                ResetEvent(breaksignal);
-            break;
-            default:
-                rc = FALSE;
-            break;
-        }
-    } while (rc);
-
-    DBG_PRINTS("done");
-    return 0;
-}
-
 
 static DWORD WINAPI rotatethread(void *unused)
 {
@@ -2545,16 +2503,6 @@ static DWORD WINAPI workerthread(void *unused)
             goto finished;
         }
     }
-   if (breaksignal) {
-        if (!xcreatethread(SVCBATCH_SIGNAL_THREAD,
-                           1, signalthread, NULL)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            xsyserror(rc, L"Monitor thread", NULL);
-            TerminateProcess(cmdproc->pInfo.hProcess, rc);
-            cmdproc->exitCode = rc;
-        }
-    }
 
     ResumeThread(cmdproc->pInfo.hThread);
     ResumeThread(threads[SVCBATCH_WRPIPE_THREAD].thread);
@@ -2562,8 +2510,6 @@ static DWORD WINAPI workerthread(void *unused)
 
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     reportsvcstatus(SERVICE_RUNNING, 0);
-    if (breaksignal)
-        ResumeThread(threads[SVCBATCH_SIGNAL_THREAD].thread);
     if (IS_SET(SVCBATCH_OPT_ROTATE))
         ResumeThread(threads[SVCBATCH_ROTATE_THREAD].thread);
     DBG_PRINTF("running process %lu", cmdproc->pInfo.dwProcessId);
@@ -2729,9 +2675,18 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             SVCBATCH_CS_LEAVE(service);
         break;
         case SVCBATCH_CTRL_BREAK:
-            if (breaksignal) {
-                DBG_PRINTS("raising SVCBATCH_CTRL_BREAK");
-                SetEvent(breaksignal);
+            if (IS_SET(SVCBATCH_OPT_CTRL_BREAK)) {
+                DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
+                logwrstat(statuslog, 2, 0, "Service signaled : SVCBATCH_CTRL_BREAK");
+                /**
+                 * Danger Zone!!!
+                 *
+                 * Send CTRL_BREAK_EVENT to the child process.
+                 * This is useful if batch file is running java
+                 * CTRL_BREAK signal tells JDK to dump thread stack
+                 *
+                 */
+                GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
             }
             else {
                 DBG_PRINTS("ctrl+break is disabled");
@@ -2832,7 +2787,6 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(workerended);
     SAFE_CLOSE_HANDLE(svcstopdone);
     SAFE_CLOSE_HANDLE(stopstarted);
-    SAFE_CLOSE_HANDLE(breaksignal);
     SAFE_CLOSE_HANDLE(dologrotate);
     if (sharedmem)
         UnmapViewOfFile(sharedmem);
@@ -2853,13 +2807,6 @@ static DWORD createevents(void)
                                  EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(stopstarted))
         return GetLastError();
-    if (IS_SET(SVCBATCH_OPT_BREAK)) {
-        breaksignal = CreateEventEx(NULL, NULL,
-                                     CREATE_EVENT_MANUAL_RESET,
-                                     EVENT_MODIFY_STATE | SYNCHRONIZE);
-        if (IS_INVALID_HANDLE(breaksignal))
-            return GetLastError();
-    }
     if (IS_SET(SVCBATCH_OPT_ROTATE)) {
         dologrotate = CreateEventEx(NULL, NULL,
                                      CREATE_EVENT_MANUAL_RESET,
@@ -3110,6 +3057,7 @@ int wmain(int argc, const wchar_t **wargv)
     int         rcnt = 0;
     int         scnt = 0;
     int         qcnt = 0;
+    int         bcnt = 0;
     int         rv;
     HANDLE      h;
     wchar_t     bb[TBUFSIZ] = { L'-', WNUL, WNUL, WNUL };
@@ -3255,9 +3203,6 @@ int wmain(int argc, const wchar_t **wargv)
 
         while ((opt = xwgetopt(argc, wargv, L"bh:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
-                case L'b':
-                    svcoptions  |= SVCBATCH_OPT_BREAK;
-                break;
                 case L'l':
                     svcoptions  |= SVCBATCH_OPT_LOCALTIME;
                 break;
@@ -3307,6 +3252,9 @@ int wmain(int argc, const wchar_t **wargv)
                  * Options that can be defined
                  * multiple times
                  */
+                case L'b':
+                    bcnt++;
+                break;
                 case L'q':
                     svcoptions |= SVCBATCH_OPT_QUIET;
                     qcnt++;
@@ -3367,7 +3315,12 @@ int wmain(int argc, const wchar_t **wargv)
         service->uuid = xuuidstring(NULL);
         if (IS_EMPTY_WCS(service->uuid))
             return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
-
+        if (bcnt) {
+            if (bcnt > 1)
+                svcoptions |= SVCBATCH_OPT_BREAK;
+             else
+                svcoptions |= SVCBATCH_OPT_CTRL_BREAK;
+        }
         if (scnt && qcnt < 2) {
             /**
              * Use -qq to disable both service and shutdown logging

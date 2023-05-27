@@ -231,6 +231,28 @@ will be reported to Windows Event log.
 
   See [Custom Control Codes](#custom-control-codes) section below for more details
 
+  This option can be used to send `ctrl+break` instead `ctrl+c`
+  when the service is stopping. To enable this feature use **-bb**
+  at install time.
+
+  This is useful when the service batch file uses `start /B ...`
+  to launch multiple applications.
+
+  ```batchfile
+  ...
+
+  start /B some.exe instance1
+  start /B some.exe instance2
+  start /B some.exe instance3
+
+  ...
+
+  ```
+
+  When using `start /B application`, the application does
+  not receive `ctrl+c` signal. The `ctrl+break` is the only
+  way to interrupt the application.
+
 
 * **-k [timeout]**
 
