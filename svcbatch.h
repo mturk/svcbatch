@@ -222,18 +222,6 @@
 #define BBUFSIZ                512
 #define UBUFSIZ               8192
 
-#if defined(_DEBUG)
-# define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
-# define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, Msg)
-#else
-# define DBG_PRINTF(Fmt, ...)   (void)0
-# define DBG_PRINTS(Msg)        (void)0
-#endif
-
-#define xsyserror(_n, _e, _d)   svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_ERROR_TYPE,      _n, _e, _d)
-#define xsyswarn(_n, _e, _d)    svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_WARNING_TYPE,    _n, _e, _d)
-#define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d)
-
 /**
  * Process state
  */
