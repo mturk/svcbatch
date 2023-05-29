@@ -84,10 +84,17 @@ rem
 set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" @%SERVICE_NAME% -pvbL /h \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
+if %ERRORLEVEL% neq 0 goto Failed
 sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= demand
+if %ERRORLEVEL% neq 0 goto Failed
 sc description "%SERVICE_NAME%" "One dummy SvcBatch service example"
+if %ERRORLEVEL% neq 0 goto Failed
 sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
+if %ERRORLEVEL% neq 0 goto Failed
+rem
+echo %~nx0: Created %SERVICE_NAME%
 goto End
 rem
 :doStart
@@ -118,18 +125,29 @@ rem
 rem
 rem
 sc stop "%SERVICE_NAME%" >NUL
+rem
+if %ERRORLEVEL% equ 0 (
+  echo.
+  echo %~nx0: Waiting for %SERVICE_NAME% to stop ...
+  ping -n 10 127.0.0.1 >NUL
+  echo.
+)
+rem
 sc delete "%SERVICE_NAME%"
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %~nx0: Deleted %SERVICE_NAME%
 goto End
 rem
 :doRemove
 rem
 rem
-sc stop "%SERVICE_NAME%" >NUL 2>&1
-sc delete "%SERVICE_NAME%" >NUL 2>&1
 rd /S /Q "Logs" >NUL 2>&1
 echo %~nx0: Removed %SERVICE_NAME%
 goto End
+rem
+:Failed
+sc delete "%SERVICE_NAME%" >NUL 2>&1
+exit /B 1
 rem
 rem
 :End
