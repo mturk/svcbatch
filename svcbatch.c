@@ -223,11 +223,13 @@ static void *xmmalloc(size_t size)
     return p;
 }
 
-static void *xmcalloc(size_t number, size_t size)
+static void *xmcalloc(size_t size)
 {
-    void *p;
+    void   *p;
+    size_t  n;
 
-    p = calloc(number, size);
+    n = MEM_ALIGN_DEFAULT(size);
+    p = calloc(1, n);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
@@ -2457,7 +2459,7 @@ static DWORD WINAPI workerthread(void *unused)
         cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, NULL, cmdproc->args[i]);
     }
     if (outputlog) {
-        op = (LPSVCBATCH_PIPE)xmcalloc(1, sizeof(SVCBATCH_PIPE));
+        op = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
         op->pipe = rd;
         op->o.hEvent = CreateEventEx(NULL, NULL,
                                            CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
@@ -2856,7 +2858,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         return;
     }
     if (IS_SET(SVCBATCH_OPT_VERBOSE)) {
-        statuslog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
+        statuslog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
         statuslog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
         statuslog->maxLogs = SVCBATCH_DEF_LOGS;
@@ -3028,9 +3030,9 @@ static int xwmaininit(void)
     QueryPerformanceCounter(&i);
     counterbase = i.QuadPart;
 
-    xmemzero(threads, SVCBATCH_MAX_THREADS,   sizeof(SVCBATCH_THREAD));
-    service = (LPSVCBATCH_SERVICE)xmcalloc(1, sizeof(SVCBATCH_SERVICE));
-    program = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+    xmemzero(threads, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
+    service = (LPSVCBATCH_SERVICE)xmcalloc( sizeof(SVCBATCH_SERVICE));
+    program = (LPSVCBATCH_PROCESS)xmcalloc( sizeof(SVCBATCH_PROCESS));
 
     program->state             = SVCBATCH_PROCESS_RUNNING;
     program->pInfo.hProcess    = GetCurrentProcess();
@@ -3154,7 +3156,7 @@ int wmain(int argc, LPCWSTR *wargv)
                 dbgprintf(__FUNCTION__, "opts 0x%08x", sharedmem->options);
                 dbgprintf(__FUNCTION__, "time %lu", stoptimeout);
 #endif
-                cmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+                cmdproc = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                 cmdproc->application = sharedmem->application;
                 cmdproc->argc    = sharedmem->argc;
                 cmdproc->args[0] = sharedmem->batchFile;
@@ -3165,7 +3167,7 @@ int wmain(int argc, LPCWSTR *wargv)
                 service->name = sharedmem->name;
                 service->uuid = sharedmem->uuid;
                 if (IS_NOT(SVCBATCH_OPT_QUIET)) {
-                    outputlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
+                    outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
                     outputlog->logName = sharedmem->logName;
                     outputlog->maxLogs = SVCBATCH_DEF_LOGS;
@@ -3205,7 +3207,7 @@ int wmain(int argc, LPCWSTR *wargv)
         if (wp == NULL)
             return ERROR_BAD_ENVIRONMENT;
 
-        cmdproc = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+        cmdproc = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
         cmdproc->argc        = 1;
         cmdproc->application = wp;
 
@@ -3337,7 +3339,7 @@ int wmain(int argc, LPCWSTR *wargv)
             qcnt = 0;
         }
         if (qcnt == 0) {
-            outputlog = (LPSVCBATCH_LOG)xmcalloc(1, sizeof(SVCBATCH_LOG));
+            outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
             outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
             outputlog->maxLogs = SVCBATCH_MAX_LOGS;
@@ -3456,7 +3458,7 @@ int wmain(int argc, LPCWSTR *wargv)
             svcoptions |= SVCBATCH_OPT_ROTATE;
         }
         if (scnt) {
-            svcstop = (LPSVCBATCH_PROCESS)xmcalloc(1, sizeof(SVCBATCH_PROCESS));
+            svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
             svcstop->args[0] = xgetfinalpath(sparam[0], 0, NULL, 0);
             if (svcstop->args[0] == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, sparam[0], NULL);
