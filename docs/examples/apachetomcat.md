@@ -14,31 +14,30 @@ and put `svcbatch.exe` into your `tomcat/bin` directory.
 
 The SvcBatch executable can be shared between multiple Tomcat instances.
 Put `svcbatch.exe` into the desired directory and modify
-your service create scripts to set the working directory  using `/W`
-commandline option for each different instance.
+your service create scripts to set the home directory using `/W`
+command line option for each different instance.
 
 
 ### Example service
 
-Inside the [Tomcat](tomcat/) directory there are two batch files that
+Inside the [Tomcat](tomcat/) directory there is a batch file that
 provide the complete solution to run and manage Apache Tomcat as
 windows service.
 
 
-Put [servicemgr](tomcat/servicemgr.bat) and optionally
-[winservice](tomcat/winservice.bat) batch files into your
-`tomcat/bin` directory.
+Put [winservice](tomcat/winservice.bat) batch file and `svcbatch.exe`
+into your `tomcat/bin` directory.
 
-[servicemgr](tomcat/servicemgr.bat) is a simple batch file
+[winservice](tomcat/winservice.bat) is a simple batch file
 that can be used to manage service instead typing multiple commands.
 
-Before executing `servicemgr.bat`, edit `servicemgr.bat` and modify
+Before executing `winservice.bat`, edit `winservice.bat` and modify
 default `SERVICE_NAME`, `DisplayName` and `description`
 parameters to match the Tomcat version you are using.
 
 ```cmd
 
-> servicemgr.bat create Tomcat10
+> winservice.bat create tomcat10
 
 ```
 
@@ -48,13 +47,14 @@ with JRE_HOME. You can set JAVA_HOME or JRE_HOME directly inside
 System Environment.
 
 That's it! Now, just type ...
+
 ```cmd
 
-> servicemgr.bat start Tomcat10
+> sc start tomcat10
   or ...
-> sc start Tomcat10
+> net start tomcat10
   or ...
-> net start Tomcat10
+> sc start tomcat10 -security
 
 ```
 
