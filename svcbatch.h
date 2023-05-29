@@ -107,10 +107,12 @@
 #define SVCBATCH_DEF_LOGS       2
 
 /**
- * Maximum number of arguments
- * for shutdown and external log application
+ * Maximum number of arguments for service and
+ * shutdown batch file.
+ * The maximum length of each argument is 255
+ * characters.
  */
-#define SVCBATCH_MAX_ARGS      16
+#define SVCBATCH_MAX_ARGS       8
 
 /**
  * Maximum length for the path and
