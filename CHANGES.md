@@ -15,6 +15,7 @@ For a full list of changes, see the [git commit log][log]
   * Drop useless -c command option
   * Enable log rotation by signal, only if -rS option was defined at install time
   * Enable -v option even if logging is disabled
+  * If not an absolute path, create log directory relative to the work directory
 
 ### New Features
 

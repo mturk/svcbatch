@@ -1612,7 +1612,17 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
 {
     LPWSTR p;
     WCHAR  dp[SVCBATCH_PATH_MAX];
+    WCHAR  wp[SVCBATCH_PATH_MAX];
 
+    if (isrelativepath(outdirparam)) {
+        if (service->work != service->home) {
+            int i;
+            i = xwcsncat(wp, SVCBATCH_PATH_MAX, 0, service->work);
+            i = xwcsncat(wp, SVCBATCH_PATH_MAX, i, L"\\");
+            i = xwcsncat(wp, SVCBATCH_PATH_MAX, i, outdirparam);
+            outdirparam = wp;
+        }
+    }
     if (xgetfullpath(outdirparam, dp, SVCBATCH_PATH_MAX) == NULL) {
         xsyserror(0, L"xgetfullpath", outdirparam);
         return ERROR_BAD_PATHNAME;
@@ -2833,6 +2843,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     DWORD  rv = 0;
     DWORD  i;
     HANDLE sh = NULL;
+    LPSVCBATCH_LOG log = outputlog;
 
     service->status.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     service->status.dwCurrentState = SERVICE_START_PENDING;
@@ -2864,42 +2875,34 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         statuslog->maxLogs = SVCBATCH_DEF_LOGS;
         statuslog->fileExt = SBSTATUS_LOGFEXT;
         SVCBATCH_CS_INIT(statuslog);
+
+        log = statuslog;
     }
-    if (outputlog) {
+
+    if (log) {
         if (outdirparam == NULL)
             outdirparam = SVCBATCH_LOGSDIR;
-        rv = createlogsdir(outputlog);
+        rv = createlogsdir(log);
         if (rv) {
             reportsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
     }
     else {
-        if (statuslog) {
-            if (outdirparam == NULL)
-                outdirparam = SVCBATCH_LOGSDIR;
-            rv = createlogsdir(statuslog);
-            if (rv) {
-                reportsvcstatus(SERVICE_STOPPED, rv);
-                return;
-            }
+        if (outdirparam == NULL) {
+#if defined(_DEBUG)
+            xsyswarn(ERROR_INVALID_PARAMETER, L"log directory", NULL);
+            xsysinfo(L"Use -o option with parameter set to the exiting directory",
+                     L"failing over to SVCBATCH_SERVICE_WORK");
+#endif
+            xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
         }
         else {
-            if (outdirparam == NULL) {
-#if defined(_DEBUG)
-                xsyswarn(ERROR_INVALID_PARAMETER, L"log directory", NULL);
-                xsysinfo(L"Use -o option with parameter set to the exiting directory",
-                         L"failing over to SVCBATCH_SERVICE_WORK");
-#endif
-                xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
-            }
-            else {
-                LPWSTR op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
-                if (op == NULL) {
-                    rv = xsyserror(GetLastError(), L"xgetfinalpath", outdirparam);
-                    reportsvcstatus(SERVICE_STOPPED, rv);
-                    return;
-                }
+            LPWSTR op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
+            if (op == NULL) {
+                rv = xsyserror(GetLastError(), L"xgetfinalpath", outdirparam);
+                reportsvcstatus(SERVICE_STOPPED, rv);
+                return;
             }
         }
     }
@@ -3443,7 +3446,6 @@ int wmain(int argc, LPCWSTR *wargv)
             service->work = xgetfinalpath(svcworkparam, 1, NULL, 0);
             if (IS_EMPTY_WCS(service->work))
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
-            SetCurrentDirectoryW(service->work);
         }
         if (!resolvebatchname(batchparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, batchparam, NULL);
@@ -3466,8 +3468,6 @@ int wmain(int argc, LPCWSTR *wargv)
                 svcstop->args[i] = xwcsdup(sparam[i]);
             svcstop->argc  = scnt;
         }
-        if (service->home != service->work)
-            SetCurrentDirectoryW(service->home);
     }
 
     /**
