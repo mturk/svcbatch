@@ -20,13 +20,13 @@ command line option for each different instance.
 
 ### Example service
 
-Inside the [Tomcat](tomcat/) directory there is a batch file that
+Inside the [Tomcat](tomcat/) directory there are two batch files that
 provide the complete solution to run and manage Apache Tomcat as
 windows service.
 
 
-Put [winservice](tomcat/winservice.bat) batch file and `svcbatch.exe`
-into your `tomcat/bin` directory.
+Put [winservice](tomcat/winservice.bat) and [runservice](tomcat/runservice.bat)
+batch files together with `svcbatch.exe` into your `tomcat/bin` directory.
 
 [winservice](tomcat/winservice.bat) is a simple batch file
 that can be used to manage service instead typing multiple commands.
@@ -41,8 +41,9 @@ parameters to match the Tomcat version you are using.
 
 ```
 
-After creating a service, edit `winservice.bat` file and modify
-JAVA_HOME to your actual jdk location. You can replace that line
+After creating a service, edit `runservice.bat` file and add
+or modify any environment variables needed. You can set
+JAVA_HOME to your actual jdk location or replace that line
 with JRE_HOME. You can set JAVA_HOME or JRE_HOME directly inside
 System Environment.
 
@@ -50,6 +51,8 @@ That's it! Now, just type ...
 
 ```cmd
 
+> winservice.bat start tomcat10
+  or ...
 > sc start tomcat10
   or ...
 > net start tomcat10
