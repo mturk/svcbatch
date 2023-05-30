@@ -3241,23 +3241,19 @@ int wmain(int argc, LPCWSTR *wargv)
     }
 #endif
     if (servicemode) {
-        DWORD  nn;
         WCHAR  wb[SVCBATCH_PATH_MAX];
         LPWSTR wp;
 
-        nn = GetEnvironmentVariableW(L"COMSPEC", wb, SVCBATCH_PATH_MAX);
-        if (nn == 0)
-            return GetLastError();
-        if (nn >= SVCBATCH_PATH_MAX)
-            return ERROR_INSUFFICIENT_BUFFER;
-        wp = xgetfinalpath(wb, 0, NULL, 0);
+        wp = xgetenv(L"COMSPEC");
         if (wp == NULL)
-            return ERROR_BAD_ENVIRONMENT;
+            return GetLastError();
 
         cmdproc = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
         cmdproc->argc        = 1;
-        cmdproc->application = wp;
-
+        cmdproc->application = xgetfinalpath(wp, 0, NULL, 0);
+        if (cmdproc->application == NULL)
+            return ERROR_BAD_ENVIRONMENT;
+        xfree(wp);
 
         while ((opt = xwgetopt(argc, wargv, L"bh:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
