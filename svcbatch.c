@@ -3289,12 +3289,18 @@ int wmain(int argc, LPCWSTR *wargv)
                 break;
                 case L'o':
                     outdirparam  = skipdotslash(xwoptarg);
+                    if (outdirparam == NULL)
+                        return xsyserror(0, L"The -o command option value is invalid", xwoptarg);
                 break;
                 case L'h':
                     svchomeparam = skipdotslash(xwoptarg);
+                    if (svchomeparam == NULL)
+                        return xsyserror(0, L"The -h command option value is invalid", xwoptarg);
                 break;
                 case L'w':
                     svcworkparam = skipdotslash(xwoptarg);
+                    if (svcworkparam == NULL)
+                        return xsyserror(0, L"The -w command option value is invalid", xwoptarg);
                 break;
                 case L'k':
                     stoptimeout  = xwcstoi(xwoptarg, NULL);
