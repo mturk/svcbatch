@@ -1813,6 +1813,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
 {
     HANDLE  fh = NULL;
     DWORD   rc;
+    DWORD   cd = CREATE_ALWAYS;
     WCHAR   nb[SVCBATCH_NAME_MAX];
     BOOL    rp = TRUE;
     LPCWSTR np = log->logName;
@@ -1831,6 +1832,8 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
             return rc;
         rp = FALSE;
         np = nb;
+        if (log == statuslog)
+            cd = OPEN_ALWAYS;
     }
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, 0, service->logs);
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, L"\\");
@@ -1844,8 +1847,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     }
     fh = CreateFileW(log->logFile,
                      GENERIC_READ | GENERIC_WRITE,
-                     FILE_SHARE_READ, NULL,
-                     CREATE_ALWAYS,
+                     FILE_SHARE_READ, NULL, cd,
                      FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(fh))
@@ -1858,13 +1860,25 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         if (ssp)
             logwrtime(ssh, 0, "Log opened");
     }
+    if ((rc == ERROR_ALREADY_EXISTS) && (cd == OPEN_ALWAYS)) {
+        LARGE_INTEGER off = {{ 0, 0 }};
+
+        DBG_PRINTF("appending to the %S", log->logFile);
+        if (SetFilePointerEx(fh, off, NULL, FILE_END)) {
+            DWORD wr;
+            WriteFile(fh, CRLFA, 2, &wr, NULL);
+            WriteFile(fh, CRLFA, 2, &wr, NULL);
+        }
+    }
 #if defined(_DEBUG)
-    if (rc == ERROR_ALREADY_EXISTS)
-        dbgprintf(ssp ? "createlogfile" : "openlogfile",
-                  "truncated %S", log->logFile);
-    else
-        dbgprintf(ssp ? "createlogfile" : "openlogfile",
-                  "created %S",   log->logFile);
+    else {
+        if (rc == ERROR_ALREADY_EXISTS)
+            dbgprintf(ssp ? "createlogfile" : "openlogfile",
+                      "truncated %S", log->logFile);
+        else
+            dbgprintf(ssp ? "createlogfile" : "openlogfile",
+                      "created %S",   log->logFile);
+    }
 #endif
     InterlockedExchange64(&log->size, 0);
     InterlockedExchangePointer(&log->fd, fh);
