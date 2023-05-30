@@ -16,6 +16,7 @@ For a full list of changes, see the [git commit log][log]
   * Enable log rotation by signal, only if -rS option was defined at install time
   * Enable -v option even if logging is disabled
   * If not an absolute path, create log directory relative to the work directory
+  * Fix creating log directories with more then two missing intermediate paths
 
 ### New Features
 

@@ -310,6 +310,14 @@ static __inline LPWSTR xwcsdup(LPCWSTR s)
 }
 #endif
 
+static __inline void xfixpathsep(LPWSTR str)
+{
+    for (; *str != 0; str++) {
+        if (*str == L'/')
+            *str = L'\\';
+    }
+}
+
 static void xwchreplace(LPWSTR s, WCHAR c, WCHAR r)
 {
     LPWSTR d;
@@ -1065,16 +1073,19 @@ static DWORD xmdparent(LPWSTR path)
     if (s == NULL)
         return ERROR_BAD_PATHNAME;
     *s = WNUL;
-    if (CreateDirectoryW(path, NULL))
-        return 0;
-    else
+    if (!CreateDirectoryW(path, NULL))
         rc = GetLastError();
     if (rc == ERROR_PATH_NOT_FOUND) {
         /**
          * One or more intermediate directories do not exist
          */
         rc = xmdparent(path);
+        if (rc == 0) {
+            if (!CreateDirectoryW(path, NULL))
+                rc = GetLastError();
+        }
     }
+    *s = L'\\';
     return rc;
 }
 
@@ -1150,6 +1161,21 @@ static BOOL xcreatethread(SVCBATCH_THREAD_ID id,
     return TRUE;
 }
 
+static LPCWSTR skipdotslash(LPCWSTR s)
+{
+    LPCWSTR p = s;
+
+    if (*p++ == L'.') {
+        if (*p == WNUL)
+            return NULL;
+        if ((*p == L'\\') || (*p == L'/')) {
+            p++;
+            return (*p == WNUL) ? NULL : p;
+        }
+    }
+    return s;
+}
+
 static BOOL isabsolutepath(LPCWSTR p)
 {
     if ((p != NULL) && (p[0] < 128)) {
@@ -1186,8 +1212,8 @@ static DWORD fixshortpath(LPWSTR buf, DWORD len)
 static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
 {
     DWORD len;
-    ASSERT_WSTR(path, NULL);
 
+    ASSERT_WSTR(path, NULL);
     len = GetFullPathNameW(path, siz, dst, NULL);
     if ((len == 0) || (len >= siz))
         return NULL;
@@ -1196,7 +1222,7 @@ static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
 }
 
 static LPWSTR xgetfinalpath(LPCWSTR path, int isdir,
-                              LPWSTR dst, DWORD siz)
+                            LPWSTR dst, DWORD siz)
 {
     HANDLE fh;
     WCHAR  sbb[SVCBATCH_PATH_MAX];
@@ -1224,6 +1250,24 @@ static LPWSTR xgetfinalpath(LPCWSTR path, int isdir,
     fixshortpath(buf, len);
     if (dst == NULL)
         dst = xwcsdup(buf);
+    return dst;
+}
+
+static LPWSTR xgetdirpath(LPCWSTR path, LPWSTR dst, DWORD siz)
+{
+    HANDLE fh;
+    DWORD  len;
+
+    fh = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
+                     OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    if (IS_INVALID_HANDLE(fh))
+        return NULL;
+    len = GetFinalPathNameByHandleW(fh, dst, siz, VOLUME_NAME_DOS);
+    CloseHandle(fh);
+    if ((len == 0) || (len >= siz))
+        return NULL;
+
+    fixshortpath(dst, len);
     return dst;
 }
 
@@ -1611,35 +1655,35 @@ static BOOL canrotatelogs(LPSVCBATCH_LOG log)
 static DWORD createlogsdir(LPSVCBATCH_LOG log)
 {
     LPWSTR p;
-    WCHAR  dp[SVCBATCH_PATH_MAX];
-    WCHAR  wp[SVCBATCH_PATH_MAX];
+    WCHAR dp[SVCBATCH_PATH_MAX];
 
     if (isrelativepath(outdirparam)) {
-        if (service->work != service->home) {
-            int i;
-            i = xwcsncat(wp, SVCBATCH_PATH_MAX, 0, service->work);
-            i = xwcsncat(wp, SVCBATCH_PATH_MAX, i, L"\\");
-            i = xwcsncat(wp, SVCBATCH_PATH_MAX, i, outdirparam);
-            outdirparam = wp;
+        int i;
+        i = xwcsncat(dp, SVCBATCH_PATH_MAX, 0, service->work);
+        i = xwcsncat(dp, SVCBATCH_PATH_MAX, i, L"\\");
+        i = xwcsncat(dp, SVCBATCH_PATH_MAX, i, outdirparam);
+        xfixpathsep(dp);
+    }
+    else {
+        p = xgetfullpath(outdirparam, dp, SVCBATCH_PATH_MAX);
+        if (p == NULL) {
+            xsyserror(0, L"xgetfullpath", outdirparam);
+            return ERROR_BAD_PATHNAME;
         }
     }
-    if (xgetfullpath(outdirparam, dp, SVCBATCH_PATH_MAX) == NULL) {
-        xsyserror(0, L"xgetfullpath", outdirparam);
-        return ERROR_BAD_PATHNAME;
-    }
-    p = xgetfinalpath(dp, 1, service->logs, SVCBATCH_PATH_MAX);
+    p = xgetdirpath(dp, service->logs, SVCBATCH_PATH_MAX);
     if (p == NULL) {
         DWORD rc = GetLastError();
 
         if (rc > ERROR_PATH_NOT_FOUND)
-            return xsyserror(rc, L"xgetfinalpath", dp);
+            return xsyserror(rc, L"xgetdirpath", dp);
 
         rc = xcreatedir(dp);
         if (rc != 0)
             return xsyserror(rc, L"xcreatedir", dp);
-        p = xgetfinalpath(dp, 1, service->logs, SVCBATCH_PATH_MAX);
+        p = xgetdirpath(dp, service->logs, SVCBATCH_PATH_MAX);
         if (p == NULL)
-            return xsyserror(GetLastError(), L"xgetfinalpath", dp);
+            return xsyserror(GetLastError(), L"xgetdirpath", dp);
     }
     if (_wcsicmp(service->logs, service->home) == 0) {
         xsyserror(0, L"Logs directory cannot be the same as home directory", service->logs);
@@ -3248,13 +3292,13 @@ int wmain(int argc, LPCWSTR *wargv)
                     }
                 break;
                 case L'o':
-                    outdirparam  = xwoptarg;
+                    outdirparam  = skipdotslash(xwoptarg);
                 break;
                 case L'h':
-                    svchomeparam = xwoptarg;
+                    svchomeparam = skipdotslash(xwoptarg);
                 break;
                 case L'w':
-                    svcworkparam = xwoptarg;
+                    svcworkparam = skipdotslash(xwoptarg);
                 break;
                 case L'k':
                     stoptimeout  = xwcstoi(xwoptarg, NULL);
