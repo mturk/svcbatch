@@ -449,9 +449,8 @@ will be reported to Windows Event log.
   Use this option when output from `cmd.exe` is not needed or
   service batch file manages logging on its own.
 
-  In case **-s** option(s) are defined, the **-q** will disable
-  only the shutdown logging. In that case use **-qq** to disable
-  both service and shutdown logging.
+  In case **-s** option(s) are defined, you can use **-qq**
+  to disable only shutdown logging.
 
   **Notice**
 

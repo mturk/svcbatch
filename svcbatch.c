@@ -3375,9 +3375,9 @@ int wmain(int argc, LPCWSTR *wargv)
              else
                 svcoptions |= SVCBATCH_OPT_CTRL_BREAK;
         }
-        if (scnt && qcnt < 2) {
+        if (scnt && qcnt > 1) {
             /**
-             * Use -qq to disable both service and shutdown logging
+             * Use -qq to only disable shutdown logging
              */
             qcnt = 0;
         }
