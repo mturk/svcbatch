@@ -296,9 +296,18 @@ will be reported to Windows Event log.
   directory defined using **-w** option.
 
   If neither are defined, both home and work directories will
-  be set to either the path of the batch file if it was defined
-  as n absolute path. Otherwise directory of the svcbatch.exe
+  be set to the path of the batch file if it was defined
+  as an absolute path. Otherwise the directory of the svcbatch.exe
   will be used as both home and working directory.
+
+  In case the **path** is relative, it will be resolved
+  either to the directory of the batch file, if it was
+  defined as an absolute path, or to the directory of the
+  svcbatch executable.
+
+  The resulting **path** value must exist on the system
+  or the service will fail to start, and write an error message
+  to the Windows Event log.
 
 
 * **-m [number]**
