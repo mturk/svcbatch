@@ -64,7 +64,7 @@
 /**
  * Set to zero for release versions
  */
-#define SVCBATCH_ISDEV_VERSION  1
+#define SVCBATCH_ISDEV_VERSION  0
 
 
 #define SVCBATCH_NAME           "SvcBatch"
