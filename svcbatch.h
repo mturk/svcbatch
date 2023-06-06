@@ -241,9 +241,8 @@
 #define SVCBATCH_OPT_TRUNCATE       0x00000004   /* Truncate Log files           */
 #define SVCBATCH_OPT_QUIET          0x00000008   /* Disable logging              */
 #define SVCBATCH_OPT_VERBOSE        0x00000010   /* Use SvcBatch.status.log      */
-#define SVCBATCH_OPT_BREAK          0x00000020   /* Send CTRL_BREAK on stop      */
-#define SVCBATCH_OPT_CTRL_BREAK     0x00000040   /* Enable sending CTRL_BREAK    */
-#define SVCBATCH_OPT_ROTATE         0x00000080   /* Enable log rotation          */
+#define SVCBATCH_OPT_CTRL_BREAK     0x00000020   /* Enable sending CTRL_BREAK    */
+#define SVCBATCH_OPT_ROTATE         0x00000040   /* Enable log rotation          */
 
 /**
  * Helper macros

@@ -2342,14 +2342,8 @@ static DWORD WINAPI stopthread(void *msg)
     if (ws != WAIT_OBJECT_0) {
         reportsvcstatus(SERVICE_STOP_PENDING, 0);
         SetConsoleCtrlHandler(NULL, TRUE);
-        if (IS_SET(SVCBATCH_OPT_BREAK)) {
-            DBG_PRINTS("generating CTRL_BREAK_EVENT");
-            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-        }
-        else {
-            DBG_PRINTS("generating CTRL_C_EVENT");
-            GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
-        }
+        DBG_PRINTS("generating CTRL_C_EVENT");
+        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
         DBG_PRINTF("waiting %d ms for worker", ri);
         ws = WaitForSingleObject(workerended, ri);
         SetConsoleCtrlHandler(NULL, FALSE);
@@ -2385,10 +2379,7 @@ static void stopshutdown(DWORD rt)
 
     DBG_PRINTS("started");
     SetConsoleCtrlHandler(NULL, TRUE);
-    if (IS_SET(SVCBATCH_OPT_BREAK))
-        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-    else
-        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+    GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
     ws = WaitForSingleObject(workerended, rt);
     SetConsoleCtrlHandler(NULL, FALSE);
 
@@ -3225,7 +3216,6 @@ int wmain(int argc, LPCWSTR *wargv)
     int    rcnt = 0;
     int    scnt = 0;
     int    qcnt = 0;
-    int    bcnt = 0;
     int    ccnt = 0;
     HANDLE h;
 
@@ -3358,6 +3348,9 @@ int wmain(int argc, LPCWSTR *wargv)
 
         while ((opt = xwgetopt(argc, wargv, L"bc:e:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
+                case L'b':
+                    svcoptions |= SVCBATCH_OPT_CTRL_BREAK;
+                break;
                 case L'l':
                     svcoptions  |= SVCBATCH_OPT_LOCALTIME;
                 break;
@@ -3413,9 +3406,6 @@ int wmain(int argc, LPCWSTR *wargv)
                  * Options that can be defined
                  * multiple times
                  */
-                case L'b':
-                    bcnt++;
-                break;
                 case L'c':
                     if (commandparam) {
                         if (ccnt < SVCBATCH_MAX_ARGS)
@@ -3501,12 +3491,6 @@ int wmain(int argc, LPCWSTR *wargv)
         service->uuid = xuuidstring(NULL);
         if (IS_EMPTY_WCS(service->uuid))
             return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
-        if (bcnt) {
-            if (bcnt > 1)
-                svcoptions |= SVCBATCH_OPT_BREAK;
-             else
-                svcoptions |= SVCBATCH_OPT_CTRL_BREAK;
-        }
         if (svcstopparam && qcnt > 1) {
             /**
              * Use -qq to only disable shutdown logging
