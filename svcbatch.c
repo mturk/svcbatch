@@ -64,13 +64,6 @@ typedef struct _SVCBATCH_THREAD {
 #endif
 } SVCBATCH_THREAD, *LPSVCBATCH_THREAD;
 
-typedef struct _SVCBATCH_STDIN_DATA {
-    HANDLE  pipe;
-    DWORD   size;
-    LPBYTE  data;
-
-} SVCBATCH_STDIN_DATA, *LPSVCBATCH_STDIN_DATA;
-
 typedef struct _SVCBATCH_PIPE {
     OVERLAPPED  o;
     HANDLE      pipe;
@@ -83,7 +76,6 @@ typedef struct _SVCBATCH_PROCESS {
     volatile LONG       state;
     PROCESS_INFORMATION pInfo;
     STARTUPINFOW        sInfo;
-    SVCBATCH_STDIN_DATA in;
     DWORD               exitCode;
     DWORD               argc;
     DWORD               optc;
@@ -165,7 +157,7 @@ static BOOL      rotatebytime   = FALSE;
 static BOOL      rotatebysignal = FALSE;
 static BOOL      servicemode    = TRUE;
 
-static DWORD     svcoptions     = SVCBATCH_OPT_STDIN;
+static DWORD     svcoptions     = SVCBATCH_OPT_YYES;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 
@@ -1309,27 +1301,6 @@ static LPWSTR xsearchexe(LPCWSTR name)
     return xwcsdup(buf);
 }
 
-static DWORD xreadfile(LPCWSTR name, LPBYTE *dst)
-{
-    HANDLE fh;
-    DWORD  rd;
-    BYTE   rb[SVCBATCH_DATA_MAX];
-
-    fh = CreateFileW(name, GENERIC_READ, 0, NULL,
-                     OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (IS_INVALID_HANDLE(fh))
-        return 0;
-    if (ReadFile(fh, rb, SVCBATCH_DATA_MAX, &rd, NULL) && rd) {
-        *dst = xmmalloc(rd);
-        memcpy(*dst, rb, rd);
-    }
-    else {
-        rd = 0;
-    }
-    CloseHandle(fh);
-    return rd;
-}
-
 static BOOL resolvescriptname(LPCWSTR bp)
 {
     LPWSTR p;
@@ -2428,21 +2399,20 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     return 0;
 }
 
-static DWORD WINAPI wrpipethread(void *param)
+static DWORD WINAPI wrpipethread(void *pipe)
 {
     DWORD rc = 0;
     DWORD wr;
-    LPSVCBATCH_STDIN_DATA wd = (LPSVCBATCH_STDIN_DATA)param;
 
     DBG_PRINTS("started");
-    if (WriteFile(wd->pipe, wd->data, wd->size, &wr, NULL) && (wr != 0)) {
-        if (!FlushFileBuffers(wd->pipe))
+    if (WriteFile(pipe, YYES, 3, &wr, NULL) && (wr != 0)) {
+        if (!FlushFileBuffers(pipe))
             rc = GetLastError();
     }
     else {
         rc = GetLastError();
     }
-    CloseHandle(wd->pipe);
+    CloseHandle(pipe);
 #if defined(_DEBUG)
     if (rc) {
         if (rc == ERROR_BROKEN_PIPE)
@@ -2584,7 +2554,7 @@ static DWORD WINAPI workerthread(void *unused)
 
     if (outputlog)
         rp = &rd;
-    if (IS_SET(SVCBATCH_OPT_STDIN))
+    if (IS_SET(SVCBATCH_OPT_YYES))
         wp = &wr;
     rc = createiopipes(&cmdproc->sInfo, wp, rp, FILE_FLAG_OVERLAPPED);
     if (rc != 0) {
@@ -2635,10 +2605,9 @@ static DWORD WINAPI workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cmdproc->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(cmdproc->sInfo.hStdError);
 
-    if (IS_SET(SVCBATCH_OPT_STDIN)) {
-        cmdproc->in.pipe = wr;
+    if (IS_SET(SVCBATCH_OPT_YYES)) {
         if (!xcreatethread(SVCBATCH_WRPIPE_THREAD,
-                           1, wrpipethread, &cmdproc->in)) {
+                           1, wrpipethread, wr)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
             xsyserror(rc, L"Write thread", NULL);
@@ -2661,7 +2630,7 @@ static DWORD WINAPI workerthread(void *unused)
 
     ResumeThread(cmdproc->pInfo.hThread);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_RUNNING);
-    if (IS_SET(SVCBATCH_OPT_STDIN))
+    if (IS_SET(SVCBATCH_OPT_YYES))
         ResumeThread(threads[SVCBATCH_WRPIPE_THREAD].thread);
 
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
@@ -2735,7 +2704,7 @@ static DWORD WINAPI workerthread(void *unused)
     }
     DBG_PRINTS("stopping");
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_STOPPING);
-    if (IS_SET(SVCBATCH_OPT_STDIN)) {
+    if (IS_SET(SVCBATCH_OPT_YYES)) {
         if (WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
             DBG_PRINTS("wrpipethread is still active ... calling CancelSynchronousIo");
             CancelSynchronousIo(threads[SVCBATCH_WRPIPE_THREAD].thread);
@@ -3176,8 +3145,6 @@ static int xwmaininit(void)
     program = (LPSVCBATCH_PROCESS)xmcalloc( sizeof(SVCBATCH_PROCESS));
     cmdproc = (LPSVCBATCH_PROCESS)xmcalloc( sizeof(SVCBATCH_PROCESS));
 
-    cmdproc->in.data           = YYES;
-    cmdproc->in.size           = 3;
     program->state             = SVCBATCH_PROCESS_RUNNING;
     program->pInfo.hProcess    = GetCurrentProcess();
     program->pInfo.dwProcessId = GetCurrentProcessId();
@@ -3220,7 +3187,6 @@ int wmain(int argc, LPCWSTR *wargv)
     LPCWSTR scriptparam  = NULL;
     LPCWSTR svchomeparam = NULL;
     LPCWSTR svcworkparam = NULL;
-    LPCWSTR stdinparam   = NULL;
     LPCWSTR commandparam = NULL;
     LPCWSTR svcstopparam = NULL;
     LPCWSTR sparam[SVCBATCH_MAX_ARGS];
@@ -3345,7 +3311,7 @@ int wmain(int argc, LPCWSTR *wargv)
     if (servicemode) {
         WCHAR wb[SVCBATCH_PATH_MAX];
 
-        while ((opt = xwgetopt(argc, wargv, L"bc:h:i:k:lm:n:o:pqr:s:tvw:")) != EOF) {
+        while ((opt = xwgetopt(argc, wargv, L"bc:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
                 case L'l':
                     svcoptions  |= SVCBATCH_OPT_LOCALTIME;
@@ -3362,9 +3328,6 @@ int wmain(int argc, LPCWSTR *wargv)
                 /**
                  * Options with arguments
                  */
-                case L'i':
-                    stdinparam   = xwoptarg;
-                break;
                 case L'm':
                     maxlogsparam = xwoptarg;
                 break;
@@ -3621,6 +3584,7 @@ int wmain(int argc, LPCWSTR *wargv)
                     return xsyserror(0, L"The argument is too large", cparam[i]);
                 cmdproc->opts[cmdproc->optc++] = cparam[i];
             }
+            svcoptions &= ~SVCBATCH_OPT_YYES;
         }
         else {
             LPWSTR wp = xgetenv(L"COMSPEC");
@@ -3632,16 +3596,6 @@ int wmain(int argc, LPCWSTR *wargv)
                 return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
             xfree(wp);
             cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS L" /C";
-        }
-        if (stdinparam) {
-            if (_wcsicmp(stdinparam, L"NUL") == 0) {
-                svcoptions &= ~SVCBATCH_OPT_STDIN;
-            }
-            else {
-                cmdproc->in.size = xreadfile(stdinparam, &cmdproc->in.data);
-                if (cmdproc->in.size == 0)
-                    return xsyserror(ERROR_READ_FAULT, stdinparam, NULL);
-            }
         }
         if (rcnt) {
             for (i = 0; i < rcnt; i++) {

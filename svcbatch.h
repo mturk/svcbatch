@@ -150,12 +150,6 @@
 #define SVCBATCH_LINE_MAX     2048
 
 /**
- * Maximum number of characters read
- * from input file
- */
-#define SVCBATCH_DATA_MAX     8192
-
-/**
  * Custom SCM control code that
  * sends CTRL_BREAK_EVENT to the child processes.
  *
@@ -241,7 +235,7 @@
 /**
  * Runtime options
  */
-#define SVCBATCH_OPT_STDIN          0x00000001   /* Write data to shell's stdin  */
+#define SVCBATCH_OPT_YYES           0x00000001   /* Write Y to cmd.exe stdin     */
 #define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time               */
 #define SVCBATCH_OPT_TRUNCATE       0x00000004   /* Truncate Log files           */
 #define SVCBATCH_OPT_QUIET          0x00000008   /* Disable logging              */
