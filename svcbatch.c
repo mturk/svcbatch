@@ -565,7 +565,7 @@ static DWORD xsetenv(LPCWSTR s)
     LPWSTR  v;
 
     n = xwcsdup(s);
-    ASSERT_NULL(n, ERROR_INVALID_DATA);
+    ASSERT_NULL(n, ERROR_BAD_ENVIRONMENT);
     v = wcschr(n + 1, L'=');
     if (v == NULL) {
         e = ERROR_INVALID_PARAMETER;
@@ -573,14 +573,13 @@ static DWORD xsetenv(LPCWSTR s)
     }
     *v++ = WNUL;
     if (*v == WNUL) {
-        if (!SetEnvironmentVariableW(n, NULL))
-            e = GetLastError();
+        e = ERROR_INVALID_DATA;
         goto cleanup;
     }
     xwchreplace(v, L'@', L'%');
     if (wcschr(v, L'%')) {
         DWORD c;
-        DWORD z = EBUFSIZ - 1;
+        DWORD z = EBUFSIZ - 2;
 
         x = xwmalloc(EBUFSIZ);
         c = ExpandEnvironmentStringsW(v, x, z);
