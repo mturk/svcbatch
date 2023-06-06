@@ -342,29 +342,6 @@ static void xwchreplace(LPWSTR s, WCHAR c, WCHAR r)
     *d = WNUL;
 }
 
-static LPWSTR xgetenv(LPCWSTR s)
-{
-    DWORD  n;
-    WCHAR  e[BBUFSIZ];
-    LPWSTR d = NULL;
-
-    n = GetEnvironmentVariableW(s, e, BBUFSIZ);
-    if (n != 0) {
-        if (n >= BBUFSIZ) {
-            d = xwmalloc(n);
-            n = GetEnvironmentVariableW(s, d, n);
-            if (n == 0) {
-                xfree(d);
-                return NULL;
-            }
-        }
-        else {
-            d = xwcsdup(e);
-        }
-    }
-    return d;
-}
-
 /**
  * Simple atoi with range between 0 and INT_MAX.
  * Leading white space characters are ignored.
@@ -557,6 +534,29 @@ static int xsnprintf(char *dst, int siz, LPCSTR fmt, ...)
 
 }
 
+static LPWSTR xgetenv(LPCWSTR s)
+{
+    DWORD  n;
+    WCHAR  e[BBUFSIZ];
+    LPWSTR d = NULL;
+
+    n = GetEnvironmentVariableW(s, e, BBUFSIZ);
+    if (n != 0) {
+        if (n >= BBUFSIZ) {
+            d = xwmalloc(n);
+            n = GetEnvironmentVariableW(s, d, n);
+            if (n == 0) {
+                xfree(d);
+                return NULL;
+            }
+        }
+        else {
+            d = xwcsdup(e);
+        }
+    }
+    return d;
+}
+
 static DWORD xsetenv(LPCWSTR s)
 {
     DWORD   e = 0;
@@ -565,8 +565,9 @@ static DWORD xsetenv(LPCWSTR s)
     LPWSTR  v;
 
     n = xwcsdup(s);
+    ASSERT_NULL(n, ERROR_INVALID_DATA);
     v = wcschr(n + 1, L'=');
-    if (IS_EMPTY_WCS(v)) {
+    if (v == NULL) {
         e = ERROR_INVALID_PARAMETER;
         goto cleanup;
     }
