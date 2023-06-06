@@ -1421,15 +1421,16 @@ finished:
 
 static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
 {
-    WCHAR  name[SVCBATCH_UUID_MAX];
+    DWORD i;
+    WCHAR name[SVCBATCH_UUID_MAX];
     SECURITY_ATTRIBUTES sa;
 
     sa.nLength              = DSIZEOF(SECURITY_ATTRIBUTES);
     sa.lpSecurityDescriptor = NULL;
     sa.bInheritHandle       = TRUE;
 
-    xwcslcpy(name, SVCBATCH_UUID_MAX, SVCBATCH_PIPEPFX);
-    xuuidstring(name + _countof(SVCBATCH_PIPEPFX) - 1);
+    i = xwcslcpy(name, SVCBATCH_UUID_MAX, SVCBATCH_PIPEPFX);
+    xuuidstring(name + i);
 
     *rd = CreateNamedPipeW(name,
                            PIPE_ACCESS_INBOUND | mode,
