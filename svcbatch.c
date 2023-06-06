@@ -557,6 +557,50 @@ static int xsnprintf(char *dst, int siz, LPCSTR fmt, ...)
 
 }
 
+static DWORD xsetenv(LPCWSTR s)
+{
+    DWORD   e = 0;
+    LPWSTR  x = NULL;
+    LPWSTR  n;
+    LPWSTR  v;
+
+    n = xwcsdup(s);
+    v = wcschr(n + 1, L'=');
+    if (IS_EMPTY_WCS(v)) {
+        e = ERROR_INVALID_PARAMETER;
+        goto cleanup;
+    }
+    *v++ = WNUL;
+    if (*v == WNUL) {
+        if (!SetEnvironmentVariableW(n, NULL))
+            e = GetLastError();
+        goto cleanup;
+    }
+    xwchreplace(v, L'@', L'%');
+    if (wcschr(v, L'%')) {
+        DWORD c;
+        DWORD z = EBUFSIZ - 1;
+
+        x = xwmalloc(EBUFSIZ);
+        c = ExpandEnvironmentStringsW(v, x, z);
+        if (c == 0) {
+            e = GetLastError();
+            goto cleanup;
+        }
+        if (c >= z) {
+            e = ERROR_INSUFFICIENT_BUFFER;
+            goto cleanup;
+        }
+        v = x;
+    }
+    if (!SetEnvironmentVariableW(n, v))
+        e = GetLastError();
+cleanup:
+    xfree(n);
+    xfree(x);
+    return e;
+}
+
 static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2, LPCWSTR s3)
 {
     LPCWSTR c;
@@ -3174,6 +3218,7 @@ static int xwmaininit(void)
 
 int wmain(int argc, LPCWSTR *wargv)
 {
+    DWORD  x;
     int    i;
     int    opt;
     int    rcnt = 0;
@@ -3245,7 +3290,6 @@ int wmain(int argc, LPCWSTR *wargv)
         LPCWSTR p = wargv[1];
         if (p[0] == L'@') {
             if (p[1] == L'@') {
-                DWORD x;
                 servicemode = FALSE;
                 sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p + 2);
                 if (sharedmmap == NULL)
@@ -3311,7 +3355,7 @@ int wmain(int argc, LPCWSTR *wargv)
     if (servicemode) {
         WCHAR wb[SVCBATCH_PATH_MAX];
 
-        while ((opt = xwgetopt(argc, wargv, L"bc:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
+        while ((opt = xwgetopt(argc, wargv, L"bc:e:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
                 case L'l':
                     svcoptions  |= SVCBATCH_OPT_LOCALTIME;
@@ -3383,6 +3427,11 @@ int wmain(int argc, LPCWSTR *wargv)
                         if (commandparam == NULL)
                             xsyswarn(0, L"The -c command option value is invalid", NULL);
                     }
+                break;
+                case L'e':
+                    x = xsetenv(xwoptarg);
+                    if (x)
+                        return xsyserror(x, xwoptarg, NULL);
                 break;
                 case L'q':
                     svcoptions |= SVCBATCH_OPT_QUIET;

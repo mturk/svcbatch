@@ -223,6 +223,7 @@
 #define SBUFSIZ                128
 #define BBUFSIZ                512
 #define UBUFSIZ               8192
+#define EBUFSIZ              32768
 
 /**
  * Process state
