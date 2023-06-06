@@ -15,9 +15,19 @@
 
 # Infinite loop
 
+Write-Host "Running from $env:SVCBATCH_SERVICE_NAME service"
+
+Write-Host ""
+Write-Host "Arguments:"
+foreach ($arg in $args) {
+    Write-Host $arg
+}
+
+Write-Host ""
+Write-Host "Starting infinite loop ..."
 while($true)
 {
+    Start-Sleep -Seconds 5
     $i++
     Write-Host "Counter is $i"
-    Start-Sleep -Seconds 5
 }

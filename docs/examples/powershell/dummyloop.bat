@@ -18,5 +18,7 @@ rem --------------------------------------------------
 rem Start PowerShell script
 rem
 rem sc create adummyps binPath= "\"%ProgramFiles%\SvcBatch\svcbatch.exe\" /w \"%cd%\" dummyloop.bat"
+rem ... or
+rem sc create adummyps binPath= "\"%cd%\svcbatch.exe\" -v -c powershell.exe -c -NoProfile -c \"-ExecutionPolicy Bypass\" -c -File dummyloop.ps1"
 rem
 powershell.exe -NoProfile -ExecutionPolicy Bypass "& {& '%~dp0dummyloop.ps1'}"
