@@ -3349,13 +3349,13 @@ int wmain(int argc, LPCWSTR *wargv)
         while ((opt = xwgetopt(argc, wargv, L"bc:e:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
                 case L'b':
-                    svcoptions |= SVCBATCH_OPT_CTRL_BREAK;
+                    svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
                 break;
                 case L'l':
                     svcoptions  |= SVCBATCH_OPT_LOCALTIME;
                 break;
                 case L'p':
-                    preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
+                    preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
                 break;
                 case L't':
                     svcoptions  |= SVCBATCH_OPT_TRUNCATE;
@@ -3370,31 +3370,29 @@ int wmain(int argc, LPCWSTR *wargv)
                     maxlogsparam = xwoptarg;
                 break;
                 case L'n':
+                    if (svclogfname)
+                        return xsyserror(0, L"Found multiple -n command options", xwoptarg);
                     if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
                         return xsyserror(0, L"Found invalid filename characters", xwoptarg);
-                    svclogfname  = xwcsdup(xwoptarg);
-                    if (wcschr(svclogfname, L'@')) {
-                        /**
-                         * If name is strftime formatted
-                         * replace @ with % so it can be used by strftime
-                         */
-                        xwchreplace(svclogfname, L'@', L'%');
-                    }
+                    svclogfname = xwcsdup(skipdotslash(xwoptarg));
+                    if (svclogfname == NULL)
+                        xsyswarn(0, L"The -n command option value is invalid", xwoptarg);
+                    xwchreplace(svclogfname, L'@', L'%');
                 break;
                 case L'o':
                     outdirparam  = skipdotslash(xwoptarg);
                     if (outdirparam == NULL)
-                        xsyswarn(0, L"The -o command option value is invalid", NULL);
+                        xsyswarn(0, L"The -o command option value is invalid", xwoptarg);
                 break;
                 case L'h':
                     svchomeparam = skipdotslash(xwoptarg);
                     if (svchomeparam == NULL)
-                        xsyswarn(0, L"The -h command option value is invalid", NULL);
+                        xsyswarn(0, L"The -h command option value is invalid", xwoptarg);
                 break;
                 case L'w':
                     svcworkparam = skipdotslash(xwoptarg);
                     if (svcworkparam == NULL)
-                        xsyswarn(0, L"The -w command option value is invalid", NULL);
+                        xsyswarn(0, L"The -w command option value is invalid", xwoptarg);
                 break;
                 case L'k':
                     stoptimeout  = xwcstoi(xwoptarg, NULL);
@@ -3416,7 +3414,7 @@ int wmain(int argc, LPCWSTR *wargv)
                     else {
                         commandparam = skipdotslash(xwoptarg);
                         if (commandparam == NULL)
-                            xsyswarn(0, L"The -c command option value is invalid", NULL);
+                            xsyswarn(0, L"The -c command option value is invalid", xwoptarg);
                     }
                 break;
                 case L'e':
@@ -3438,7 +3436,7 @@ int wmain(int argc, LPCWSTR *wargv)
                     else {
                         svcstopparam = skipdotslash(xwoptarg);
                         if (svcstopparam == NULL)
-                            xsyswarn(0, L"The -s command option value is invalid", NULL);
+                            xsyswarn(0, L"The -s command option value is invalid", xwoptarg);
 
                     }
                 break;
