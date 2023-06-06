@@ -157,7 +157,7 @@ static BOOL      rotatebytime   = FALSE;
 static BOOL      rotatebysignal = FALSE;
 static BOOL      servicemode    = TRUE;
 
-static DWORD     svcoptions     = SVCBATCH_OPT_YYES;
+static DWORD     svcoptions     = 0;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 
@@ -3584,7 +3584,6 @@ int wmain(int argc, LPCWSTR *wargv)
                     return xsyserror(0, L"The argument is too large", cparam[i]);
                 cmdproc->opts[cmdproc->optc++] = cparam[i];
             }
-            svcoptions &= ~SVCBATCH_OPT_YYES;
         }
         else {
             LPWSTR wp = xgetenv(L"COMSPEC");
@@ -3596,6 +3595,7 @@ int wmain(int argc, LPCWSTR *wargv)
                 return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
             xfree(wp);
             cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS L" /C";
+            svcoptions |= SVCBATCH_OPT_YYES;
         }
         if (rcnt) {
             for (i = 0; i < rcnt; i++) {
