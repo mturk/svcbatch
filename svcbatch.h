@@ -150,6 +150,12 @@
 #define SVCBATCH_LINE_MAX     2048
 
 /**
+ * Maximum number of characters read
+ * from input file
+ */
+#define SVCBATCH_DATA_MAX     8192
+
+/**
  * Custom SCM control code that
  * sends CTRL_BREAK_EVENT to the child processes.
  *
@@ -235,13 +241,14 @@
 /**
  * Runtime options
  */
-#define SVCBATCH_OPT_LOCALTIME      0x00000001   /* Use local time               */
-#define SVCBATCH_OPT_TRUNCATE       0x00000002   /* Truncate Log files           */
-#define SVCBATCH_OPT_QUIET          0x00000004   /* Disable logging              */
+#define SVCBATCH_OPT_STDIN          0x00000001   /* Write data to shell's stdin  */
+#define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time               */
+#define SVCBATCH_OPT_TRUNCATE       0x00000004   /* Truncate Log files           */
+#define SVCBATCH_OPT_QUIET          0x00000008   /* Disable logging              */
 #define SVCBATCH_OPT_VERBOSE        0x00000010   /* Use SvcBatch.status.log      */
 #define SVCBATCH_OPT_BREAK          0x00000020   /* Send CTRL_BREAK on stop      */
 #define SVCBATCH_OPT_CTRL_BREAK     0x00000040   /* Enable sending CTRL_BREAK    */
-#define SVCBATCH_OPT_ROTATE         0x00000100   /* Enable log rotation          */
+#define SVCBATCH_OPT_ROTATE         0x00000080   /* Enable log rotation          */
 
 /**
  * Helper macros
