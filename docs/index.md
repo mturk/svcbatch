@@ -11,6 +11,7 @@ inside different environments and target applications.
 - [Python Examples](examples/python.md)
 - [Ruby Examples](examples/ruby.md)
 - [PowerShell Examples](examples/powershell.md)
+- [Bash Examples](examples/bash.md)
 
 ### Maintainer Help
 
