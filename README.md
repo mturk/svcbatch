@@ -232,6 +232,50 @@ will be reported to Windows Event log.
   See [Custom Control Codes](#custom-control-codes) section below for more details
 
 
+* **-c [shell][parameters]**
+
+  **Use alternative shell**
+
+  This option allows to use alternative **shell** program
+  instead default **cmd.exe** to run the scripts.
+
+  For example:
+
+  ```cmd
+  > sc create ... -c powershell -c -NoProfile -c \"-ExecutionPolicy Bypass\" -c -File myservice.ps1 ...
+
+  ```
+
+  SvcBatch will execute **powershell.exe** instead **cmd.exe** and pass
+  **parameters** as arguments to the powershell.
+
+
+
+* **-e [name=value]**
+
+  **Set environment variable**
+
+  This option allows to set the contents of the specified
+  environment variable. The content of the **name** environment
+  variable is to the **value**.
+
+  For example:
+
+  ```cmd
+  > sc create ... -e MY_VARIABLE_NAME=Very -e MY_VARIABLE_VALUE=Fancy ...
+
+  ```
+
+  The following example will modify `PATH` environment
+  variable for the current process:
+
+  ```cmd
+  > sc create ... -e \"PATH=@ProgramFiles@\SomeApplication;@PATH@\" ...
+
+  ```
+
+
+
 * **-k [timeout]**
 
   **Set stop timeout in seconds**

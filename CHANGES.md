@@ -9,6 +9,13 @@ For a full list of changes, see the [git commit log][log]
 ## v2.1.2
 
   * In development
+  * Drop inconsistent -bb option
+  * Improve detecting invalid command option values
+
+### New Features
+
+  * Add -c command option for setting alternative script interpreters
+  * Add -e command option for setting the environment variable(s) for the current process
 
 
 ## v2.1.1
