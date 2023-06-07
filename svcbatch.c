@@ -3471,7 +3471,7 @@ int wmain(int argc, LPCWSTR *wargv)
                 if (xwcslen(wargv[i]) >= SVCBATCH_NAME_MAX)
                     return xsyserror(0, L"The argument is too large", wargv[i]);
 
-                if (i < SVCBATCH_MAX_ARGS)
+                if (cmdproc->argc < SVCBATCH_MAX_ARGS)
                     cmdproc->args[cmdproc->argc++] = xwcsdup(wargv[i]);
                 else
                     return xsyserror(0, L"Too many arguments", wargv[i]);
