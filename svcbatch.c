@@ -2329,7 +2329,7 @@ static DWORD WINAPI stopthread(void *msg)
         SetConsoleCtrlHandler(NULL, TRUE);
         if (IS_SET(SVCBATCH_OPT_BREAK)) {
             DBG_PRINTS("generating CTRL_BREAK_EVENT");
-            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cmdproc->pInfo.dwProcessId);
         }
         else {
             DBG_PRINTS("generating CTRL_C_EVENT");
@@ -2371,7 +2371,7 @@ static void stopshutdown(DWORD rt)
     SetConsoleCtrlHandler(NULL, TRUE);
     if (IS_SET(SVCBATCH_OPT_BREAK)) {
         DBG_PRINTS("generating CTRL_BREAK_EVENT");
-        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cmdproc->pInfo.dwProcessId);
     }
     else {
         DBG_PRINTS("generating CTRL_C_EVENT");
@@ -2579,6 +2579,7 @@ static DWORD WINAPI workerthread(void *unused)
     LPHANDLE rp = NULL;
     LPHANDLE wp = NULL;
     DWORD    rc = 0;
+    DWORD    cf = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
     LPSVCBATCH_PIPE op = NULL;
 
     DBG_PRINTS("started");
@@ -2618,11 +2619,11 @@ static DWORD WINAPI workerthread(void *unused)
     }
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     DBG_PRINTF("cmdline %S", cmdproc->commandLine);
+    if (IS_SET(SVCBATCH_OPT_BREAK))
+        cf |= CREATE_NEW_PROCESS_GROUP;
     if (!CreateProcessW(cmdproc->application,
                         cmdproc->commandLine,
-                        NULL, NULL, TRUE,
-                        CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
-                        NULL,
+                        NULL, NULL, TRUE, cf, NULL,
                         service->work,
                        &cmdproc->sInfo,
                        &cmdproc->pInfo)) {
