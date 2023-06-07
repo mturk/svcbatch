@@ -881,17 +881,17 @@ static BOOL xwinapierror(LPWSTR buf, int siz, DWORD err)
     if (n) {
         do {
             buf[n--] = WNUL;
-        } while ((n > 0) && ((buf[n] == L'.') || iswspace(buf[n])));
+        } while ((n > 0) && ((buf[n] == 46) || (buf[n] < 33)));
 
         while (n-- > 0) {
-            if (iswspace(buf[n]))
-                buf[n] = L' ';
+            if (buf[n] < 32)
+                buf[n] = 32;
         }
         return TRUE;
     }
     else {
         xsnwprintf(buf, siz,
-                   L"Unknown system error code: %u", err);
+                   L"Unrecognized system error code: %u", err);
         return FALSE;
     }
 }
