@@ -8,7 +8,6 @@ For a full list of changes, see the [git commit log][log]
 
 ## v2.1.2
 
-  * In development
   * Drop inconsistent -bb option
   * Improve detecting invalid command option values
 
