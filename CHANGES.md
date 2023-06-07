@@ -16,6 +16,7 @@ For a full list of changes, see the [git commit log][log]
 
   * Add -c command option for setting alternative script interpreters
   * Add -e command option for setting the environment variable(s) for the current process
+  * Add -g command option for generating ctrl+break instead ctrl+c on service stop
 
 
 ## v2.1.1

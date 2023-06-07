@@ -2060,7 +2060,6 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
     SVCBATCH_CS_LEAVE(log);
     SVCBATCH_CS_CLOSE(log);
     SAFE_MEM_FREE(log);
-    DBG_PRINTS("done");
     return 0;
 }
 
@@ -2235,7 +2234,7 @@ static DWORD runshutdown(void)
         return GetLastError();
     ZeroMemory(sharedmem, sizeof(SVCBATCH_IPC));
     sharedmem->processId = program->pInfo.dwProcessId;
-    sharedmem->options   = svcoptions & 0x0000000F;
+    sharedmem->options   = svcoptions & 0x000000FF;
     sharedmem->timeout   = stoptimeout;
     sharedmem->killdepth = killdepth;
     if (outputlog)
@@ -2328,8 +2327,14 @@ static DWORD WINAPI stopthread(void *msg)
     if (ws != WAIT_OBJECT_0) {
         reportsvcstatus(SERVICE_STOP_PENDING, 0);
         SetConsoleCtrlHandler(NULL, TRUE);
-        DBG_PRINTS("generating CTRL_C_EVENT");
-        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+        if (IS_SET(SVCBATCH_OPT_BREAK)) {
+            DBG_PRINTS("generating CTRL_BREAK_EVENT");
+            GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+        }
+        else {
+            DBG_PRINTS("generating CTRL_C_EVENT");
+            GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+        }
         DBG_PRINTF("waiting %d ms for worker", ri);
         ws = WaitForSingleObject(workerended, ri);
         SetConsoleCtrlHandler(NULL, FALSE);
@@ -2364,7 +2369,14 @@ static void stopshutdown(DWORD rt)
 
     DBG_PRINTS("started");
     SetConsoleCtrlHandler(NULL, TRUE);
-    GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+    if (IS_SET(SVCBATCH_OPT_BREAK)) {
+        DBG_PRINTS("generating CTRL_BREAK_EVENT");
+        GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
+    }
+    else {
+        DBG_PRINTS("generating CTRL_C_EVENT");
+        GenerateConsoleCtrlEvent(CTRL_C_EVENT, 0);
+    }
     ws = WaitForSingleObject(workerended, rt);
     SetConsoleCtrlHandler(NULL, FALSE);
 
@@ -2734,11 +2746,11 @@ static DWORD WINAPI workerthread(void *unused)
     if (!GetExitCodeProcess(cmdproc->pInfo.hProcess, &rc))
         rc = GetLastError();
     if (rc) {
-        if (rc != 255) {
+        if ((rc != 0x000000FF) && (rc != 0xC000013A)) {
             /**
+             * Discard common error codes
              * 255 is exit code when CTRL_C is send to cmd.exe
              */
-            setsvcstatusexit(rc);
             cmdproc->exitCode = rc;
         }
     }
@@ -3110,7 +3122,6 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 
 finished:
     DBG_PRINTS("closing");
-    closeprocess(cmdproc);
     closelogfile(outputlog);
     closelogfile(statuslog);
     threadscleanup();
@@ -3337,10 +3348,13 @@ int wmain(int argc, LPCWSTR *wargv)
     if (servicemode) {
         WCHAR wb[SVCBATCH_PATH_MAX];
 
-        while ((opt = xwgetopt(argc, wargv, L"bc:e:h:k:lm:n:o:pqr:s:tvw:")) != EOF) {
+        while ((opt = xwgetopt(argc, wargv, L"bc:e:gh:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
                 case L'b':
                     svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
+                break;
+                case L'g':
+                    svcoptions  |= SVCBATCH_OPT_BREAK;
                 break;
                 case L'l':
                     svcoptions  |= SVCBATCH_OPT_LOCALTIME;

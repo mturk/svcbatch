@@ -276,32 +276,28 @@ will be reported to Windows Event log.
 
 
 
-* **-k [timeout]**
+* **-g**
 
-  **Set stop timeout in seconds**
+  **Generate CTRL_BREAK on service stop**
 
-  This option sets the **timeout** when service receives
-  stop or shutdown signal.
-  The valid **timeout** range is between `2` and `120`
-  seconds (two minutes).
+  This option can be used to send `ctrl+break` instead `ctrl+c`
+  signal when the service is stopping.
 
-  By default this value is set to `10` seconds.
+  This is useful when the service batch file uses `start /B ...`
+  to launch multiple applications.
 
-  Also make sure to check the **WaitToKillServiceTimeout**
-  value specified in the following registry key:
+  ```batchfile
+  ...
+  start /B some.exe instance1
+  start /B some.exe instance2
+  start /B some.exe instance3
+  ...
+  ```
 
-  **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control**
+  When using `start /B application`, the application does
+  not receive `ctrl+c` signal. The `ctrl+break` is the only
+  way to interrupt the application.
 
-  If the operating system is rebooting, this value is used
-  as time limit.
-
-
-* **-l**
-
-  **Use local time**
-
-  This option causes all logging and rotation
-  to use local instead system time.
 
 
 * **-h [path]**
@@ -330,6 +326,36 @@ will be reported to Windows Event log.
   The resulting **path** value must exist on the system
   or the service will fail to start, and write an error message
   to the Windows Event log.
+
+
+* **-k [timeout]**
+
+  **Set stop timeout in seconds**
+
+  This option sets the **timeout** when service receives
+  stop or shutdown signal.
+  The valid **timeout** range is between `2` and `120`
+  seconds (two minutes).
+
+  By default this value is set to `10` seconds.
+
+  Also make sure to check the **WaitToKillServiceTimeout**
+  value specified in the following registry key:
+
+  **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control**
+
+  If the operating system is rebooting, this value is used
+  as time limit.
+
+
+
+* **-l**
+
+  **Use local time**
+
+  This option causes all logging and rotation
+  to use local instead system time.
+
 
 
 * **-m [number]**
@@ -585,6 +611,7 @@ will be reported to Windows Event log.
 
   This will truncate existing `SvcBatch.log`
   on rotate instead creating a new file.
+
 
 * **-v**
 
