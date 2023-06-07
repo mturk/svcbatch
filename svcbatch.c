@@ -3525,21 +3525,21 @@ int wmain(int argc, LPCWSTR *wargv)
          * Find the location of SVCBATCH_SERVICE_HOME
          * all relative paths are resolved against it.
          *
-         * 1. If -w is defined and is absolute path
+         * 1. If -h is defined and is absolute path
          *    set it as SetCurrentDirectory and use it as
          *    home directory for resolving other relative paths
          *
          * 2. If batch file is defined as absolute path
-         *    set it as SetCurrentDirectory and resolve -w parameter
-         *    if defined as relative path. If -w was defined and
+         *    set it as SetCurrentDirectory and resolve -h parameter
+         *    if defined as relative path. If -h was defined and
          *    and is resolved as valid path set it as home directory.
-         *    If -w was defined and cannot be resolved fail.
+         *    If -h was defined and cannot be resolved fail.
          *
          * 3. Use running svcbatch.exe directory and set it as
          *    SetCurrentDirectory.
-         *    If -w parameter was defined, resolve it and set as home
+         *    If -h parameter was defined, resolve it and set as home
          *    directory or fail.
-         *    In case -w was not defined resolve batch file and set its
+         *    In case -h was not defined resolve batch file and set its
          *    directory as home directory or fail if it cannot be resolved.
          *
          */
