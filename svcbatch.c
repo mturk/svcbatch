@@ -3372,11 +3372,11 @@ int wmain(int argc, LPCWSTR *wargv)
                 case L'n':
                     if (svclogfname)
                         return xsyserror(0, L"Found multiple -n command options", xwoptarg);
-                    if (wcspbrk(xwoptarg, L"/\\:;<>?*|\""))
-                        return xsyserror(0, L"Found invalid filename characters", xwoptarg);
                     svclogfname = xwcsdup(skipdotslash(xwoptarg));
                     if (svclogfname == NULL)
                         xsyswarn(0, L"The -n command option value is invalid", xwoptarg);
+                    if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
+                        return xsyserror(0, L"Found invalid filename characters", svclogfname);
                     xwchreplace(svclogfname, L'@', L'%');
                 break;
                 case L'o':
