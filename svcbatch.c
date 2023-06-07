@@ -3549,12 +3549,10 @@ int wmain(int argc, LPCWSTR *wargv)
         if (svcworkparam == NULL)
             svcworkparam = svchomeparam;
 
-        if (svchomeparam) {
-            if (isabsolutepath(svchomeparam)) {
-                service->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
-                if (IS_EMPTY_WCS(service->home))
-                    return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
-            }
+        if (isabsolutepath(svchomeparam)) {
+            service->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
+            if (IS_EMPTY_WCS(service->home))
+                return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
         }
         if (service->home == NULL) {
             if (isabsolutepath(scriptparam)) {
