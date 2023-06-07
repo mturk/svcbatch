@@ -1166,7 +1166,7 @@ static DWORD WINAPI xrunthread(LPVOID param)
     p->exitCode = (*p->startAddress)(p->parameter);
 #if defined(_DEBUG)
     p->duration = GetTickCount64() - p->duration;
-    DBG_PRINTF("%lu ended %lu", p->id, p->exitCode);
+    DBG_PRINTF("[%d] ended %lu", p->id, p->exitCode);
 #endif
     InterlockedExchange(&p->started, 0);
     ExitThread(p->exitCode);
@@ -2900,14 +2900,14 @@ static void threadscleanup(void)
         if (h) {
             if (threads[i].started) {
 #if defined(_DEBUG)
-                DBG_PRINTF("threads[%d]    x", i);
+                DBG_PRINTF("[%d]", i);
                 threads[i].duration = GetTickCount64() - threads[i].duration;
 #endif
                 threads[i].exitCode = ERROR_DISCARDED;
                 TerminateThread(h, threads[i].exitCode);
             }
 #if defined(_DEBUG)
-            DBG_PRINTF("threads[%d] %4lu %10llums", i,
+            DBG_PRINTF("[%d] 0x%08X %10llums", i,
                         threads[i].exitCode,
                         threads[i].duration);
 #endif
@@ -2922,24 +2922,24 @@ static void waitforthreads(DWORD ms)
     int i;
     HANDLE wh[SVCBATCH_MAX_THREADS];
     DWORD  nw = 0;
-    DWORD  ws = 0;
 
     DBG_PRINTS("started");
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
         if (threads[i].started) {
 #if defined(_DEBUG)
-            DBG_PRINTF("threads[%d]", i);
+            DBG_PRINTF("[%d]", i);
 #endif
             wh[nw++] = threads[i].thread;
         }
     }
     if (nw) {
+        DBG_PRINTF("wait for %d", nw);
         if (nw > 1)
-            ws = WaitForMultipleObjects(nw, wh, TRUE, ms);
+            WaitForMultipleObjects(nw, wh, TRUE, ms);
         else
-            ws = WaitForSingleObject(wh[0], ms);
+            WaitForSingleObject(wh[0], ms);
     }
-    DBG_PRINTF("done %d %d", nw, ws);
+    DBG_PRINTS("done");
 }
 
 static void __cdecl cconsolecleanup(void)
