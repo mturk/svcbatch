@@ -34,17 +34,17 @@ exit /B 1
 rem
 :doCreate
 rem
-pushd %~dp0
-set "_TESTS_DIR=%cd%"
+pushd "%~dp0"
+set "TEST_DIR=%cd%"
 popd
-if not exist "%_TESTS_DIR%\..\.build\dbg" (
+if not exist "%TEST_DIR%\..\.build\dbg" (
     echo.
     echo Cannot find build directory.
     echo Run [n]make tests _DEBUG=1
     exit /B 1
 )
-pushd ..\.build\dbg
-set "_BUILD_DIR=%cd%"
+pushd "..\.build\dbg"
+set "BUILD_DIR=%cd%"
 popd
 set "SERVICE_LOG_FNAME="
 set "SHUTDOWN_ARGS="
@@ -77,11 +77,13 @@ rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S\""
 rem
 rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d\""
 rem
+rem Set PATH
+set "SERVICE_ENVIRONMENT=-e \"PATH=%BUILD_DIR%;@PATH@\""
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
-set "SERVICE_CMDLINE=\"%_BUILD_DIR%\svcbatch.exe\" @%SERVICE_NAME% -pvbL /h \"%_TESTS_DIR%\" %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
+set "SERVICE_CMDLINE=\"%BUILD_DIR%\svcbatch.exe\" @%SERVICE_NAME% -pvbL /h \"%TEST_DIR%\" %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
 rem
 sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%

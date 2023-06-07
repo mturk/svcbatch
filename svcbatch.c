@@ -559,8 +559,8 @@ static LPWSTR xgetenv(LPCWSTR s)
 
 static DWORD xsetenv(LPCWSTR s)
 {
+    WCHAR   b[EBUFSIZ];
     DWORD   e = 0;
-    LPWSTR  x = NULL;
     LPWSTR  n;
     LPWSTR  v;
 
@@ -569,35 +569,33 @@ static DWORD xsetenv(LPCWSTR s)
     v = wcschr(n + 1, L'=');
     if (v == NULL) {
         e = ERROR_INVALID_PARAMETER;
-        goto cleanup;
+        goto finished;
     }
     *v++ = WNUL;
     if (*v == WNUL) {
         e = ERROR_INVALID_DATA;
-        goto cleanup;
+        goto finished;
     }
     xwchreplace(v, L'@', L'%');
     if (wcschr(v, L'%')) {
         DWORD c;
         DWORD z = EBUFSIZ - 2;
 
-        x = xwmalloc(EBUFSIZ);
-        c = ExpandEnvironmentStringsW(v, x, z);
+        c = ExpandEnvironmentStringsW(v, b, z);
         if (c == 0) {
             e = GetLastError();
-            goto cleanup;
+            goto finished;
         }
         if (c >= z) {
             e = ERROR_INSUFFICIENT_BUFFER;
-            goto cleanup;
+            goto finished;
         }
-        v = x;
+        v = b;
     }
     if (!SetEnvironmentVariableW(n, v))
         e = GetLastError();
-cleanup:
+finished:
     xfree(n);
-    xfree(x);
     return e;
 }
 
