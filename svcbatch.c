@@ -588,22 +588,22 @@ finished:
     return r;
 }
 
-static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2, LPCWSTR s3)
+static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
 {
     LPCWSTR c;
     LPWSTR  e;
     LPWSTR  d;
 
-    int l1, l2, l3, nn;
+    int l1, l2, nn;
 
-    l3 = xwcslen(s3);
-    if (l3 == 0)
+    l2 = xwcslen(s2);
+    if (l2 == 0)
         return s1;
 
     if (nq) {
         nq = 0;
-        if (wcspbrk(s3, L" \t\"")) {
-            for (c = s3; ; c++, nq++) {
+        if (wcspbrk(s2, L" \t\"")) {
+            for (c = s2; ; c++, nq++) {
                 int b = 0;
 
                 while (*c == L'\\') {
@@ -622,12 +622,11 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2, LPCWSTR s3)
                         nq += b;
                 }
             }
-            l3 = nq + 2;
+            l2 = nq + 2;
         }
     }
     l1 = xwcslen(s1);
-    l2 = xwcslen(s2);
-    nn = l1 + l2 + l3 + 3;
+    nn = l1 + l2 + 2;
     e  = (LPWSTR )xrealloc(s1, nn * sizeof(WCHAR));
     d  = e;
 
@@ -635,14 +634,9 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2, LPCWSTR s3)
         d += l1;
         *(d++) = L' ';
     }
-    if(l2) {
-        wmemcpy(d, s2, l2);
-        d += l2;
-        *(d++) = L' ';
-    }
     if (nq) {
         *(d++) = L'"';
-        for (c = s3; ; c++, d++) {
+        for (c = s2; ; c++, d++) {
             int b = 0;
 
             while (*c == '\\') {
@@ -674,8 +668,8 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2, LPCWSTR s3)
         *(d++) = L'"';
     }
     else {
-        wmemcpy(d, s3, l3);
-        d += l3;
+        wmemcpy(d, s2, l2);
+        d += l2;
     }
     *d = WNUL;
     return e;
@@ -2259,8 +2253,8 @@ static DWORD runshutdown(void)
         return rc;
     }
     svcstop->application = program->application;
-    svcstop->commandLine = xappendarg(1, NULL, NULL, svcstop->application);
-    svcstop->commandLine = xappendarg(0, svcstop->commandLine, NULL,  rb);
+    svcstop->commandLine = xappendarg(1, NULL, svcstop->application);
+    svcstop->commandLine = xappendarg(0, svcstop->commandLine, rb);
     DBG_PRINTF("cmdline %S", svcstop->commandLine);
     if (!CreateProcessW(svcstop->application,
                         svcstop->commandLine,
@@ -2597,12 +2591,12 @@ static DWORD WINAPI workerthread(void *unused)
         cmdproc->exitCode = rc;
         goto finished;
     }
-    cmdproc->commandLine = xappendarg(1, NULL, NULL, cmdproc->application);
+    cmdproc->commandLine = xappendarg(1, NULL, cmdproc->application);
     for (i = 0; i < cmdproc->optc; i++)
-        cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, NULL, cmdproc->opts[i]);
-    cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, NULL, cmdproc->script);
+        cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, cmdproc->opts[i]);
+    cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->script);
     for (i = 0; i < cmdproc->argc; i++)
-        cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, NULL, cmdproc->args[i]);
+        cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
     if (outputlog) {
         op = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
         op->pipe = rd;
