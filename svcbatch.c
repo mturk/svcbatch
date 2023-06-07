@@ -536,67 +536,56 @@ static int xsnprintf(char *dst, int siz, LPCSTR fmt, ...)
 
 static LPWSTR xgetenv(LPCWSTR s)
 {
-    DWORD  n;
-    WCHAR  e[BBUFSIZ];
-    LPWSTR d = NULL;
+    WCHAR b[EBUFSIZ];
+    DWORD z = EBUFSIZ - 2;
+    DWORD n;
 
-    n = GetEnvironmentVariableW(s, e, BBUFSIZ);
-    if (n != 0) {
-        if (n >= BBUFSIZ) {
-            d = xwmalloc(n);
-            n = GetEnvironmentVariableW(s, d, n);
-            if (n == 0) {
-                xfree(d);
-                return NULL;
-            }
-        }
-        else {
-            d = xwcsdup(e);
-        }
-    }
-    return d;
+    n = GetEnvironmentVariableW(s, b, z);
+    if ((n == 0) || (n >= z))
+        return NULL;
+    return xwcsdup(b);
 }
 
 static DWORD xsetenv(LPCWSTR s)
 {
-    WCHAR   b[EBUFSIZ];
-    DWORD   e = 0;
-    LPWSTR  n;
-    LPWSTR  v;
+    WCHAR  b[EBUFSIZ];
+    DWORD  z = EBUFSIZ - 2;
+    DWORD  r = 0;
+    LPWSTR n;
+    LPWSTR v;
 
     n = xwcsdup(s);
     ASSERT_NULL(n, ERROR_BAD_ENVIRONMENT);
     v = wcschr(n + 1, L'=');
     if (v == NULL) {
-        e = ERROR_INVALID_PARAMETER;
+        r = ERROR_INVALID_PARAMETER;
         goto finished;
     }
     *v++ = WNUL;
     if (*v == WNUL) {
-        e = ERROR_INVALID_DATA;
+        r = ERROR_INVALID_DATA;
         goto finished;
     }
     xwchreplace(v, L'@', L'%');
     if (wcschr(v, L'%')) {
         DWORD c;
-        DWORD z = EBUFSIZ - 2;
 
         c = ExpandEnvironmentStringsW(v, b, z);
         if (c == 0) {
-            e = GetLastError();
+            r = GetLastError();
             goto finished;
         }
         if (c >= z) {
-            e = ERROR_INSUFFICIENT_BUFFER;
+            r = ERROR_INSUFFICIENT_BUFFER;
             goto finished;
         }
         v = b;
     }
     if (!SetEnvironmentVariableW(n, v))
-        e = GetLastError();
+        r = GetLastError();
 finished:
     xfree(n);
-    return e;
+    return r;
 }
 
 static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2, LPCWSTR s3)
