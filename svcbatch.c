@@ -53,9 +53,9 @@ typedef enum {
 } SVCBATCH_THREAD_ID;
 
 typedef struct _SVCBATCH_THREAD {
+    volatile HANDLE        thread;
     volatile LONG          started;
     LPTHREAD_START_ROUTINE startAddress;
-    HANDLE                 thread;
     LPVOID                 parameter;
     DWORD                  id;
     DWORD                  exitCode;
@@ -1203,7 +1203,7 @@ static BOOL xcreatethread(SVCBATCH_THREAD_ID id,
     threads[id].startAddress = threadfn;
     threads[id].parameter    = param;
     threads[id].thread       = CreateThread(NULL, 0, xrunthread, &threads[id],
-                                              suspended ? CREATE_SUSPENDED : 0, NULL);
+                                            suspended ? CREATE_SUSPENDED : 0, NULL);
     if (threads[id].thread == NULL) {
         threads[id].exitCode = GetLastError();
         InterlockedExchange(&threads[id].started, 0);
@@ -1485,7 +1485,6 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
     HANDLE rd = NULL;
     HANDLE wr = NULL;
 
-    xmemzero(si, 1, sizeof(STARTUPINFOW));
     si->cb      = DSIZEOF(STARTUPINFOW);
     si->dwFlags = STARTF_USESTDHANDLES;
 
@@ -2366,9 +2365,8 @@ static DWORD WINAPI stopthread(void *msg)
 
 static void createstopthread(DWORD rv)
 {
-    if (servicemode) {
+    if (servicemode)
         xcreatethread(SVCBATCH_STOP_THREAD, 0, stopthread, NULL);
-    }
     if (rv)
         setsvcstatusexit(rv);
 }
@@ -2894,26 +2892,27 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
 
 static void threadscleanup(void)
 {
-    int i;
+    int    i;
+    HANDLE h;
 
     DBG_PRINTS("started");
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
-        if (threads[i].started) {
+        h = InterlockedExchangePointer(&threads[i].thread, NULL);
+        if (h) {
+            if (threads[i].started) {
 #if defined(_DEBUG)
-            DBG_PRINTF("threads[%d]    x", i);
-            threads[i].duration = GetTickCount64() - threads[i].duration;
+                DBG_PRINTF("threads[%d]    x", i);
+                threads[i].duration = GetTickCount64() - threads[i].duration;
 #endif
-            threads[i].exitCode = ERROR_DISCARDED;
-            TerminateThread(threads[i].thread, threads[i].exitCode);
-        }
-        if (threads[i].thread) {
+                threads[i].exitCode = ERROR_DISCARDED;
+                TerminateThread(h, threads[i].exitCode);
+            }
 #if defined(_DEBUG)
             DBG_PRINTF("threads[%d] %4lu %10llums", i,
                         threads[i].exitCode,
                         threads[i].duration);
 #endif
-            CloseHandle(threads[i].thread);
-            threads[i].thread = NULL;
+            CloseHandle(h);
         }
     }
     DBG_PRINTS("done");
@@ -2924,6 +2923,7 @@ static void waitforthreads(DWORD ms)
     int i;
     HANDLE wh[SVCBATCH_MAX_THREADS];
     DWORD  nw = 0;
+    DWORD  ws = 0;
 
     DBG_PRINTS("started");
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
@@ -2934,9 +2934,13 @@ static void waitforthreads(DWORD ms)
             wh[nw++] = threads[i].thread;
         }
     }
-    if (nw)
-        WaitForMultipleObjects(nw, wh, TRUE, ms);
-    DBG_PRINTF("done %d", nw);
+    if (nw) {
+        if (nw > 1)
+            ws = WaitForMultipleObjects(nw, wh, TRUE, ms);
+        else
+            ws = WaitForSingleObject(wh[0], ms);
+    }
+    DBG_PRINTF("done %d %d", nw, ws);
 }
 
 static void __cdecl cconsolecleanup(void)
