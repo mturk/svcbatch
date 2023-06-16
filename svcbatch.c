@@ -52,6 +52,16 @@ typedef enum {
     SVCBATCH_MAX_THREADS
 } SVCBATCH_THREAD_ID;
 
+typedef enum {
+    SVCBATCH_SCM_NONE = 0,
+    SVCBATCH_SCM_CREATE,
+    SVCBATCH_SCM_CONFIG,
+    SVCBATCH_SCM_START,
+    SVCBATCH_SCM_STOP,
+    SVCBATCH_SCM_DELETE,
+    SVCBATCH_SCM_CONTROL
+} SVCBATCH_SCM_CMD;
+
 typedef struct _SVCBATCH_THREAD {
     volatile HANDLE        thread;
     volatile LONG          started;
@@ -83,6 +93,7 @@ typedef struct _SVCBATCH_PROCESS {
     LPWSTR              application;
     LPWSTR              script;
     LPWSTR              directory;
+    LPWSTR              name;
     LPWSTR              args[SVCBATCH_MAX_ARGS];
     LPCWSTR             opts[SVCBATCH_MAX_ARGS];
 } SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
@@ -180,10 +191,24 @@ static LPCWSTR wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
 static LPCWSTR cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static LPCWSTR outdirparam = NULL;
 
+static int     xwoptinc    = 0;
+static int     xwoptone    = 0;
 static int     xwoptind    = 1;
 static WCHAR   xwoption    = WNUL;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoptstr    = NULL;
+
+static const wchar_t *scmcommands[] = {
+    L"NONE",
+    L"Create",
+    L"Config",
+    L"Start",
+    L"Stop",
+    L"Delete",
+    L"Control",
+    NULL
+};
+
 
 /**
  * (element & 1) == valid file name character
@@ -265,7 +290,7 @@ static void *xrealloc(void *mem, size_t size)
 
 static __inline LPWSTR xwmalloc(size_t size)
 {
-    return (LPWSTR )xmmalloc(size * sizeof(WCHAR));
+    return (LPWSTR)xmmalloc(size * sizeof(WCHAR));
 }
 
 static __inline void xfree(void *mem)
@@ -295,7 +320,14 @@ static __inline int xstrlen(LPCSTR s)
         return (int)strlen(s);
 }
 
-#if defined(_DEBUG) && (_DEBUG > 1)
+static __inline void xfixpathsep(LPWSTR str)
+{
+    for (; *str != 0; str++) {
+        if (*str == L'/')
+            *str = L'\\';
+    }
+}
+
 static LPWSTR xwcsdup(LPCWSTR s)
 {
     size_t n;
@@ -306,22 +338,6 @@ static LPWSTR xwcsdup(LPCWSTR s)
     n = wcslen(s);
     d = xwmalloc(n + 1);
     return wmemcpy(d, s, n);
-}
-#else
-static __inline LPWSTR xwcsdup(LPCWSTR s)
-{
-    if (IS_EMPTY_WCS(s))
-        return NULL;
-    return _wcsdup(s);
-}
-#endif
-
-static __inline void xfixpathsep(LPWSTR str)
-{
-    for (; *str != 0; str++) {
-        if (*str == L'/')
-            *str = L'\\';
-    }
 }
 
 static void xwchreplace(LPWSTR s, WCHAR c, WCHAR r)
@@ -678,7 +694,7 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
 static int xwstartswith(LPCWSTR str, LPCWSTR src)
 {
     while (*str) {
-        if (towupper(*str) != *src)
+        if (towlower(*str) != *src)
             break;
         str++;
         src++;
@@ -694,6 +710,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     static LPCWSTR place = zerostring;
     LPCWSTR oli = NULL;
 
+    xwoptinc = 0;
     xwoptarg = NULL;
     if (*place == WNUL) {
 
@@ -707,6 +724,17 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         xwoption = *xwoptstr;
         if ((xwoption != L'-') && (xwoption != L'/')) {
             /* Argument is not an option */
+            place = zerostring;
+            if ((xwoptind == 1) && (xwoptone != 0)) {
+                xwoptarg = nargv[xwoptind++];
+                return xwoptone;
+            }
+            return EOF;
+        }
+        if (*place == WNUL) {
+            /* Skip single '-' argument and stop processing */
+            if (xwoption == L'-')
+                xwoptind++;
             place = zerostring;
             return EOF;
         }
@@ -735,6 +763,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         }
         if (*place) {
             xwoptarg = place;
+            xwoptinc = 1;
         }
         else if (nargc > ++xwoptind) {
             xwoptarg = nargv[xwoptind];
@@ -3158,6 +3187,503 @@ finished:
     return service->status.dwServiceSpecificExitCode;
 }
 
+static int xscmcommand(LPCWSTR ncmd)
+{
+    int c = 0;
+    int s = towlower(*ncmd);
+
+    if ((s == L'c') || (s == L'd') || (s == L's')) {
+        int i = 1;
+        while (scmcommands[i] != NULL) {
+            if (_wcsicmp(scmcommands[i], ncmd) == 0) {
+                c = i;
+                break;
+            }
+            i++;
+        }
+    }
+    return c;
+}
+
+static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
+{
+    int       i, x;
+    int       opt;
+    int       rv = 0;
+    int       ec = 0;
+    LPCWSTR   ed          = NULL;
+    int       cmdverbose  = 1;
+    SC_HANDLE mgr         = NULL;
+    SC_HANDLE svc         = NULL;
+    LPWSTR    sdepends    = NULL;
+    LPWSTR    reqprivs    = NULL;
+    LPWSTR    binarypath  = NULL;
+    LPCWSTR   description = NULL;
+    LPCWSTR   displayname = NULL;
+    LPCWSTR   username    = NULL;
+    LPCWSTR   password    = NULL;
+    LPCWSTR   svcname     = NULL;
+    DWORD     starttype   = SERVICE_NO_CHANGE;
+    DWORD     servicetype = SERVICE_NO_CHANGE;
+    DWORD     wtime       = 0;
+    DWORD     bneed;
+    DWORD     bsize;
+    SERVICE_STATUS_PROCESS ssp;
+
+    DBG_PRINTS(cnamestamp);
+    bsize = DSIZEOF(SERVICE_STATUS_PROCESS);
+    memset(&ssp, 0, sizeof(SERVICE_STATUS_PROCESS));
+    if (cmd == SVCBATCH_SCM_CREATE) {
+        starttype   = SERVICE_DEMAND_START;
+        servicetype = SERVICE_WIN32_OWN_PROCESS;
+    }
+    DBG_PRINTF("%S", scmcommands[cmd]);
+    if (cmd != SVCBATCH_SCM_CREATE)
+        xwoptone = '0';
+    while ((opt = xwgetopt(argc, argv, L"b:d:in:p:qs:u:w:")) != EOF) {
+        switch (opt) {
+            case '0':
+                svcname     = xwoptarg;
+            break;
+            case 'i':
+                servicetype = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
+            break;
+            case 'q':
+                cmdverbose  = 0;
+            break;
+            case 'b':
+                xfree(binarypath);
+                binarypath  = xgetfinalpath(skipdotslash(xwoptarg), 0, NULL, 0);
+                if (binarypath == NULL) {
+                    rv = ERROR_FILE_NOT_FOUND;
+                    ec = __LINE__;
+                    ed = xwoptarg;
+                    goto finished;
+                }
+                else {
+                    LPWSTR pp  = binarypath;
+                    binarypath = xappendarg(1, NULL, pp);
+                    xfree(pp);
+                }
+            break;
+            case 'd':
+                if (xwoptinc && ((*xwoptarg == L'=') || (*xwoptarg == L':'))) {
+                    x = xwcslen(++xwoptarg);
+                    xfree(sdepends);
+                    sdepends = xwmalloc(x + 2);
+                    for (i = 0; i < x; i++) {
+                        if (xwoptarg[i] == L'/')
+                            sdepends[i] = WNUL;
+                        else
+                            sdepends[i] = xwoptarg[i];
+                    }
+                    sdepends[i++] = WNUL;
+                    sdepends[i]   = WNUL;
+                }
+                else {
+                    if (_wcsicmp(xwoptstr + 1, L"disable") == 0)
+                        starttype   = SERVICE_DISABLED;
+                    else
+                        description = xwoptarg;
+                }
+            break;
+            case 'p':
+                if (xwoptinc && ((*xwoptarg == L'=') || (*xwoptarg == L':'))) {
+                    x = xwcslen(++xwoptarg);
+                    xfree(reqprivs);
+                    reqprivs = xwmalloc(x + 2);
+                    for (i = 0; i < x; i++) {
+                        if (xwoptarg[i] == L'/')
+                            reqprivs[i] = WNUL;
+                        else
+                            reqprivs[i] = xwoptarg[i];
+                    }
+                    reqprivs[i++] = WNUL;
+                    reqprivs[i]   = WNUL;
+                }
+                else {
+                    password  = xwoptarg;
+                }
+            break;
+            case 's':
+                if (xwoptinc && ((*xwoptarg == L'=') || (*xwoptarg == L':')))
+                    xwoptarg++;
+                x = towlower(*xwoptarg);
+                switch (x) {
+                    case L'a':
+                        starttype = SERVICE_AUTO_START;
+                    break;
+                    case L'd':
+                        starttype = SERVICE_DISABLED;
+                    break;
+                    case L'm':
+                        starttype = SERVICE_DEMAND_START;
+                    break;
+                    default:
+                        starttype = SERVICE_NO_CHANGE;
+                    break;
+                }
+                if (starttype == SERVICE_NO_CHANGE) {
+                    rv = ERROR_INVALID_PARAMETER;
+                    ec = __LINE__;
+                    ed = xwoptarg;
+                    goto finished;
+                }
+            break;
+            case 'n':
+                displayname = xwoptarg;
+            break;
+            case 'u':
+                username    = xwoptarg;
+            break;
+            case 'w':
+                wtime = xwcstoi(xwoptarg, NULL);
+                if (wtime > SVCBATCH_STOP_TMAX)
+                    wtime = SVCBATCH_STOP_TMAX;
+                if (wtime < SVCBATCH_STOP_TMIN)
+                    wtime = 30;
+            break;
+            case ENOENT:
+                rv = ERROR_BAD_LENGTH;
+                ec = __LINE__;
+                ed = xwoptstr + 1;
+                goto finished;
+            break;
+            default:
+                rv = ERROR_BAD_DRIVER_LEVEL;
+                ec = __LINE__;
+                ed = xwoptstr + 1;
+                goto finished;
+            break;
+        }
+    }
+    argc -= xwoptind;
+    argv += xwoptind;
+    if ((svcname == NULL) && (argc > 0)) {
+        svcname  = argv[0];
+        argc--;
+        argv++;
+    }
+    if (svcname == NULL) {
+        rv = ERROR_INVALID_SERVICENAME;
+        ec = __LINE__;
+        goto finished;
+    }
+    mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+    if (mgr == NULL) {
+        rv = GetLastError();
+        ec = __LINE__;
+        goto finished;
+    }
+    if (cmd == SVCBATCH_SCM_CREATE) {
+        WCHAR nb[BBUFSIZ];
+
+        nb[0] = L'@';
+        xwcsncat(nb, BBUFSIZ, 1, svcname);
+        if (binarypath == NULL)
+            binarypath = xappendarg(1, NULL, program->application);
+        binarypath = xappendarg(1, binarypath, nb);
+        for (i = 0; i <argc; i++)
+            binarypath = xappendarg(1, binarypath, argv[i]);
+        svc = CreateServiceW(mgr,
+                             svcname,
+                             displayname,
+                             SERVICE_ALL_ACCESS,
+                             servicetype,
+                             starttype,
+                             SERVICE_ERROR_NORMAL,
+                             binarypath,
+                             NULL,
+                             NULL,
+                             sdepends,
+                             username,
+                             password);
+    }
+    else {
+        svc = OpenServiceW(mgr,
+                           svcname,
+                           SERVICE_ALL_ACCESS);
+    }
+    if (svc == NULL) {
+        rv = GetLastError();
+        ec = __LINE__;
+        goto finished;
+    }
+    if (cmd == SVCBATCH_SCM_DELETE) {
+        if (!QueryServiceStatusEx(svc,
+                                  SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                  bsize, &bneed)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+        if (ssp.dwCurrentState == SERVICE_STOPPED)
+            wtime = 0;
+        if (wtime) {
+            if (ssp.dwCurrentState != SERVICE_STOP_PENDING) {
+                if (!ControlService(svc, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)&ssp)) {
+                    rv = GetLastError();
+                    ec = __LINE__;
+                    goto finished;
+                }
+            }
+            while (ssp.dwCurrentState != SERVICE_STOPPED) {
+                Sleep(1000);
+                if (!QueryServiceStatusEx(svc,
+                                          SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                          bsize, &bneed)) {
+                    rv = GetLastError();
+                    ec = __LINE__;
+                    goto finished;
+                }
+                if (ssp.dwCurrentState == SERVICE_STOPPED)
+                    break;
+                if (--wtime == 0) {
+                    /* Timeout */
+                    rv = ERROR_SERVICE_REQUEST_TIMEOUT;
+                    ec = __LINE__;
+                    goto finished;
+                }
+            }
+        }
+        if (ssp.dwCurrentState != SERVICE_STOPPED) {
+            rv = ERROR_SERVICE_ALREADY_RUNNING;
+            ec = __LINE__;
+            goto finished;
+        }
+        if (!DeleteService(svc)) {
+            rv = GetLastError();
+            ec = __LINE__;
+        }
+        goto finished;
+    }
+    if (cmd == SVCBATCH_SCM_START) {
+        if (!QueryServiceStatusEx(svc,
+                                  SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                  bsize, &bneed)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+        if (ssp.dwCurrentState != SERVICE_STOPPED) {
+            rv = ERROR_SERVICE_ALREADY_RUNNING;
+            ec = __LINE__;
+            goto finished;
+        }
+        if (!StartServiceW(svc, argc, argv)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+        if (wtime) {
+            if (!QueryServiceStatusEx(svc,
+                                      SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                      bsize, &bneed)) {
+                rv = GetLastError();
+                ec = __LINE__;
+                goto finished;
+            }
+            while (ssp.dwCurrentState == SERVICE_START_PENDING) {
+                Sleep(1000);
+                if (!QueryServiceStatusEx(svc,
+                                          SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                          bsize, &bneed)) {
+                    rv = GetLastError();
+                    ec = __LINE__;
+                    goto finished;
+                }
+                if (--wtime == 0) {
+                    /** Timeout */
+                    rv = ERROR_SERVICE_REQUEST_TIMEOUT;
+                    ec = __LINE__;
+                    goto finished;
+                }
+            }
+            if (ssp.dwCurrentState != SERVICE_RUNNING) {
+                rv = ERROR_SERVICE_START_HANG;
+                ec = __LINE__;
+            }
+        }
+        goto finished;
+    }
+    if (cmd == SVCBATCH_SCM_STOP) {
+        if (!QueryServiceStatusEx(svc,
+                                  SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                  bsize, &bneed)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+        if (ssp.dwCurrentState == SERVICE_STOPPED) {
+            rv = ERROR_SERVICE_NOT_ACTIVE;
+            ec = __LINE__;
+            goto finished;
+        }
+        while (ssp.dwCurrentState == SERVICE_STOP_PENDING) {
+            if (wtime == 0)
+                goto finished;
+            Sleep(1000);
+            if (!QueryServiceStatusEx(svc,
+                                      SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                      bsize, &bneed)) {
+                rv = GetLastError();
+                ec = __LINE__;
+                goto finished;
+            }
+            if (ssp.dwCurrentState == SERVICE_STOPPED)
+                goto finished;
+            if (--wtime == 0) {
+                /** Timeout */
+                rv = ERROR_SERVICE_REQUEST_TIMEOUT;
+                ec = __LINE__;
+                goto finished;
+            }
+        }
+        if (!ControlService(svc, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)&ssp)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+        while (ssp.dwCurrentState != SERVICE_STOPPED) {
+            if (wtime == 0)
+                break;
+            Sleep(1000);
+            if (!QueryServiceStatusEx(svc,
+                                      SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                      bsize, &bneed)) {
+                rv = GetLastError();
+                ec = __LINE__;
+                goto finished;
+            }
+            if (ssp.dwCurrentState == SERVICE_STOPPED)
+                break;
+            if (--wtime == 0) {
+                /** Timeout */
+                rv = ERROR_SERVICE_REQUEST_TIMEOUT;
+                ec = __LINE__;
+                goto finished;
+            }
+        }
+        goto finished;
+    }
+    if (cmd == SVCBATCH_SCM_CONTROL) {
+        DWORD sctrl = SERVICE_CONTROL_INTERROGATE;
+        if (!QueryServiceStatusEx(svc,
+                                  SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
+                                  bsize, &bneed)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+        if (argc > 0) {
+            sctrl = xwcstoi(argv[0], NULL);
+            if ((sctrl < 128) || (sctrl > 255)) {
+                rv = ERROR_INVALID_PARAMETER;
+                ec = __LINE__;
+                goto finished;
+            }
+        }
+        if (!ControlService(svc, sctrl, (LPSERVICE_STATUS)&ssp)) {
+            rv = GetLastError();
+            ec = __LINE__;
+        }
+        goto finished;
+    }
+    if (cmd == SVCBATCH_SCM_CONFIG) {
+        DWORD  csize = 0;
+        LPWSTR pp = NULL;
+        LPQUERY_SERVICE_CONFIGW sc = NULL;
+
+        if (!QueryServiceConfigW(svc, NULL, 0, &bneed)) {
+            DWORD err = GetLastError();
+            if (err != ERROR_INSUFFICIENT_BUFFER) {
+                rv = err;
+                ec = __LINE__;
+                goto finished;
+            }
+            csize = bneed;
+            sc = (LPQUERY_SERVICE_CONFIGW)xmcalloc(csize);
+        }
+        if (!QueryServiceConfigW(svc, sc, csize, &bneed)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+        DBG_PRINTF("sc bin: '%S'", sc->lpBinaryPathName);
+        binarypath = NULL;
+        for (i = 0; i <argc; i++)
+            pp = xappendarg(1, pp, argv[i]);
+        if (pp) {
+            binarypath = xwcsdup(sc->lpBinaryPathName);
+            binarypath = xappendarg(0, binarypath, pp);
+        }
+        if (!ChangeServiceConfigW(svc,
+                                  servicetype,
+                                  starttype,
+                                  SERVICE_NO_CHANGE,
+                                  binarypath,
+                                  NULL,
+                                  NULL,
+                                  sdepends,
+                                  username,
+                                  password,
+                                  displayname)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+    }
+    if (description) {
+        SERVICE_DESCRIPTIONW sc;
+        sc.lpDescription = (LPWSTR)description;
+        if (!ChangeServiceConfig2W(svc, SERVICE_CONFIG_DESCRIPTION, &sc)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+    }
+    if (reqprivs) {
+        SERVICE_REQUIRED_PRIVILEGES_INFOW sc;
+        sc.pmszRequiredPrivileges = reqprivs;
+        if (!ChangeServiceConfig2W(svc, SERVICE_CONFIG_REQUIRED_PRIVILEGES_INFO, &sc)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            goto finished;
+        }
+    }
+
+finished:
+    if (svc != NULL)
+        CloseServiceHandle(svc);
+    if (mgr != NULL)
+        CloseServiceHandle(mgr);
+    if (cmdverbose) {
+        if (rv && cmdverbose) {
+            wchar_t eb[SVCBATCH_LINE_MAX];
+
+            xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
+            if (svcname)
+            fprintf(stderr, "Service Name : %S\n", svcname);
+            fprintf(stderr, "     Command : %S\n", scmcommands[cmd]);
+            fprintf(stdout, "               %d\n", ec);
+            fprintf(stdout, "             : FAILED\n");
+            fprintf(stderr, "             : %d (0x%x)\n", rv,  rv);
+            fprintf(stderr, "             : %S\n", eb);
+            if (ed != NULL)
+            fprintf(stderr, "               %S\n", ed);
+        }
+        else {
+            fprintf(stdout, "Service Name : %S\n", svcname);
+            fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
+            fprintf(stdout, "             : SUCCESS\n");
+            if (cmd == SVCBATCH_SCM_START)
+            fprintf(stdout, "         PID : %lu\n", ssp.dwProcessId);
+        }
+    }
+    DBG_PRINTF("done %d", rv);
+    return rv;
+}
+
 static int xwmaininit(void)
 {
     WCHAR bb[SVCBATCH_PATH_MAX];
@@ -3193,14 +3719,20 @@ static int xwmaininit(void)
     nn = fixshortpath(bb, nn);
     program->application = xwcsdup(bb);
     while (--nn > 2) {
+        if (bb[nn] == L'.') {
+            bb[nn] = WNUL;
+            continue;
+        }
         if (bb[nn] == L'\\') {
             bb[nn] = WNUL;
             program->directory = xwcsdup(bb);
+            program->name      = xwcsdup(bb + nn + 1);
             break;
         }
     }
     ASSERT_WSTR(program->application, ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->directory,   ERROR_BAD_PATHNAME);
+    ASSERT_WSTR(program->name,        ERROR_BAD_PATHNAME);
 
     return 0;
 }
@@ -3214,7 +3746,7 @@ int wmain(int argc, LPCWSTR *wargv)
     int    scnt = 0;
     int    qcnt = 0;
     int    ccnt = 0;
-    HANDLE h;
+    HANDLE hstd;
 
     LPCWSTR maxlogsparam = NULL;
     LPCWSTR scriptparam  = NULL;
@@ -3243,9 +3775,9 @@ int wmain(int argc, LPCWSTR *wargv)
     if (i)
         return i;
 
-    h = GetStdHandle(STD_INPUT_HANDLE);
+    hstd = GetStdHandle(STD_INPUT_HANDLE);
     if (argc == 1) {
-        if (IS_VALID_HANDLE(h)) {
+        if (IS_VALID_HANDLE(hstd)) {
             fputs(cnamestamp, stdout);
             fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
             return 0;
@@ -3254,8 +3786,9 @@ int wmain(int argc, LPCWSTR *wargv)
             return ERROR_INVALID_PARAMETER;
         }
     }
-    if (IS_INVALID_HANDLE(h)) {
-       if (AllocConsole()) {
+    if (IS_INVALID_HANDLE(hstd)) {
+        HANDLE h = NULL;
+        if (AllocConsole()) {
             /**
              * AllocConsole should create new set of
              * standard i/o handles
@@ -3334,15 +3867,20 @@ int wmain(int argc, LPCWSTR *wargv)
         }
     }
 
-#if defined(_DEBUG)
-    if (servicemode) {
-        dbgsvcmode = '0';
-        dbgprints(__FUNCTION__, cnamestamp);
+    if (servicemode && IS_VALID_HANDLE(hstd) && (service->name == NULL) && (argc > 2)) {
+        LPCWSTR p = wargv[1];
+        if ((xwcslen(p) > 3) && ((opt = xscmcommand(p)) != 0)) {
+            argc     -= 1;
+            wargv    += 1;
+            return xscmexecute(opt, argc, wargv);
+        }
     }
-#endif
     if (servicemode) {
         WCHAR wb[SVCBATCH_PATH_MAX];
-
+#if defined(_DEBUG)
+        dbgsvcmode = '0';
+        dbgprints(__FUNCTION__, cnamestamp);
+#endif
         while ((opt = xwgetopt(argc, wargv, L"bc:e:gh:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
                 case L'b':

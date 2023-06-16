@@ -55,10 +55,10 @@ rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=-s shutdown /S@@SystemRoot@@ /s\"argument with spaces\""
+set "SHUTDOWN_ARGS=-s shutdown /S@@SystemRoot@@ "/ssome argument with spaces""
 rem
 rem
-set "SERVICE_LOG_DIR=-o \"Logs/%SERVICE_NAME%\""
+set "SERVICE_LOG_DIR=-o "Logs/%SERVICE_NAME%""
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/R 10 -r100K"
 set "ROTATE_RULE=/R 5 -r20K -rS"
@@ -71,30 +71,31 @@ rem set "ROTATE_RULE=-rS"
 rem
 rem Set log file names instead default SvcBatch.log and SvcBatch.shutdown.log
 rem Both .log and .shutdown.log extensions are added to the -n parameter
-set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%\""
+set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%""
 rem
-rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d.@H@M@S\""
+rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.@Y-@m-@d.@H@M@S""
 rem
-rem set "SERVICE_LOG_FNAME=-n \"%SERVICE_NAME%.@Y-@m-@d\""
+rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.@Y-@m-@d""
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=-e \"PATH=%BUILD_DIR%;@PATH@\""
+set "SERVICE_ENVIRONMENT=-e "PATH=%BUILD_DIR%;@PATH@""
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
-set "SERVICE_CMDLINE=\"%BUILD_DIR%\svcbatch.exe\" @%SERVICE_NAME% -pvbL /h \"%TEST_DIR%\" %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH% run @SystemDrive@"
 rem
-sc create "%SERVICE_NAME%" binPath= "%SERVICE_CMDLINE%"
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" -pvbL /h "%TEST_DIR%" %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-sc config "%SERVICE_NAME%" DisplayName= "A Dummy Service"
-if %ERRORLEVEL% neq 0 goto Failed
-sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= demand
-if %ERRORLEVEL% neq 0 goto Failed
-sc description "%SERVICE_NAME%" "One dummy SvcBatch service example"
-if %ERRORLEVEL% neq 0 goto Failed
-sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
-if %ERRORLEVEL% neq 0 goto Failed
+Rem Add additional Batch file arguments
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" run @TEMP@
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+Rem Set Display Name and Description
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /n "A Dummy Service" /d "One dummy SvcBatch service example"
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+Rem Set Dependencies and Privileges
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /d=Tcpip/Afd /p:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+rem
 rem
 echo %~nx0: Created %SERVICE_NAME%
 goto End
