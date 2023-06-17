@@ -84,7 +84,7 @@ rem Presuming this is the build tree ...
 rem Create a service command line
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" --pvbL /h "%TEST_DIR%" %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR%
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /v --pvbL /h "%TEST_DIR%" %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Add Additional configuration
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" - %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
@@ -106,7 +106,15 @@ rem
 :doStart
 rem
 rem
-sc start "%SERVICE_NAME%"
+pushd "..\.build\dbg"
+set "BUILD_DIR=%cd%"
+popd
+rem
+rem Wait until the service is Running
+rem
+%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /vw0
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+echo %~nx0: Running %SERVICE_NAME%
 goto End
 rem
 :doStop
@@ -130,16 +138,12 @@ rem
 :doDelete
 rem
 rem
-sc stop "%SERVICE_NAME%" >NUL
+pushd "..\.build\dbg"
+set "BUILD_DIR=%cd%"
+popd
 rem
-if %ERRORLEVEL% equ 0 (
-  echo.
-  echo %~nx0: Waiting for %SERVICE_NAME% to stop ...
-  ping -n 10 127.0.0.1 >NUL
-  echo.
-)
 rem
-sc delete "%SERVICE_NAME%"
+%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" -v /w30
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %~nx0: Deleted %SERVICE_NAME%
 goto End
