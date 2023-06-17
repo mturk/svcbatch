@@ -191,12 +191,11 @@ static LPCWSTR wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
 static LPCWSTR cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static LPCWSTR outdirparam = NULL;
 
-static int     xwoptinc    = 0;
-static int     xwoptone    = 0;
+static int     xwoptbrk    = 0;
 static int     xwoptind    = 1;
-static WCHAR   xwoption    = WNUL;
 static LPCWSTR xwoptarg    = NULL;
-static LPCWSTR xwoptstr    = NULL;
+static LPCWSTR xwoption    = NULL;
+static LPCWSTR xwoptval    = NULL;  /* Value of the in place argument /o<=|:><val> */
 
 static const wchar_t *scmcommands[] = {
     L"NONE",
@@ -206,6 +205,17 @@ static const wchar_t *scmcommands[] = {
     L"Stop",
     L"Delete",
     L"Control",
+    NULL
+};
+
+static const wchar_t *scmcoptions[] = {
+    L"v",
+    L"vd:in:p:s:u:b:",
+    L"vd:in:p:s:u:",
+    L"vw:",
+    L"vw:",
+    L"vw:",
+    L"v",
     NULL
 };
 
@@ -328,6 +338,22 @@ static __inline void xfixpathsep(LPWSTR str)
     }
 }
 
+static __inline int xtolower(int ch)
+{
+    if ((ch > 64) && (ch < 91))
+        return ch + 32;
+    else
+        return ch;
+}
+
+static __inline int xisblank(int ch)
+{
+    if ((ch == 32) || (ch == 9))
+        return 1;
+    else
+        return 0;
+}
+
 static LPWSTR xwcsdup(LPCWSTR s)
 {
     size_t n;
@@ -369,7 +395,7 @@ static int xwcstoi(LPCWSTR sp, LPWSTR *ep)
     int   dc = 0;
 
     ASSERT_WSTR(sp, -1);
-    while(iswblank(*sp))
+    while(xisblank(*sp))
         sp++;
 
     while(iswdigit(*sp)) {
@@ -691,26 +717,44 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
     return e;
 }
 
-static int xwstartswith(LPCWSTR str, LPCWSTR src)
+static int xwstartswith(LPCWSTR src, LPCWSTR str)
 {
-    while (*str) {
-        if (towlower(*str) != *src)
+    int pos = 0;
+    int sa, sb;
+
+    while (*src) {
+        if (*str == WNUL)
             break;
-        str++;
+        sa = xtolower(*src);
+        sb = xtolower(*str);
+        if (sa != sb)
+            return 0;
         src++;
-        if (!*src)
-            return 1;
+        str++;
+        pos++;
     }
-    return 0;
+    return pos;
 }
 
+static int xwcasecmp(const wchar_t *str, const wchar_t *src)
+{
+    int sa, sb;
+
+    while ((sa = xtolower(*str++)) == (sb = *src++)) {
+        if (sa == 0)
+            return 0;
+    }
+    return (sa - sb);
+}
 
 static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
 {
     static LPCWSTR place = zerostring;
     LPCWSTR oli = NULL;
+    int optind  = 0;
+    int option;
 
-    xwoptinc = 0;
+    xwoptval = NULL;
     xwoptarg = NULL;
     if (*place == WNUL) {
 
@@ -719,30 +763,37 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             place = zerostring;
             return EOF;
         }
-        place    = nargv[xwoptind];
-        xwoptstr = place++;
-        xwoption = *xwoptstr;
-        if ((xwoption != L'-') && (xwoption != L'/')) {
+        place  = nargv[xwoptind];
+        optind = xwoptind;
+        option = *(place++);
+        if ((option != '-') && (option != '/')) {
             /* Argument is not an option */
             place = zerostring;
-            if ((xwoptind == 1) && (xwoptone != 0)) {
-                xwoptarg = nargv[xwoptind++];
-                return xwoptone;
-            }
+            return EOF;
+        }
+        if (*place == option) {
+            /* We have '--' or '//' */
+            xwoptbrk = xwoptind;
+            place    = zerostring;
             return EOF;
         }
         if (*place == WNUL) {
-            /* Skip single '-' argument and stop processing */
-            if (xwoption == L'-')
+            /**
+             * We have single  '-' or '/'
+             * Skip the single '-' and stop processing
+             */
+            if (option == '-')
                 xwoptind++;
             place = zerostring;
             return EOF;
         }
+        xwoption = place;
     }
-    xwoption = *(place++);
+    option = *(place++);
 
-    if (xwoption != L':') {
-        oli = wcschr(opts, towlower(xwoption));
+    if (option != ':') {
+        /* Options are case insensitive */
+        oli = wcschr(opts, xtolower(option));
     }
     if (oli == NULL) {
         xwoptind++;
@@ -752,18 +803,19 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
 
     /* Does this option need an argument? */
     if (oli[1] == L':') {
-        /*
+        /**
          * Option-argument is either the rest of this argument
          * or the entire next argument.
          */
         if (*place) {
             /* Skip blanks */
-            while (iswblank(*place))
+            while (xisblank(*place))
                 ++place;
         }
         if (*place) {
             xwoptarg = place;
-            xwoptinc = 1;
+            if (optind && ((*xwoptarg == L'=') || (*xwoptarg == L':')))
+                xwoptval = xwoptarg + 1;
         }
         else if (nargc > ++xwoptind) {
             xwoptarg = nargv[xwoptind];
@@ -875,7 +927,10 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
 
 static void dbgprints(LPCSTR funcname, LPCSTR string)
 {
-    dbgprintf(funcname, "%s", string);
+    if (string == NULL)
+        OutputDebugStringA("\n");
+    else
+        dbgprintf(funcname, "%s", string);
 }
 
 
@@ -3190,12 +3245,12 @@ finished:
 static int xscmcommand(LPCWSTR ncmd)
 {
     int c = 0;
-    int s = towlower(*ncmd);
+    int s = xtolower(*ncmd++);
 
     if ((s == L'c') || (s == L'd') || (s == L's')) {
         int i = 1;
         while (scmcommands[i] != NULL) {
-            if (_wcsicmp(scmcommands[i], ncmd) == 0) {
+            if (xwcasecmp(ncmd, scmcommands[i] + 1) == 0) {
                 c = i;
                 break;
             }
@@ -3207,14 +3262,16 @@ static int xscmcommand(LPCWSTR ncmd)
 
 static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
 {
-    int       i, x;
+    DWORD     bneed;
+    DWORD     bsize;
+    int       i;
+    int       x;
     int       opt;
     int       rv = 0;
     int       ec = 0;
+    int       cmdverbose  = SVCBATCH_ISDEV_VERSION;
     LPCWSTR   ed          = NULL;
-    int       cmdverbose  = 1;
-    SC_HANDLE mgr         = NULL;
-    SC_HANDLE svc         = NULL;
+    LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
     LPWSTR    reqprivs    = NULL;
     LPWSTR    binarypath  = NULL;
@@ -3222,13 +3279,14 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     LPCWSTR   displayname = NULL;
     LPCWSTR   username    = NULL;
     LPCWSTR   password    = NULL;
-    LPCWSTR   svcname     = NULL;
     DWORD     starttype   = SERVICE_NO_CHANGE;
     DWORD     servicetype = SERVICE_NO_CHANGE;
     DWORD     wtime       = 0;
-    DWORD     bneed;
-    DWORD     bsize;
+    SC_HANDLE mgr         = NULL;
+    SC_HANDLE svc         = NULL;
     SERVICE_STATUS_PROCESS ssp;
+
+    service->name = argv[0];
 
     DBG_PRINTS(cnamestamp);
     bsize = DSIZEOF(SERVICE_STATUS_PROCESS);
@@ -3237,66 +3295,65 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
-    DBG_PRINTF("%S", scmcommands[cmd]);
-    if (cmd != SVCBATCH_SCM_CREATE)
-        xwoptone = '0';
-    while ((opt = xwgetopt(argc, argv, L"b:d:in:p:qs:u:w:")) != EOF) {
+    DBG_PRINTF("%S %S", service->name, scmcommands[cmd]);
+    while ((opt = xwgetopt(argc, argv, scmcoptions[cmd])) != EOF) {
         switch (opt) {
-            case '0':
-                svcname     = xwoptarg;
-            break;
             case 'i':
                 servicetype = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
             break;
-            case 'q':
-                cmdverbose  = 0;
+            case 'v':
+                cmdverbose  = 1;
             break;
             case 'b':
-                xfree(binarypath);
-                binarypath  = xgetfinalpath(skipdotslash(xwoptarg), 0, NULL, 0);
-                if (binarypath == NULL) {
+                if (binarypath != NULL) {
+                    rv = ERROR_ALREADY_ASSIGNED;
+                    ec = __LINE__;
+                    ed = xwoptarg;
+                    goto finished;
+                }
+                pp = xgetfinalpath(skipdotslash(xwoptarg), 0, NULL, 0);
+                if (pp == NULL) {
                     rv = ERROR_FILE_NOT_FOUND;
                     ec = __LINE__;
                     ed = xwoptarg;
                     goto finished;
                 }
                 else {
-                    LPWSTR pp  = binarypath;
                     binarypath = xappendarg(1, NULL, pp);
                     xfree(pp);
                 }
             break;
             case 'd':
-                if (xwoptinc && ((*xwoptarg == L'=') || (*xwoptarg == L':'))) {
-                    x = xwcslen(++xwoptarg);
+                if (xwoptval) {
+                    x = xwcslen(xwoptval);
                     xfree(sdepends);
                     sdepends = xwmalloc(x + 2);
                     for (i = 0; i < x; i++) {
-                        if (xwoptarg[i] == L'/')
+                        if (xwoptval[i] == L'/')
                             sdepends[i] = WNUL;
                         else
-                            sdepends[i] = xwoptarg[i];
+                            sdepends[i] = xwoptval[i];
                     }
                     sdepends[i++] = WNUL;
                     sdepends[i]   = WNUL;
                 }
                 else {
-                    if (_wcsicmp(xwoptstr + 1, L"disable") == 0)
+                    if (xwcasecmp(xwoption, L"disable") == 0)
                         starttype   = SERVICE_DISABLED;
                     else
                         description = xwoptarg;
                 }
             break;
             case 'p':
-                if (xwoptinc && ((*xwoptarg == L'=') || (*xwoptarg == L':'))) {
-                    x = xwcslen(++xwoptarg);
+                if (xwoptval) {
+                    x = xwcslen(xwoptval);
                     xfree(reqprivs);
                     reqprivs = xwmalloc(x + 2);
                     for (i = 0; i < x; i++) {
-                        if (xwoptarg[i] == L'/')
+                        if (xwoptval[i] == L'/')
                             reqprivs[i] = WNUL;
                         else
-                            reqprivs[i] = xwoptarg[i];
+                            reqprivs[i] = xwoptval[i];
                     }
                     reqprivs[i++] = WNUL;
                     reqprivs[i]   = WNUL;
@@ -3306,17 +3363,20 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 }
             break;
             case 's':
-                if (xwoptinc && ((*xwoptarg == L'=') || (*xwoptarg == L':')))
-                    xwoptarg++;
-                x = towlower(*xwoptarg);
+                if (xwoptval)
+                    xwoptarg = xwoptval;
+                x = xtolower(xwoptarg[0]);
                 switch (x) {
-                    case L'a':
+                    case 'a':
                         starttype = SERVICE_AUTO_START;
                     break;
-                    case L'd':
-                        starttype = SERVICE_DISABLED;
+                    case 'd':
+                        if (xtolower(xwoptarg[1]) == 'e')
+                            starttype = SERVICE_DEMAND_START;
+                        else
+                            starttype = SERVICE_DISABLED;
                     break;
-                    case L'm':
+                    case 'm':
                         starttype = SERVICE_DEMAND_START;
                     break;
                     default:
@@ -3326,7 +3386,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 if (starttype == SERVICE_NO_CHANGE) {
                     rv = ERROR_INVALID_PARAMETER;
                     ec = __LINE__;
-                    ed = xwoptarg;
+                    ed = xwoption;
                     goto finished;
                 }
             break;
@@ -3346,28 +3406,22 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case ENOENT:
                 rv = ERROR_BAD_LENGTH;
                 ec = __LINE__;
-                ed = xwoptstr + 1;
+                ed = xwoption;
                 goto finished;
             break;
             default:
                 rv = ERROR_BAD_DRIVER_LEVEL;
                 ec = __LINE__;
-                ed = xwoptstr + 1;
+                ed = xwoption;
                 goto finished;
             break;
         }
     }
     argc -= xwoptind;
     argv += xwoptind;
-    if ((svcname == NULL) && (argc > 0)) {
-        svcname  = argv[0];
-        argc--;
-        argv++;
-    }
-    if (svcname == NULL) {
-        rv = ERROR_INVALID_SERVICENAME;
-        ec = __LINE__;
-        goto finished;
+    if (xwoptbrk) {
+        /* Convert '--foo' or '//foo' to '-foo' or '/foo' */
+        argv[0] = argv[0] + 1;
     }
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (mgr == NULL) {
@@ -3379,14 +3433,14 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         WCHAR nb[BBUFSIZ];
 
         nb[0] = L'@';
-        xwcsncat(nb, BBUFSIZ, 1, svcname);
+        xwcsncat(nb, BBUFSIZ, 1, service->name);
         if (binarypath == NULL)
             binarypath = xappendarg(1, NULL, program->application);
         binarypath = xappendarg(1, binarypath, nb);
         for (i = 0; i <argc; i++)
             binarypath = xappendarg(1, binarypath, argv[i]);
         svc = CreateServiceW(mgr,
-                             svcname,
+                             service->name,
                              displayname,
                              SERVICE_ALL_ACCESS,
                              servicetype,
@@ -3401,7 +3455,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     else {
         svc = OpenServiceW(mgr,
-                           svcname,
+                           service->name,
                            SERVICE_ALL_ACCESS);
     }
     if (svc == NULL) {
@@ -3591,7 +3645,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     if (cmd == SVCBATCH_SCM_CONFIG) {
         DWORD  csize = 0;
-        LPWSTR pp = NULL;
         LPQUERY_SERVICE_CONFIGW sc = NULL;
 
         if (!QueryServiceConfigW(svc, NULL, 0, &bneed)) {
@@ -3609,8 +3662,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ec = __LINE__;
             goto finished;
         }
-        DBG_PRINTF("sc bin: '%S'", sc->lpBinaryPathName);
-        binarypath = NULL;
+        pp = NULL;
         for (i = 0; i <argc; i++)
             pp = xappendarg(1, pp, argv[i]);
         if (pp) {
@@ -3658,12 +3710,11 @@ finished:
     if (mgr != NULL)
         CloseServiceHandle(mgr);
     if (cmdverbose) {
-        if (rv && cmdverbose) {
+        if (rv) {
             wchar_t eb[SVCBATCH_LINE_MAX];
 
             xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
-            if (svcname)
-            fprintf(stderr, "Service Name : %S\n", svcname);
+            fprintf(stderr, "Service Name : %S\n", service->name);
             fprintf(stderr, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "               %d\n", ec);
             fprintf(stdout, "             : FAILED\n");
@@ -3673,14 +3724,19 @@ finished:
             fprintf(stderr, "               %S\n", ed);
         }
         else {
-            fprintf(stdout, "Service Name : %S\n", svcname);
+            fprintf(stdout, "Service Name : %S\n", service->name);
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "             : SUCCESS\n");
+            if (cmd == SVCBATCH_SCM_CREATE) {
+            fprintf(stdout, "     STARTUP : %d\n", starttype);
+            }
             if (cmd == SVCBATCH_SCM_START)
             fprintf(stdout, "         PID : %lu\n", ssp.dwProcessId);
+            fputs(CRLFA, stdout);
         }
     }
     DBG_PRINTF("done %d", rv);
+    DBG_PRINTS(NULL);
     return rv;
 }
 
@@ -3870,8 +3926,8 @@ int wmain(int argc, LPCWSTR *wargv)
     if (servicemode && IS_VALID_HANDLE(hstd) && (service->name == NULL) && (argc > 2)) {
         LPCWSTR p = wargv[1];
         if ((xwcslen(p) > 3) && ((opt = xscmcommand(p)) != 0)) {
-            argc     -= 1;
-            wargv    += 1;
+            argc     -= 2;
+            wargv    += 2;
             return xscmexecute(opt, argc, wargv);
         }
     }
@@ -3985,10 +4041,10 @@ int wmain(int argc, LPCWSTR *wargv)
                         return xsyserror(0, L"Too many -r options", xwoptarg);
                 break;
                 case ENOENT:
-                    return xsyserror(0, L"Missing argument for command line option", xwoptstr);
+                    return xsyserror(0, L"Missing argument for command line option", xwoption);
                 break;
                 default:
-                    return xsyserror(0, L"Invalid command line option", xwoptstr);
+                    return xsyserror(0, L"Invalid command line option", xwoption);
                 break;
             }
         }

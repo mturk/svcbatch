@@ -84,15 +84,18 @@ rem Presuming this is the build tree ...
 rem Create a service command line
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" -pvbL /h "%TEST_DIR%" %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% %SERVICE_BATCH%
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" --pvbL /h "%TEST_DIR%" %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-Rem Add additional Batch file arguments
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" run @TEMP@
+rem Add Additional configuration
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" - %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-Rem Set Display Name and Description
+rem Add Batch file arguments
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%"  %SERVICE_BATCH% run @TEMP@
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+rem Set Display Name and Description
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /n "A Dummy Service" /d "One dummy SvcBatch service example"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-Rem Set Dependencies and Privileges
+rem Set Dependencies and Privileges
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /d=Tcpip/Afd /p:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
