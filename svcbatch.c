@@ -3269,7 +3269,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       opt;
     int       rv = 0;
     int       ec = 0;
-    int       cmdverbose  = SVCBATCH_ISDEV_VERSION;
+    int       cmdverbose  = 0;
     LPCWSTR   ed          = NULL;
     LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
@@ -3285,17 +3285,17 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     SC_HANDLE mgr         = NULL;
     SC_HANDLE svc         = NULL;
     SERVICE_STATUS_PROCESS ssp;
+    int      orgargc      = argc;
+    LPCWSTR *orgargv      = argv;
 
     service->name = argv[0];
 
-    DBG_PRINTS(cnamestamp);
     bsize = DSIZEOF(SERVICE_STATUS_PROCESS);
     memset(&ssp, 0, sizeof(SERVICE_STATUS_PROCESS));
     if (cmd == SVCBATCH_SCM_CREATE) {
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
-    DBG_PRINTF("%S %S", service->name, scmcommands[cmd]);
     while ((opt = xwgetopt(argc, argv, scmcoptions[cmd])) != EOF) {
         switch (opt) {
             case 'i':
@@ -3461,6 +3461,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     if (svc == NULL) {
         rv = GetLastError();
         ec = __LINE__;
+        ed = service->name;
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_DELETE) {
@@ -3712,7 +3713,6 @@ finished:
     if (cmdverbose) {
         if (rv) {
             wchar_t eb[SVCBATCH_LINE_MAX];
-
             xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
             fprintf(stderr, "Service Name : %S\n", service->name);
             fprintf(stderr, "     Command : %S\n", scmcommands[cmd]);
@@ -3722,6 +3722,10 @@ finished:
             fprintf(stderr, "             : %S\n", eb);
             if (ed != NULL)
             fprintf(stderr, "               %S\n", ed);
+            fputs("\n   Arguments :\n", stderr);
+            for (i = 0; i < orgargc; i++)
+            fprintf(stderr, "               %S\n", orgargv[i]);
+            fputs(CRLFA, stderr);
         }
         else {
             fprintf(stdout, "Service Name : %S\n", service->name);
@@ -3735,8 +3739,24 @@ finished:
             fputs(CRLFA, stdout);
         }
     }
-    DBG_PRINTF("done %d", rv);
-    DBG_PRINTS(NULL);
+#if defined(_DEBUG)
+    else {
+        if (rv) {
+            wchar_t eb[SVCBATCH_LINE_MAX];
+            xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
+            dbgprintf(__FUNCTION__, "%S", scmcommands[cmd]);
+            dbgprintf(__FUNCTION__, "%d", ec);
+            dbgprintf(__FUNCTION__, "%d (0x%x)", rv,  rv);
+            dbgprintf(__FUNCTION__, "%S", eb);
+            if (ed != NULL)
+            dbgprintf(__FUNCTION__, "%S", ed);
+            dbgprints(__FUNCTION__, "");
+            for (i = 0; i < orgargc; i++)
+            dbgprintf(__FUNCTION__, "[%d] %S", i, orgargv[i]);
+            OutputDebugStringA(CRLFA);
+        }
+    }
+#endif
     return rv;
 }
 
@@ -3924,11 +3944,11 @@ int wmain(int argc, LPCWSTR *wargv)
     }
 
     if (servicemode && IS_VALID_HANDLE(hstd) && (service->name == NULL) && (argc > 2)) {
-        LPCWSTR p = wargv[1];
-        if ((xwcslen(p) > 3) && ((opt = xscmcommand(p)) != 0)) {
+        int scmcmd = xscmcommand(wargv[1]);
+        if (scmcmd) {
             argc     -= 2;
             wargv    += 2;
-            return xscmexecute(opt, argc, wargv);
+            return xscmexecute(scmcmd, argc, wargv);
         }
     }
     if (servicemode) {
