@@ -45,6 +45,7 @@ static char dbgsvcmode = 'x';
 #define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d)
 
 #define SZ_STATUS_PROCESS_INFO  sizeof(SERVICE_STATUS_PROCESS)
+#define SYSTEM_SVC_SUBKEY       L"SYSTEM\\CurrentControlSet\\Services"
 
 typedef enum {
     SVCBATCH_WORKER_THREAD = 0,
@@ -1099,8 +1100,8 @@ static BOOL setupeventlog(void)
     if (InterlockedIncrement(&eset) > 1)
         return ssrv;
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-                        L"SYSTEM\\CurrentControlSet\\Services\\" \
-                        L"EventLog\\Application\\" CPP_WIDEN(SVCBATCH_NAME),
+                        SYSTEM_SVC_SUBKEY \
+                        L"\\EventLog\\Application\\" CPP_WIDEN(SVCBATCH_NAME),
                         0, NULL, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
                         NULL, &k, &c) != ERROR_SUCCESS)
@@ -3185,15 +3186,15 @@ static BOOL getsvcarguments(LPCWSTR arg0, int *argc, LPWSTR **argv)
     LPBYTE  b = NULL;
     LSTATUS s;
 
-    s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services",
+    s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, SYSTEM_SVC_SUBKEY,
                       0, KEY_QUERY_VALUE | KEY_READ, &k);
     if (s != ERROR_SUCCESS)
         goto finished;
-    s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+    s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                      RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
     if (s == ERROR_SUCCESS) {
         b = (LPBYTE)xmmalloc(c);
-        s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+        s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                          RRF_RT_REG_MULTI_SZ, &t, b, &c);
         if (s != ERROR_SUCCESS)
             goto finished;
@@ -3748,15 +3749,15 @@ static BOOL setsvcarguments(int argc, LPCWSTR *argv)
 
     if (argc == 0)
         return TRUE;
-    s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services",
+    s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, SYSTEM_SVC_SUBKEY,
                       0, KEY_QUERY_VALUE | KEY_READ | KEY_WRITE, &k);
     if (s != ERROR_SUCCESS)
         goto finished;
-    s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+    s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                      RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
     if (s == ERROR_SUCCESS) {
         b = (LPBYTE)xmmalloc(c);
-        s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+        s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                          RRF_RT_REG_MULTI_SZ, &t, b, &c);
         if (s != ERROR_SUCCESS)
             goto finished;
@@ -3776,7 +3777,7 @@ static BOOL setsvcarguments(int argc, LPCWSTR *argv)
                       0, KEY_QUERY_VALUE | KEY_READ | KEY_WRITE, &a);
     if (s != ERROR_SUCCESS)
         goto finished;
-    s = RegSetValueExW(a, SVCBATCH_ARGS, 0, REG_MULTI_SZ, b, n);
+    s = RegSetValueExW(a, SVCBATCH_SVCARGS, 0, REG_MULTI_SZ, b, n);
 finished:
     xfree(b);
     RegCloseKey(a);
@@ -4015,7 +4016,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (svc && !setsvcarguments(argc, argv)) {
             rv = GetLastError();
             ec = __LINE__;
-            ed = SVCBATCH_ARGS;
+            ed = SVCBATCH_SVCARGS;
             goto finished;
         }
     }
@@ -4249,7 +4250,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (!setsvcarguments(argc, argv)) {
             rv = GetLastError();
             ec = __LINE__;
-            ed = SVCBATCH_ARGS;
+            ed = SVCBATCH_SVCARGS;
             goto finished;
         }
     }

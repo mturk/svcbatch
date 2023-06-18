@@ -70,7 +70,6 @@
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
-#define SVCBATCH_ARGS          L"SvcBatchArguments"
 #define SVCBATCH_LOGNAME       L"SvcBatch"
 #define SVCBATCH_LOGFEXT       L".log"
 #define SHUTDOWN_LOGFEXT       L".shutdown.log"
@@ -78,6 +77,12 @@
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sb-"
 #define SVCBATCH_MMAPPFX       L"Local\\sb-"
+
+/**
+ * Registry value name where SvcBatch store
+ * service arguments
+ */
+#define SVCBATCH_SVCARGS       L"ImagePathArguments"
 
 /**
  * Default arguments for cmd.exe
