@@ -84,19 +84,19 @@ rem Presuming this is the build tree ...
 rem Create a service command line
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /v --pvbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" --pvbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Add Additional configuration
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" - %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /q - %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Add Batch file arguments
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%"  %SERVICE_BATCH% run %%TEMP%%
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /q %SERVICE_BATCH% run %%TEMP%%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Set Display Name and Description
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /n "A Dummy Service" /d "One dummy SvcBatch service example"
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /q /n "A Dummy Service" /d "One dummy SvcBatch service example"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Set Dependencies and Privileges
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /d=Tcpip/Afd /p:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /q /d=Tcpip/Afd /p:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
 rem
@@ -113,7 +113,7 @@ rem
 echo %~nx0: Starting %SERVICE_NAME%
 rem Wait until the service is Running
 rem
-%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /vw0
+%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /w0
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %~nx0: Started %SERVICE_NAME%
 goto End
@@ -127,7 +127,7 @@ rem
 echo %~nx0: Stopping %SERVICE_NAME%
 rem Wait up to 30 seconds until the service is Stopped
 rem
-%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /v /w30
+%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /w30
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL
 echo %~nx0: Stopped %SERVICE_NAME%
 goto End
@@ -153,7 +153,7 @@ popd
 rem
 echo %~nx0: Deleting %SERVICE_NAME%
 rem
-%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" -v /w30
+%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" /w30
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %~nx0: Deleted %SERVICE_NAME%
 goto End

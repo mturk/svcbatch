@@ -218,12 +218,12 @@ static const wchar_t *scmcommands[] = {
 };
 
 static const wchar_t *scmcoptions[] = {
-    L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CREATE      */
-    L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CONFIG      */
-    L"vw:",                     /* SVCBATCH_SCM_START       */
-    L"vw:r:",                   /* SVCBATCH_SCM_STOP        */
-    L"vw:",                     /* SVCBATCH_SCM_DELETE      */
-    L"v",                       /* SVCBATCH_SCM_CONTROL     */
+    L"qvb:d:in:p:s:u:",         /* SVCBATCH_SCM_CREATE      */
+    L"qvb:d:in:p:s:u:",         /* SVCBATCH_SCM_CONFIG      */
+    L"qvw:",                    /* SVCBATCH_SCM_START       */
+    L"qvw:r:",                  /* SVCBATCH_SCM_STOP        */
+    L"qvw:",                    /* SVCBATCH_SCM_DELETE      */
+    L"qv",                      /* SVCBATCH_SCM_CONTROL     */
     NULL
 };
 
@@ -3859,6 +3859,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case 'i':
                 servicetype = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
             break;
+            case 'q':
+                cmdverbose = 0;
+            break;
             case 'v':
                 cmdverbose++;
             break;
@@ -4290,8 +4293,8 @@ finished:
             fputs("\n   Arguments :\n", stderr);
             for (i = 1; i < orgargc; i++)
             fprintf(stderr, "               %S\n", orgargv[i]);
-            fputc('\n', stderr);
             }
+            fputc('\n', stderr);
         }
         else {
             fprintf(stdout, "Service Name : %S\n", service->name);
@@ -4303,6 +4306,11 @@ finished:
             fprintf(stdout, "     STARTUP : %d\n", starttype);
             if (cmd == SVCBATCH_SCM_START)
             fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
+            if ((cmdverbose > 1) && (argc > 0)) {
+            fputs("\n   Arguments :\n", stdout);
+            for (i = 0; i < argc; i++)
+            fprintf(stdout, "               %S\n", argv[i]);
+            }
             fputc('\n', stdout);
         }
     }
