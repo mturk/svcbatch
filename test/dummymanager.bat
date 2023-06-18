@@ -50,18 +50,18 @@ set "SERVICE_LOG_FNAME="
 set "SHUTDOWN_ARGS="
 set "ROTATE_RULE="
 set "SERVICE_BATCH=dummyservice.bat"
-set "SERVICE_SHUTDOWN=-s %SERVICE_BATCH%"
+set "SERVICE_SHUTDOWN=/s%SERVICE_BATCH%"
 rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=-s shutdown /S@@SystemRoot@@ "/ssome argument with spaces""
+set "SHUTDOWN_ARGS=/sshutdown /S@@SystemRoot@@ "/ssome argument with spaces""
 rem
 rem
 set "SERVICE_LOG_DIR=-o "Logs/%SERVICE_NAME%""
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/R 10 -r100K"
-set "ROTATE_RULE=/R 5 -r20K -rS"
+set "ROTATE_RULE=/R5 -r20K -rS"
 rem Rotate Log files at midnight
 rem set "ROTATE_RULE=-r0"
 rem Rotate Log files every full hour or when larger then 40000 bytes
@@ -71,26 +71,26 @@ rem set "ROTATE_RULE=-rS"
 rem
 rem Set log file names instead default SvcBatch.log and SvcBatch.shutdown.log
 rem Both .log and .shutdown.log extensions are added to the -n parameter
-set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%""
+rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%""
 rem
 rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.@Y-@m-@d.@H@M@S""
 rem
-rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.@Y-@m-@d""
+set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.%%Y-%%m-%%d""
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=-e "PATH=%BUILD_DIR%;@PATH@""
+set "SERVICE_ENVIRONMENT=/ePATH=%BUILD_DIR%;%%PATH%%"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /v --pvbL /h "%TEST_DIR%" %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR%
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /v --pvbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Add Additional configuration
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" - %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Add Batch file arguments
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%"  %SERVICE_BATCH% run @TEMP@
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%"  %SERVICE_BATCH% run %%TEMP%%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Set Display Name and Description
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /n "A Dummy Service" /d "One dummy SvcBatch service example"
