@@ -44,6 +44,8 @@ static char dbgsvcmode = 'x';
 #define xsyswarn(_n, _e, _d)    svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_WARNING_TYPE,    _n, _e, _d)
 #define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d)
 
+#define SZ_STATUS_PROCESS_INFO  sizeof(SERVICE_STATUS_PROCESS)
+
 typedef enum {
     SVCBATCH_WORKER_THREAD = 0,
     SVCBATCH_WRPIPE_THREAD,
@@ -136,6 +138,11 @@ typedef struct _SVCBATCH_IPC {
 
 } SVCBATCH_IPC, *LPSVCBATCH_IPC;
 
+typedef struct _SVCBATCH_NAME_MAP {
+    LPCWSTR name;
+    DWORD   code;
+} SVCBATCH_NAME_MAP, *LPSVCBATCH_NAME_MAP;
+
 static LPSVCBATCH_PROCESS    program     = NULL;
 static LPSVCBATCH_SERVICE    service     = NULL;
 
@@ -214,12 +221,45 @@ static const wchar_t *scmcoptions[] = {
     L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CREATE      */
     L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CONFIG      */
     L"vw:",                     /* SVCBATCH_SCM_START       */
-    L"vw:",                     /* SVCBATCH_SCM_STOP        */
+    L"vw:r:",                   /* SVCBATCH_SCM_STOP        */
     L"vw:",                     /* SVCBATCH_SCM_DELETE      */
     L"v",                       /* SVCBATCH_SCM_CONTROL     */
     NULL
 };
 
+static const SVCBATCH_NAME_MAP starttypemap[] = {
+    { L"auto",   SERVICE_AUTO_START         },
+    { L"demand", SERVICE_DEMAND_START       },
+    { L"dis",    SERVICE_DISABLED           },
+    { L"man",    SERVICE_DEMAND_START       },
+    { NULL,      0 }
+};
+
+static const SVCBATCH_NAME_MAP stopreasonmajor[] = {
+    { L"app",   SERVICE_STOP_REASON_MAJOR_APPLICATION       },
+    { L"hard",  SERVICE_STOP_REASON_MAJOR_HARDWARE          },
+    { L"n",     SERVICE_STOP_REASON_MAJOR_NONE              },
+    { L"o",     SERVICE_STOP_REASON_MAJOR_OTHER             },
+    { L"soft",  SERVICE_STOP_REASON_MAJOR_SOFTWARE          },
+    { L"sys",   SERVICE_STOP_REASON_MAJOR_OPERATINGSYSTEM   },
+    { NULL,     0 }
+};
+
+static const SVCBATCH_NAME_MAP stopreasonminor[] = {
+    { L"env",   SERVICE_STOP_REASON_MINOR_ENVIRONMENT       },
+    { L"hard",  SERVICE_STOP_REASON_MINOR_HARDWARE_DRIVER   },
+    { L"hu",    SERVICE_STOP_REASON_MINOR_HUNG              },
+    { L"ins",   SERVICE_STOP_REASON_MINOR_INSTALLATION      },
+    { L"maint", SERVICE_STOP_REASON_MINOR_MAINTENANCE       },
+    { L"n",     SERVICE_STOP_REASON_MINOR_NONE              },
+    { L"o",     SERVICE_STOP_REASON_MINOR_OTHER             },
+    { L"r",     SERVICE_STOP_REASON_MINOR_RECONFIG          },
+    { L"sec",   SERVICE_STOP_REASON_MINOR_SECURITY          },
+    { L"up",    SERVICE_STOP_REASON_MINOR_UPGRADE           },
+    { L"unr",   SERVICE_STOP_REASON_MINOR_HUNG              },
+    { L"uns",   SERVICE_STOP_REASON_MINOR_UNSTABLE          },
+    { NULL,     0 }
+};
 
 /**
  * (element & 1) == valid file name character
@@ -746,6 +786,19 @@ static int xwcasecmp(const wchar_t *str, const wchar_t *src)
             return 0;
     }
     return (sa - sb);
+}
+
+static DWORD xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, DWORD def)
+{
+    int i;
+
+    if (IS_EMPTY_WCS(src))
+        return def;
+    for (i = 0; map[i].name != NULL; i++) {
+        if (xwstartswith(src, map[i].name))
+            return map[i].code;
+    }
+    return def;
 }
 
 static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
@@ -3267,8 +3320,10 @@ static int xscmcommand(LPCWSTR ncmd)
 
 static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
 {
+    PSERVICE_CONTROL_STATUS_REASON_PARAMSW ssr;
+    LPSERVICE_STATUS_PROCESS ssp;
+    WCHAR     cb[SBUFSIZ];
     DWORD     bneed;
-    DWORD     bsize;
     int       i;
     int       x;
     int       opt;
@@ -3286,20 +3341,21 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     LPCWSTR   password    = NULL;
     DWORD     starttype   = SERVICE_NO_CHANGE;
     DWORD     servicetype = SERVICE_NO_CHANGE;
+    DWORD     srmajor     = SERVICE_STOP_REASON_MAJOR_NONE;
+    DWORD     srminor     = SERVICE_STOP_REASON_MINOR_NONE;
     DWORD     wtime       = 0;
     SC_HANDLE mgr         = NULL;
     SC_HANDLE svc         = NULL;
-    SERVICE_STATUS_PROCESS ssp;
     int      orgargc      = argc;
     LPCWSTR *orgargv      = argv;
 
-    bsize = DSIZEOF(SERVICE_STATUS_PROCESS);
-    memset(&ssp, 0, sizeof(SERVICE_STATUS_PROCESS));
+    service->name = argv[0];
+    ssr = (PSERVICE_CONTROL_STATUS_REASON_PARAMSW)xmcalloc(sizeof(SERVICE_CONTROL_STATUS_REASON_PARAMSW));
+    ssp = &ssr->ServiceStatus;
     if (cmd == SVCBATCH_SCM_CREATE) {
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
-    service->name = argv[0];
     while ((opt = xwgetopt(argc, argv, scmcoptions[cmd])) != EOF) {
         switch (opt) {
             case 'i':
@@ -3366,31 +3422,25 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     password  = xwoptarg;
                 }
             break;
+            case 'r':
+                if (xwoptval)
+                    xwoptarg = xwoptval;
+                xwcslcat(cb, SBUFSIZ, xwoptarg);
+                pp = wcschr(cb, L'.');
+                if (pp) {
+                    *(pp++) = WNUL;
+                    srminor = xnamemap(pp, stopreasonminor, SERVICE_STOP_REASON_MINOR_NONE);
+                }
+                srmajor = xnamemap(cb, stopreasonmajor, SERVICE_STOP_REASON_MAJOR_NONE);
+            break;
             case 's':
                 if (xwoptval)
                     xwoptarg = xwoptval;
-                x = xtolower(xwoptarg[0]);
-                switch (x) {
-                    case 'a':
-                        starttype = SERVICE_AUTO_START;
-                    break;
-                    case 'd':
-                        if (xtolower(xwoptarg[1]) == 'e')
-                            starttype = SERVICE_DEMAND_START;
-                        else
-                            starttype = SERVICE_DISABLED;
-                    break;
-                    case 'm':
-                        starttype = SERVICE_DEMAND_START;
-                    break;
-                    default:
-                        starttype = SERVICE_NO_CHANGE;
-                    break;
-                }
+                starttype = xnamemap(xwoptarg, starttypemap, SERVICE_NO_CHANGE);
                 if (starttype == SERVICE_NO_CHANGE) {
                     rv = ERROR_INVALID_PARAMETER;
                     ec = __LINE__;
-                    ed = xwoption;
+                    ed = xwoptarg;
                     goto finished;
                 }
             break;
@@ -3470,32 +3520,32 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     if (cmd == SVCBATCH_SCM_DELETE) {
         if (!QueryServiceStatusEx(svc,
-                                  SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                  bsize, &bneed)) {
+                                  SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                  SZ_STATUS_PROCESS_INFO, &bneed)) {
             rv = GetLastError();
             ec = __LINE__;
             goto finished;
         }
-        if (ssp.dwCurrentState == SERVICE_STOPPED)
+        if (ssp->dwCurrentState == SERVICE_STOPPED)
             wtime = 0;
         if (wtime) {
-            if (ssp.dwCurrentState != SERVICE_STOP_PENDING) {
-                if (!ControlService(svc, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)&ssp)) {
+            if (ssp->dwCurrentState != SERVICE_STOP_PENDING) {
+                if (!ControlService(svc, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)ssp)) {
                     rv = GetLastError();
                     ec = __LINE__;
                     goto finished;
                 }
             }
-            while (ssp.dwCurrentState != SERVICE_STOPPED) {
+            while (ssp->dwCurrentState != SERVICE_STOPPED) {
                 Sleep(1000);
                 if (!QueryServiceStatusEx(svc,
-                                          SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                          bsize, &bneed)) {
+                                          SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                          SZ_STATUS_PROCESS_INFO, &bneed)) {
                     rv = GetLastError();
                     ec = __LINE__;
                     goto finished;
                 }
-                if (ssp.dwCurrentState == SERVICE_STOPPED)
+                if (ssp->dwCurrentState == SERVICE_STOPPED)
                     break;
                 if (--wtime == 0) {
                     /* Timeout */
@@ -3505,7 +3555,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 }
             }
         }
-        if (ssp.dwCurrentState != SERVICE_STOPPED) {
+        if (ssp->dwCurrentState != SERVICE_STOPPED) {
             rv = ERROR_SERVICE_ALREADY_RUNNING;
             ec = __LINE__;
             goto finished;
@@ -3518,13 +3568,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     if (cmd == SVCBATCH_SCM_START) {
         if (!QueryServiceStatusEx(svc,
-                                  SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                  bsize, &bneed)) {
+                                  SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                  SZ_STATUS_PROCESS_INFO, &bneed)) {
             rv = GetLastError();
             ec = __LINE__;
             goto finished;
         }
-        if (ssp.dwCurrentState != SERVICE_STOPPED) {
+        if (ssp->dwCurrentState != SERVICE_STOPPED) {
             rv = ERROR_SERVICE_ALREADY_RUNNING;
             ec = __LINE__;
             goto finished;
@@ -3536,17 +3586,17 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         }
         if (wtime) {
             if (!QueryServiceStatusEx(svc,
-                                      SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                      bsize, &bneed)) {
+                                      SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                      SZ_STATUS_PROCESS_INFO, &bneed)) {
                 rv = GetLastError();
                 ec = __LINE__;
                 goto finished;
             }
-            while (ssp.dwCurrentState == SERVICE_START_PENDING) {
+            while (ssp->dwCurrentState == SERVICE_START_PENDING) {
                 Sleep(1000);
                 if (!QueryServiceStatusEx(svc,
-                                          SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                          bsize, &bneed)) {
+                                          SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                          SZ_STATUS_PROCESS_INFO, &bneed)) {
                     rv = GetLastError();
                     ec = __LINE__;
                     goto finished;
@@ -3558,7 +3608,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     goto finished;
                 }
             }
-            if (ssp.dwCurrentState != SERVICE_RUNNING) {
+            if (ssp->dwCurrentState != SERVICE_RUNNING) {
                 rv = ERROR_SERVICE_START_HANG;
                 ec = __LINE__;
             }
@@ -3567,29 +3617,29 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     if (cmd == SVCBATCH_SCM_STOP) {
         if (!QueryServiceStatusEx(svc,
-                                  SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                  bsize, &bneed)) {
+                                  SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                  SZ_STATUS_PROCESS_INFO, &bneed)) {
             rv = GetLastError();
             ec = __LINE__;
             goto finished;
         }
-        if (ssp.dwCurrentState == SERVICE_STOPPED) {
+        if (ssp->dwCurrentState == SERVICE_STOPPED) {
             rv = ERROR_SERVICE_NOT_ACTIVE;
             ec = __LINE__;
             goto finished;
         }
-        while (ssp.dwCurrentState == SERVICE_STOP_PENDING) {
+        while (ssp->dwCurrentState == SERVICE_STOP_PENDING) {
             if (wtime == 0)
                 goto finished;
             Sleep(1000);
             if (!QueryServiceStatusEx(svc,
-                                      SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                      bsize, &bneed)) {
+                                      SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                      SZ_STATUS_PROCESS_INFO, &bneed)) {
                 rv = GetLastError();
                 ec = __LINE__;
                 goto finished;
             }
-            if (ssp.dwCurrentState == SERVICE_STOPPED)
+            if (ssp->dwCurrentState == SERVICE_STOPPED)
                 goto finished;
             if (--wtime == 0) {
                 /** Timeout */
@@ -3598,23 +3648,30 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 goto finished;
             }
         }
-        if (!ControlService(svc, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)&ssp)) {
+        if (argc > 0) {
+            /* Comment is limited to 128 chars */
+            xwcslcat(cb, SBUFSIZ, argv[0]);
+            ssr->pszComment = cb;
+        }
+        ssr->dwReason = SERVICE_STOP_REASON_FLAG_PLANNED | srmajor | srminor;
+        if (!ControlServiceExW(svc, SERVICE_CONTROL_STOP,
+                               SERVICE_CONTROL_STATUS_REASON_INFO, (LPBYTE)ssr)) {
             rv = GetLastError();
             ec = __LINE__;
             goto finished;
         }
-        while (ssp.dwCurrentState != SERVICE_STOPPED) {
+        while (ssp->dwCurrentState != SERVICE_STOPPED) {
             if (wtime == 0)
                 break;
             Sleep(1000);
             if (!QueryServiceStatusEx(svc,
-                                      SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                      bsize, &bneed)) {
+                                      SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                      SZ_STATUS_PROCESS_INFO, &bneed)) {
                 rv = GetLastError();
                 ec = __LINE__;
                 goto finished;
             }
-            if (ssp.dwCurrentState == SERVICE_STOPPED)
+            if (ssp->dwCurrentState == SERVICE_STOPPED)
                 break;
             if (--wtime == 0) {
                 /** Timeout */
@@ -3628,8 +3685,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     if (cmd == SVCBATCH_SCM_CONTROL) {
         DWORD sctrl = SERVICE_CONTROL_INTERROGATE;
         if (!QueryServiceStatusEx(svc,
-                                  SC_STATUS_PROCESS_INFO, (LPBYTE)&ssp,
-                                  bsize, &bneed)) {
+                                  SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
+                                  SZ_STATUS_PROCESS_INFO, &bneed)) {
             rv = GetLastError();
             ec = __LINE__;
             goto finished;
@@ -3642,7 +3699,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 goto finished;
             }
         }
-        if (!ControlService(svc, sctrl, (LPSERVICE_STATUS)&ssp)) {
+        if (!ControlService(svc, sctrl, (LPSERVICE_STATUS)ssp)) {
             rv = GetLastError();
             ec = __LINE__;
         }
@@ -3742,7 +3799,7 @@ finished:
             if (cmd == SVCBATCH_SCM_CREATE)
             fprintf(stdout, "     STARTUP : %d\n", starttype);
             if (cmd == SVCBATCH_SCM_START)
-            fprintf(stdout, "         PID : %lu\n", ssp.dwProcessId);
+            fprintf(stdout, "         PID : %lu\n", ssp->dwProcessId);
             fputc('\n', stdout);
         }
     }
