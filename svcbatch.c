@@ -3648,17 +3648,28 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 goto finished;
             }
         }
-        if (argc > 0) {
-            /* Comment is limited to 128 chars */
-            xwcslcat(cb, SBUFSIZ, argv[0]);
-            ssr->pszComment = cb;
+        if ((argc == 0) &&
+            (srmajor == SERVICE_STOP_REASON_MAJOR_NONE) &&
+            (srminor == SERVICE_STOP_REASON_MINOR_NONE)) {
+            if (!ControlService(svc, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)ssp)) {
+                rv = GetLastError();
+                ec = __LINE__;
+                goto finished;
+            }
         }
-        ssr->dwReason = SERVICE_STOP_REASON_FLAG_PLANNED | srmajor | srminor;
-        if (!ControlServiceExW(svc, SERVICE_CONTROL_STOP,
-                               SERVICE_CONTROL_STATUS_REASON_INFO, (LPBYTE)ssr)) {
-            rv = GetLastError();
-            ec = __LINE__;
-            goto finished;
+        else {
+            if (argc > 0) {
+                /* Comment is limited to 128 chars */
+                xwcslcat(cb, SBUFSIZ, argv[0]);
+                ssr->pszComment = cb;
+            }
+            ssr->dwReason = SERVICE_STOP_REASON_FLAG_PLANNED | srmajor | srminor;
+            if (!ControlServiceExW(svc, SERVICE_CONTROL_STOP,
+                                   SERVICE_CONTROL_STATUS_REASON_INFO, (LPBYTE)ssr)) {
+                rv = GetLastError();
+                ec = __LINE__;
+                goto finished;
+            }
         }
         while (ssp->dwCurrentState != SERVICE_STOPPED) {
             if (wtime == 0)
