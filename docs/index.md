@@ -1,10 +1,10 @@
-### Quick Start
+# Quick Start
 
 This directory contains documentation and
 various examples explaining how to run and deploy SvcBatch utility
 inside different environments and target applications.
 
-### Examples
+# Examples
 
 - [Installing and Using Apache Tomcat](examples/apachetomcat.md)
 - [Installing and Using JBoss EAP](examples/jbosseap.md)
@@ -13,6 +13,7 @@ inside different environments and target applications.
 - [PowerShell Examples](examples/powershell.md)
 - [Bash Examples](examples/bash.md)
 
-### Maintainer Help
+# Maintainer Help
 
-- [Building SvcBatch](building.md)
+- [Building SvcBatch](building.md
+- [Managing Services](manage.md)

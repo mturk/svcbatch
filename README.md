@@ -29,6 +29,7 @@ with your application.
   - [Supported Windows Versions](#supported-windows-versions)
   - [Building](#building)
   - [Creating Services](#creating-services)
+  - [Managing Services](#managing-services)
 - [Examples](#examples)
 - [Main Features](#main-features)
   - [Log Rotation](#log-rotation)
@@ -136,6 +137,13 @@ detailed usage.
 
   This will allow SvcBatch to terminate the entire
   descendant process tree on shutdown.
+
+## Managing Services
+
+To get an overview on how to create and manage
+SvcBatch services, check the [managing](docs/manage.md)
+section for some basic guidelines.
+
 
 # Examples
 
