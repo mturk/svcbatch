@@ -70,6 +70,7 @@
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
+#define SVCBATCH_ARGS          L"SvcBatchArguments"
 #define SVCBATCH_LOGNAME       L"SvcBatch"
 #define SVCBATCH_LOGFEXT       L".log"
 #define SHUTDOWN_LOGFEXT       L".shutdown.log"
@@ -254,6 +255,7 @@
 #define IS_VALID_HANDLE(_h)     (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))
 #define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == WNUL))
 #define IS_EMPTY_STR(_s)        (((_s) == NULL) || (*(_s) == CNUL))
+#define IS_VALID_WCS(_s)        (((_s) != NULL) && (*(_s) != WNUL))
 #define IS_SET(_o)              ((svcoptions & (_o)) == (_o))
 #define IS_NOT(_o)              ((svcoptions & (_o)) != (_o))
 
@@ -305,6 +307,12 @@
 
 #define ASSERT_SIZE(_s, _m, _r)                             \
     if ((_s) < (_m)) {                                      \
+        SetLastError(ERROR_INSUFFICIENT_BUFFER);            \
+        return (_r);                                        \
+    } (void)0
+
+#define ASSERT_LESS(_v, _s, _r)                             \
+    if ((_v) >= (_s)) {                                     \
         SetLastError(ERROR_INSUFFICIENT_BUFFER);            \
         return (_r);                                        \
     } (void)0

@@ -218,8 +218,8 @@ static const wchar_t *scmcommands[] = {
 };
 
 static const wchar_t *scmcoptions[] = {
-    L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CREATE      */
-    L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CONFIG      */
+    L"vd:in:p:s:u:b:",          /* SVCBATCH_SCM_CREATE      */
+    L"vd:in:p:s:u:",            /* SVCBATCH_SCM_CONFIG      */
     L"vw:",                     /* SVCBATCH_SCM_START       */
     L"vw:r:",                   /* SVCBATCH_SCM_STOP        */
     L"vw:",                     /* SVCBATCH_SCM_DELETE      */
@@ -339,9 +339,14 @@ static void *xrealloc(void *mem, size_t size)
     return p;
 }
 
-static __inline LPWSTR xwmalloc(size_t size)
+static __inline LPWSTR  xwmalloc(size_t size)
 {
     return (LPWSTR)xmmalloc(size * sizeof(WCHAR));
+}
+
+static __inline LPWSTR *xwaalloc(size_t size)
+{
+    return (LPWSTR *)xmmalloc(size * sizeof(LPWSTR));
 }
 
 static __inline void xfree(void *mem)
@@ -405,6 +410,61 @@ static LPWSTR xwcsdup(LPCWSTR s)
     n = wcslen(s);
     d = xwmalloc(n + 1);
     return wmemcpy(d, s, n);
+}
+
+static LPWSTR xargvtomsz(int argc, LPCWSTR *argv, int *sz)
+{
+    int    i;
+    int    len = 0;
+    int    s[SBUFSIZ];
+    LPWSTR ep;
+    LPWSTR bp;
+
+    ASSERT_ZERO(argc, NULL);
+    ASSERT_LESS(argc, SBUFSIZ, NULL);
+
+    for (i = 0; i < argc; i++) {
+        s[i]  = xwcslen(argv[i]) + 1;
+        len  += s[i];
+    }
+    bp = xwmalloc(++len);
+    ep = bp;
+    for (i = 0; i < argc; i++) {
+        if (s[i] > 1)
+            wmemcpy(ep, argv[i], s[i]);
+        ep += s[i];
+    }
+    *ep = WNUL;
+    *sz = len * 2;
+    return bp;
+}
+
+static LPWSTR *xmsztoargv(LPCWSTR arg0, LPWSTR msz, int *argc)
+{
+    int     i = 0;
+    int     c = 0;
+    LPWSTR  p;
+    LPWSTR *argv;
+
+    *argc = 0;
+    ASSERT_WSTR(msz, NULL);
+
+    for (p = msz; *p; p++, c++) {
+        while (*p)
+            p++;
+    }
+    if (IS_VALID_WCS(arg0))
+        c++;
+    argv = xwaalloc(c);
+    if (IS_VALID_WCS(arg0))
+        argv[i++] = (LPWSTR)arg0;
+    for (p = msz; *p; p++, i++) {
+        argv[i] = p;
+        while (*p)
+            p++;
+    }
+    *argc = c;
+    return argv;
 }
 
 static void xwchreplace(LPWSTR s, WCHAR c, WCHAR r)
@@ -3297,6 +3357,97 @@ finished:
     return service->status.dwServiceSpecificExitCode;
 }
 
+static BOOL setsvcarguments(int argc, LPCWSTR *argv)
+{
+    int     n;
+    DWORD   t;
+    DWORD   c;
+    HKEY    k = NULL;
+    HKEY    a = NULL;
+    LPBYTE  b = NULL;
+    LSTATUS s;
+    LPWSTR  w;
+
+    if (argc == 0)
+        return TRUE;
+    s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services",
+                      0, KEY_QUERY_VALUE | KEY_READ | KEY_WRITE, &k);
+    if (s != ERROR_SUCCESS)
+        goto finished;
+    s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+                     RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
+    if (s == ERROR_SUCCESS) {
+        b = (LPBYTE)xmmalloc(c);
+        s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+                         RRF_RT_REG_MULTI_SZ, &t, b, &c);
+        if (s != ERROR_SUCCESS)
+            goto finished;
+        c = c - 2;
+    }
+    w = xargvtomsz(argc, argv, &n);
+    if (b) {
+        b = xrealloc(b, c + n);
+        memcpy(b + c, w, n);
+        n = n + c;
+        xfree(w);
+    }
+    else {
+        b = (LPBYTE)w;
+    }
+    s = RegOpenKeyExW(k, service->name,
+                      0, KEY_QUERY_VALUE | KEY_READ | KEY_WRITE, &a);
+    if (s != ERROR_SUCCESS)
+        goto finished;
+    s = RegSetValueExW(a, SVCBATCH_ARGS, 0, REG_MULTI_SZ, b, n);
+finished:
+    xfree(b);
+    RegCloseKey(a);
+    RegCloseKey(k);
+    if (s != ERROR_SUCCESS) {
+        SetLastError(s);
+        return FALSE;
+    }
+    else {
+        return TRUE;
+    }
+}
+
+static BOOL getsvcarguments(LPCWSTR arg0, int *argc, LPWSTR **argv)
+{
+    DWORD   t;
+    DWORD   c;
+    HKEY    k = NULL;
+    LPBYTE  b = NULL;
+    LSTATUS s;
+
+    s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services",
+                      0, KEY_QUERY_VALUE | KEY_READ, &k);
+    if (s != ERROR_SUCCESS)
+        goto finished;
+    s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+                     RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
+    if (s == ERROR_SUCCESS) {
+        b = (LPBYTE)xmmalloc(c);
+        s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+                         RRF_RT_REG_MULTI_SZ, &t, b, &c);
+        if (s != ERROR_SUCCESS)
+            goto finished;
+    }
+    if (b == NULL)
+        goto finished;
+
+    *argv = xmsztoargv(arg0, (LPWSTR)b, argc);
+finished:
+    RegCloseKey(k);
+    if (s != ERROR_SUCCESS) {
+        SetLastError(s);
+        return FALSE;
+    }
+    else {
+        return TRUE;
+    }
+}
+
 static int xscmcommand(LPCWSTR ncmd)
 {
     int s = xtolower(*ncmd++);
@@ -3323,6 +3474,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     PSERVICE_CONTROL_STATUS_REASON_PARAMSW ssr;
     LPSERVICE_STATUS_PROCESS ssp;
     WCHAR     cb[SBUFSIZ];
+    WCHAR     bb[BBUFSIZ];
     DWORD     bneed;
     int       i;
     int       x;
@@ -3477,6 +3629,24 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         /* Convert '--foo' or '//foo' to '-foo' or '/foo' */
         argv[0] = argv[0] + 1;
     }
+    if (wcspbrk(service->name, L"/\\:;<>?*|\"")) {
+        rv = ERROR_INVALID_NAME;
+        ec = __LINE__;
+        ed = L"The (/\\:;<>?*|\") are not valid service name characters";
+        goto finished;
+    }
+    if (xwcslen(service->name) > 256) {
+        rv = ERROR_INVALID_NAME;
+        ec = __LINE__;
+        ed = L"The maximum service name length is 256 characters";
+        goto finished;
+    }
+    if (*service->name == L'@') {
+        rv = ERROR_INVALID_NAME;
+        ec = __LINE__;
+        ed = L"The service name must not start with (@) character";
+        goto finished;
+    }
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (mgr == NULL) {
         rv = GetLastError();
@@ -3484,15 +3654,11 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_CREATE) {
-        WCHAR bb[BBUFSIZ];
-
         bb[0] = L'@';
         xwcsncat(bb, BBUFSIZ, 1, service->name);
         if (binarypath == NULL)
             binarypath = xappendarg(1, NULL, program->application);
         binarypath = xappendarg(1, binarypath, bb);
-        for (i = 0; i < argc; i++)
-            binarypath = xappendarg(1, binarypath, argv[i]);
         svc = CreateServiceW(mgr,
                              service->name,
                              displayname,
@@ -3506,6 +3672,12 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                              sdepends,
                              username,
                              password);
+        if (!setsvcarguments(argc, argv)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            ed = SVCBATCH_ARGS;
+            goto finished;
+        }
     }
     else {
         svc = OpenServiceW(mgr,
@@ -3735,17 +3907,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ec = __LINE__;
             goto finished;
         }
-        pp = binarypath;
-        if (pp) {
-            /* Replace existing binary path */
-            sc->lpBinaryPathName = NULL;
-        }
-        for (i = 0; i < argc; i++)
-            pp = xappendarg(1, pp, argv[i]);
-        if (pp) {
-            binarypath = xwcsdup(sc->lpBinaryPathName);
-            binarypath = xappendarg(0, binarypath, pp);
-        }
         if (!ChangeServiceConfigW(svc,
                                   servicetype,
                                   starttype,
@@ -3759,6 +3920,12 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                                   displayname)) {
             rv = GetLastError();
             ec = __LINE__;
+            goto finished;
+        }
+        if (!setsvcarguments(argc, argv)) {
+            rv = GetLastError();
+            ec = __LINE__;
+            ed = SVCBATCH_ARGS;
             goto finished;
         }
     }
@@ -3798,10 +3965,12 @@ finished:
             fprintf(stderr, "             : %S\n", eb);
             if (ed != NULL)
             fprintf(stderr, "               %S\n", ed);
+            if (cmdverbose > 1) {
             fputs("\n   Arguments :\n", stderr);
             for (i = 0; i < orgargc; i++)
             fprintf(stderr, "               %S\n", orgargv[i]);
             fputc('\n', stderr);
+            }
         }
         else {
             fprintf(stdout, "Service Name : %S\n", service->name);
@@ -4000,17 +4169,29 @@ int wmain(int argc, LPCWSTR *wargv)
         }
     }
 
-    if (servicemode && (service->name == NULL) && (argc > 2)) {
-        /**
-         * Check if this is a Service Manager command
-         */
-        i = xwcslen(wargv[1]);
-        if ((i > 3) && (i < 8)) {
-            int cmd = xscmcommand(wargv[1]);
-            if (cmd >= 0) {
-                argc     -= 2;
-                wargv    += 2;
-                return xscmexecute(cmd, argc, wargv);
+    if (servicemode) {
+        if (service->name) {
+            int      rargc;
+            LPCWSTR *rargv;
+            if (getsvcarguments(wargv[0], &rargc, &rargv)) {
+                argc  = rargc;
+                wargv = rargv;
+            }
+        }
+        else {
+            if (argc > 2) {
+                /**
+                 * Check if this is a Service Manager command
+                 */
+                i = xwcslen(wargv[1]);
+                if ((i > 3) && (i < 8)) {
+                    int cmd = xscmcommand(wargv[1]);
+                    if (cmd >= 0) {
+                        argc     -= 2;
+                        wargv    += 2;
+                        return xscmexecute(cmd, argc, wargv);
+                    }
+                }
             }
         }
     }
