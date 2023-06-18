@@ -218,8 +218,8 @@ static const wchar_t *scmcommands[] = {
 };
 
 static const wchar_t *scmcoptions[] = {
-    L"vd:in:p:s:u:b:",          /* SVCBATCH_SCM_CREATE      */
-    L"vd:in:p:s:u:",            /* SVCBATCH_SCM_CONFIG      */
+    L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CREATE      */
+    L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CONFIG      */
     L"vw:",                     /* SVCBATCH_SCM_START       */
     L"vw:r:",                   /* SVCBATCH_SCM_STOP        */
     L"vw:",                     /* SVCBATCH_SCM_DELETE      */
@@ -2413,11 +2413,11 @@ static DWORD runshutdown(void)
     DWORD i, rc = 0;
 
     DBG_PRINTS("started");
-    i = xwcslcpy(rb, SVCBATCH_UUID_MAX, L"@@" SVCBATCH_MMAPPFX);
+    i = xwcslcpy(rb, SVCBATCH_UUID_MAX, L"\\" SVCBATCH_MMAPPFX);
     xuuidstring(rb + i);
     sharedmmap = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL,
                                     PAGE_READWRITE, 0,
-                                    DSIZEOF(SVCBATCH_IPC), rb + 2);
+                                    DSIZEOF(SVCBATCH_IPC), rb + 1);
     if (sharedmmap == NULL)
         return GetLastError();
     sharedmem = (LPSVCBATCH_IPC)MapViewOfFile(sharedmmap,
@@ -3177,6 +3177,378 @@ static DWORD createevents(void)
     return 0;
 }
 
+static BOOL getsvcarguments(LPCWSTR arg0, int *argc, LPWSTR **argv)
+{
+    DWORD   t;
+    DWORD   c;
+    HKEY    k = NULL;
+    LPBYTE  b = NULL;
+    LSTATUS s;
+
+    s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services",
+                      0, KEY_QUERY_VALUE | KEY_READ, &k);
+    if (s != ERROR_SUCCESS)
+        goto finished;
+    s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+                     RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
+    if (s == ERROR_SUCCESS) {
+        b = (LPBYTE)xmmalloc(c);
+        s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
+                         RRF_RT_REG_MULTI_SZ, &t, b, &c);
+        if (s != ERROR_SUCCESS)
+            goto finished;
+    }
+    if (b == NULL)
+        goto finished;
+
+    *argv = xmsztoargv(arg0, (LPWSTR)b, argc);
+finished:
+    RegCloseKey(k);
+    if (s != ERROR_SUCCESS) {
+        SetLastError(s);
+        return FALSE;
+    }
+    else {
+        return TRUE;
+    }
+}
+
+static int parseoptions(int argc, LPCWSTR *argv)
+{
+    DWORD  x;
+    int    i;
+    int    opt;
+    int    rcnt = 0;
+    int    scnt = 0;
+    int    qcnt = 0;
+    int    ccnt = 0;
+    int    rargc;
+    LPCWSTR *rargv;
+
+    LPCWSTR maxlogsparam = NULL;
+    LPCWSTR scriptparam  = NULL;
+    LPCWSTR svchomeparam = NULL;
+    LPCWSTR svcworkparam = NULL;
+    LPCWSTR commandparam = NULL;
+    LPCWSTR svcstopparam = NULL;
+    LPCWSTR sparam[SVCBATCH_MAX_ARGS];
+    LPCWSTR cparam[SVCBATCH_MAX_ARGS];
+    LPCWSTR rparam[4];
+
+    WCHAR wb[SVCBATCH_PATH_MAX];
+
+    if (getsvcarguments(argv[0], &rargc, &rargv)) {
+        argc = rargc;
+        argv = rargv;
+    }
+
+    while ((opt = xwgetopt(argc, argv, L"bc:e:gh:k:lm:n:o:pqr:s:tvw:")) != EOF) {
+        switch (opt) {
+            case L'b':
+                svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
+            break;
+            case L'g':
+                svcoptions  |= SVCBATCH_OPT_BREAK;
+            break;
+            case L'l':
+                svcoptions  |= SVCBATCH_OPT_LOCALTIME;
+            break;
+            case L'p':
+                preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
+            break;
+            case L't':
+                svcoptions  |= SVCBATCH_OPT_TRUNCATE;
+            break;
+            case L'v':
+                svcoptions  |= SVCBATCH_OPT_VERBOSE;
+            break;
+            /**
+             * Options with arguments
+             */
+            case L'm':
+                maxlogsparam = xwoptarg;
+            break;
+            case L'n':
+                if (svclogfname)
+                    return xsyserror(0, L"Found multiple -n command options", xwoptarg);
+                svclogfname = xwcsdup(skipdotslash(xwoptarg));
+                if (svclogfname == NULL)
+                    xsyswarn(0, L"The -n command option value is invalid", xwoptarg);
+                if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
+                    return xsyserror(0, L"Found invalid filename characters", svclogfname);
+                xwchreplace(svclogfname, L'@', L'%');
+            break;
+            case L'o':
+                outdirparam  = skipdotslash(xwoptarg);
+                if (outdirparam == NULL)
+                    xsyswarn(0, L"The -o command option value is invalid", xwoptarg);
+            break;
+            case L'h':
+                svchomeparam = skipdotslash(xwoptarg);
+                if (svchomeparam == NULL)
+                    xsyswarn(0, L"The -h command option value is invalid", xwoptarg);
+            break;
+            case L'w':
+                svcworkparam = skipdotslash(xwoptarg);
+                if (svcworkparam == NULL)
+                    xsyswarn(0, L"The -w command option value is invalid", xwoptarg);
+            break;
+            case L'k':
+                stoptimeout  = xwcstoi(xwoptarg, NULL);
+                if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
+                    return xsyserror(0, L"The -k command option value is outside valid range", xwoptarg);
+                stoptimeout  = stoptimeout * 1000;
+            break;
+            /**
+             * Options that can be defined
+             * multiple times
+             */
+            case L'c':
+                if (commandparam) {
+                    if (ccnt < SVCBATCH_MAX_ARGS)
+                        cparam[ccnt++] = xwoptarg;
+                    else
+                        return xsyserror(0, L"Too many -c arguments", xwoptarg);
+                }
+                else {
+                    commandparam = skipdotslash(xwoptarg);
+                    if (commandparam == NULL)
+                        xsyswarn(0, L"The -c command option value is invalid", xwoptarg);
+                }
+            break;
+            case L'e':
+                x = xsetenv(xwoptarg);
+                if (x)
+                    return xsyserror(x, xwoptarg, NULL);
+            break;
+            case L'q':
+                svcoptions |= SVCBATCH_OPT_QUIET;
+                qcnt++;
+            break;
+            case L's':
+                if (svcstopparam) {
+                    if (scnt < SVCBATCH_MAX_ARGS)
+                        sparam[scnt++] = xwoptarg;
+                    else
+                        return xsyserror(0, L"Too many -s arguments", xwoptarg);
+                }
+                else {
+                    svcstopparam = skipdotslash(xwoptarg);
+                    if (svcstopparam == NULL)
+                        xsyswarn(0, L"The -s command option value is invalid", xwoptarg);
+
+                }
+            break;
+            case L'r':
+                if (rcnt < 3)
+                    rparam[rcnt++] = xwoptarg;
+                else
+                    return xsyserror(0, L"Too many -r options", xwoptarg);
+            break;
+            case ENOENT:
+                return xsyserror(0, L"Missing argument for command line option", xwoption);
+            break;
+            default:
+                return xsyserror(0, L"Invalid command line option", xwoption);
+            break;
+        }
+    }
+
+    argc -= xwoptind;
+    argv += xwoptind;
+    if (argc == 0) {
+        /**
+         * No batch file defined.
+         */
+        if (wcspbrk(service->name, L":;<>?*|\""))
+            return xsyserror(0, L"Service name has invalid filename characters", NULL);
+        i = xwcsncat(wb, BBUFSIZ, 0, service->name);
+        i = xwcsncat(wb, BBUFSIZ, i, L".bat");
+        scriptparam = wb;
+    }
+    else {
+        scriptparam = argv[0];
+        for (i = 1; i < argc; i++) {
+            /**
+             * Add arguments for batch file
+             */
+            if (xwcslen(argv[i]) >= SVCBATCH_NAME_MAX)
+                return xsyserror(0, L"The argument is too large", argv[i]);
+
+            if (cmdproc->argc < SVCBATCH_MAX_ARGS)
+                cmdproc->args[cmdproc->argc++] = xwcsdup(argv[i]);
+            else
+                return xsyserror(0, L"Too many arguments", argv[i]);
+        }
+    }
+    service->uuid = xuuidstring(NULL);
+    if (IS_EMPTY_WCS(service->uuid))
+        return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
+    if (svcstopparam && qcnt > 1) {
+        /**
+         * Use -qq to only disable shutdown logging
+         */
+        qcnt = 0;
+    }
+    if (qcnt == 0) {
+        outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
+
+        outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
+        outputlog->maxLogs = SVCBATCH_MAX_LOGS;
+        outputlog->fileExt = SVCBATCH_LOGFEXT;
+        if (maxlogsparam) {
+            outputlog->maxLogs = xwcstoi(maxlogsparam, NULL);
+            if ((outputlog->maxLogs < 1) || (outputlog->maxLogs > SVCBATCH_MAX_LOGS))
+                return xsyserror(0, L"Invalid -m command option value", maxlogsparam);
+        }
+        SVCBATCH_CS_INIT(outputlog);
+    }
+    else {
+        WCHAR bb[TBUFSIZ];
+        /**
+         * Ensure that log related command options
+         * are not defined when -q is defined
+         */
+        i = 0;
+        if (maxlogsparam)
+            i = xwcsncat(bb, TBUFSIZ, i, L"-m ");
+        if (rcnt)
+            i = xwcsncat(bb, TBUFSIZ, i, L"-r ");
+        if (IS_SET(SVCBATCH_OPT_TRUNCATE))
+            i = xwcsncat(bb, TBUFSIZ, i, L"-t ");
+        if (i) {
+#if defined(_DEBUG) && (_DEBUG > 1)
+            xsyswarn(0, L"Option -q is mutually exclusive with option(s)", bb);
+            rcnt = 0;
+#else
+            return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
+#endif
+        }
+    }
+    /**
+     * Find the location of SVCBATCH_SERVICE_HOME
+     * all relative paths are resolved against it.
+     *
+     * 1. If -h is defined and is absolute path
+     *    set it as SetCurrentDirectory and use it as
+     *    home directory for resolving other relative paths
+     *
+     * 2. If batch file is defined as absolute path
+     *    set it as SetCurrentDirectory and resolve -h parameter
+     *    if defined as relative path. If -h was defined and
+     *    and is resolved as valid path set it as home directory.
+     *    If -h was defined and cannot be resolved fail.
+     *
+     * 3. Use running svcbatch.exe directory and set it as
+     *    SetCurrentDirectory.
+     *    If -h parameter was defined, resolve it and set as home
+     *    directory or fail.
+     *    In case -h was not defined resolve batch file and set its
+     *    directory as home directory or fail if it cannot be resolved.
+     *
+     */
+
+    if (svchomeparam == NULL)
+        svchomeparam = svcworkparam;
+    if (svcworkparam == NULL)
+        svcworkparam = svchomeparam;
+
+    if (isabsolutepath(svchomeparam)) {
+        service->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
+        if (IS_EMPTY_WCS(service->home))
+            return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
+    }
+    if (service->home == NULL) {
+        if (isabsolutepath(scriptparam)) {
+            if (!resolvescriptname(scriptparam))
+                return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
+
+            if (svchomeparam == NULL) {
+                service->home = service->base;
+            }
+            else {
+                SetCurrentDirectoryW(service->base);
+                service->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
+                if (IS_EMPTY_WCS(service->home))
+                    return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
+            }
+        }
+    }
+    if (service->home == NULL) {
+        if (svchomeparam == NULL) {
+            service->home = program->directory;
+        }
+        else {
+            SetCurrentDirectoryW(program->directory);
+            service->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
+            if (IS_EMPTY_WCS(service->home))
+                return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
+        }
+    }
+    SetCurrentDirectoryW(service->home);
+    if (svchomeparam == svcworkparam) {
+        /* Use the same directories for home and work */
+        service->work = service->home;
+    }
+    else {
+        service->work = xgetfinalpath(svcworkparam, 1, NULL, 0);
+        if (IS_EMPTY_WCS(service->work))
+            return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
+    }
+    if (!resolvescriptname(scriptparam))
+        return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
+    if (commandparam) {
+        if (isrelativepath(commandparam))
+            cmdproc->application = xsearchexe(commandparam);
+        else
+            cmdproc->application = xgetfinalpath(commandparam, 0, NULL, 0);
+        if (cmdproc->application == NULL)
+            return xsyserror(ERROR_FILE_NOT_FOUND, commandparam, NULL);
+        for (i = 0; i < ccnt; i++) {
+            if (xwcslen(cparam[i]) >= SVCBATCH_NAME_MAX)
+                return xsyserror(0, L"The argument is too large", cparam[i]);
+            cmdproc->opts[cmdproc->optc++] = cparam[i];
+        }
+    }
+    else {
+        LPWSTR wp = xgetenv(L"COMSPEC");
+        if (wp == NULL)
+            return xsyserror(ERROR_BAD_ENVIRONMENT, L"COMSPEC", NULL);
+
+        cmdproc->application = xgetfinalpath(wp, 0, NULL, 0);
+        if (cmdproc->application == NULL)
+            return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
+        xfree(wp);
+        cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS L" /C";
+        svcoptions |= SVCBATCH_OPT_YYES;
+    }
+    if (rcnt) {
+        for (i = 0; i < rcnt; i++) {
+            if (!resolverotate(rparam[i]))
+                return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
+        }
+        if (rotatebysize || rotatebytime)
+            outputlog->maxLogs = 0;
+
+        svcoptions |= SVCBATCH_OPT_ROTATE;
+    }
+    if (svcstopparam) {
+        svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
+        svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
+        if (svcstop->script == NULL)
+            return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
+        for (i = 0; i < scnt; i++) {
+            if (xwcslen(sparam[i]) >= SVCBATCH_NAME_MAX)
+                return xsyserror(0, L"The argument is too large", sparam[i]);
+            svcstop->args[i] = xwcsdup(sparam[i]);
+            xwchreplace(svcstop->args[i], L'@', L'%');
+        }
+        svcstop->argc = scnt;
+    }
+    DBG_PRINTS("done");
+    return 0;
+}
+
 static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 {
     DWORD  rv = 0;
@@ -3184,6 +3556,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     HANDLE sh = NULL;
     LPSVCBATCH_LOG log = outputlog;
 
+    DBG_PRINTS("started");
     service->status.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     service->status.dwCurrentState = SERVICE_START_PENDING;
 
@@ -3201,6 +3574,11 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     DBG_PRINTF("%S", service->name);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
+    rv = parseoptions(argc, argv);
+    if (rv) {
+        reportsvcstatus(SERVICE_STOPPED, rv);
+        return;
+    }
     rv = createevents();
     if (rv) {
         xsyserror(rv, L"CreateEvent", NULL);
@@ -3412,42 +3790,6 @@ finished:
     }
 }
 
-static BOOL getsvcarguments(LPCWSTR arg0, int *argc, LPWSTR **argv)
-{
-    DWORD   t;
-    DWORD   c;
-    HKEY    k = NULL;
-    LPBYTE  b = NULL;
-    LSTATUS s;
-
-    s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\CurrentControlSet\\Services",
-                      0, KEY_QUERY_VALUE | KEY_READ, &k);
-    if (s != ERROR_SUCCESS)
-        goto finished;
-    s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
-                     RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
-    if (s == ERROR_SUCCESS) {
-        b = (LPBYTE)xmmalloc(c);
-        s = RegGetValueW(k, service->name, SVCBATCH_ARGS,
-                         RRF_RT_REG_MULTI_SZ, &t, b, &c);
-        if (s != ERROR_SUCCESS)
-            goto finished;
-    }
-    if (b == NULL)
-        goto finished;
-
-    *argv = xmsztoargv(arg0, (LPWSTR)b, argc);
-finished:
-    RegCloseKey(k);
-    if (s != ERROR_SUCCESS) {
-        SetLastError(s);
-        return FALSE;
-    }
-    else {
-        return TRUE;
-    }
-}
-
 static int xscmcommand(LPCWSTR ncmd)
 {
     int s = xtolower(*ncmd++);
@@ -3474,14 +3816,18 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     PSERVICE_CONTROL_STATUS_REASON_PARAMSW ssr;
     LPSERVICE_STATUS_PROCESS ssp;
     WCHAR     cb[SBUFSIZ];
-    WCHAR     bb[BBUFSIZ];
     DWORD     bneed;
     int       i;
     int       x;
     int       opt;
     int       rv = 0;
     int       ec = 0;
+#if defined(_DEBUG)
+    int       cmdverbose  = _DEBUG;
+#else
     int       cmdverbose  = 0;
+#endif
+    ULONGLONG wrs         = 0;
     LPCWSTR   ed          = NULL;
     LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
@@ -3629,22 +3975,16 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         /* Convert '--foo' or '//foo' to '-foo' or '/foo' */
         argv[0] = argv[0] + 1;
     }
-    if (wcspbrk(service->name, L"/\\:;<>?*|\"")) {
+    if (wcspbrk(service->name, L"/\\")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
-        ed = L"The (/\\:;<>?*|\") are not valid service name characters";
+        ed = L"The (/) and (\\) are not valid service name characters";
         goto finished;
     }
     if (xwcslen(service->name) > 256) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
         ed = L"The maximum service name length is 256 characters";
-        goto finished;
-    }
-    if (*service->name == L'@') {
-        rv = ERROR_INVALID_NAME;
-        ec = __LINE__;
-        ed = L"The service name must not start with (@) character";
         goto finished;
     }
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
@@ -3654,11 +3994,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_CREATE) {
-        bb[0] = L'@';
-        xwcsncat(bb, BBUFSIZ, 1, service->name);
         if (binarypath == NULL)
             binarypath = xappendarg(1, NULL, program->application);
-        binarypath = xappendarg(1, binarypath, bb);
         svc = CreateServiceW(mgr,
                              service->name,
                              displayname,
@@ -3672,7 +4009,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                              sdepends,
                              username,
                              password);
-        if (!setsvcarguments(argc, argv)) {
+        if (svc && !setsvcarguments(argc, argv)) {
             rv = GetLastError();
             ec = __LINE__;
             ed = SVCBATCH_ARGS;
@@ -3690,6 +4027,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         ed = service->name;
         goto finished;
     }
+    if (wtime)
+        wrs = GetTickCount64();
     if (cmd == SVCBATCH_SCM_DELETE) {
         if (!QueryServiceStatusEx(svc,
                                   SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
@@ -3889,24 +4228,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_CONFIG) {
-        DWORD  csize = 0;
-        LPQUERY_SERVICE_CONFIGW sc = NULL;
-
-        if (!QueryServiceConfigW(svc, NULL, 0, &bneed)) {
-            DWORD err = GetLastError();
-            if (err != ERROR_INSUFFICIENT_BUFFER) {
-                rv = err;
-                ec = __LINE__;
-                goto finished;
-            }
-            csize = bneed;
-            sc = (LPQUERY_SERVICE_CONFIGW)xmcalloc(csize);
-        }
-        if (!QueryServiceConfigW(svc, sc, csize, &bneed)) {
-            rv = GetLastError();
-            ec = __LINE__;
-            goto finished;
-        }
         if (!ChangeServiceConfigW(svc,
                                   servicetype,
                                   starttype,
@@ -3965,9 +4286,9 @@ finished:
             fprintf(stderr, "             : %S\n", eb);
             if (ed != NULL)
             fprintf(stderr, "               %S\n", ed);
-            if (cmdverbose > 1) {
+            if ((cmdverbose > 1) && (orgargc > 1)) {
             fputs("\n   Arguments :\n", stderr);
-            for (i = 0; i < orgargc; i++)
+            for (i = 1; i < orgargc; i++)
             fprintf(stderr, "               %S\n", orgargv[i]);
             fputc('\n', stderr);
             }
@@ -3976,31 +4297,15 @@ finished:
             fprintf(stdout, "Service Name : %S\n", service->name);
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "             : SUCCESS\n");
+            if (wtime)
+            fprintf(stdout, "               %llu ms\n", GetTickCount64() - wrs);
             if (cmd == SVCBATCH_SCM_CREATE)
             fprintf(stdout, "     STARTUP : %d\n", starttype);
             if (cmd == SVCBATCH_SCM_START)
-            fprintf(stdout, "         PID : %lu\n", ssp->dwProcessId);
+            fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
             fputc('\n', stdout);
         }
     }
-#if defined(_DEBUG)
-    else {
-        if (rv) {
-            wchar_t eb[SVCBATCH_LINE_MAX];
-            xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
-            dbgprintf(__FUNCTION__, "%S", scmcommands[cmd]);
-            dbgprintf(__FUNCTION__, "%d", ec);
-            dbgprintf(__FUNCTION__, "%d (0x%x)", rv,  rv);
-            dbgprintf(__FUNCTION__, "%S", eb);
-            if (ed != NULL)
-            dbgprintf(__FUNCTION__, "%S", ed);
-            dbgprints(__FUNCTION__, "");
-            for (i = 0; i < orgargc; i++)
-            dbgprintf(__FUNCTION__, "[%d] %S", i, orgargv[i]);
-            OutputDebugStringA(CRLFA);
-        }
-    }
-#endif
     return rv;
 }
 
@@ -4059,26 +4364,10 @@ static int xwmaininit(void)
     return 0;
 }
 
-int wmain(int argc, LPCWSTR *wargv)
+int wmain(int argc, LPCWSTR *argv)
 {
     DWORD  x;
     int    i;
-    int    opt;
-    int    rcnt = 0;
-    int    scnt = 0;
-    int    qcnt = 0;
-    int    ccnt = 0;
-
-    LPCWSTR maxlogsparam = NULL;
-    LPCWSTR scriptparam  = NULL;
-    LPCWSTR svchomeparam = NULL;
-    LPCWSTR svcworkparam = NULL;
-    LPCWSTR commandparam = NULL;
-    LPCWSTR svcstopparam = NULL;
-    LPCWSTR sparam[SVCBATCH_MAX_ARGS];
-    LPCWSTR cparam[SVCBATCH_MAX_ARGS];
-    LPCWSTR rparam[4];
-
 
 #if defined(_DEBUG)
 # if defined(_MSC_VER) && (_MSC_VER < 1900)
@@ -4093,442 +4382,73 @@ int wmain(int argc, LPCWSTR *wargv)
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
     i = xwmaininit();
-    if (i)
+    if (i != 0)
         return i;
 
-    if (argc == 1) {
-        if (IS_VALID_HANDLE(program->sInfo.hStdInput)) {
-            fputs(cnamestamp, stdout);
-            fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
-            return 0;
-        }
-        else {
-            return ERROR_INVALID_PARAMETER;
-        }
-    }
     /**
      * Check if running as service or as a child process.
      */
-    if (argc > 1) {
-        LPCWSTR p = wargv[1];
-        if (p[0] == L'@') {
-            if (p[1] == L'@') {
-                servicemode = FALSE;
-                sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p + 2);
-                if (sharedmmap == NULL)
-                    return GetLastError();
-                sharedmem = (LPSVCBATCH_IPC)MapViewOfFile(
-                                                sharedmmap,
-                                                FILE_MAP_ALL_ACCESS,
-                                                0, 0, DSIZEOF(SVCBATCH_IPC));
-                if (sharedmem == NULL)
-                    return GetLastError();
-                cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
-                wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
-                cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
-                stoptimeout = sharedmem->timeout;
-                svcoptions  = sharedmem->options;
-                killdepth   = sharedmem->killdepth;
+    if ((argc > 1) && (*(argv[1]) == L'\\')) {
+        servicemode = FALSE;
+        sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, argv[1] + 1);
+        if (sharedmmap == NULL)
+            return GetLastError();
+        sharedmem = (LPSVCBATCH_IPC)MapViewOfFile(
+                                        sharedmmap,
+                                        FILE_MAP_ALL_ACCESS,
+                                        0, 0, DSIZEOF(SVCBATCH_IPC));
+        if (sharedmem == NULL)
+            return GetLastError();
+        cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
+        wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
+        cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
+        stoptimeout = sharedmem->timeout;
+        svcoptions  = sharedmem->options;
+        killdepth   = sharedmem->killdepth;
 #if defined(_DEBUG)
-                dbgsvcmode = '1';
-                dbgprints(__FUNCTION__, cnamestamp);
-                dbgprintf(__FUNCTION__, "ppid %lu", sharedmem->processId);
-                dbgprintf(__FUNCTION__, "opts 0x%08x", sharedmem->options);
-                dbgprintf(__FUNCTION__, "time %lu", stoptimeout);
-#endif
-                cmdproc->application = sharedmem->application;
-                cmdproc->argc   = sharedmem->argc;
-                cmdproc->optc   = sharedmem->optc;
-                cmdproc->script = sharedmem->script;
-                for (x = 0; x < cmdproc->argc; x++)
-                    cmdproc->args[x] = sharedmem->args[x];
-                for (x = 0; x < cmdproc->optc; x++)
-                    cmdproc->opts[x] = sharedmem->opts[x];
-                service->home = sharedmem->home;
-                service->work = sharedmem->work;
-                service->name = sharedmem->name;
-                service->uuid = sharedmem->uuid;
-                if (IS_NOT(SVCBATCH_OPT_QUIET)) {
-                    outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
-
-                    outputlog->logName = sharedmem->logName;
-                    outputlog->maxLogs = SVCBATCH_DEF_LOGS;
-                    outputlog->fileExt = SHUTDOWN_LOGFEXT;
-                    SVCBATCH_CS_INIT(outputlog);
-                }
-                xwcslcpy(service->logs, SVCBATCH_PATH_MAX, sharedmem->logs);
-            }
-            else {
-                service->name = p + 1;
-                if (IS_EMPTY_WCS(service->name))
-                    return ERROR_INVALID_PARAMETER;
-            }
-            wargv[1] = wargv[0];
-            argc    -= 1;
-            wargv   += 1;
-        }
-    }
-
-    if (servicemode) {
-        if (service->name) {
-            int      rargc;
-            LPCWSTR *rargv;
-            if (getsvcarguments(wargv[0], &rargc, &rargv)) {
-                argc  = rargc;
-                wargv = rargv;
-            }
-        }
-        else {
-            if (argc > 2) {
-                /**
-                 * Check if this is a Service Manager command
-                 */
-                i = xwcslen(wargv[1]);
-                if ((i > 3) && (i < 8)) {
-                    int cmd = xscmcommand(wargv[1]);
-                    if (cmd >= 0) {
-                        argc     -= 2;
-                        wargv    += 2;
-                        return xscmexecute(cmd, argc, wargv);
-                    }
-                }
-            }
-        }
-    }
-    if (servicemode) {
-        WCHAR wb[SVCBATCH_PATH_MAX];
-#if defined(_DEBUG)
-        dbgsvcmode = '0';
+        dbgsvcmode = '1';
         dbgprints(__FUNCTION__, cnamestamp);
+        dbgprintf(__FUNCTION__, "ppid %lu", sharedmem->processId);
+        dbgprintf(__FUNCTION__, "opts 0x%08x", sharedmem->options);
+        dbgprintf(__FUNCTION__, "time %lu", stoptimeout);
 #endif
-        if (IS_INVALID_HANDLE(program->sInfo.hStdInput)) {
-            HANDLE h = NULL;
-            if (AllocConsole()) {
-                /**
-                 * AllocConsole should create new set of
-                 * standard i/o handles
-                 */
-                atexit(cconsolecleanup);
-                h = GetStdHandle(STD_INPUT_HANDLE);
-                ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
-            }
-            else {
-                return GetLastError();
-            }
-            program->sInfo.hStdInput  = h;
-            program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-            program->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
-        }
-
-        while ((opt = xwgetopt(argc, wargv, L"bc:e:gh:k:lm:n:o:pqr:s:tvw:")) != EOF) {
-            switch (opt) {
-                case L'b':
-                    svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
-                break;
-                case L'g':
-                    svcoptions  |= SVCBATCH_OPT_BREAK;
-                break;
-                case L'l':
-                    svcoptions  |= SVCBATCH_OPT_LOCALTIME;
-                break;
-                case L'p':
-                    preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
-                break;
-                case L't':
-                    svcoptions  |= SVCBATCH_OPT_TRUNCATE;
-                break;
-                case L'v':
-                    svcoptions  |= SVCBATCH_OPT_VERBOSE;
-                break;
-                /**
-                 * Options with arguments
-                 */
-                case L'm':
-                    maxlogsparam = xwoptarg;
-                break;
-                case L'n':
-                    if (svclogfname)
-                        return xsyserror(0, L"Found multiple -n command options", xwoptarg);
-                    svclogfname = xwcsdup(skipdotslash(xwoptarg));
-                    if (svclogfname == NULL)
-                        xsyswarn(0, L"The -n command option value is invalid", xwoptarg);
-                    if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
-                        return xsyserror(0, L"Found invalid filename characters", svclogfname);
-                    xwchreplace(svclogfname, L'@', L'%');
-                break;
-                case L'o':
-                    outdirparam  = skipdotslash(xwoptarg);
-                    if (outdirparam == NULL)
-                        xsyswarn(0, L"The -o command option value is invalid", xwoptarg);
-                break;
-                case L'h':
-                    svchomeparam = skipdotslash(xwoptarg);
-                    if (svchomeparam == NULL)
-                        xsyswarn(0, L"The -h command option value is invalid", xwoptarg);
-                break;
-                case L'w':
-                    svcworkparam = skipdotslash(xwoptarg);
-                    if (svcworkparam == NULL)
-                        xsyswarn(0, L"The -w command option value is invalid", xwoptarg);
-                break;
-                case L'k':
-                    stoptimeout  = xwcstoi(xwoptarg, NULL);
-                    if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
-                        return xsyserror(0, L"The -k command option value is outside valid range", xwoptarg);
-                    stoptimeout  = stoptimeout * 1000;
-                break;
-                /**
-                 * Options that can be defined
-                 * multiple times
-                 */
-                case L'c':
-                    if (commandparam) {
-                        if (ccnt < SVCBATCH_MAX_ARGS)
-                            cparam[ccnt++] = xwoptarg;
-                        else
-                            return xsyserror(0, L"Too many -c arguments", xwoptarg);
-                    }
-                    else {
-                        commandparam = skipdotslash(xwoptarg);
-                        if (commandparam == NULL)
-                            xsyswarn(0, L"The -c command option value is invalid", xwoptarg);
-                    }
-                break;
-                case L'e':
-                    x = xsetenv(xwoptarg);
-                    if (x)
-                        return xsyserror(x, xwoptarg, NULL);
-                break;
-                case L'q':
-                    svcoptions |= SVCBATCH_OPT_QUIET;
-                    qcnt++;
-                break;
-                case L's':
-                    if (svcstopparam) {
-                        if (scnt < SVCBATCH_MAX_ARGS)
-                            sparam[scnt++] = xwoptarg;
-                        else
-                            return xsyserror(0, L"Too many -s arguments", xwoptarg);
-                    }
-                    else {
-                        svcstopparam = skipdotslash(xwoptarg);
-                        if (svcstopparam == NULL)
-                            xsyswarn(0, L"The -s command option value is invalid", xwoptarg);
-
-                    }
-                break;
-                case L'r':
-                    if (rcnt < 3)
-                        rparam[rcnt++] = xwoptarg;
-                    else
-                        return xsyserror(0, L"Too many -r options", xwoptarg);
-                break;
-                case ENOENT:
-                    return xsyserror(0, L"Missing argument for command line option", xwoption);
-                break;
-                default:
-                    return xsyserror(0, L"Invalid command line option", xwoption);
-                break;
-            }
-        }
-
-        argc  -= xwoptind;
-        wargv += xwoptind;
-        if (argc == 0) {
-            /**
-             * No batch file defined.
-             * If @ServiceName was defined, try with ServiceName.bat
-             */
-            if (IS_EMPTY_WCS(service->name))
-                return xsyserror(0, L"Missing batch file", NULL);
-            if (wcspbrk(service->name, L"/\\:;<>?*|\""))
-                return xsyserror(0, L"Service name has invalid filename characters", NULL);
-
-            i = xwcsncat(wb, BBUFSIZ, 0, service->name);
-            i = xwcsncat(wb, BBUFSIZ, i, L".bat");
-            scriptparam = wb;
-        }
-        else {
-            scriptparam = wargv[0];
-            for (i = 1; i < argc; i++) {
-                /**
-                 * Add arguments for batch file
-                 */
-                if (xwcslen(wargv[i]) >= SVCBATCH_NAME_MAX)
-                    return xsyserror(0, L"The argument is too large", wargv[i]);
-
-                if (cmdproc->argc < SVCBATCH_MAX_ARGS)
-                    cmdproc->args[cmdproc->argc++] = xwcsdup(wargv[i]);
-                else
-                    return xsyserror(0, L"Too many arguments", wargv[i]);
-            }
-        }
-        service->uuid = xuuidstring(NULL);
-        if (IS_EMPTY_WCS(service->uuid))
-            return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
-        if (svcstopparam && qcnt > 1) {
-            /**
-             * Use -qq to only disable shutdown logging
-             */
-            qcnt = 0;
-        }
-        if (qcnt == 0) {
+        cmdproc->application = sharedmem->application;
+        cmdproc->argc   = sharedmem->argc;
+        cmdproc->optc   = sharedmem->optc;
+        cmdproc->script = sharedmem->script;
+        for (x = 0; x < cmdproc->argc; x++)
+            cmdproc->args[x] = sharedmem->args[x];
+        for (x = 0; x < cmdproc->optc; x++)
+            cmdproc->opts[x] = sharedmem->opts[x];
+        service->home = sharedmem->home;
+        service->work = sharedmem->work;
+        service->name = sharedmem->name;
+        service->uuid = sharedmem->uuid;
+        if (IS_NOT(SVCBATCH_OPT_QUIET)) {
             outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
-            outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
-            outputlog->maxLogs = SVCBATCH_MAX_LOGS;
-            outputlog->fileExt = SVCBATCH_LOGFEXT;
-            if (maxlogsparam) {
-                outputlog->maxLogs = xwcstoi(maxlogsparam, NULL);
-                if ((outputlog->maxLogs < 1) || (outputlog->maxLogs > SVCBATCH_MAX_LOGS))
-                    return xsyserror(0, L"Invalid -m command option value", maxlogsparam);
-            }
+            outputlog->logName = sharedmem->logName;
+            outputlog->maxLogs = SVCBATCH_DEF_LOGS;
+            outputlog->fileExt = SHUTDOWN_LOGFEXT;
             SVCBATCH_CS_INIT(outputlog);
         }
-        else {
-            WCHAR bb[TBUFSIZ];
-            /**
-             * Ensure that log related command options
-             * are not defined when -q is defined
-             */
-            i = 0;
-            if (maxlogsparam)
-                i = xwcsncat(bb, TBUFSIZ, i, L"-m ");
-            if (rcnt)
-                i = xwcsncat(bb, TBUFSIZ, i, L"-r ");
-            if (IS_SET(SVCBATCH_OPT_TRUNCATE))
-                i = xwcsncat(bb, TBUFSIZ, i, L"-t ");
-            if (i) {
-#if defined(_DEBUG) && (_DEBUG > 1)
-                xsyswarn(0, L"Option -q is mutually exclusive with option(s)", bb);
-                rcnt = 0;
-#else
-                return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
-#endif
-            }
-        }
-        /**
-         * Find the location of SVCBATCH_SERVICE_HOME
-         * all relative paths are resolved against it.
-         *
-         * 1. If -h is defined and is absolute path
-         *    set it as SetCurrentDirectory and use it as
-         *    home directory for resolving other relative paths
-         *
-         * 2. If batch file is defined as absolute path
-         *    set it as SetCurrentDirectory and resolve -h parameter
-         *    if defined as relative path. If -h was defined and
-         *    and is resolved as valid path set it as home directory.
-         *    If -h was defined and cannot be resolved fail.
-         *
-         * 3. Use running svcbatch.exe directory and set it as
-         *    SetCurrentDirectory.
-         *    If -h parameter was defined, resolve it and set as home
-         *    directory or fail.
-         *    In case -h was not defined resolve batch file and set its
-         *    directory as home directory or fail if it cannot be resolved.
-         *
-         */
-
-        if (svchomeparam == NULL)
-            svchomeparam = svcworkparam;
-        if (svcworkparam == NULL)
-            svcworkparam = svchomeparam;
-
-        if (isabsolutepath(svchomeparam)) {
-            service->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
-            if (IS_EMPTY_WCS(service->home))
-                return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
-        }
-        if (service->home == NULL) {
-            if (isabsolutepath(scriptparam)) {
-                if (!resolvescriptname(scriptparam))
-                    return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
-
-                if (svchomeparam == NULL) {
-                    service->home = service->base;
-                }
-                else {
-                    SetCurrentDirectoryW(service->base);
-                    service->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
-                    if (IS_EMPTY_WCS(service->home))
-                        return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
-                }
-            }
-        }
-        if (service->home == NULL) {
-            if (svchomeparam == NULL) {
-                service->home = program->directory;
-            }
-            else {
-                SetCurrentDirectoryW(program->directory);
-                service->home = xgetfinalpath(svchomeparam, 1, NULL, 0);
-                if (IS_EMPTY_WCS(service->home))
-                    return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
-            }
-        }
-        SetCurrentDirectoryW(service->home);
-        if (svchomeparam == svcworkparam) {
-            /* Use the same directories for home and work */
-            service->work = service->home;
-        }
-        else {
-            service->work = xgetfinalpath(svcworkparam, 1, NULL, 0);
-            if (IS_EMPTY_WCS(service->work))
-                return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
-        }
-        if (!resolvescriptname(scriptparam))
-            return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
-        if (commandparam) {
-            if (isrelativepath(commandparam))
-                cmdproc->application = xsearchexe(commandparam);
-            else
-                cmdproc->application = xgetfinalpath(commandparam, 0, NULL, 0);
-            if (cmdproc->application == NULL)
-                return xsyserror(ERROR_FILE_NOT_FOUND, commandparam, NULL);
-            for (i = 0; i < ccnt; i++) {
-                if (xwcslen(cparam[i]) >= SVCBATCH_NAME_MAX)
-                    return xsyserror(0, L"The argument is too large", cparam[i]);
-                cmdproc->opts[cmdproc->optc++] = cparam[i];
-            }
-        }
-        else {
-            LPWSTR wp = xgetenv(L"COMSPEC");
-            if (wp == NULL)
-                return xsyserror(ERROR_BAD_ENVIRONMENT, L"COMSPEC", NULL);
-
-            cmdproc->application = xgetfinalpath(wp, 0, NULL, 0);
-            if (cmdproc->application == NULL)
-                return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
-            xfree(wp);
-            cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS L" /C";
-            svcoptions |= SVCBATCH_OPT_YYES;
-        }
-        if (rcnt) {
-            for (i = 0; i < rcnt; i++) {
-                if (!resolverotate(rparam[i]))
-                    return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
-            }
-            if (rotatebysize || rotatebytime)
-                outputlog->maxLogs = 0;
-
-            svcoptions |= SVCBATCH_OPT_ROTATE;
-        }
-        if (svcstopparam) {
-            svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
-            svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
-            if (svcstop->script == NULL)
-                return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
-            for (i = 0; i < scnt; i++) {
-                if (xwcslen(sparam[i]) >= SVCBATCH_NAME_MAX)
-                    return xsyserror(0, L"The argument is too large", sparam[i]);
-                svcstop->args[i] = xwcsdup(sparam[i]);
-                xwchreplace(svcstop->args[i], L'@', L'%');
-            }
-            svcstop->argc = scnt;
-        }
+        xwcslcpy(service->logs, SVCBATCH_PATH_MAX, sharedmem->logs);
     }
 
+    if (servicemode && (argc > 2)) {
+        /**
+         * Check if this is a Service Manager command
+         */
+        i = xwcslen(argv[1]);
+        if ((i > 3) && (i < 8)) {
+            int cmd = xscmcommand(argv[1]);
+            if (cmd >= 0) {
+                argc  -= 2;
+                argv  += 2;
+                return xscmexecute(cmd, argc, argv);
+            }
+        }
+    }
     /**
      * Create logic state events
      */
@@ -4536,26 +4456,45 @@ int wmain(int argc, LPCWSTR *wargv)
                                 CREATE_EVENT_MANUAL_RESET,
                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(workerended))
-        return xsyserror(GetLastError(), L"CreateEvent", NULL);
+        return GetLastError();
     SVCBATCH_CS_INIT(service);
     atexit(objectscleanup);
+    if (IS_INVALID_HANDLE(program->sInfo.hStdInput)) {
+        HANDLE h = NULL;
+        if (AllocConsole()) {
+            /**
+             * AllocConsole should create new set of
+             * standard i/o handles
+             */
+            atexit(cconsolecleanup);
+            h = GetStdHandle(STD_INPUT_HANDLE);
+            ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
+        }
+        else {
+            return GetLastError();
+        }
+        program->sInfo.hStdInput  = h;
+        program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+        program->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
+    }
 
     SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
 
     if (servicemode) {
         SERVICE_TABLE_ENTRYW se[2];
+#if defined(_DEBUG)
+        dbgsvcmode = '0';
+#endif
 
         se[0].lpServiceName = zerostring;
         se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
         se[1].lpServiceName = NULL;
         se[1].lpServiceProc = NULL;
-        DBG_PRINTS("starting service");
         if (!StartServiceCtrlDispatcherW(se))
-            return xsyserror(GetLastError(), L"StartServiceCtrlDispatcher", NULL);
+            return GetLastError();
     }
     else {
-        DBG_PRINTS("starting shutdown");
         return svcstopmain();
     }
     DBG_PRINTS("done");
