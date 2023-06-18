@@ -110,17 +110,26 @@ pushd "..\.build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 rem
+echo %~nx0: Starting %SERVICE_NAME%
 rem Wait until the service is Running
 rem
 %BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /vw0
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %~nx0: Running %SERVICE_NAME%
+echo %~nx0: Started %SERVICE_NAME%
 goto End
 rem
 :doStop
 rem
+pushd "..\.build\dbg"
+set "BUILD_DIR=%cd%"
+popd
 rem
-sc stop "%SERVICE_NAME%"
+echo %~nx0: Stopping %SERVICE_NAME%
+rem Wait up to 30 seconds until the service is Stopped
+rem
+%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /v /w30
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL
+echo %~nx0: Stopped %SERVICE_NAME%
 goto End
 rem
 :doBreak
@@ -142,6 +151,7 @@ pushd "..\.build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 rem
+echo %~nx0: Deleting %SERVICE_NAME%
 rem
 %BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" -v /w30
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%

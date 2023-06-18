@@ -52,16 +52,6 @@ typedef enum {
     SVCBATCH_MAX_THREADS
 } SVCBATCH_THREAD_ID;
 
-typedef enum {
-    SVCBATCH_SCM_NONE = 0,
-    SVCBATCH_SCM_CREATE,
-    SVCBATCH_SCM_CONFIG,
-    SVCBATCH_SCM_START,
-    SVCBATCH_SCM_STOP,
-    SVCBATCH_SCM_DELETE,
-    SVCBATCH_SCM_CONTROL
-} SVCBATCH_SCM_CMD;
-
 typedef struct _SVCBATCH_THREAD {
     volatile HANDLE        thread;
     volatile LONG          started;
@@ -181,10 +171,10 @@ static HANDLE    sharedmmap     = NULL;
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
 static LPWSTR       svclogfname   = NULL;
-static WCHAR        zerostring[2] = { WNUL, WNUL };
-static LPCWSTR      CRLFW         = L"\r\n";
-static LPCSTR       CRLFA         =  "\r\n";
-static BYTE         YYES[4]       = { 'Y', '\r', '\n', 0 };
+static WCHAR        zerostring[]  = {  0,  0,  0,  0 };
+static WCHAR        CRLFW[]       = { 13, 10,  0,  0 };
+static CHAR         CRLFA[]       = { 13, 10,  0,  0 };
+static BYTE         YYES[]        = { 89, 13, 10,  0 };
 
 static LPCSTR  cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static LPCWSTR wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
@@ -197,25 +187,36 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 static LPCWSTR xwoptval    = NULL;  /* Value of the in place argument /o<=|:><val> */
 
+/**
+ * Service Manager types
+ *
+ */
+typedef enum {
+    SVCBATCH_SCM_CREATE = 0,
+    SVCBATCH_SCM_CONFIG,
+    SVCBATCH_SCM_START,
+    SVCBATCH_SCM_STOP,
+    SVCBATCH_SCM_DELETE,
+    SVCBATCH_SCM_CONTROL
+} SVCBATCH_SCM_CMD;
+
 static const wchar_t *scmcommands[] = {
-    L"NONE",
-    L"Create",
-    L"Config",
-    L"Start",
-    L"Stop",
-    L"Delete",
-    L"Control",
+    L"Create",                  /* SVCBATCH_SCM_CREATE      */
+    L"Config",                  /* SVCBATCH_SCM_CONFIG      */
+    L"Start",                   /* SVCBATCH_SCM_START       */
+    L"Stop",                    /* SVCBATCH_SCM_STOP        */
+    L"Delete",                  /* SVCBATCH_SCM_DELETE      */
+    L"Control",                 /* SVCBATCH_SCM_CONTROL     */
     NULL
 };
 
 static const wchar_t *scmcoptions[] = {
-    L"v",
-    L"vd:in:p:s:u:b:",
-    L"vd:in:p:s:u:",
-    L"vw:",
-    L"vw:",
-    L"vw:",
-    L"v",
+    L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CREATE      */
+    L"vb:d:in:p:s:u:",          /* SVCBATCH_SCM_CONFIG      */
+    L"vw:",                     /* SVCBATCH_SCM_START       */
+    L"vw:",                     /* SVCBATCH_SCM_STOP        */
+    L"vw:",                     /* SVCBATCH_SCM_DELETE      */
+    L"v",                       /* SVCBATCH_SCM_CONTROL     */
     NULL
 };
 
@@ -1749,10 +1750,11 @@ static void logconfig(HANDLE h)
     for (i = 0; i < cmdproc->argc; i++)
     logwwrite(h, 0, "                   ", cmdproc->args[i]);
     if (svcstop) {
-        logwwrite(h, 0, "Shutdown         : ", svcstop->script);
-        for (i = 0; i < svcstop->argc; i++)
-        logwwrite(h, 0, "                   ", svcstop->args[i]);
+    logwwrite(h, 0, "Shutdown         : ", svcstop->script);
+    for (i = 0; i < svcstop->argc; i++)
+    logwwrite(h, 0, "                   ", svcstop->args[i]);
     }
+    logwwrite(h, 0, "Program name     : ", program->name);
     logwwrite(h, 0, "Program directory: ", program->directory);
     logwwrite(h, 0, "Base directory   : ", service->base);
     logwwrite(h, 0, "Home directory   : ", service->home);
@@ -2986,7 +2988,7 @@ static void threadscleanup(void)
                 TerminateThread(h, threads[i].exitCode);
             }
 #if defined(_DEBUG)
-            DBG_PRINTF("[%d] 0x%08X %10llums", i,
+            DBG_PRINTF("[%d] 0x%08x %10llums", i,
                         threads[i].exitCode,
                         threads[i].duration);
 #endif
@@ -3244,20 +3246,23 @@ finished:
 
 static int xscmcommand(LPCWSTR ncmd)
 {
-    int c = 0;
     int s = xtolower(*ncmd++);
 
-    if ((s == L'c') || (s == L'd') || (s == L's')) {
-        int i = 1;
+    if ((s == 'c') || (s == 'd') || (s == 's')) {
+        int i = 0;
+        int x = 0;
+        WCHAR ccmd[8];
+
+        while (*ncmd)
+            ccmd[x++] = xtolower(*ncmd++);
+        ccmd[x] = WNUL;
         while (scmcommands[i] != NULL) {
-            if (xwcasecmp(ncmd, scmcommands[i] + 1) == 0) {
-                c = i;
-                break;
-            }
+            if (wcscmp(ccmd, scmcommands[i] + 1) == 0)
+                return i;
             i++;
         }
     }
-    return c;
+    return -1;
 }
 
 static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
@@ -3288,21 +3293,20 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int      orgargc      = argc;
     LPCWSTR *orgargv      = argv;
 
-    service->name = argv[0];
-
     bsize = DSIZEOF(SERVICE_STATUS_PROCESS);
     memset(&ssp, 0, sizeof(SERVICE_STATUS_PROCESS));
     if (cmd == SVCBATCH_SCM_CREATE) {
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
+    service->name = argv[0];
     while ((opt = xwgetopt(argc, argv, scmcoptions[cmd])) != EOF) {
         switch (opt) {
             case 'i':
                 servicetype = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
             break;
             case 'v':
-                cmdverbose  = 1;
+                cmdverbose++;
             break;
             case 'b':
                 if (binarypath != NULL) {
@@ -3430,14 +3434,14 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_CREATE) {
-        WCHAR nb[BBUFSIZ];
+        WCHAR bb[BBUFSIZ];
 
-        nb[0] = L'@';
-        xwcsncat(nb, BBUFSIZ, 1, service->name);
+        bb[0] = L'@';
+        xwcsncat(bb, BBUFSIZ, 1, service->name);
         if (binarypath == NULL)
             binarypath = xappendarg(1, NULL, program->application);
-        binarypath = xappendarg(1, binarypath, nb);
-        for (i = 0; i <argc; i++)
+        binarypath = xappendarg(1, binarypath, bb);
+        for (i = 0; i < argc; i++)
             binarypath = xappendarg(1, binarypath, argv[i]);
         svc = CreateServiceW(mgr,
                              service->name,
@@ -3663,8 +3667,12 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ec = __LINE__;
             goto finished;
         }
-        pp = NULL;
-        for (i = 0; i <argc; i++)
+        pp = binarypath;
+        if (pp) {
+            /* Replace existing binary path */
+            sc->lpBinaryPathName = NULL;
+        }
+        for (i = 0; i < argc; i++)
             pp = xappendarg(1, pp, argv[i]);
         if (pp) {
             binarypath = xwcsdup(sc->lpBinaryPathName);
@@ -3725,18 +3733,17 @@ finished:
             fputs("\n   Arguments :\n", stderr);
             for (i = 0; i < orgargc; i++)
             fprintf(stderr, "               %S\n", orgargv[i]);
-            fputs(CRLFA, stderr);
+            fputc('\n', stderr);
         }
         else {
             fprintf(stdout, "Service Name : %S\n", service->name);
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "             : SUCCESS\n");
-            if (cmd == SVCBATCH_SCM_CREATE) {
+            if (cmd == SVCBATCH_SCM_CREATE)
             fprintf(stdout, "     STARTUP : %d\n", starttype);
-            }
             if (cmd == SVCBATCH_SCM_START)
             fprintf(stdout, "         PID : %lu\n", ssp.dwProcessId);
-            fputs(CRLFA, stdout);
+            fputc('\n', stdout);
         }
     }
 #if defined(_DEBUG)
@@ -3762,8 +3769,9 @@ finished:
 
 static int xwmaininit(void)
 {
-    WCHAR bb[SVCBATCH_PATH_MAX];
-    DWORD nn;
+    WCHAR  bb[SVCBATCH_PATH_MAX];
+    LPWSTR dp = NULL;
+    DWORD  nn;
     LARGE_INTEGER i;
 
     /**
@@ -3794,15 +3802,16 @@ static int xwmaininit(void)
         return ERROR_INSUFFICIENT_BUFFER;
     nn = fixshortpath(bb, nn);
     program->application = xwcsdup(bb);
-    while (--nn > 2) {
-        if (bb[nn] == L'.') {
-            bb[nn] = WNUL;
+    while (--nn > 4) {
+        if ((dp == NULL) && (bb[nn] == L'.')) {
+             dp = bb + nn;
+            *dp = WNUL;
             continue;
         }
         if (bb[nn] == L'\\') {
-            bb[nn] = WNUL;
+            bb[nn++]           = WNUL;
             program->directory = xwcsdup(bb);
-            program->name      = xwcsdup(bb + nn + 1);
+            program->name      = xwcsdup(bb + nn);
             break;
         }
     }
@@ -3822,7 +3831,6 @@ int wmain(int argc, LPCWSTR *wargv)
     int    scnt = 0;
     int    qcnt = 0;
     int    ccnt = 0;
-    HANDLE hstd;
 
     LPCWSTR maxlogsparam = NULL;
     LPCWSTR scriptparam  = NULL;
@@ -3832,7 +3840,7 @@ int wmain(int argc, LPCWSTR *wargv)
     LPCWSTR svcstopparam = NULL;
     LPCWSTR sparam[SVCBATCH_MAX_ARGS];
     LPCWSTR cparam[SVCBATCH_MAX_ARGS];
-    LPCWSTR rparam[3];
+    LPCWSTR rparam[4];
 
 
 #if defined(_DEBUG)
@@ -3851,9 +3859,8 @@ int wmain(int argc, LPCWSTR *wargv)
     if (i)
         return i;
 
-    hstd = GetStdHandle(STD_INPUT_HANDLE);
     if (argc == 1) {
-        if (IS_VALID_HANDLE(hstd)) {
+        if (IS_VALID_HANDLE(program->sInfo.hStdInput)) {
             fputs(cnamestamp, stdout);
             fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
             return 0;
@@ -3861,24 +3868,6 @@ int wmain(int argc, LPCWSTR *wargv)
         else {
             return ERROR_INVALID_PARAMETER;
         }
-    }
-    if (IS_INVALID_HANDLE(hstd)) {
-        HANDLE h = NULL;
-        if (AllocConsole()) {
-            /**
-             * AllocConsole should create new set of
-             * standard i/o handles
-             */
-            atexit(cconsolecleanup);
-            h = GetStdHandle(STD_INPUT_HANDLE);
-            ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
-        }
-        else {
-            return GetLastError();
-        }
-        program->sInfo.hStdInput  = h;
-        program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-        program->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
     }
     /**
      * Check if running as service or as a child process.
@@ -3943,12 +3932,18 @@ int wmain(int argc, LPCWSTR *wargv)
         }
     }
 
-    if (servicemode && IS_VALID_HANDLE(hstd) && (service->name == NULL) && (argc > 2)) {
-        int scmcmd = xscmcommand(wargv[1]);
-        if (scmcmd) {
-            argc     -= 2;
-            wargv    += 2;
-            return xscmexecute(scmcmd, argc, wargv);
+    if (servicemode && (service->name == NULL) && (argc > 2)) {
+        /**
+         * Check if this is a Service Manager command
+         */
+        i = xwcslen(wargv[1]);
+        if ((i > 3) && (i < 8)) {
+            int cmd = xscmcommand(wargv[1]);
+            if (cmd >= 0) {
+                argc     -= 2;
+                wargv    += 2;
+                return xscmexecute(cmd, argc, wargv);
+            }
         }
     }
     if (servicemode) {
@@ -3957,6 +3952,25 @@ int wmain(int argc, LPCWSTR *wargv)
         dbgsvcmode = '0';
         dbgprints(__FUNCTION__, cnamestamp);
 #endif
+        if (IS_INVALID_HANDLE(program->sInfo.hStdInput)) {
+            HANDLE h = NULL;
+            if (AllocConsole()) {
+                /**
+                 * AllocConsole should create new set of
+                 * standard i/o handles
+                 */
+                atexit(cconsolecleanup);
+                h = GetStdHandle(STD_INPUT_HANDLE);
+                ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
+            }
+            else {
+                return GetLastError();
+            }
+            program->sInfo.hStdInput  = h;
+            program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+            program->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
+        }
+
         while ((opt = xwgetopt(argc, wargv, L"bc:e:gh:k:lm:n:o:pqr:s:tvw:")) != EOF) {
             switch (opt) {
                 case L'b':

@@ -249,10 +249,11 @@
  * Helper macros
  */
 #define WNUL                    L'\0'
+#define CNUL                     '\0'
 #define IS_INVALID_HANDLE(_h)   (((_h) == NULL) || ((_h) == INVALID_HANDLE_VALUE))
 #define IS_VALID_HANDLE(_h)     (((_h) != NULL) && ((_h) != INVALID_HANDLE_VALUE))
 #define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == WNUL))
-#define IS_EMPTY_STR(_s)        (((_s) == NULL) || (*(_s) == '\0'))
+#define IS_EMPTY_STR(_s)        (((_s) == NULL) || (*(_s) == CNUL))
 #define IS_SET(_o)              ((svcoptions & (_o)) == (_o))
 #define IS_NOT(_o)              ((svcoptions & (_o)) != (_o))
 
