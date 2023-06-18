@@ -3736,8 +3736,9 @@ finished:
     return service->status.dwServiceSpecificExitCode;
 }
 
-static BOOL setsvcarguments(int argc, LPCWSTR *argv)
+static int setsvcarguments(SC_HANDLE svc, int argc, LPCWSTR *argv)
 {
+    int     e;
     int     n;
     DWORD   t;
     DWORD   c;
@@ -3747,16 +3748,19 @@ static BOOL setsvcarguments(int argc, LPCWSTR *argv)
     LSTATUS s;
     LPWSTR  w;
 
-    if (argc == 0)
-        return TRUE;
+    if ((svc == NULL) || (argc == 0))
+        return 0;
+    e = __LINE__;
     s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, SYSTEM_SVC_SUBKEY,
                       0, KEY_QUERY_VALUE | KEY_READ | KEY_WRITE, &k);
     if (s != ERROR_SUCCESS)
         goto finished;
+    e = __LINE__;
     s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                      RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
     if (s == ERROR_SUCCESS) {
         b = (LPBYTE)xmmalloc(c);
+        e = __LINE__;
         s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                          RRF_RT_REG_MULTI_SZ, &t, b, &c);
         if (s != ERROR_SUCCESS)
@@ -3773,10 +3777,12 @@ static BOOL setsvcarguments(int argc, LPCWSTR *argv)
     else {
         b = (LPBYTE)w;
     }
+    e = __LINE__;
     s = RegOpenKeyExW(k, service->name,
                       0, KEY_QUERY_VALUE | KEY_READ | KEY_WRITE, &a);
     if (s != ERROR_SUCCESS)
         goto finished;
+    e = __LINE__;
     s = RegSetValueExW(a, SVCBATCH_SVCARGS, 0, REG_MULTI_SZ, b, n);
 finished:
     xfree(b);
@@ -3784,10 +3790,10 @@ finished:
     RegCloseKey(k);
     if (s != ERROR_SUCCESS) {
         SetLastError(s);
-        return FALSE;
+        return e + 1;
     }
     else {
-        return TRUE;
+        return 0;
     }
 }
 
@@ -3823,6 +3829,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       opt;
     int       rv = 0;
     int       ec = 0;
+    int       ep = 0;
 #if defined(_DEBUG)
     int       cmdverbose  = _DEBUG;
 #else
@@ -3845,8 +3852,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     DWORD     wtime       = 0;
     SC_HANDLE mgr         = NULL;
     SC_HANDLE svc         = NULL;
-    int      orgargc      = argc;
-    LPCWSTR *orgargv      = argv;
+    int       orgargc     = argc;
+    LPCWSTR  *orgargv     = argv;
 
     service->name = argv[0];
     ssr = (PSERVICE_CONTROL_STATUS_REASON_PARAMSW)xmcalloc(sizeof(SERVICE_CONTROL_STATUS_REASON_PARAMSW));
@@ -4013,7 +4020,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                              sdepends,
                              username,
                              password);
-        if (svc && !setsvcarguments(argc, argv)) {
+        ep = setsvcarguments(svc, argc, argv);
+        if (ep) {
             rv = GetLastError();
             ec = __LINE__;
             ed = SVCBATCH_SVCARGS;
@@ -4247,7 +4255,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ec = __LINE__;
             goto finished;
         }
-        if (!setsvcarguments(argc, argv)) {
+        ep = setsvcarguments(svc, argc, argv);
+        if (ep) {
             rv = GetLastError();
             ec = __LINE__;
             ed = SVCBATCH_SVCARGS;
@@ -4284,6 +4293,9 @@ finished:
             xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
             fprintf(stderr, "Service Name : %S\n", service->name);
             fprintf(stderr, "     Command : %S\n", scmcommands[cmd]);
+            if (ep)
+            fprintf(stdout, "               %d (%d)\n", ec, ep);
+            else
             fprintf(stdout, "               %d\n", ec);
             fprintf(stdout, "             : FAILED\n");
             fprintf(stderr, "             : %d (0x%x)\n", rv,  rv);
