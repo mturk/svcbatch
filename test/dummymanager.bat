@@ -123,7 +123,7 @@ shift
 goto setStartArgs
 :doneStartArgs
 rem
-%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /verbose=2 /wait - %START_CMD_ARGS% b c
+%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /verbose=2 /wait %START_CMD_ARGS% b c
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Started %SERVICE_NAME%
 goto End

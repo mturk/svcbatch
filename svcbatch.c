@@ -144,6 +144,8 @@ typedef struct _SVCBATCH_NAME_MAP {
     DWORD   code;
 } SVCBATCH_NAME_MAP, *LPSVCBATCH_NAME_MAP;
 
+static int                   svcmainargc = 0;
+static LPCWSTR              *svcmainargv = NULL;
 static LPSVCBATCH_PROCESS    program     = NULL;
 static LPSVCBATCH_SERVICE    service     = NULL;
 
@@ -493,19 +495,23 @@ static LPWSTR *xmsztoargv(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
         while (*p)
             p++;
     }
+    c += svcmainargc;
     c += orgc;
     argv = xwaalloc(c);
     if (orgc > 0) {
-        argv[i] = (LPWSTR)orgv[i++];
-        for (x = 1; x < orgc; x++) {
-            if ((*(orgv[x]) == L'-') || (*(orgv[x]) == L'/')) {
-                argv[i++] = (LPWSTR)orgv[x];
-            }
-            else {
-                break;
-            }
+        argv[0] = (LPWSTR)orgv[0];
+        i++;
+    }
+    if (svcmainargc > 0) {
+        for (x = 0; x < svcmainargc; x++)
+            argv[i++] = (LPWSTR)svcmainargv[x];
+    }
+    if (orgc > 0) {
+        x = 1;
+        while ((*(orgv[x]) == L'-') || (*(orgv[x]) == L'/')) {
+            argv[i++] = (LPWSTR)orgv[x++];
         }
-        o = i;
+        o = x;
     }
     for (p = msz; *p; p++, i++) {
         argv[i] = p;
@@ -878,27 +884,32 @@ static int xwstartswith(LPCWSTR src, LPCWSTR str)
 
     while (*src) {
         if (*str == WNUL)
-            break;
-        sa = xtolower(*src);
-        sb = xtolower(*str);
+            return pos;
+        sa = xtolower(*src++);
+        sb = *str++;
         if (sa != sb)
             return 0;
-        src++;
-        str++;
         pos++;
     }
-    return pos;
+    if (*str)
+        return 0;
+    else
+        return pos;
 }
 
-static int xwcasecmp(const wchar_t *str, const wchar_t *src)
+static int xwcsequals(const wchar_t *str, const wchar_t *src)
 {
-    int sa, sb;
+    int sa = 1;
+    int sb;
 
-    while ((sa = xtolower(*str++)) == (sb = *src++)) {
+    do {
         if (sa == 0)
-            return 0;
-    }
-    return (sa - sb);
+            return 1;
+        sa = xtolower(*str++);
+        sb = *src++;
+    } while (sa == sb);
+
+    return 0;
 }
 
 static DWORD xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, DWORD def)
@@ -941,7 +952,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         }
         if ((*place == WNUL) || (*place == option)) {
             /* We have '--' or '//' */
-            place    = zerostring;
+            place = zerostring;
             return EOF;
         }
         xwoption = place;
@@ -958,7 +969,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
             optsrc = *longopt;
             optmod = optsrc[1];
             if ((optmod == L'.') || (optmod == L'+')) {
-                if (xwcasecmp(xwoption, optsrc + 2) == 0)
+                if (xwcsequals(xwoption, optsrc + 2))
                     optopt = zerostring;
             }
             else {
@@ -3347,17 +3358,13 @@ static int parseoptions(int argc, LPCWSTR *argv)
     LPCWSTR sparam[SVCBATCH_MAX_ARGS];
     LPCWSTR cparam[SVCBATCH_MAX_ARGS];
     LPCWSTR rparam[4];
+    WCHAR   wb[BBUFSIZ];
 
-    WCHAR wb[SVCBATCH_PATH_MAX];
-
+    DBG_PRINTF("started %d", argc);
     if (getsvcarguments(argc, argv, &rargc, &rargv)) {
         argc = rargc;
         argv = rargv;
     }
-    for (i = 0; i < argc; i++) {
-        DBG_PRINTF("1 %d %S", i, argv[i]);
-    }
-
     while ((opt = xwgetopt(argc, argv, L"bc:e:gh:k:lm:n:o:pqr:s:tvw:", NULL)) != EOF) {
         switch (opt) {
             case L'b':
@@ -4571,6 +4578,8 @@ int wmain(int argc, LPCWSTR *argv)
                 return xscmexecute(cmd, argc, argv);
             }
         }
+        svcmainargc = argc - 1;
+        svcmainargv = argv + 1;
     }
     /**
      * Create logic state events
