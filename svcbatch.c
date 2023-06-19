@@ -206,8 +206,7 @@ typedef enum {
     SVCBATCH_SCM_START,
     SVCBATCH_SCM_STOP,
     SVCBATCH_SCM_DELETE,
-    SVCBATCH_SCM_CONTROL,
-    SVCBATCH_SCM_VERSION
+    SVCBATCH_SCM_CONTROL
 } SVCBATCH_SCM_CMD;
 
 static const wchar_t *scmcommands[] = {
@@ -217,7 +216,6 @@ static const wchar_t *scmcommands[] = {
     L"Stop",                    /* SVCBATCH_SCM_STOP        */
     L"Delete",                  /* SVCBATCH_SCM_DELETE      */
     L"Control",                 /* SVCBATCH_SCM_CONTROL     */
-    L"Version",                 /* SVCBATCH_SCM_VERSION     */
     NULL
 };
 
@@ -3908,7 +3906,7 @@ static int xscmcommand(LPCWSTR ncmd)
 {
     int s = xtolower(*ncmd++);
 
-    if ((s == 'c') || (s == 'd') || (s == 's') || (s == 'v')) {
+    if ((s == 'c') || (s == 'd') || (s == 's')) {
         int i = 0;
         int x = 0;
         WCHAR ccmd[8];
@@ -3955,30 +3953,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     DWORD     wtime       = 0;
     SC_HANDLE mgr         = NULL;
     SC_HANDLE svc         = NULL;
-    int       orgargc     = 0;
-    LPCWSTR  *orgargv     = NULL;
+    int       orgargc     = argc;
+    LPCWSTR  *orgargv     = argv;
 
-    if (cmd ==SVCBATCH_SCM_VERSION) {
-        fputs(cnamestamp, stdout);
-        fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
-        return 0;
-    }
     ssr = (PSERVICE_CONTROL_STATUS_REASON_PARAMSW)xmcalloc(sizeof(SERVICE_CONTROL_STATUS_REASON_PARAMSW));
     ssp = &ssr->ServiceStatus;
-    if (argc == 1) {
-        service->name = L"ERROR";
-        rv = ERROR_INVALID_PARAMETER;
-        ec = __LINE__;
-        ed = L"Use svcbatch [command] [service name] <option1> <option2>...";
-        goto finished;
-    }
-    else {
-        argc -= 1;
-        argv += 1;
-    }
-    orgargc = argc;
-    orgargv = argv;
     service->name = argv[0];
+
     if (cmd == SVCBATCH_SCM_CREATE) {
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
@@ -4505,6 +4486,14 @@ int wmain(int argc, LPCWSTR *argv)
 # endif
    _CrtSetReportMode(_CRT_ASSERT, 0);
 #endif
+    if (argc == 2) {
+        LPCWSTR p = argv[1];
+        if ((p[0] == L'/') && (p[1] == L'?') && (p[2] == WNUL)) {
+            fputs(cnamestamp, stdout);
+            fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
+            return 0;
+        }
+    }
     /**
      * Make sure child processes are kept quiet.
      */
@@ -4563,7 +4552,7 @@ int wmain(int argc, LPCWSTR *argv)
         xwcslcpy(service->logs, SVCBATCH_PATH_MAX, sharedmem->logs);
     }
 
-    if (servicemode && (argc > 1)) {
+    if (servicemode && (argc > 2)) {
         /**
          * Check if this is a Service Manager command
          */
@@ -4571,13 +4560,13 @@ int wmain(int argc, LPCWSTR *argv)
         if ((i > 3) && (i < 8)) {
             int cmd = xscmcommand(argv[1]);
             if (cmd >= 0) {
-                argc  -= 1;
-                argv  += 1;
+                argc  -= 2;
+                argv  += 2;
                 return xscmexecute(cmd, argc, argv);
             }
         }
-        svcmainargc = argc - 1;
-        svcmainargv = argv + 1;
+        svcmainargc = argc - 2;
+        svcmainargv = argv + 2;
     }
     /**
      * Create logic state events
