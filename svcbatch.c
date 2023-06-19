@@ -479,53 +479,6 @@ static LPWSTR xargvtomsz(int argc, LPCWSTR *argv, int *sz)
     return bp;
 }
 
-static LPWSTR *xmsztoargv(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
-{
-    int     x = 0;
-    int     i = 0;
-    int     c = 0;
-    int     o = 0;
-    LPWSTR  p;
-    LPWSTR *argv;
-
-    *argc = 0;
-    ASSERT_WSTR(msz, NULL);
-
-    for (p = msz; *p; p++, c++) {
-        while (*p)
-            p++;
-    }
-    c += svcmainargc;
-    c += orgc;
-    argv = xwaalloc(c);
-    if (orgc > 0) {
-        argv[0] = (LPWSTR)orgv[0];
-        i++;
-    }
-    if (svcmainargc > 0) {
-        for (x = 0; x < svcmainargc; x++)
-            argv[i++] = (LPWSTR)svcmainargv[x];
-    }
-    if (orgc > 0) {
-        x = 1;
-        while ((*(orgv[x]) == L'-') || (*(orgv[x]) == L'/')) {
-            argv[i++] = (LPWSTR)orgv[x++];
-        }
-        o = x;
-    }
-    for (p = msz; *p; p++, i++) {
-        argv[i] = p;
-        while (*p)
-            p++;
-    }
-    if (orgc > o) {
-        for (x = o; x < orgc; x++, i++)
-            argv[i] = (LPWSTR)orgv[x];
-    }
-    *argc = c;
-    return argv;
-}
-
 static void xwchreplace(LPWSTR s, WCHAR c, WCHAR r)
 {
     LPWSTR d;
@@ -3303,7 +3256,57 @@ static DWORD createevents(void)
     return 0;
 }
 
-static BOOL getsvcarguments(int orgc, LPCWSTR *orgv, int *argc, LPWSTR **argv)
+static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
+{
+    int     x = 0;
+    int     i = 0;
+    int     c = 0;
+    int     o = 0;
+    LPWSTR  p;
+    LPWSTR *argv;
+
+    *argc = 0;
+
+    if (msz) {
+        for (p = msz; *p; p++, c++) {
+            while (*p)
+                p++;
+        }
+    }
+    c += svcmainargc;
+    c += orgc;
+    argv = xwaalloc(c);
+    if (orgc > 0) {
+        argv[0] = (LPWSTR)orgv[0];
+        i++;
+    }
+    if (svcmainargc > 0) {
+        for (x = 0; x < svcmainargc; x++)
+            argv[i++] = (LPWSTR)svcmainargv[x];
+    }
+    if (orgc > 0) {
+        x = 1;
+        while ((*(orgv[x]) == L'-') || (*(orgv[x]) == L'/')) {
+            argv[i++] = (LPWSTR)orgv[x++];
+        }
+        o = x;
+    }
+    if (msz) {
+        for (p = msz; *p; p++, i++) {
+            argv[i] = p;
+            while (*p)
+                p++;
+        }
+    }
+    if (orgc > o) {
+        for (x = o; x < orgc; x++, i++)
+            argv[i] = (LPWSTR)orgv[x];
+    }
+    *argc = c;
+    return argv;
+}
+
+static void getsvcarguments(int orgc, LPCWSTR *orgv, int *argc, LPWSTR **argv)
 {
     DWORD   t;
     DWORD   c;
@@ -3322,49 +3325,44 @@ static BOOL getsvcarguments(int orgc, LPCWSTR *orgv, int *argc, LPWSTR **argv)
     b = (LPBYTE)xmmalloc(c);
     s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                      RRF_RT_REG_MULTI_SZ, &t, b, &c);
-    if (s != ERROR_SUCCESS)
-        goto finished;
-
-    *argv = xmsztoargv(orgc, orgv, (LPWSTR)b, argc);
-finished:
-    RegCloseKey(k);
     if (s != ERROR_SUCCESS) {
-        SetLastError(s);
-        return FALSE;
+        SAFE_MEM_FREE(b);
+        goto finished;
     }
-    else {
-        return TRUE;
-    }
+finished:
+    if (k != NULL)
+        RegCloseKey(k);
+    *argv = mergearguments(orgc, orgv, (LPWSTR)b, argc);
 }
 
 static int parseoptions(int argc, LPCWSTR *argv)
 {
-    DWORD  x;
-    int    i;
-    int    opt;
-    int    rcnt = 0;
-    int    scnt = 0;
-    int    qcnt = 0;
-    int    ccnt = 0;
-    int    rargc;
+    DWORD    x;
+    int      i;
+    int      opt;
+    int      rcnt = 0;
+    int      scnt = 0;
+    int      qcnt = 0;
+    int      ccnt = 0;
+    int      rargc;
     LPCWSTR *rargv;
 
-    LPCWSTR maxlogsparam = NULL;
-    LPCWSTR scriptparam  = NULL;
-    LPCWSTR svchomeparam = NULL;
-    LPCWSTR svcworkparam = NULL;
-    LPCWSTR commandparam = NULL;
-    LPCWSTR svcstopparam = NULL;
-    LPCWSTR sparam[SVCBATCH_MAX_ARGS];
-    LPCWSTR cparam[SVCBATCH_MAX_ARGS];
-    LPCWSTR rparam[4];
-    WCHAR   wb[BBUFSIZ];
+    LPCWSTR  maxlogsparam = NULL;
+    LPCWSTR  scriptparam  = NULL;
+    LPCWSTR  svchomeparam = NULL;
+    LPCWSTR  svcworkparam = NULL;
+    LPCWSTR  commandparam = NULL;
+    LPCWSTR  svcstopparam = NULL;
+    LPCWSTR  sparam[SVCBATCH_MAX_ARGS];
+    LPCWSTR  cparam[SVCBATCH_MAX_ARGS];
+    LPCWSTR  rparam[4];
+    WCHAR    wb[BBUFSIZ];
 
     DBG_PRINTF("started %d", argc);
-    if (getsvcarguments(argc, argv, &rargc, &rargv)) {
-        argc = rargc;
-        argv = rargv;
-    }
+    getsvcarguments(argc, argv, &rargc, &rargv);
+    argc = rargc;
+    argv = rargv;
+
     while ((opt = xwgetopt(argc, argv, L"bc:e:gh:k:lm:n:o:pqr:s:tvw:", NULL)) != EOF) {
         switch (opt) {
             case L'b':
