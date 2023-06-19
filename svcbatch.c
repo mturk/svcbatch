@@ -876,6 +876,11 @@ static DWORD xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, DWORD def)
     return def;
 }
 
+static __inline int xisoptswitch(int c)
+{
+    return ((c == 45) || (c == 47));
+}
+
 static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
 {
     static LPCWSTR place = zerostring;
@@ -896,7 +901,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         place  = nargv[xwoptind];
         optind = xwoptind;
         option = *(place++);
-        if ((option != '-') && (option != '/')) {
+        if (!xisoptswitch(option)) {
             /* Argument is not an option */
             place = zerostring;
             return EOF;
@@ -919,7 +924,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
 
             optsrc = *longopt;
             optmod = optsrc[1];
-            if ((optmod == L'.') || (optmod == L'+')) {
+            if ((optmod == '.') || (optmod == '+')) {
                 if (xwcsequals(xwoption, optsrc + 2))
                     optopt = zerostring;
             }
@@ -927,7 +932,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
                 int endpos = xwstartswith(xwoption, optsrc + 2);
                 if (endpos) {
                     optopt = xwoption + endpos;
-                    if ((*optopt == L':') || (*optopt == L'='))
+                    if ((*optopt == ':') || (*optopt == '='))
                         optsep = *optopt++;
                 }
             }
@@ -939,7 +944,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
             option = *optsrc;
             if (wcschr(opts, option) == NULL)
                 return EINVAL;
-            if (optmod == L'.') {
+            if (optmod == '.') {
                 /* No arguments needed */
                 xwoptind++;
                 return option;
@@ -948,7 +953,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
             while (xisblank(*optopt))
                 optopt++;
             if (*optopt) {
-                if ((optmod == L':') && !optsep) {
+                if ((optmod == ':') && !optsep) {
                     /* Data without separator */
                     return ENOENT;
                 }
@@ -963,7 +968,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
                 /* Empty in place argument */
                 return ENOENT;
             }
-            if (optmod == L'?') {
+            if (optmod == '?') {
                 /* No optional argument */
                 xwoptind++;
                 return option;
@@ -1011,7 +1016,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         else if (nargc > ++xwoptind) {
             xwoptarg = nargv[xwoptind];
         }
-        ++xwoptind;
+        xwoptind++;
         place = zerostring;
         if (IS_EMPTY_WCS(xwoptarg)) {
             /* Option-argument is absent or empty */
@@ -1021,7 +1026,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
     else {
         /* Don't need argument */
         if (*place == WNUL) {
-            ++xwoptind;
+            xwoptind++;
             place = zerostring;
         }
     }
@@ -1605,6 +1610,7 @@ static BOOL resolvescriptname(LPCWSTR bp)
 {
     LPWSTR p;
 
+    DBG_PRINTF("name: %S", bp);
     if (cmdproc->script)
         return TRUE;
     cmdproc->script = xgetfinalpath(bp, 0, NULL, 0);
@@ -2040,11 +2046,11 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     WCHAR lognn[SVCBATCH_PATH_MAX];
     WIN32_FILE_ATTRIBUTE_DATA ad;
 
-    xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->logFile);
+    x = xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->logFile);
     if (log->maxLogs > 1)
-        x = xwcslcat(lognn, SVCBATCH_PATH_MAX, L".0");
+        x = xwcsncat(lognn, SVCBATCH_PATH_MAX, x, L".0");
     else
-        x = xwcslcat(lognn, SVCBATCH_PATH_MAX, xmktimedext());
+        x = xwcsncat(lognn, SVCBATCH_PATH_MAX, x, xmktimedext());
     if (x >= SVCBATCH_PATH_MAX)
         return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
 
@@ -3256,51 +3262,80 @@ static DWORD createevents(void)
 
 static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
 {
-    int     x = 0;
-    int     i = 0;
-    int     c = 0;
-    int     o = 1;
-    LPWSTR  p;
-    LPWSTR *argv;
+    int      x = 0;
+    int      i = 0;
+    int      c = 0;
+    int      o = 0;
+    int      s = 1;
+    int      m = 1;
+    int      nmsz = 0;
+    LPWSTR   p;
+    LPWSTR  *argv;
 
-    *argc = 0;
-
+    /**
+     * Step 1
+     * Count the number arguments from
+     * ImageFileArguments + ImageFile + Start Service
+     */
     if (msz) {
-        for (p = msz; *p; p++, c++) {
+        for (p = msz; *p; p++) {
+            nmsz++;
             while (*p)
                 p++;
         }
     }
-    c += svcmainargc;
-    c += orgc;
+    c   += nmsz;
+    c   += svcmainargc;
+    c   += orgc;
     argv = xwaalloc(c);
-    if (orgc > 0) {
-        argv[0] = (LPWSTR)orgv[0];
-        i++;
-    }
+    /* argv[0] is service name */
+    argv[i++] = (LPWSTR)orgv[o++];
+
+
+    /**
+     * Add option arguments in the following order
+     * ImagePath
+     * ImagePathArguments
+     * Service Start options
+     */
     if (svcmainargc > 0) {
-        for (x = 0; x < svcmainargc; x++)
+        for (x = 0; (x < svcmainargc) && xisoptswitch(*svcmainargv[x]); x++)
             argv[i++] = (LPWSTR)svcmainargv[x];
+        s = x;
+    }
+    if (nmsz > 0) {
+        for (x = 0, p = msz; *p && xisoptswitch(*p); p++, x++) {
+            argv[i++] = p;
+            while (*p)
+                p++;
+        }
+        m = x;
     }
     if (orgc > 1) {
-        x = 1;
-        while ((*(orgv[x]) == L'-') || (*(orgv[x]) == L'/')) {
-            argv[i++] = (LPWSTR)orgv[x++];
-        }
+        for (x = 1; (x < orgc) && xisoptswitch(*orgv[x]); x++)
+            argv[i++] = (LPWSTR)orgv[x];
         o = x;
     }
-    if (msz) {
-        for (p = msz; *p; p++, i++) {
-            argv[i] = p;
+    /* Add non option arguments */
+    for (x = s; x < svcmainargc; x++)
+        argv[i++] = (LPWSTR)svcmainargv[x];
+    if (nmsz > 0) {
+        for (x = 0, p = msz; *p; p++, x++) {
+            if (x >= m)
+                argv[i++] = p;
             while (*p)
                 p++;
         }
     }
-    if (orgc > o) {
-        for (x = o; x < orgc; x++, i++)
-            argv[i] = (LPWSTR)orgv[x];
-    }
+    for (x = o; x < orgc; x++)
+        argv[i++] = (LPWSTR)orgv[x];
+
     *argc = c;
+#if defined(_DEBUG)
+    for (x = 0; x < c; x++) {
+        DBG_PRINTF("[%d] '%S'", x, argv[x]);
+    }
+#endif
     return argv;
 }
 
@@ -3475,6 +3510,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
 
     argc -= xwoptind;
     argv += xwoptind;
+
     if (argc == 0) {
         /**
          * No batch file defined.
@@ -4565,9 +4601,9 @@ int wmain(int argc, LPCWSTR *argv)
                 return xscmexecute(cmd, argc, argv);
             }
         }
-        svcmainargc = argc - 2;
-        svcmainargv = argv + 2;
     }
+    svcmainargc = argc - 1;
+    svcmainargv = argv + 1;
     /**
      * Create logic state events
      */
