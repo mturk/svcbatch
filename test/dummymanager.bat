@@ -84,7 +84,7 @@ rem Presuming this is the build tree ...
 rem Create a service command line
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" -pbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose -pbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Add Additional configuration
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
@@ -123,7 +123,7 @@ shift
 goto setStartArgs
 :doneStartArgs
 rem
-%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /wait - %START_CMD_ARGS% b c
+%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /verbose=2 /wait - %START_CMD_ARGS% b c
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Started %SERVICE_NAME%
 goto End
@@ -137,7 +137,7 @@ rem
 echo %~nx0: Stopping %SERVICE_NAME%
 rem Wait up to 30 seconds until the service is Stopped
 rem
-%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /wait=30
+%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /verbose /wait=30
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL
 echo %~nx0: Stopped %SERVICE_NAME%
 goto End
@@ -163,7 +163,7 @@ popd
 rem
 echo %~nx0: Deleting %SERVICE_NAME%
 rem
-%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" /WAIT=30
+%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" /verbose /WAIT=30
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %~nx0: Deleted %SERVICE_NAME%
 goto End

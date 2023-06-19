@@ -189,7 +189,6 @@ static LPCWSTR wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
 static LPCWSTR cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static LPCWSTR outdirparam = NULL;
 
-static int     xwoptbrk    = 0;
 static int     xwoptind    = 1;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
@@ -295,7 +294,7 @@ static const wchar_t *scmcoptions[] = {
     L"u+obj",
     L"u+user",
     L"s:start",
-    L"v.verbose",
+    L"v?verbose",
     L"w?wait",
     NULL
 };
@@ -981,7 +980,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
             if (optmod == L'.') {
                 /* No arguments needed */
                 xwoptind++;
-                return EOF;
+                return option;
             }
             /* Skip blanks */
             while (xisblank(*optopt))
@@ -3933,11 +3932,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       rv = 0;
     int       ec = 0;
     int       ep = 0;
-#if defined(_DEBUG)
-    int       cmdverbose  = _DEBUG;
-#else
     int       cmdverbose  = 0;
-#endif
     ULONGLONG wrs         = 0;
     LPCWSTR   ed          = NULL;
     LPWSTR    pp          = NULL;
@@ -3955,17 +3950,30 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     DWORD     wtime       = 0;
     SC_HANDLE mgr         = NULL;
     SC_HANDLE svc         = NULL;
-    int       orgargc     = argc;
-    LPCWSTR  *orgargv     = argv;
+    int       orgargc     = 0;
+    LPCWSTR  *orgargv     = NULL;
 
     if (cmd ==SVCBATCH_SCM_VERSION) {
         fputs(cnamestamp, stdout);
         fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
         return 0;
     }
-    service->name = argv[0];
     ssr = (PSERVICE_CONTROL_STATUS_REASON_PARAMSW)xmcalloc(sizeof(SERVICE_CONTROL_STATUS_REASON_PARAMSW));
     ssp = &ssr->ServiceStatus;
+    if (argc == 1) {
+        service->name = L"ERROR";
+        rv = ERROR_INVALID_PARAMETER;
+        ec = __LINE__;
+        ed = L"Use svcbatch [command] [service name] <option1> <option2>...";
+        goto finished;
+    }
+    else {
+        argc -= 1;
+        argv += 1;
+    }
+    orgargc = argc;
+    orgargv = argv;
+    service->name = argv[0];
     if (cmd == SVCBATCH_SCM_CREATE) {
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
@@ -3976,7 +3984,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 servicetype = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
             break;
             case 'v':
-                cmdverbose++;
+                cmdverbose = xwcstoi(xwoptarg, NULL);
+                if (cmdverbose < 0)
+                    cmdverbose = 1;
             break;
             case 'b':
                 if (binarypath != NULL) {
@@ -4078,10 +4088,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     argc -= xwoptind;
     argv += xwoptind;
-    if (xwoptbrk) {
-        /* Convert '--foo' or '//foo' to '-foo' or '/foo' */
-        argv[0] = argv[0] + 1;
-    }
     if (wcspbrk(service->name, L"/\\")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
@@ -4560,8 +4566,8 @@ int wmain(int argc, LPCWSTR *argv)
         if ((i > 3) && (i < 8)) {
             int cmd = xscmcommand(argv[1]);
             if (cmd >= 0) {
-                argc  -= 2;
-                argv  += 2;
+                argc  -= 1;
+                argv  += 1;
                 return xscmexecute(cmd, argc, argv);
             }
         }
