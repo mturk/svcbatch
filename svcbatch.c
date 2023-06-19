@@ -3259,7 +3259,7 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
     int     x = 0;
     int     i = 0;
     int     c = 0;
-    int     o = 0;
+    int     o = 1;
     LPWSTR  p;
     LPWSTR *argv;
 
@@ -3282,7 +3282,7 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
         for (x = 0; x < svcmainargc; x++)
             argv[i++] = (LPWSTR)svcmainargv[x];
     }
-    if (orgc > 0) {
+    if (orgc > 1) {
         x = 1;
         while ((*(orgv[x]) == L'-') || (*(orgv[x]) == L'/')) {
             argv[i++] = (LPWSTR)orgv[x++];
