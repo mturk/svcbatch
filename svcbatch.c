@@ -4026,7 +4026,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 reqprivs[i]   = WNUL;
             break;
             case 'r':
-                xwcslcat(cb, SBUFSIZ, xwoptarg);
+                xwcslcpy(cb, SBUFSIZ, xwoptarg);
                 pp = wcschr(cb, L'.');
                 if (pp) {
                     *(pp++) = WNUL;
@@ -4271,7 +4271,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         else {
             if (argc > 0) {
                 /* Comment is limited to 128 chars */
-                xwcslcat(cb, SBUFSIZ, argv[0]);
+                xwcslcpy(cb, SBUFSIZ, argv[0]);
                 ssr->pszComment = cb;
             }
             ssr->dwReason = SERVICE_STOP_REASON_FLAG_PLANNED | srmajor | srminor;
