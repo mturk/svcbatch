@@ -75,7 +75,7 @@ rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%""
 rem
 rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.@Y-@m-@d.@H@M@S""
 rem
-set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.%%Y-%%m-%%d""
+set "SERVICE_LOG_FNAME="/n%SERVICE_NAME%.%%Y-%%m-%%d""
 rem
 rem Set PATH
 set "SERVICE_ENVIRONMENT=/ePATH=%BUILD_DIR%;%%PATH%%"
@@ -83,6 +83,8 @@ rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
+rem
+goto allInOne
 rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose -pbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
@@ -97,6 +99,22 @@ rem Set Display Name and Description
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Set Dependencies and Privileges
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+rem
+rem
+echo %~nx0: Created %SERVICE_NAME%
+goto End
+rem
+:allInOne
+rem
+rem
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose ^
+    /name "A Dummy Service" /description "One dummy SvcBatch service example" ^
+    /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
+    -pbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR% ^
+    %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
+    %SERVICE_BATCH% run %%TEMP%% %%SOME_RANDOM_VARIABLE%%
+rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
 rem
@@ -118,12 +136,12 @@ shift
 set START_CMD_ARGS=
 :setStartArgs
 if "x%~1" == "x" goto doneStartArgs
-set "START_CMD_ARGS=%START_CMD_ARGS% %~1"
+set "START_CMD_ARGS=%START_CMD_ARGS% "%~1""
 shift
 goto setStartArgs
 :doneStartArgs
 rem
-%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /verbose=2 /wait %START_CMD_ARGS% b c
+%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /verbose=2 /wait %START_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Started %SERVICE_NAME%
 goto End

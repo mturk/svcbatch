@@ -3265,33 +3265,20 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
     int      x = 0;
     int      i = 0;
     int      c = 0;
-    int      o = 0;
-    int      s = 1;
-    int      m = 1;
-    int      nmsz = 0;
     LPWSTR   p;
     LPWSTR  *argv;
 
-    /**
-     * Step 1
-     * Count the number arguments from
-     * ImageFileArguments + ImageFile + Start Service
-     */
     if (msz) {
-        for (p = msz; *p; p++) {
-            nmsz++;
+        for (p = msz; *p; p++, c++) {
             while (*p)
                 p++;
         }
     }
-    c   += nmsz;
     c   += svcmainargc;
     c   += orgc;
     argv = xwaalloc(c);
-    /* argv[0] is service name */
-    argv[i++] = (LPWSTR)orgv[o++];
 
-
+    argv[i++] = (LPWSTR)orgv[0];
     /**
      * Add option arguments in the following order
      * ImagePath
@@ -3299,37 +3286,20 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
      * Service Start options
      */
     if (svcmainargc > 0) {
-        for (x = 0; (x < svcmainargc) && xisoptswitch(*svcmainargv[x]); x++)
+        for (x = 0; x < svcmainargc; x++)
             argv[i++] = (LPWSTR)svcmainargv[x];
-        s = x;
     }
-    if (nmsz > 0) {
-        for (x = 0, p = msz; *p && xisoptswitch(*p); p++, x++) {
+    if (msz) {
+        for (p = msz; *p; p++) {
             argv[i++] = p;
             while (*p)
                 p++;
         }
-        m = x;
     }
     if (orgc > 1) {
-        for (x = 1; (x < orgc) && xisoptswitch(*orgv[x]); x++)
+        for (x = 1; x < orgc; x++)
             argv[i++] = (LPWSTR)orgv[x];
-        o = x;
     }
-    /* Add non option arguments */
-    for (x = s; x < svcmainargc; x++)
-        argv[i++] = (LPWSTR)svcmainargv[x];
-    if (nmsz > 0) {
-        for (x = 0, p = msz; *p; p++, x++) {
-            if (x >= m)
-                argv[i++] = p;
-            while (*p)
-                p++;
-        }
-    }
-    for (x = o; x < orgc; x++)
-        argv[i++] = (LPWSTR)orgv[x];
-
     *argc = c;
 #if defined(_DEBUG)
     for (x = 0; x < c; x++) {
