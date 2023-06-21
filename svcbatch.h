@@ -65,7 +65,7 @@
 #define SVCBATCH_ISDEV_VERSION  1
 
 
-#if defined(SVCBATCH_LITE)
+#if defined(_SVCBATCH_LITE)
 # define SVCBATCH_LEAN_AND_MEAN 0
 # define SVCBATCH_IS_LITE       1
 # define SVCBATCH_RES_NAME      "SvcBatch Lite"
@@ -75,7 +75,7 @@
 # define SVCBATCH_RES_NAME      "SvcBatch"
 #endif
 
-#if defined(NO_SCM)
+#if defined(_NO_SCM)
 # define SVCBATCH_HAVE_SCM      0
 #else
 # define SVCBATCH_HAVE_SCM      1

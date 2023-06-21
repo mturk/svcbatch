@@ -22,6 +22,7 @@ rem    eg: mkrelease 1.2.3
 rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme"
 rem        mkrelease /d ...   create debug release
 rem        mkrelease /s ...   compile with static msvcrt
+rem        mkrelease /l ...   create (light) release
 rem
 setlocal
 rem
@@ -35,6 +36,7 @@ rem
 rem
 if /i "x%~1" == "x/d" goto setDebug
 if /i "x%~1" == "x/s" goto setStatic
+if /i "x%~1" == "x/l" goto setLight
 rem
 goto doneOpts
 rem
@@ -47,6 +49,12 @@ shift
 goto getOpts
 :setStatic
 set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=1"
+shift
+goto getOpts
+rem
+:setLight
+set "MakefileArgs=%MakefileArgs% _SVCBATCH_LITE=1"
+set "ReleaseArch=light-%ReleaseArch%"
 shift
 goto getOpts
 rem
@@ -65,13 +73,13 @@ goto setArgs
 rem
 :doneArgs
 rem
-nmake /nologo %MakefileArgs% clean
+rem nmake /nologo %MakefileArgs% clean
 set "ReleaseName=%ProjectName%-%ReleaseVersion%-%ReleaseArch%"
 set "ReleaseLog=%ReleaseName%.txt
 set "ReleaseZip=%ReleaseName%.zip
 rem
 rem Create builds
-nmake /nologo %MakefileArgs%
+nmake /a /nologo %MakefileArgs%
 if not %ERRORLEVEL% == 0 goto Failed
 rem
 pushd "%BuildDir%"
