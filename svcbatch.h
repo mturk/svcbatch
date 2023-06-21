@@ -52,8 +52,6 @@
 #define CPP_WIDEN_HELPER(n)     L ## n
 #define CPP_WIDEN(n)            CPP_WIDEN_HELPER(n)
 
-
-
 /**
  * Version info
  */
@@ -67,6 +65,16 @@
 #define SVCBATCH_ISDEV_VERSION  1
 
 
+#if defined(SVCBATCH_LITE)
+# define SVCBATCH_LEAN_AND_MEAN 0
+# define SVCBATCH_IS_LITE       1
+# define SVCBATCH_RES_NAME      "SvcBatch Lite"
+#else
+# define SVCBATCH_LEAN_AND_MEAN 1
+# define SVCBATCH_IS_LITE       0    
+# define SVCBATCH_RES_NAME      "SvcBatch"
+#endif
+
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
@@ -75,8 +83,8 @@
 #define SHUTDOWN_LOGFEXT       L".shutdown.log"
 #define SBSTATUS_LOGFEXT       L".status.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
-#define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\sb-"
-#define SVCBATCH_MMAPPFX       L"Local\\sb-"
+#define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
+#define SVCBATCH_MMAPPFX       L"Local\\mm-"
 
 /**
  * Registry value name where SvcBatch store
