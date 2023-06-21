@@ -502,20 +502,11 @@ static LPWSTR xargvtomsz(int argc, LPCWSTR *argv, int *sz)
 
 static void xwchreplace(LPWSTR s, WCHAR c, WCHAR r)
 {
-    LPWSTR d;
-
-    for (d = s; *s; s++, d++) {
-        if (*s == c) {
-            if (*(s + 1) == c)
-                *d = *(s++);
-            else
-                *d = r;
-        }
-        else {
-            *d = *s;
-        }
+    while (*s) {
+        if (*s == c)
+            *s = r;
+        s++;
     }
-    *d = WNUL;
 }
 
 /**
@@ -742,7 +733,7 @@ static DWORD xsetenv(LPCWSTR s)
         r = ERROR_INVALID_DATA;
         goto finished;
     }
-    xwchreplace(v, L'@', L'%');
+    xwchreplace(v, L'!', L'%');
     if (wcschr(v, L'%')) {
         DWORD c;
 
@@ -3581,7 +3572,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     xsyswarn(0, L"The -n command option value is invalid", xwoptarg);
                 if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
                     return xsyserror(0, L"Found invalid filename characters", svclogfname);
-                xwchreplace(svclogfname, L'@', L'%');
+                xwchreplace(svclogfname, L'!', L'%');
             break;
             case L'o':
                 outdirparam  = skipdotslash(xwoptarg);
@@ -3853,7 +3844,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             if (xwcslen(sparam[i]) >= SVCBATCH_NAME_MAX)
                 return xsyserror(0, L"The argument is too large", sparam[i]);
             svcstop->args[i] = xwcsdup(sparam[i]);
-            xwchreplace(svcstop->args[i], L'@', L'%');
+            xwchreplace(svcstop->args[i], L'!', L'%');
         }
         svcstop->argc = scnt;
     }
@@ -3943,7 +3934,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     service->logs = service->work;
 #endif
     for (i = 0; i < cmdproc->argc; i++)
-        xwchreplace(cmdproc->args[i], L'@', L'%');
+        xwchreplace(cmdproc->args[i], L'!', L'%');
     /**
      * Add additional environment variables
      * They are unique to this service instance
