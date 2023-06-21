@@ -2156,27 +2156,148 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     return 0;
 }
 
+#define _IsLeapYear(y) ((!(y % 4)) ? (((y % 400) && !(y % 100)) ? 0 : 1) : 0)
+static int getdayofyear(int y, int m, int d)
+{
+    static const int dayoffset[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    int r;
+
+    r = dayoffset[m - 1] + d;
+    if (_IsLeapYear(y) && (r > 59))
+        r++;
+    return r;
+}
+
+static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
+{
+    LPCWSTR s = fmt;
+    LPWSTR  d = dst;
+    int     n = siz;
+    SYSTEMTIME tm;
+
+    ASSERT_CSTR(s, 0);
+    ASSERT_NULL(d, 0);
+    ASSERT_SIZE(n, 2, 0);
+
+    if (IS_SET(SVCBATCH_OPT_LOCALTIME))
+        GetLocalTime(&tm);
+    else
+        GetSystemTime(&tm);
+
+    while (*s) {
+        *d = WNUL;
+
+        ASSERT_SIZE(n, 2, siz);
+        if (*s == L'%') {
+            int i = 0;
+            int w;
+            s++;
+            switch (*s) {
+                case L'%':
+                    d[i++] = L'%';
+                break;
+                case L'C':
+                    d[i++] = tm.wYear / 1000 + L'0';
+                    d[i++] = tm.wYear % 1000 / 100 + L'0';
+                break;
+                case L'y':
+                    d[i++] = tm.wYear % 100 / 10 + L'0';
+                    d[i++] = tm.wYear % 10 + L'0';
+                break;
+                case L'Y':
+                    ASSERT_SIZE(n, 4, siz);
+                    d[i++] = tm.wYear / 1000 + L'0';
+                    d[i++] = tm.wYear % 1000 / 100 + L'0';
+                    d[i++] = tm.wYear % 100 / 10 + L'0';
+                    d[i++] = tm.wYear % 10 + L'0';
+                break;
+                case L'd':
+                    d[i++] = tm.wDay  / 10 + L'0';
+                    d[i++] = tm.wDay % 10 + L'0';
+                break;
+                case L'm':
+                    d[i++] = tm.wMonth / 10 + L'0';
+                    d[i++] = tm.wMonth % 10 + L'0';
+                break;
+                case L'H':
+                    d[i++] = tm.wHour / 10 + L'0';
+                    d[i++] = tm.wHour % 10 + L'0';
+                break;
+                case L'M':
+                    d[i++] = tm.wMinute / 10 + L'0';
+                    d[i++] = tm.wMinute % 10 + L'0';
+                break;
+                case L'S':
+                    d[i++] = tm.wSecond / 10 + L'0';
+                    d[i++] = tm.wSecond % 10 + L'0';
+                break;
+                case L's':
+                    ASSERT_SIZE(n, 3, siz);
+                    d[i++] = tm.wMilliseconds / 100 + L'0';
+                    d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
+                    d[i++] = tm.wMilliseconds % 10 + L'0';
+                break;
+                case L'j':
+                    w = getdayofyear(tm.wYear, tm.wMonth, tm.wDay);
+                    d[i++] = w / 100 + L'0';
+                    d[i++] = w % 100 / 10 + L'0';
+                    d[i++] = w % 10 + L'0';
+                break;
+                case L'L':
+                    ASSERT_SIZE(n, 14, siz);
+                    d[i++] = tm.wYear / 1000 + L'0';
+                    d[i++] = tm.wYear % 1000 / 100 + L'0';
+                    d[i++] = tm.wYear % 100 / 10 + L'0';
+                    d[i++] = tm.wYear % 10 + L'0';
+                    d[i++] = tm.wMonth / 10 + L'0';
+                    d[i++] = tm.wMonth % 10 + L'0';
+                    d[i++] = tm.wDay  / 10 + L'0';
+                    d[i++] = tm.wDay % 10 + L'0';
+                    d[i++] = tm.wHour / 10 + L'0';
+                    d[i++] = tm.wHour % 10 + L'0';
+                    d[i++] = tm.wMinute / 10 + L'0';
+                    d[i++] = tm.wMinute % 10 + L'0';
+                    d[i++] = tm.wSecond / 10 + L'0';
+                    d[i++] = tm.wSecond % 10 + L'0';
+                break;
+                case L'F':
+                    ASSERT_SIZE(n, 10, siz);
+                    d[i++] = tm.wYear / 1000 + L'0';
+                    d[i++] = tm.wYear % 1000 / 100 + L'0';
+                    d[i++] = tm.wYear % 100 / 10 + L'0';
+                    d[i++] = tm.wYear % 10 + L'0';
+                    d[i++] = '-';
+                    d[i++] = tm.wMonth / 10 + L'0';
+                    d[i++] = tm.wMonth % 10 + L'0';
+                    d[i++] = '-';
+                    d[i++] = tm.wDay  / 10 + L'0';
+                    d[i++] = tm.wDay % 10 + L'0';
+                break;
+                case L'w':
+                    d[i++] = L'0' + tm.wDayOfWeek;
+                break;
+                default:
+                    SetLastError(ERROR_BAD_FORMAT);
+                   *dst = WNUL;
+                    return 0;
+                break;
+            }
+            d += i;
+            n -= i;
+        }
+        else {
+            *d++ = *s;
+            n--;
+        }
+        s++;
+    }
+    *d = WNUL;
+    return (int)(d - dst);
+}
+
 static DWORD makelogname(LPWSTR dst, int siz, LPCWSTR src)
 {
-    struct tm *ctm;
-    time_t ctt;
-    int    i, x;
-
-    time(&ctt);
-    if (IS_SET(SVCBATCH_OPT_LOCALTIME))
-        ctm = localtime(&ctt);
-    else
-        ctm = gmtime(&ctt);
-    if (wcsftime(dst, siz, src, ctm) == 0)
-        return xsyserror(0, L"Invalid format code", src);
-
-    for (i = 0, x = 0; dst[i]; i++) {
-        WCHAR c = dst[i];
-
-        if ((c > 127) || (xfnchartype[c] & 1))
-            dst[x++] = c;
-    }
-    dst[x] = WNUL;
+    xwcsftime(dst, siz, src);
     DBG_PRINTF("%S -> %S", src, dst);
     return 0;
 }
