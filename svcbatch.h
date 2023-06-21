@@ -75,6 +75,12 @@
 # define SVCBATCH_RES_NAME      "SvcBatch"
 #endif
 
+#if defined(NO_SCM)
+# define SVCBATCH_HAVE_SCM      0
+#else
+# define SVCBATCH_HAVE_SCM      1
+#endif
+
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"

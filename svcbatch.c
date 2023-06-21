@@ -215,6 +215,7 @@ static LPCWSTR cmdoptions  = L"bc:e:gh:k:lm:n:o:pqr:s:tvw:";
 static LPCWSTR cmdoptions  = L"c:e:h:k:pw:";
 #endif
 
+#if SVCBATCH_HAVE_SCM
 /**
  * Service Manager types
  *
@@ -318,6 +319,8 @@ static const wchar_t *scmcoptions[] = {
     L"w?wait",
     NULL
 };
+
+#endif
 
 /**
  * (element & 1) == valid file name character
@@ -3924,6 +3927,7 @@ finished:
 }
 #endif
 
+#if SVCBATCH_HAVE_SCM
 static int setsvcarguments(SC_HANDLE svc, int argc, LPCWSTR *argv)
 {
     int     e;
@@ -4500,6 +4504,7 @@ finished:
     }
     return rv;
 }
+#endif
 
 static int xwmaininit(void)
 {
@@ -4639,6 +4644,7 @@ int wmain(int argc, LPCWSTR *argv)
         xwcslcpy(service->logs, SVCBATCH_PATH_MAX, sharedmem->logs);
     }
 #endif
+#if SVCBATCH_HAVE_SCM
     if (servicemode && (argc > 2)) {
         /**
          * Check if this is a Service Manager command
@@ -4653,6 +4659,7 @@ int wmain(int argc, LPCWSTR *argv)
             }
         }
     }
+#endif
     svcmainargc = argc - 1;
     svcmainargv = argv + 1;
     /**
