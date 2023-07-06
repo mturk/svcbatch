@@ -26,6 +26,9 @@ PROJECT = svcbatch
 !IF DEFINED(_DEBUG) && "$(_DEBUG)" == ""
 !ERROR _DEBUG variable cannot be empty. Use _DEBUG=1, _DEBUG=2, etc...
 !ENDIF
+!IF DEFINED(VERSION_SFX) && "$(VERSION_SFX)" == ""
+!ERROR VERSION_SFX variable cannot be empty. Use VERSION_SFX=value
+!ENDIF
 
 WORKTOP = $(SRCDIR)\.build
 !IF DEFINED(_DEBUG)
@@ -79,7 +82,7 @@ LDLIBS = kernel32.lib advapi32.lib bcrypt.lib $(EXTRA_LIBS)
 RCOPTS = /nologo $(RCOPTS)
 !ENDIF
 
-!IF DEFINED(VERSION_SFX) && "$(VERSION_SFX)" != ""
+!IF DEFINED(VERSION_SFX)
 CFLAGS = $(CFLAGS) -DVERSION_SFX=$(VERSION_SFX)
 RFLAGS = $(RFLAGS) /d VERSION_SFX=$(VERSION_SFX)
 !ENDIF
@@ -95,7 +98,7 @@ OBJECTS = $(WORKDIR)\$(PROJECT).obj
 OBJECTS = $(OBJECTS) $(WORKDIR)\$(PROJECT).res
 !ENDIF
 !IF DEFINED(_NO_SCM)
-CFLAGS = $(CFLAGS) -D_NO_SCM=$(NO_SCM)
+CFLAGS = $(CFLAGS) -D_NO_SCM
 !ENDIF
 
 TESTAPPS = \
@@ -118,7 +121,7 @@ $(POUTPUT): $(WORKDIR) $(OBJECTS)
 
 $(TESTAPPS): $(POUTPUT)
 	@cd $@
-  $(MAKE) /$(MAKEFLAGS)
+  $(MAKE) /L$(MAKEFLAGS)
   @cd $(MAKEDIR)
 
 tests: $(TESTAPPS)
