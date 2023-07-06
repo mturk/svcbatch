@@ -207,7 +207,6 @@ static LPCWSTR cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static int     xwoptind    = 1;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
-static LPCWSTR xwoptval    = NULL;  /* Value of the in place argument /o<=|:><val> */
 
 #if SVCBATCH_LEAN_AND_MEAN
 static LPCWSTR cmdoptions  = L"bc:e:gh:k:lm:n:o:pqr:s:tvw:";
@@ -895,17 +894,13 @@ static __inline int xisoptswitch(int c)
     return ((c == 45) || (c == 47));
 }
 
-static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
+static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
 {
     static LPCWSTR place = zerostring;
     LPCWSTR oli = NULL;
-    int optind  = 0;
     int option;
 
-    xwoptval = NULL;
     xwoptarg = NULL;
-    if (longopts)
-        place = zerostring;
     if (*place == WNUL) {
         if (xwoptind >= nargc) {
             /* No more arguments */
@@ -913,7 +908,6 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
             return EOF;
         }
         place  = nargv[xwoptind];
-        optind = xwoptind;
         option = *(place++);
         if (!xisoptswitch(option)) {
             /* Argument is not an option */
@@ -926,79 +920,6 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
             return EOF;
         }
         xwoption = place;
-    }
-    if (longopts) {
-        LPCWSTR *longopt = longopts;
-        LPCWSTR  optopt  = NULL;
-
-        while (*longopt) {
-            int optmod;
-            int optsep = 0;
-            LPCWSTR optsrc;
-
-            optsrc = *longopt;
-            optmod = optsrc[1];
-            if ((optmod == '.') || (optmod == '+')) {
-                if (xwcsequals(xwoption, optsrc + 2))
-                    optopt = zerostring;
-            }
-            else {
-                int endpos = xwstartswith(xwoption, optsrc + 2);
-                if (endpos) {
-                    optopt = xwoption + endpos;
-                    if ((*optopt == ':') || (*optopt == '='))
-                        optsep = *optopt++;
-                }
-            }
-            if (optopt == NULL) {
-                longopt++;
-                continue;
-            }
-            /* Found long option */
-            option = *optsrc;
-            if (wcschr(opts, option) == NULL)
-                return EINVAL;
-            if (optmod == '.') {
-                /* No arguments needed */
-                xwoptind++;
-                return option;
-            }
-            /* Skip blanks */
-            while (xisblank(*optopt))
-                optopt++;
-            if (*optopt) {
-                if ((optmod == ':') && !optsep) {
-                    /* Data without separator */
-                    return ENOENT;
-                }
-                else {
-                    /* Argument is part of the option */
-                    xwoptarg = optopt;
-                    xwoptind++;
-                    return option;
-                }
-            }
-            if (optsep) {
-                /* Empty in place argument */
-                return ENOENT;
-            }
-            if (optmod == '?') {
-                /* No optional argument */
-                xwoptind++;
-                return option;
-            }
-            if (nargc > xwoptind)
-                optopt = nargv[++xwoptind];
-            while (xisblank(*optopt))
-                optopt++;
-            if (*optopt == WNUL)
-                return ENOENT;
-            xwoptind++;
-            xwoptarg = optopt;
-            return option;
-        }
-        /* Long option not found */
-        return EOF;
     }
     option = *(place++);
     if (option != ':') {
@@ -1024,8 +945,6 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         }
         if (*place) {
             xwoptarg = place;
-            if (optind && ((*xwoptarg == L'=') || (*xwoptarg == L':')))
-                xwoptval = xwoptarg + 1;
         }
         else if (nargc > ++xwoptind) {
             xwoptarg = nargv[xwoptind];
@@ -1045,6 +964,97 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         }
     }
     return oli[0];
+}
+
+static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
+{
+    LPCWSTR *longopt;
+    LPCWSTR  place;
+    int      option;
+
+    xwoptarg = NULL;
+    if (xwoptind >= nargc) {
+        /* No more arguments */
+        return EOF;
+    }
+    place  = nargv[xwoptind];
+    option = *(place++);
+    if (!xisoptswitch(option))
+        return EOF;
+    if ((*place == WNUL) || (*place == option))
+        return EOF;
+    xwoption = place;
+    longopt  = longopts;
+
+    while (*longopt) {
+        int optmod;
+        int optsep = 0;
+        LPCWSTR optsrc;
+        LPCWSTR optopt = NULL;
+
+        optsrc = *longopt;
+        optmod = optsrc[1];
+        if ((optmod == '.') || (optmod == '+')) {
+            if (xwcsequals(xwoption, optsrc + 2))
+                optopt = zerostring;
+        }
+        else {
+            int endpos = xwstartswith(xwoption, optsrc + 2);
+            if (endpos) {
+                optopt = xwoption + endpos;
+                if ((*optopt == ':') || (*optopt == '='))
+                    optsep = *optopt++;
+            }
+        }
+        if (optopt == NULL) {
+            longopt++;
+            continue;
+        }
+        /* Found long option */
+        option = *optsrc;
+        if (wcschr(opts, option) == NULL)
+            return EINVAL;
+        if (optmod == '.') {
+            /* No arguments needed */
+            xwoptind++;
+            return option;
+        }
+        /* Skip blanks */
+        while (xisblank(*optopt))
+            optopt++;
+        if (*optopt) {
+            if ((optmod == ':') && !optsep) {
+                /* Data without separator */
+                return ENOENT;
+            }
+            else {
+                /* Argument is part of the option */
+                xwoptarg = optopt;
+                xwoptind++;
+                return option;
+            }
+        }
+        if (optsep) {
+            /* Empty in place argument */
+            return ENOENT;
+        }
+        if (optmod == '?') {
+            /* No optional argument */
+            xwoptind++;
+            return option;
+        }
+        if (nargc > xwoptind)
+            optopt = nargv[++xwoptind];
+        while (xisblank(*optopt))
+            optopt++;
+        if (*optopt == WNUL)
+            return ENOENT;
+        xwoptind++;
+        xwoptarg = optopt;
+        return option;
+    }
+    /* Long option not found */
+    return EOF;
 }
 
 static LPWSTR xuuidstring(LPWSTR b)
@@ -3535,7 +3545,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     argc = rargc;
     argv = rargv;
 
-    while ((opt = xwgetopt(argc, argv, cmdoptions, NULL)) != EOF) {
+    while ((opt = xwgetopt(argc, argv, cmdoptions)) != EOF) {
         switch (opt) {
 #if SVCBATCH_LEAN_AND_MEAN
             case L'b':
@@ -4163,7 +4173,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
-    while ((opt = xwgetopt(argc, argv, scmallowed[cmd], scmcoptions)) != EOF) {
+    while ((opt = xlongopt(argc, argv, scmallowed[cmd], scmcoptions)) != EOF) {
         switch (opt) {
             case 'i':
                 servicetype = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
