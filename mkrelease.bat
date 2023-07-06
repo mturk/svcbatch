@@ -22,7 +22,7 @@ rem    eg: mkrelease 1.2.3
 rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme"
 rem        mkrelease /d ...   create debug release
 rem        mkrelease /s ...   compile with static msvcrt
-rem        mkrelease /l ...   create (light) release
+rem        mkrelease /l ...   create (lite) release
 rem
 setlocal
 rem
@@ -54,7 +54,7 @@ goto getOpts
 rem
 :setLight
 set "MakefileArgs=%MakefileArgs% _SVCBATCH_LITE=1"
-set "ReleaseArch=light-%ReleaseArch%"
+set "ReleaseArch=lite-%ReleaseArch%"
 shift
 goto getOpts
 rem
@@ -79,7 +79,7 @@ set "ReleaseLog=%ReleaseName%.txt
 set "ReleaseZip=%ReleaseName%.zip
 rem
 rem Create builds
-nmake /a /nologo %MakefileArgs%
+nmake /a %MakefileArgs%
 if not %ERRORLEVEL% == 0 goto Failed
 rem
 pushd "%BuildDir%"
