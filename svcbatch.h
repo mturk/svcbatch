@@ -221,6 +221,18 @@
 #define SVCBATCH_MIN_ROTATE_INT 2
 #define SVCBATCH_ROTATE_READY   120000
 
+/**
+ * Service manager default wait timeout
+ * in seconds
+ */
+#define SVCBATCH_SCM_WAIT_DEF   30
+/**
+ * Service manager time between two
+ * status queries in milliseconds
+ */
+#define SVCBATCH_SCM_WAIT_INT   500
+
+
 #define MS_IN_DAY               86400000
 #define MS_IN_SECOND            CPP_INT64_C(1000)
 #define MS_IN_MINUTE            CPP_INT64_C(60000)

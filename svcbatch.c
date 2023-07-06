@@ -4255,7 +4255,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                         wtime = SVCBATCH_STOP_TMAX;
                 }
                 if (wtime < SVCBATCH_STOP_TMIN)
-                    wtime = 30;
+                    wtime = SVCBATCH_SCM_WAIT_DEF;
+                wtime = wtime * (1000 / SVCBATCH_SCM_WAIT_INT);
             break;
             case ENOENT:
                 rv = ERROR_BAD_LENGTH;
@@ -4347,7 +4348,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 }
             }
             while (ssp->dwCurrentState != SERVICE_STOPPED) {
-                Sleep(1000);
+                Sleep(SVCBATCH_SCM_WAIT_INT);
                 if (!QueryServiceStatusEx(svc,
                                           SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
                                           SZ_STATUS_PROCESS_INFO, &bneed)) {
@@ -4403,7 +4404,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 goto finished;
             }
             while (ssp->dwCurrentState == SERVICE_START_PENDING) {
-                Sleep(1000);
+                Sleep(SVCBATCH_SCM_WAIT_INT);
                 if (!QueryServiceStatusEx(svc,
                                           SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
                                           SZ_STATUS_PROCESS_INFO, &bneed)) {
@@ -4441,7 +4442,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         while (ssp->dwCurrentState == SERVICE_STOP_PENDING) {
             if (wtime == 0)
                 goto finished;
-            Sleep(1000);
+            Sleep(SVCBATCH_SCM_WAIT_INT);
             if (!QueryServiceStatusEx(svc,
                                       SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
                                       SZ_STATUS_PROCESS_INFO, &bneed)) {
@@ -4484,7 +4485,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         while (ssp->dwCurrentState != SERVICE_STOPPED) {
             if (wtime == 0)
                 break;
-            Sleep(1000);
+            Sleep(SVCBATCH_SCM_WAIT_INT);
             if (!QueryServiceStatusEx(svc,
                                       SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
                                       SZ_STATUS_PROCESS_INFO, &bneed)) {
