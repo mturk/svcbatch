@@ -201,7 +201,7 @@ static CHAR         CRLFA[]       = { 13, 10,  0,  0 };
 static BYTE         YYES[]        = { 89, 13, 10,  0 };
 
 static LPCSTR  cnamestamp  = SVCBATCH_RES_NAME " " SVCBATCH_VERSION_TXT;
-static LPCWSTR wnamestamp  = CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS;
+static LPCWSTR wnamestamp  = CPP_WIDEN(SVCBATCH_RES_NAME) L" " SVCBATCH_VERSION_WCS;
 static LPCWSTR cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 
 static int     xwoptind    = 1;
@@ -851,7 +851,7 @@ static int xwstartswith(LPCWSTR src, LPCWSTR str)
         if (*str == WNUL)
             return pos;
         sa = xtolower(*src++);
-        sb = *str++;
+        sb = xtolower(*str++);
         if (sa != sb)
             return 0;
         pos++;
@@ -871,7 +871,7 @@ static int xwcsequals(const wchar_t *str, const wchar_t *src)
         if (sa == 0)
             return 1;
         sa = xtolower(*str++);
-        sb = *src++;
+        sb = xtolower(*src++);
     } while (sa == sb);
 
     return 0;
@@ -2634,11 +2634,11 @@ static DWORD runshutdown(void)
     DWORD i, rc = 0;
 
     DBG_PRINTS("started");
-    i = xwcslcpy(rb, SVCBATCH_UUID_MAX, L"\\" SVCBATCH_MMAPPFX);
+    i = xwcslcpy(rb, SVCBATCH_UUID_MAX, SVCBATCH_MMAPPFX);
     xuuidstring(rb + i);
     sharedmmap = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL,
                                     PAGE_READWRITE, 0,
-                                    DSIZEOF(SVCBATCH_IPC), rb + 1);
+                                    DSIZEOF(SVCBATCH_IPC), rb + 2);
     if (sharedmmap == NULL)
         return GetLastError();
     sharedmem = (LPSVCBATCH_IPC)MapViewOfFile(sharedmmap,
@@ -4678,9 +4678,10 @@ static int xwmaininit(void)
 int wmain(int argc, LPCWSTR *argv)
 {
 #if SVCBATCH_LEAN_AND_MEAN
-    DWORD  x;
+    DWORD   x;
 #endif
-    int    i;
+    int     i;
+    LPCWSTR p = NULL;
 
 #if defined(_DEBUG)
 # if defined(_MSC_VER) && (_MSC_VER < 1900)
@@ -4691,7 +4692,7 @@ int wmain(int argc, LPCWSTR *argv)
    _CrtSetReportMode(_CRT_ASSERT, 0);
 #endif
     if (argc == 2) {
-        LPCWSTR p = argv[1];
+        p = argv[1];
         if ((p[0] == L'/') && (p[1] == L'?') && (p[2] == WNUL)) {
             fputs(cnamestamp, stdout);
             fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
@@ -4709,9 +4710,9 @@ int wmain(int argc, LPCWSTR *argv)
     /**
      * Check if running as service or as a child process.
      */
-    if ((argc > 1) && (*(argv[1]) == L'\\')) {
+    if (p && xwstartswith(p, SVCBATCH_MMAPPFX)) {
         servicemode = FALSE;
-        sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, argv[1] + 1);
+        sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p + 2);
         if (sharedmmap == NULL)
             return GetLastError();
         sharedmem = (LPSVCBATCH_IPC)MapViewOfFile(

@@ -71,7 +71,7 @@
 # define SVCBATCH_RES_NAME      "SvcBatch Lite"
 #else
 # define SVCBATCH_LEAN_AND_MEAN 1
-# define SVCBATCH_IS_LITE       0    
+# define SVCBATCH_IS_LITE       0
 # define SVCBATCH_RES_NAME      "SvcBatch"
 #endif
 
@@ -90,7 +90,7 @@
 #define SBSTATUS_LOGFEXT       L".status.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
-#define SVCBATCH_MMAPPFX       L"Local\\mm-"
+#define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"
 
 /**
  * Registry value name where SvcBatch store
