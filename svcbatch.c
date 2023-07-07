@@ -222,23 +222,23 @@ static LPCWSTR cmdoptions  = L"c:e:h:k:pw:";
 typedef enum {
     SVCBATCH_SCM_CREATE = 0,
     SVCBATCH_SCM_CONFIG,
-    SVCBATCH_SCM_START,
-    SVCBATCH_SCM_STOP,
-    SVCBATCH_SCM_DELETE,
     SVCBATCH_SCM_CONTROL,
+    SVCBATCH_SCM_DELETE,
     SVCBATCH_SCM_DESCRIPTION,
-    SVCBATCH_SCM_PRIVS
+    SVCBATCH_SCM_PRIVS,
+    SVCBATCH_SCM_START,
+    SVCBATCH_SCM_STOP
 } SVCBATCH_SCM_CMD;
 
 static const wchar_t *scmcommands[] = {
     L"Create",                  /* SVCBATCH_SCM_CREATE      */
     L"Config",                  /* SVCBATCH_SCM_CONFIG      */
-    L"Start",                   /* SVCBATCH_SCM_START       */
-    L"Stop",                    /* SVCBATCH_SCM_STOP        */
-    L"Delete",                  /* SVCBATCH_SCM_DELETE      */
     L"Control",                 /* SVCBATCH_SCM_CONTROL     */
+    L"Delete",                  /* SVCBATCH_SCM_DELETE      */
     L"Description",             /* SVCBATCH_SCM_DESCRIPTION */
     L"Privs",                   /* SVCBATCH_SCM_PRIVS       */
+    L"Start",                   /* SVCBATCH_SCM_START       */
+    L"Stop",                    /* SVCBATCH_SCM_STOP        */
     NULL
 };
 
@@ -253,12 +253,12 @@ static const SVCBATCH_NAME_MAP starttypemap[] = {
 static const wchar_t *scmallowed[] = {
     L"vbdDinpPsu",         /* SVCBATCH_SCM_CREATE      */
     L"vbdDinpPsu",         /* SVCBATCH_SCM_CONFIG      */
-    L"vw",                 /* SVCBATCH_SCM_START       */
-    L"vw",                 /* SVCBATCH_SCM_STOP        */
-    L"vw",                 /* SVCBATCH_SCM_DELETE      */
     L"v",                  /* SVCBATCH_SCM_CONTROL     */
+    L"vw",                 /* SVCBATCH_SCM_DELETE      */
     L"v",                  /* SVCBATCH_SCM_DESCRIPTION */
     L"v",                  /* SVCBATCH_SCM_PRIVS       */
+    L"vw",                 /* SVCBATCH_SCM_START       */
+    L"vw",                 /* SVCBATCH_SCM_STOP        */
     NULL
 };
 
@@ -4516,8 +4516,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     }
                     srminor = sv;
                 }
-                argc -= 1;
-                argv += 1;
             }
             else {
                 rv = ERROR_INVALID_PARAMETER;
@@ -4525,9 +4523,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 ed = argv[0];
                 goto finished;
             }
-            if (argc > 0) {
+            if (argc > 1) {
                 /* Comment is limited to 128 chars */
-                xwcslcpy(cb, SBUFSIZ, argv[0]);
+                xwcslcpy(cb, SBUFSIZ, argv[1]);
                 ssr->pszComment = cb;
             }
             ssr->dwReason = srflag | srmajor | srminor;
@@ -4675,10 +4673,15 @@ finished:
             fprintf(stderr, "             : %S\n", eb);
             if (ed != NULL)
             fprintf(stderr, "               %S\n", ed);
-            if ((cmdverbose > 1) && (orgargc > 1)) {
+            if ((cmdverbose == 3) && (orgargc > 1)) {
             fputs("\n   Arguments :\n", stderr);
             for (i = 1; i < orgargc; i++)
             fprintf(stderr, "               %S\n", orgargv[i]);
+            }
+            if ((cmdverbose == 2) && (argc > 0)) {
+            fputs("\n   Arguments :\n", stderr);
+            for (i = 0; i < argc; i++)
+            fprintf(stderr, "               %S\n", argv[i]);
             }
             fputc('\n', stderr);
         }
