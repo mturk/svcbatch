@@ -225,7 +225,9 @@ typedef enum {
     SVCBATCH_SCM_START,
     SVCBATCH_SCM_STOP,
     SVCBATCH_SCM_DELETE,
-    SVCBATCH_SCM_CONTROL
+    SVCBATCH_SCM_CONTROL,
+    SVCBATCH_SCM_DESCRIPTION,
+    SVCBATCH_SCM_PRIVS
 } SVCBATCH_SCM_CMD;
 
 static const wchar_t *scmcommands[] = {
@@ -235,6 +237,8 @@ static const wchar_t *scmcommands[] = {
     L"Stop",                    /* SVCBATCH_SCM_STOP        */
     L"Delete",                  /* SVCBATCH_SCM_DELETE      */
     L"Control",                 /* SVCBATCH_SCM_CONTROL     */
+    L"Description",             /* SVCBATCH_SCM_DESCRIPTION */
+    L"Privs",                   /* SVCBATCH_SCM_PRIVS       */
     NULL
 };
 
@@ -253,6 +257,8 @@ static const wchar_t *scmallowed[] = {
     L"vw",                 /* SVCBATCH_SCM_STOP        */
     L"vw",                 /* SVCBATCH_SCM_DELETE      */
     L"v",                  /* SVCBATCH_SCM_CONTROL     */
+    L"v",                  /* SVCBATCH_SCM_DESCRIPTION */
+    L"v",                  /* SVCBATCH_SCM_PRIVS       */
     NULL
 };
 
@@ -4131,10 +4137,10 @@ static int xscmcommand(LPCWSTR ncmd)
 {
     int s = xtolower(*ncmd++);
 
-    if ((s == 'c') || (s == 'd') || (s == 's')) {
+    if ((s == 'c') || (s == 'd') || (s == 'p') || (s == 's')) {
         int i = 0;
         int x = 0;
-        WCHAR ccmd[8];
+        WCHAR ccmd[16];
 
         while (*ncmd)
             ccmd[x++] = xtolower(*ncmd++);
@@ -4601,6 +4607,14 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             goto finished;
         }
     }
+    if (cmd == SVCBATCH_SCM_DESCRIPTION) {
+        if (argc == 0) {
+            rv = ERROR_INVALID_PARAMETER;
+            ec = __LINE__;
+            goto finished;
+        }
+        description = argv[0];
+    }
     if (description) {
         SERVICE_DESCRIPTIONW sc;
         sc.lpDescription = (LPWSTR)description;
@@ -4609,6 +4623,14 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ec = __LINE__;
             goto finished;
         }
+    }
+    if (cmd == SVCBATCH_SCM_PRIVS) {
+        if (argc == 0) {
+            rv = ERROR_INVALID_PARAMETER;
+            ec = __LINE__;
+            goto finished;
+        }
+        privileges = argv[0];
     }
     if (privileges) {
         LPWSTR reqprivs;
@@ -4828,7 +4850,7 @@ int wmain(int argc, LPCWSTR *argv)
          * Check if this is a Service Manager command
          */
         i = xwcslen(argv[1]);
-        if ((i > 3) && (i < 8)) {
+        if ((i > 3) && (i < 12)) {
             int cmd = xscmcommand(argv[1]);
             if (cmd >= 0) {
                 argc  -= 2;
