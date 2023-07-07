@@ -183,7 +183,7 @@ static BOOL      servicemode    = TRUE;
 static DWORD     svcoptions     = 0;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
-
+static int       svcfailmode    = SVCBATCH_FAIL_EXIT;
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
@@ -209,9 +209,9 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
 #if SVCBATCH_LEAN_AND_MEAN
-static LPCWSTR cmdoptions  = L"bc:e:gh:k:lm:n:o:pqr:s:tvw:";
+static LPCWSTR cmdoptions  = L"bc:e:f:gh:k:lm:n:o:pqr:s:tvw:";
 #else
-static LPCWSTR cmdoptions  = L"c:e:h:k:pw:";
+static LPCWSTR cmdoptions  = L"c:e:f:h:k:pw:";
 #endif
 
 #if SVCBATCH_HAVE_SCM
@@ -941,10 +941,22 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
                 ++place;
         }
         if (*place) {
+            if (*place == L':')  {
+                ++place;
+                while (xisblank(*place))
+                    ++place;
+                if (*place == WNUL) {
+                    /* Missing explicit in-place argument */
+                    place = zerostring;
+                    return ENOENT;
+                }
+            }
             xwoptarg = place;
         }
         else if (nargc > ++xwoptind) {
             xwoptarg = nargv[xwoptind];
+            while (xisblank(*xwoptarg))
+                ++xwoptarg;
         }
         xwoptind++;
         place = zerostring;
@@ -1677,12 +1689,33 @@ static void reportsvcstatus(DWORD status, DWORD param)
         service->status.dwControlsAccepted = SERVICE_ACCEPT_STOP |
                                              SERVICE_ACCEPT_SHUTDOWN |
                                              preshutdown;
+        service->status.dwWin32ExitCode    = NO_ERROR;
         InterlockedExchange(&cpcnt, 0);
     }
     else if (status == SERVICE_STOPPED) {
         if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
-            xsyserror(param, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
-            exit(1);
+            if (svcfailmode == SVCBATCH_FAIL_EXIT) {
+                xsyserror(param, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+                SVCBATCH_CS_LEAVE(service);
+                exit(ERROR_INVALID_LEVEL);
+            }
+            else {
+                if (svcfailmode == SVCBATCH_FAIL_NONE) {
+                    xsysinfo(L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+                    param = 0;
+                    service->status.dwWin32ExitCode = NO_ERROR;
+                }
+                else {
+                    /* svcfailmode == SVCBATCH_FAIL_ERROR */
+                    xsyswarn(param, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+                    if (param == 0) {
+                        if (service->status.dwCurrentState == SERVICE_RUNNING)
+                            param = ERROR_PROCESS_ABORTED;
+                        else
+                            param = ERROR_SERVICE_START_HANG;
+                    }
+                }
+            }
         }
         if (param != 0)
             service->status.dwServiceSpecificExitCode  = param;
@@ -3608,6 +3641,11 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     xsyswarn(0, L"The -o command option value is invalid", xwoptarg);
             break;
 #endif
+            case 'f':
+                svcfailmode = xwcstoi(xwoptarg, NULL);
+                if ((svcfailmode < 0) || (svcfailmode > 2))
+                    return xsyserror(0, L"The -f command option value is outside valid range", xwoptarg);
+            break;
             case 'h':
                 svchomeparam = skipdotslash(xwoptarg);
                 if (svchomeparam == NULL)
@@ -4695,6 +4733,9 @@ finished:
             fprintf(stdout, "     STARTUP : %d\n", starttype);
             if (cmd == SVCBATCH_SCM_START)
             fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
+            if (cmd == SVCBATCH_SCM_STOP)
+            fprintf(stdout, "    EXITCODE : %lu (0x%x)\n", ssp->dwServiceSpecificExitCode,
+                                                           ssp->dwServiceSpecificExitCode);
             if ((cmdverbose > 1) && (argc > 0)) {
             fputs("\n   Arguments :\n", stdout);
             for (i = 0; i < argc; i++)

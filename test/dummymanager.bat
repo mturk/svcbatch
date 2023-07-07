@@ -112,12 +112,14 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose ^
     /name "A Dummy Service" /description "One dummy SvcBatch service example" ^
     /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
-    -pbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR% ^
+    -pbL /f:0 /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR% ^
     %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
     %SERVICE_BATCH% run %%TEMP%% %%SOME_RANDOM_VARIABLE%%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
+rem sc failure adummysvc reset= INFINITE actions= restart/10000
+rem sc failureflag adummysvc 1
 rem
 echo %~nx0: Created %SERVICE_NAME%
 goto End
