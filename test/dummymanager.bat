@@ -55,7 +55,7 @@ rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=/sshutdown /S!SystemRoot! "/ssome argument with spaces""
+set "SHUTDOWN_ARGS=/sshutdown /S@SystemRoot@ "/ssome @@argument @@@@@with spaces""
 rem
 rem
 set "SERVICE_LOG_DIR=-o "Logs/%SERVICE_NAME%""
@@ -73,12 +73,12 @@ rem Set log file names instead default SvcBatch.log and SvcBatch.shutdown.log
 rem Both .log and .shutdown.log extensions are added to the -n parameter
 rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%""
 rem
-rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.!Y-!m-!d.!H!M!S""
+rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.@Y-@m-@d.@H@M@S""
 rem
-set "SERVICE_LOG_FNAME="/n%SERVICE_NAME%.%%Y-!m-%%d""
+set "SERVICE_LOG_FNAME="/n%SERVICE_NAME%.%%Y-@m-%%d""
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=/ePATH=%BUILD_DIR%;!PATH!"
+set "SERVICE_ENVIRONMENT=/ePATH=%BUILD_DIR%;%%PATH%%"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line

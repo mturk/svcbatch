@@ -99,6 +99,17 @@
 #define SVCBATCH_SVCARGS       L"ImagePathArguments"
 
 /**
+ * Character that is replaced with '%'
+ * for environment and format arguments
+ *
+ * Two consecutive characters will be replaces by
+ * a single one.
+ * The "a@@b@@@c@d" string will and as "a@b@%c%d"
+ */
+#define SVCBATCH_REPLACE_CHAR  L'@'
+
+
+/**
  * Default arguments for cmd.exe
  *
  * /D     Disable execution of AutoRun commands from registry
