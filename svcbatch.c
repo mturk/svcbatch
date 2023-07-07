@@ -4205,7 +4205,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       ec = 0;
     int       ep = 0;
     int       cmdverbose  = 0;
-    ULONGLONG wrs         = 0;
+    ULONGLONG wtmstart    = 0;
+    ULONGLONG wtimeout    = 0;
     LPCWSTR   ed          = NULL;
     LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
@@ -4378,8 +4379,10 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         ed = service->name;
         goto finished;
     }
-    if (wtime)
-        wrs = GetTickCount64();
+    if (wtime) {
+        wtimeout = wtime * ONE_SECOND;
+        wtmstart = GetTickCount64();
+    }
     if (cmd == SVCBATCH_SCM_DELETE) {
         if (!QueryServiceStatusEx(svc,
                                   SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
@@ -4409,7 +4412,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 }
                 if (ssp->dwCurrentState == SERVICE_STOPPED)
                     break;
-                if (--wtime == 0) {
+                if (GetTickCount64() - wtmstart > wtimeout) {
                     /* Timeout */
                     rv = ERROR_SERVICE_REQUEST_TIMEOUT;
                     ec = __LINE__;
@@ -4463,7 +4466,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     ec = __LINE__;
                     goto finished;
                 }
-                if (--wtime == 0) {
+                if (GetTickCount64() - wtmstart > wtimeout) {
                     /** Timeout */
                     rv = ERROR_SERVICE_REQUEST_TIMEOUT;
                     ec = __LINE__;
@@ -4503,7 +4506,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             }
             if (ssp->dwCurrentState == SERVICE_STOPPED)
                 goto finished;
-            if (--wtime == 0) {
+            if (GetTickCount64() - wtmstart > wtimeout) {
                 /** Timeout */
                 rv = ERROR_SERVICE_REQUEST_TIMEOUT;
                 ec = __LINE__;
@@ -4586,7 +4589,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             }
             if (ssp->dwCurrentState == SERVICE_STOPPED)
                 break;
-            if (--wtime == 0) {
+            if (GetTickCount64() - wtmstart > wtimeout) {
                 /** Timeout */
                 rv = ERROR_SERVICE_REQUEST_TIMEOUT;
                 ec = __LINE__;
@@ -4705,6 +4708,8 @@ finished:
             fprintf(stdout, "               %d (%d)\n", ec, ep);
             else
             fprintf(stdout, "               %d\n", ec);
+            if (wtime && cmdverbose > 1)
+            fprintf(stderr, "               %llu ms\n", GetTickCount64() - wtmstart);
             fprintf(stdout, "             : FAILED\n");
             fprintf(stderr, "             : %d (0x%x)\n", rv,  rv);
             fprintf(stderr, "             : %S\n", eb);
@@ -4727,7 +4732,7 @@ finished:
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "             : SUCCESS\n");
             if (wtime)
-            fprintf(stdout, "               %llu ms\n", GetTickCount64() - wrs);
+            fprintf(stdout, "               %llu ms\n", GetTickCount64() - wtmstart);
             if (cmd == SVCBATCH_SCM_CREATE)
             fprintf(stdout, "     STARTUP : %d\n", starttype);
             if (cmd == SVCBATCH_SCM_START)
