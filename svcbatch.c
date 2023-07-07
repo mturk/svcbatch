@@ -855,24 +855,17 @@ static int xwstartswith(LPCWSTR src, LPCWSTR str)
             return 0;
         pos++;
     }
-    if (*str)
-        return 0;
-    else
-        return pos;
+    return *str ? 0 : pos;
 }
 
 static int xwcsequals(const wchar_t *str, const wchar_t *src)
 {
-    int sa = 1;
-    int sb;
+    int sa;
 
-    do {
+    while ((sa = xtolower(*str++)) == xtolower(*src++)) {
         if (sa == 0)
             return 1;
-        sa = xtolower(*str++);
-        sb = xtolower(*src++);
-    } while (sa == sb);
-
+    }
     return 0;
 }
 
