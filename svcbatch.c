@@ -3484,7 +3484,7 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
     return argv;
 }
 
-static void getsvcarguments(int orgc, LPCWSTR *orgv, int *argc, LPWSTR **argv)
+static DWORD getsvcarguments(int orgc, LPCWSTR *orgv, int *argc, LPWSTR **argv)
 {
     DWORD   t;
     DWORD   c;
@@ -3504,13 +3504,15 @@ static void getsvcarguments(int orgc, LPCWSTR *orgv, int *argc, LPWSTR **argv)
     s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                      RRF_RT_REG_MULTI_SZ, &t, b, &c);
     if (s != ERROR_SUCCESS) {
-        SAFE_MEM_FREE(b);
-        goto finished;
+        xfree(b);
+        RegCloseKey(k);
+        return s;
     }
 finished:
     if (k != NULL)
         RegCloseKey(k);
     *argv = mergearguments(orgc, orgv, (LPWSTR)b, argc);
+    return ERROR_SUCCESS;
 }
 
 static int parseoptions(int argc, LPCWSTR *argv)
@@ -3541,7 +3543,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
     WCHAR    wb[BBUFSIZ];
 
     DBG_PRINTF("started %d", argc);
-    getsvcarguments(argc, argv, &rargc, &rargv);
+    x = getsvcarguments(argc, argv, &rargc, &rargv);
+    if (x != ERROR_SUCCESS)
+        return xsyserror(x, SVCBATCH_SVCARGS, NULL);
     argc = rargc;
     argv = rargv;
 
