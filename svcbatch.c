@@ -246,38 +246,11 @@ static const SVCBATCH_NAME_MAP starttypemap[] = {
     { NULL,      0 }
 };
 
-static const SVCBATCH_NAME_MAP stopreasonmajor[] = {
-    { L"app",   SERVICE_STOP_REASON_MAJOR_APPLICATION       },
-    { L"hard",  SERVICE_STOP_REASON_MAJOR_HARDWARE          },
-    { L"n",     SERVICE_STOP_REASON_MAJOR_NONE              },
-    { L"o",     SERVICE_STOP_REASON_MAJOR_OTHER             },
-    { L"soft",  SERVICE_STOP_REASON_MAJOR_SOFTWARE          },
-    { L"sys",   SERVICE_STOP_REASON_MAJOR_OPERATINGSYSTEM   },
-    { NULL,     0 }
-};
-
-static const SVCBATCH_NAME_MAP stopreasonminor[] = {
-    { L"env",   SERVICE_STOP_REASON_MINOR_ENVIRONMENT       },
-    { L"hard",  SERVICE_STOP_REASON_MINOR_HARDWARE_DRIVER   },
-    { L"hu",    SERVICE_STOP_REASON_MINOR_HUNG              },
-    { L"ins",   SERVICE_STOP_REASON_MINOR_INSTALLATION      },
-    { L"maint", SERVICE_STOP_REASON_MINOR_MAINTENANCE       },
-    { L"n",     SERVICE_STOP_REASON_MINOR_NONE              },
-    { L"o",     SERVICE_STOP_REASON_MINOR_OTHER             },
-    { L"r",     SERVICE_STOP_REASON_MINOR_RECONFIG          },
-    { L"sec",   SERVICE_STOP_REASON_MINOR_SECURITY          },
-    { L"up",    SERVICE_STOP_REASON_MINOR_UPGRADE           },
-    { L"unr",   SERVICE_STOP_REASON_MINOR_HUNG              },
-    { L"uns",   SERVICE_STOP_REASON_MINOR_UNSTABLE          },
-    { NULL,     0 }
-};
-
-
 static const wchar_t *scmallowed[] = {
     L"vbdDinpPsu",         /* SVCBATCH_SCM_CREATE      */
     L"vbdDinpPsu",         /* SVCBATCH_SCM_CONFIG      */
     L"vw",                 /* SVCBATCH_SCM_START       */
-    L"vwr",                /* SVCBATCH_SCM_STOP        */
+    L"vw",                 /* SVCBATCH_SCM_STOP        */
     L"vw",                 /* SVCBATCH_SCM_DELETE      */
     L"v",                  /* SVCBATCH_SCM_CONTROL     */
     NULL
@@ -309,7 +282,6 @@ static const wchar_t *scmcoptions[] = {
     L"n+name",
     L"p+password",
     L"P:privs",
-    L"r+reason",
     L"i.interact",
     L"u+obj",
     L"u+user",
@@ -4193,16 +4165,17 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     LPCWSTR   ed          = NULL;
     LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
-    LPWSTR    reqprivs    = NULL;
     LPWSTR    binarypath  = NULL;
     LPCWSTR   description = NULL;
     LPCWSTR   displayname = NULL;
+    LPCWSTR   privileges  = NULL;
     LPCWSTR   username    = NULL;
     LPCWSTR   password    = NULL;
     DWORD     starttype   = SERVICE_NO_CHANGE;
     DWORD     servicetype = SERVICE_NO_CHANGE;
     DWORD     srmajor     = SERVICE_STOP_REASON_MAJOR_NONE;
     DWORD     srminor     = SERVICE_STOP_REASON_MINOR_NONE;
+    DWORD     srflag      = SERVICE_STOP_REASON_FLAG_PLANNED;
     DWORD     wtime       = 0;
     SC_HANDLE mgr         = NULL;
     SC_HANDLE svc         = NULL;
@@ -4266,26 +4239,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 password    = xwoptarg;
             break;
             case 'P':
-                x = xwcslen(xwoptarg);
-                xfree(reqprivs);
-                reqprivs = xwmalloc(x + 2);
-                for (i = 0; i < x; i++) {
-                    if (xwoptarg[i] == L'/')
-                        reqprivs[i] = WNUL;
-                    else
-                        reqprivs[i] = xwoptarg[i];
-                }
-                reqprivs[i++] = WNUL;
-                reqprivs[i]   = WNUL;
-            break;
-            case 'r':
-                xwcslcpy(cb, SBUFSIZ, xwoptarg);
-                pp = wcschr(cb, L'.');
-                if (pp) {
-                    *(pp++) = WNUL;
-                    srminor = xnamemap(pp, stopreasonminor, SERVICE_STOP_REASON_MINOR_NONE);
-                }
-                srmajor = xnamemap(cb, stopreasonmajor, SERVICE_STOP_REASON_MAJOR_NONE);
+                privileges  = xwoptarg;
             break;
             case 's':
                 starttype = xnamemap(xwoptarg, starttypemap, SERVICE_NO_CHANGE);
@@ -4513,9 +4467,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 goto finished;
             }
         }
-        if ((argc == 0) &&
-            (srmajor == SERVICE_STOP_REASON_MAJOR_NONE) &&
-            (srminor == SERVICE_STOP_REASON_MINOR_NONE)) {
+        if (argc == 0) {
             if (!ControlService(svc, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)ssp)) {
                 rv = GetLastError();
                 ec = __LINE__;
@@ -4523,12 +4475,56 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             }
         }
         else {
+            LPCWSTR rp = argv[0];
+            if (wcschr(rp, L':')) {
+                LPWSTR sp;
+                DWORD  sv;
+
+                sv = xwcstoi(rp, &sp);
+                if ((sv < 1) || (sv > 4)) {
+                    rv = ERROR_INVALID_PARAMETER;
+                    ec = __LINE__;
+                    ed = argv[0];
+                    goto finished;
+                }
+                srflag = (sv << 28);
+                if (*sp == L':') {
+                    rp = sp + 1;
+                    sv = xwcstoi(rp, &sp);
+                    if ((sv < 1) || (sv > 255)) {
+                        rv = ERROR_INVALID_PARAMETER;
+                        ec = __LINE__;
+                        ed = argv[0];
+                        goto finished;
+                    }
+                    srmajor = (sv << 16);
+                }
+                if (*sp == L':') {
+                    rp = sp + 1;
+                    sv = xwcstoi(rp, &sp);
+                    if ((sv < 1) || (sv > 65535)) {
+                        rv = ERROR_INVALID_PARAMETER;
+                        ec = __LINE__;
+                        ed = argv[0];
+                        goto finished;
+                    }
+                    srminor = sv;
+                }
+                argc -= 1;
+                argv += 1;
+            }
+            else {
+                rv = ERROR_INVALID_PARAMETER;
+                ec = __LINE__;
+                ed = argv[0];
+                goto finished;
+            }
             if (argc > 0) {
                 /* Comment is limited to 128 chars */
                 xwcslcpy(cb, SBUFSIZ, argv[0]);
                 ssr->pszComment = cb;
             }
-            ssr->dwReason = SERVICE_STOP_REASON_FLAG_PLANNED | srmajor | srminor;
+            ssr->dwReason = srflag | srmajor | srminor;
             if (!ControlServiceExW(svc, SERVICE_CONTROL_STOP,
                                    SERVICE_CONTROL_STATUS_REASON_INFO, (LPBYTE)ssr)) {
                 rv = GetLastError();
@@ -4614,8 +4610,21 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             goto finished;
         }
     }
-    if (reqprivs) {
+    if (privileges) {
+        LPWSTR reqprivs;
         SERVICE_REQUIRED_PRIVILEGES_INFOW sc;
+
+        x = xwcslen(privileges);
+        reqprivs = xwmalloc(x + 2);
+        for (i = 0; i < x; i++) {
+            if (privileges[i] == L'/')
+                reqprivs[i] = WNUL;
+            else
+                reqprivs[i] = privileges[i];
+        }
+        reqprivs[i++] = WNUL;
+        reqprivs[i]   = WNUL;
+
         sc.pmszRequiredPrivileges = reqprivs;
         if (!ChangeServiceConfig2W(svc, SERVICE_CONFIG_REQUIRED_PRIVILEGES_INFO, &sc)) {
             rv = GetLastError();

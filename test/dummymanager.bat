@@ -165,12 +165,22 @@ pushd "..\.build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 rem
-echo %~nx0: Stopping %SERVICE_NAME%
+set "_NX=%~nx0"
+echo %_NX%: Stopping %SERVICE_NAME%
 rem Wait up to 30 seconds until the service is Stopped
 rem
-%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /verbose /wait=30
+shift
+set STOP_CMD_ARGS=
+:setStopArgs
+if "x%~1" == "x" goto doneStopArgs
+set "STOP_CMD_ARGS=%STOP_CMD_ARGS% "%~1""
+shift
+goto setStopArgs
+:doneStopArgs
+rem
+%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /verbose /wait=30 %STOP_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL
-echo %~nx0: Stopped %SERVICE_NAME%
+echo %_NX%: Stopped %SERVICE_NAME%
 goto End
 rem
 :doBreak
