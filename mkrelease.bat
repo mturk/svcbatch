@@ -36,7 +36,7 @@ rem
 rem
 if /i "x%~1" == "x/d" goto setDebug
 if /i "x%~1" == "x/s" goto setStatic
-if /i "x%~1" == "x/l" goto setLight
+if /i "x%~1" == "x/l" goto setLite
 rem
 goto doneOpts
 rem
@@ -52,7 +52,7 @@ set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=1"
 shift
 goto getOpts
 rem
-:setLight
+:setLite
 set "MakefileArgs=%MakefileArgs% _SVCBATCH_LITE=1"
 set "ReleaseArch=lite-%ReleaseArch%"
 shift
