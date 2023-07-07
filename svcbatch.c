@@ -499,22 +499,31 @@ static LPWSTR xargvtomsz(int argc, LPCWSTR *argv, int *sz)
     return bp;
 }
 
-static void xwchreplace(LPWSTR s, WCHAR c, WCHAR r)
+static void xwchreplace(LPWSTR s)
 {
     LPWSTR d;
 
     for (d = s; *s; s++, d++) {
-        if (*s == c) {
-            if (*(s + 1) == c)
+        if (*s == SVCBATCH_REPLACE_CHAR) {
+            if (*(s + 1) == SVCBATCH_REPLACE_CHAR)
                 *d = *(s++);
             else
-                *d = r;
+                *d = L'%';
         }
         else {
             *d = *s;
         }
     }
     *d = WNUL;
+}
+
+static void xwcsreplace(LPWSTR s)
+{
+     while (*s) {
+        if (*s == SVCBATCH_REPLACE_CHAR)
+            *s = L'%';
+        s++;
+    }
 }
 
 /**
@@ -741,7 +750,7 @@ static DWORD xsetenv(LPCWSTR s)
         r = ERROR_INVALID_DATA;
         goto finished;
     }
-    xwchreplace(v, SVCBATCH_REPLACE_CHAR, L'%');
+    xwcsreplace(v);
     if (wcschr(v, L'%')) {
         DWORD c;
 
@@ -855,6 +864,8 @@ static int xwstartswith(LPCWSTR src, LPCWSTR str)
     int pos = 0;
     int sa, sb;
 
+    if (IS_EMPTY_WCS(src))
+        return 0;
     while (*src) {
         if (*str == WNUL)
             return pos;
@@ -3611,7 +3622,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     xsyswarn(0, L"The -n command option value is invalid", xwoptarg);
                 if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
                     return xsyserror(0, L"Found invalid filename characters", svclogfname);
-                xwchreplace(svclogfname, SVCBATCH_REPLACE_CHAR, L'%');
+                xwcsreplace(svclogfname);
             break;
             case 'o':
                 outdirparam  = skipdotslash(xwoptarg);
@@ -3887,7 +3898,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             if (xwcslen(sparam[i]) >= SVCBATCH_NAME_MAX)
                 return xsyserror(0, L"The argument is too large", sparam[i]);
             svcstop->args[i] = xwcsdup(sparam[i]);
-            xwchreplace(svcstop->args[i], SVCBATCH_REPLACE_CHAR, L'%');
+            xwchreplace(svcstop->args[i]);
         }
         svcstop->argc = scnt;
     }
@@ -3977,7 +3988,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     service->logs = service->work;
 #endif
     for (i = 0; i < cmdproc->argc; i++)
-        xwchreplace(cmdproc->args[i], SVCBATCH_REPLACE_CHAR, L'%');
+        xwchreplace(cmdproc->args[i]);
     /**
      * Add additional environment variables
      * They are unique to this service instance
@@ -4736,6 +4747,10 @@ int wmain(int argc, LPCWSTR *argv)
 # endif
    _CrtSetReportMode(_CRT_ASSERT, 0);
 #endif
+    /**
+     * Make sure child processes are kept quiet.
+     */
+    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
     if (argc == 2) {
         p = argv[1];
         if ((p[0] == L'/') && (p[1] == L'?') && (p[2] == WNUL)) {
@@ -4744,10 +4759,6 @@ int wmain(int argc, LPCWSTR *argv)
             return 0;
         }
     }
-    /**
-     * Make sure child processes are kept quiet.
-     */
-    SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
     i = xwmaininit();
     if (i != 0)
         return i;
@@ -4755,7 +4766,7 @@ int wmain(int argc, LPCWSTR *argv)
     /**
      * Check if running as service or as a child process.
      */
-    if (p && xwstartswith(p, SVCBATCH_MMAPPFX)) {
+    if (xwstartswith(p, SVCBATCH_MMAPPFX)) {
         servicemode = FALSE;
         sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p + 2);
         if (sharedmmap == NULL)
