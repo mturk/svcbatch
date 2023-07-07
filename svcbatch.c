@@ -4725,6 +4725,7 @@ int wmain(int argc, LPCWSTR *argv)
     DWORD   x;
 #endif
     int     i;
+    int     r = 0;
     LPCWSTR p = NULL;
 
 #if defined(_DEBUG)
@@ -4861,13 +4862,13 @@ int wmain(int argc, LPCWSTR *argv)
         se[1].lpServiceName = NULL;
         se[1].lpServiceProc = NULL;
         if (!StartServiceCtrlDispatcherW(se))
-            return GetLastError();
+            r = GetLastError();
     }
 #if SVCBATCH_LEAN_AND_MEAN
     else {
-        return svcstopmain();
+        r = svcstopmain();
     }
 #endif
     DBG_PRINTS("done");
-    return 0;
+    return r;
 }
