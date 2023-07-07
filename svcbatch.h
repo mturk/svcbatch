@@ -237,13 +237,8 @@
  * in seconds
  */
 #define SVCBATCH_SCM_WAIT_DEF   30
-/**
- * Service manager time between two
- * status queries in milliseconds
- */
-#define SVCBATCH_SCM_WAIT_INT   500
 
-
+#define ONE_SECOND              1000
 #define MS_IN_DAY               86400000
 #define MS_IN_SECOND            CPP_INT64_C(1000)
 #define MS_IN_MINUTE            CPP_INT64_C(60000)
