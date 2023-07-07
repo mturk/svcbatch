@@ -4224,8 +4224,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     DWORD     wtime       = 0;
     SC_HANDLE mgr         = NULL;
     SC_HANDLE svc         = NULL;
-    int       orgargc     = argc;
-    LPCWSTR  *orgargv     = argv;
 
     ssr = (PSERVICE_CONTROL_STATUS_REASON_PARAMSW)xmcalloc(sizeof(SERVICE_CONTROL_STATUS_REASON_PARAMSW));
     ssp = &ssr->ServiceStatus;
@@ -4242,7 +4240,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             break;
             case 'v':
                 cmdverbose = xwcstoi(xwoptarg, NULL);
-                if (cmdverbose < 0)
+                if (cmdverbose < 1)
                     cmdverbose = 1;
             break;
             case 'b':
@@ -4715,12 +4713,7 @@ finished:
             fprintf(stderr, "             : %S\n", eb);
             if (ed != NULL)
             fprintf(stderr, "               %S\n", ed);
-            if ((cmdverbose == 3) && (orgargc > 1)) {
-            fputs("\n   Arguments :\n", stderr);
-            for (i = 1; i < orgargc; i++)
-            fprintf(stderr, "               %S\n", orgargv[i]);
-            }
-            if ((cmdverbose == 2) && (argc > 0)) {
+            if ((cmdverbose > 1) && (argc > 0)) {
             fputs("\n   Arguments :\n", stderr);
             for (i = 0; i < argc; i++)
             fprintf(stderr, "               %S\n", argv[i]);
