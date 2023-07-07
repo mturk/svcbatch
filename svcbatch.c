@@ -912,13 +912,19 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         place  = nargv[xwoptind];
         option = *(place++);
         if (!xisoptswitch(option)) {
-            /* Argument is not an option */
             place = zerostring;
-            return EOF;
+            /**
+             * Argument is not an option
+             * Use it as in-place argument
+             */
+            xwoptarg = nargv[xwoptind++];
+            return ':';
         }
         if ((*place == WNUL) || (*place == option)) {
             /* We have '--' or '//' */
             place = zerostring;
+            if (option == '-')
+                xwoptind++;
             return EOF;
         }
         xwoption = place;
@@ -3553,34 +3559,51 @@ static int parseoptions(int argc, LPCWSTR *argv)
 
     while ((opt = xwgetopt(argc, argv, cmdoptions)) != EOF) {
         switch (opt) {
+            case ':':
+                if (scriptparam == NULL) {
+                    scriptparam = xwoptarg;
+                }
+                else {
+                    /**
+                     * Add arguments for batch file
+                     */
+                    if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
+                        return xsyserror(0, L"The argument is too large", xwoptarg);
+
+                    if (cmdproc->argc < SVCBATCH_MAX_ARGS)
+                        cmdproc->args[cmdproc->argc++] = xwcsdup(xwoptarg);
+                    else
+                        return xsyserror(0, L"Too many arguments", xwoptarg);
+                }
+            break;
 #if SVCBATCH_LEAN_AND_MEAN
-            case L'b':
+            case 'b':
                 svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
             break;
-            case L'g':
+            case 'g':
                 svcoptions  |= SVCBATCH_OPT_BREAK;
             break;
-            case L'l':
+            case 'l':
                 svcoptions  |= SVCBATCH_OPT_LOCALTIME;
             break;
-            case L't':
+            case 't':
                 svcoptions  |= SVCBATCH_OPT_TRUNCATE;
             break;
-            case L'v':
+            case 'v':
                 svcoptions  |= SVCBATCH_OPT_VERBOSE;
             break;
 #endif
-            case L'p':
+            case 'p':
                 preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             /**
              * Options with arguments
              */
 #if SVCBATCH_LEAN_AND_MEAN
-            case L'm':
+            case 'm':
                 maxlogsparam = xwoptarg;
             break;
-            case L'n':
+            case 'n':
                 if (svclogfname)
                     return xsyserror(0, L"Found multiple -n command options", xwoptarg);
                 svclogfname = xwcsdup(skipdotslash(xwoptarg));
@@ -3590,23 +3613,23 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     return xsyserror(0, L"Found invalid filename characters", svclogfname);
                 xwchreplace(svclogfname, SVCBATCH_REPLACE_CHAR, L'%');
             break;
-            case L'o':
+            case 'o':
                 outdirparam  = skipdotslash(xwoptarg);
                 if (outdirparam == NULL)
                     xsyswarn(0, L"The -o command option value is invalid", xwoptarg);
             break;
 #endif
-            case L'h':
+            case 'h':
                 svchomeparam = skipdotslash(xwoptarg);
                 if (svchomeparam == NULL)
                     xsyswarn(0, L"The -h command option value is invalid", xwoptarg);
             break;
-            case L'w':
+            case 'w':
                 svcworkparam = skipdotslash(xwoptarg);
                 if (svcworkparam == NULL)
                     xsyswarn(0, L"The -w command option value is invalid", xwoptarg);
             break;
-            case L'k':
+            case 'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
                     return xsyserror(0, L"The -k command option value is outside valid range", xwoptarg);
@@ -3616,7 +3639,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
              * Options that can be defined
              * multiple times
              */
-            case L'c':
+            case 'c':
                 if (commandparam) {
                     if (ccnt < SVCBATCH_MAX_ARGS)
                         cparam[ccnt++] = xwoptarg;
@@ -3629,17 +3652,17 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         xsyswarn(0, L"The -c command option value is invalid", xwoptarg);
                 }
             break;
-            case L'e':
+            case 'e':
                 x = xsetenv(xwoptarg);
                 if (x)
                     return xsyserror(x, xwoptarg, NULL);
             break;
 #if SVCBATCH_LEAN_AND_MEAN
-            case L'q':
+            case 'q':
                 svcoptions |= SVCBATCH_OPT_QUIET;
                 qcnt++;
             break;
-            case L's':
+            case 's':
                 if (svcstopparam) {
                     if (scnt < SVCBATCH_MAX_ARGS)
                         sparam[scnt++] = xwoptarg;
@@ -3653,7 +3676,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
 
                 }
             break;
-            case L'r':
+            case 'r':
                 if (rcnt < 3)
                     rparam[rcnt++] = xwoptarg;
                 else
@@ -3672,30 +3695,34 @@ static int parseoptions(int argc, LPCWSTR *argv)
     argc -= xwoptind;
     argv += xwoptind;
 
-    if (argc == 0) {
-        /**
-         * No batch file defined.
-         */
-        if (wcspbrk(service->name, L":;<>?*|\""))
-            return xsyserror(0, L"Service name has invalid filename characters", NULL);
-        i = xwcsncat(wb, BBUFSIZ, 0, service->name);
-        i = xwcsncat(wb, BBUFSIZ, i, L".bat");
-        scriptparam = wb;
-    }
-    else {
-        scriptparam = argv[0];
-        for (i = 1; i < argc; i++) {
+    if (scriptparam == NULL) {
+        if (argc == 0) {
             /**
-             * Add arguments for batch file
+             * No batch file defined.
              */
-            if (xwcslen(argv[i]) >= SVCBATCH_NAME_MAX)
-                return xsyserror(0, L"The argument is too large", argv[i]);
-
-            if (cmdproc->argc < SVCBATCH_MAX_ARGS)
-                cmdproc->args[cmdproc->argc++] = xwcsdup(argv[i]);
-            else
-                return xsyserror(0, L"Too many arguments", argv[i]);
+            if (wcspbrk(service->name, L":;<>?*|\""))
+                return xsyserror(0, L"Service name has invalid filename characters", NULL);
+            i = xwcsncat(wb, BBUFSIZ, 0, service->name);
+            i = xwcsncat(wb, BBUFSIZ, i, L".bat");
+            scriptparam = wb;
         }
+        else {
+            scriptparam = argv[0];
+            argc -= 1;
+            argv += 1;
+        }
+    }
+    for (i = 0; i < argc; i++) {
+        /**
+         * Add arguments for batch file
+         */
+        if (xwcslen(argv[i]) >= SVCBATCH_NAME_MAX)
+            return xsyserror(0, L"The argument is too large", argv[i]);
+
+        if (cmdproc->argc < SVCBATCH_MAX_ARGS)
+            cmdproc->args[cmdproc->argc++] = xwcsdup(argv[i]);
+        else
+            return xsyserror(0, L"Too many arguments", argv[i]);
     }
     service->uuid = xuuidstring(NULL);
     if (IS_EMPTY_WCS(service->uuid))
