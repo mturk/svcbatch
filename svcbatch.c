@@ -979,7 +979,6 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
 {
     LPCWSTR *longopt;
     LPCWSTR  place;
-    int      option;
 
     xwoptarg = NULL;
     if (xwoptind >= nargc) {
@@ -987,15 +986,15 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         return EOF;
     }
     place  = nargv[xwoptind];
-    option = *(place++);
-    if (!xisoptswitch(option))
+    if (*(place++) != '/')
         return EOF;
-    if ((*place == WNUL) || (*place == option))
+    if ((*place == WNUL) || (*place == '/'))
         return EOF;
     xwoption = place;
     longopt  = longopts;
 
     while (*longopt) {
+        int option;
         int optmod;
         int optsep = 0;
         LPCWSTR optsrc;
