@@ -243,10 +243,10 @@ static const wchar_t *scmcommands[] = {
 };
 
 static const SVCBATCH_NAME_MAP starttypemap[] = {
-    { L"auto",   SERVICE_AUTO_START         },
-    { L"demand", SERVICE_DEMAND_START       },
-    { L"dis",    SERVICE_DISABLED           },
-    { L"man",    SERVICE_DEMAND_START       },
+    { L"auto",      SERVICE_AUTO_START      },
+    { L"demand",    SERVICE_DEMAND_START    },
+    { L"disabled",  SERVICE_DISABLED        },
+    { L"manual",    SERVICE_DEMAND_START    },
     { NULL,      0 }
 };
 
@@ -874,7 +874,7 @@ static DWORD xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, DWORD def)
     if (IS_EMPTY_WCS(src))
         return def;
     for (i = 0; map[i].name != NULL; i++) {
-        if (xwstartswith(src, map[i].name))
+        if (xwcsequals(src, map[i].name))
             return map[i].code;
     }
     return def;
@@ -3327,7 +3327,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
             else {
                 DBG_PRINTS("ctrl+break is disabled");
-                return ERROR_CALL_NOT_IMPLEMENTED;
+                return ERROR_INVALID_SERVICE_CONTROL;
             }
         break;
         case SVCBATCH_CTRL_ROTATE:
@@ -3348,11 +3348,12 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                         logwrstat(statuslog, 0, 1, "Log is busy");
                     else
                         logwrstat(statuslog, 0, 1, "Log is empty");
+                    return ERROR_SERVICE_CANNOT_ACCEPT_CTRL;
                 }
             }
             else {
                 DBG_PRINTS("log rotation is disabled");
-                return ERROR_CALL_NOT_IMPLEMENTED;
+                return ERROR_INVALID_SERVICE_CONTROL;
             }
         break;
 #endif
@@ -4597,7 +4598,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_CONTROL) {
-        DWORD sctrl = SERVICE_CONTROL_INTERROGATE;
+        DWORD sctrl;
+        if (argc == 0) {
+            rv = ERROR_INVALID_PARAMETER;
+            ec = __LINE__;
+            ed = L"The Control code is missing. Use control [service name] <value>";
+            goto finished;
+        }
         if (!QueryServiceStatusEx(svc,
                                   SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
                                   SZ_STATUS_PROCESS_INFO, &bneed)) {
@@ -4605,17 +4612,24 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ec = __LINE__;
             goto finished;
         }
-        if (argc > 0) {
-            sctrl = xwcstoi(argv[0], NULL);
-            if ((sctrl < 128) || (sctrl > 255)) {
-                rv = ERROR_INVALID_PARAMETER;
-                ec = __LINE__;
-                goto finished;
-            }
+        if (ssp->dwCurrentState != SERVICE_RUNNING) {
+            rv = ERROR_SERVICE_CANNOT_ACCEPT_CTRL;
+            ec = __LINE__;
+            ed = L"The service is not in the RUNNING state";
+            goto finished;
         }
-        if (!ControlService(svc, sctrl, (LPSERVICE_STATUS)ssp)) {
+        sctrl = xwcstoi(argv[0], NULL);
+        if ((sctrl < 128) || (sctrl > 255)) {
+            rv = ERROR_INVALID_PARAMETER;
+            ec = __LINE__;
+            ed = argv[0];
+            goto finished;
+        }
+        if (!ControlServiceExW(svc, sctrl,
+                               SERVICE_CONTROL_STATUS_REASON_INFO, (LPBYTE)ssr)) {
             rv = GetLastError();
             ec = __LINE__;
+            ed = argv[0];
         }
         goto finished;
     }
@@ -4726,6 +4740,8 @@ finished:
             fprintf(stdout, "             : SUCCESS\n");
             if (wtime)
             fprintf(stdout, "               %llu ms\n", GetTickCount64() - wtmstart);
+            if (cmd == SVCBATCH_SCM_CONTROL)
+            fprintf(stdout, "               %S\n", argv[0]);
             if (cmd == SVCBATCH_SCM_CREATE)
             fprintf(stdout, "     STARTUP : %d\n", starttype);
             if (cmd == SVCBATCH_SCM_START)

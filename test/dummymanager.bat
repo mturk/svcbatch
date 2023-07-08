@@ -188,13 +188,25 @@ rem
 :doBreak
 rem
 rem
-sc control "%SERVICE_NAME%" 233
+rem sc control "%SERVICE_NAME%" 233
+rem
+pushd "..\.build\dbg"
+set "BUILD_DIR=%cd%"
+popd
+%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" /verbose 233
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
 :doRotate
 rem
 rem
-sc control "%SERVICE_NAME%" 234
+rem sc control "%SERVICE_NAME%" 234
+rem
+pushd "..\.build\dbg"
+set "BUILD_DIR=%cd%"
+popd
+%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" /verbose 234
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
 :doDelete
