@@ -21,7 +21,7 @@ if /i "x%~1" == "xdelete" goto doDelete
 rem
 rem goto doStressTest
 rem
-sc create sservice binPath= "%cd%\svcbatch.exe @sservice -vlb -rS"
+sc create sservice binPath= "%cd%\svcbatch.exe -vlb -rS"
 rem
 goto End
 rem
@@ -36,7 +36,7 @@ copy /Y sservice.exe work\ > nul
 copy /Y xsleep.exe work\ > nul
 rem
 rem Presume that svcbatch.exe is in this directory
-sc create sservice binPath= "%cd%\svcbatch.exe @sservice  -h . -w work -vlb"
+sc create sservice binPath= "%cd%\svcbatch.exe -h . -w work -vlb"
 rem
 goto End
 rem
