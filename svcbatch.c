@@ -438,6 +438,37 @@ static __inline int xisblank(int ch)
         return 0;
 }
 
+static __inline int xisoptswitch(int c)
+{
+    return ((c == 45) || (c == 47));
+}
+
+static __inline LPWSTR xwcschr(LPCWSTR str, int c)
+{
+    ASSERT_WSTR(str, NULL);
+
+    while (*str) {
+        if (*str == c)
+            return (LPWSTR)str;
+        str++;
+    }
+    return NULL;
+}
+
+static __inline LPWSTR xwcsrchr(LPCWSTR str, int c)
+{
+    LPCWSTR s = str;
+
+    ASSERT_WSTR(s, NULL);
+    while (*s)
+        s++;
+    while (--s >= str) {
+        if (*s == c)
+            return (LPWSTR)s;
+    }
+    return NULL;
+}
+
 static LPWSTR xwcsdup(LPCWSTR s)
 {
     size_t n;
@@ -448,6 +479,25 @@ static LPWSTR xwcsdup(LPCWSTR s)
     n = wcslen(s);
     d = xwmalloc(n + 1);
     return wmemcpy(d, s, n);
+}
+
+static LPWSTR xwcspbrk(LPCWSTR str, LPCWSTR set)
+{
+    LPCWSTR p = str;
+    LPCWSTR q;
+
+    ASSERT_WSTR(str, NULL);
+    ASSERT_WSTR(set, NULL);
+    while (*p) {
+        q = set;
+        while (*q) {
+            if (*p == *q)
+                return (LPWSTR)p;
+            q++;
+        }
+        p++;
+    }
+    return NULL;
 }
 
 static LPWSTR xargvtomsz(int argc, LPCWSTR *argv, int *sz)
@@ -708,6 +758,31 @@ static LPWSTR xgetenv(LPCWSTR s)
     return xwcsdup(b);
 }
 
+static LPWSTR xexpandenvstr(LPCWSTR str)
+{
+    LPWSTR  buf = NULL;
+    DWORD   bsz = BBUFSIZ;
+    DWORD   len = 0;
+
+    if (xwcschr(str, L'%') == NULL)
+        buf = xwcsdup(str);
+
+    while (buf == NULL) {
+        buf = xwmalloc(bsz);
+        len = ExpandEnvironmentStringsW(str, buf, bsz - 1);
+        if (len == 0) {
+            xfree(buf);
+            return NULL;
+        }
+        if (len >= bsz) {
+            xfree(buf);
+            buf = NULL;
+            bsz = len + 1;
+        }
+    }
+    return buf;
+}
+
 static DWORD xsetenv(LPCWSTR s)
 {
     WCHAR  b[EBUFSIZ];
@@ -718,7 +793,7 @@ static DWORD xsetenv(LPCWSTR s)
 
     n = xwcsdup(s);
     ASSERT_NULL(n, ERROR_BAD_ENVIRONMENT);
-    v = wcschr(n + 1, L'=');
+    v = xwcschr(n + 1, L'=');
     if (v == NULL) {
         r = ERROR_INVALID_PARAMETER;
         goto finished;
@@ -729,7 +804,7 @@ static DWORD xsetenv(LPCWSTR s)
         goto finished;
     }
     xwcsreplace(v);
-    if (wcschr(v, L'%')) {
+    if (xwcschr(v, L'%')) {
         DWORD c;
 
         c = ExpandEnvironmentStringsW(v, b, z);
@@ -764,7 +839,7 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
 
     if (nq) {
         nq = 0;
-        if (wcspbrk(s2, L" \t\"")) {
+        if (xwcspbrk(s2, L" \t\"")) {
             for (c = s2; ; c++, nq++) {
                 int b = 0;
 
@@ -880,11 +955,6 @@ static DWORD xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, DWORD def)
     return def;
 }
 
-static __inline int xisoptswitch(int c)
-{
-    return ((c == 45) || (c == 47));
-}
-
 static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
 {
     static LPCWSTR place = zerostring;
@@ -921,7 +991,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     option = *(place++);
     if (option != ':') {
         /* Options are case insensitive */
-        oli = wcschr(opts, xtolower(option));
+        oli = xwcschr(opts, xtolower(option));
     }
     if (oli == NULL) {
         xwoptind++;
@@ -1020,7 +1090,7 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         }
         /* Found long option */
         option = *optsrc;
-        if (wcschr(opts, option) == NULL)
+        if (xwcschr(opts, option) == NULL)
             return EINVAL;
         if (optmod == '.') {
             /* No arguments needed */
@@ -1415,7 +1485,7 @@ static DWORD xmdparent(LPWSTR path)
     DWORD  rc = 0;
     LPWSTR s;
 
-    s = wcsrchr(path, L'\\');
+    s = xwcsrchr(path, L'\\');
     if (s == NULL)
         return ERROR_BAD_PATHNAME;
     *s = WNUL;
@@ -1650,7 +1720,7 @@ static BOOL resolvescriptname(LPCWSTR bp)
     cmdproc->script = xgetfinalpath(bp, 0, NULL, 0);
     if (IS_EMPTY_WCS(cmdproc->script))
         return FALSE;
-    p = wcsrchr(cmdproc->script, L'\\');
+    p = xwcsrchr(cmdproc->script, L'\\');
     if (p) {
         *p = WNUL;
         service->base = xwcsdup(cmdproc->script);
@@ -2349,7 +2419,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     else {
         rp = IS_NOT(SVCBATCH_OPT_TRUNCATE);
     }
-    if (wcschr(np, L'%')) {
+    if (xwcschr(np, L'%')) {
         rc = makelogname(nb, SVCBATCH_NAME_MAX, np);
         if (rc)
             return rc;
@@ -2561,7 +2631,7 @@ static BOOL resolverotate(LPCWSTR rp)
         rotatebysignal = TRUE;
         return TRUE;
     }
-    if (wcspbrk(rp, L"BKMG")) {
+    if (xwcspbrk(rp, L"BKMG")) {
         int      val;
         LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(0);
@@ -2610,7 +2680,7 @@ static BOOL resolverotate(LPCWSTR rp)
         rotateinterval      = CPP_INT64_C(0);
         rotatetime.QuadPart = CPP_INT64_C(0);
 
-        if (wcschr(rp, L':')) {
+        if (xwcschr(rp, L':')) {
             int hh, mm, ss;
 
             hh = xwcstoi(rp, &ep);
@@ -3631,7 +3701,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 svclogfname = xwcsdup(skipdotslash(xwoptarg));
                 if (svclogfname == NULL)
                     xsyswarn(0, L"The -n command option value is invalid", xwoptarg);
-                if (wcspbrk(svclogfname, L"/\\:;<>?*|\""))
+                if (xwcspbrk(svclogfname, L"/\\:;<>?*|\""))
                     return xsyserror(0, L"Found invalid filename characters", svclogfname);
                 xwcsreplace(svclogfname);
             break;
@@ -3727,7 +3797,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             /**
              * No batch file defined.
              */
-            if (wcspbrk(service->name, L":;<>?*|\""))
+            if (xwcspbrk(service->name, L":;<>?*|\""))
                 return xsyserror(0, L"Service name has invalid filename characters", NULL);
             i = xwcsncat(wb, BBUFSIZ, 0, service->name);
             i = xwcsncat(wb, BBUFSIZ, i, L".bat");
@@ -4324,7 +4394,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     argc -= xwoptind;
     argv += xwoptind;
-    if (wcspbrk(service->name, L"/\\")) {
+    if (xwcspbrk(service->name, L"/\\")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
         ed = L"The (/) and (\\) are not valid service name characters";
@@ -4520,7 +4590,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         }
         else {
             LPCWSTR rp = argv[0];
-            if (wcschr(rp, L':')) {
+            if (xwcschr(rp, L':')) {
                 LPWSTR sp;
                 DWORD  sv;
 
