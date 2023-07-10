@@ -29,14 +29,13 @@
 #include "svcbatch.h"
 
 #if defined(_DEBUG)
-static void dbgprintf(LPCSTR, LPCSTR, ...);
-static void dbgprints(LPCSTR, LPCSTR);
-static char dbgsvcmode = 'x';
-# if (_DEBUG > 1)
-static HANDLE           dbgfile = NULL;
+static void     dbgprintf(LPCSTR, LPCSTR, ...);
+static void     dbgprints(LPCSTR, LPCSTR);
+static char     dbgsvcmode = 'x';
+static volatile HANDLE  dbgfile = NULL;
 static CRITICAL_SECTION dbglock;
-# endif
 
+# define DBG_FILE_NAME          L"svcbatch.debug.log"
 # define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
 # define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, Msg)
 #else
@@ -1260,13 +1259,12 @@ static int xtimehdr(char *d, int sz)
 
 static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
 {
+    int     i = 0;
     int     n;
     char    b[SVCBATCH_LINE_MAX];
-
-#if (_DEBUG > 1)
-    int     i = 0;
     char    h[SBUFSIZ];
     SYSTEMTIME tm;
+    HANDLE  f;
 
     GetLocalTime(&tm);
     h[i++] = tm.wHour   / 10 + '0';
@@ -1283,7 +1281,6 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
     h[i++] = tm.wMilliseconds % 10 + '0';
 
     i += xsnprintf(h + i, SBUFSIZ - i, " [%.4lu] ", GetCurrentProcessId());
-#endif
     if (format) {
         va_list ap;
         n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
@@ -1297,27 +1294,25 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
     }
     else {
         OutputDebugStringA("\n");
-#if (_DEBUG > 1)
         n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu]",
                       GetCurrentThreadId());
-#endif
     }
-#if (_DEBUG > 1)
-    if (IS_VALID_HANDLE(dbgfile)) {
+    EnterCriticalSection(&dbglock);
+    f = InterlockedExchangePointer(&dbgfile, NULL);
+    if (IS_VALID_HANDLE(f)) {
         DWORD wr;
         LARGE_INTEGER dd = {{ 0, 0 }};
 
-        EnterCriticalSection(&dbglock);
-        SetFilePointerEx(dbgfile, dd, NULL, FILE_END);
-        LockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
-        WriteFile(dbgfile, h,     i, &wr, NULL);
-        WriteFile(dbgfile, b,     n, &wr, NULL);
-        WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
-        FlushFileBuffers(dbgfile);
-        UnlockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
-        LeaveCriticalSection(&dbglock);
+        SetFilePointerEx(f, dd, NULL, FILE_END);
+        LockFile(f, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
+        WriteFile(f, h,     i, &wr, NULL);
+        WriteFile(f, b,     n, &wr, NULL);
+        WriteFile(f, CRLFA, 2, &wr, NULL);
+        FlushFileBuffers(f);
+        UnlockFile(f, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
+        InterlockedExchangePointer(&dbgfile, f);
     }
-#endif
+    LeaveCriticalSection(&dbglock);
 }
 
 static void dbgprints(LPCSTR funcname, LPCSTR string)
@@ -4921,17 +4916,33 @@ finished:
 }
 #endif
 
-#if defined(_DEBUG) && (_DEBUG > 1)
+#if defined(_DEBUG)
+static void __cdecl dbgcleanup(void)
+{
+    HANDLE h;
+
+    h = InterlockedExchangePointer(&dbgfile, NULL);
+    if (IS_VALID_HANDLE(h)) {
+        FlushFileBuffers(h);
+        CloseHandle(h);
+    }
+    DeleteCriticalSection(&dbglock);
+}
+
 static DWORD dbgfopen(void)
 {
     DWORD   dn;
     DWORD   rc;
+    DWORD   wr;
     wchar_t db[MAX_PATH];
+
+    InitializeCriticalSection(&dbglock);
+    atexit(dbgcleanup);
 
     dn = GetTempPathW(MAX_PATH - 20, db);
     if ((dn == 0) || (dn >= (MAX_PATH - 20)))
         return ERROR_INSUFFICIENT_BUFFER;
-    xwcslcat(db, MAX_PATH, SVCBATCH_LOGNAME L".debug.log");
+    xwcslcat(db, MAX_PATH, DBG_FILE_NAME);
     dbgfile = CreateFileW(db, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                           OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
@@ -4941,25 +4952,16 @@ static DWORD dbgfopen(void)
         LARGE_INTEGER dd = {{ 0, 0 }};
 
         if (SetFilePointerEx(dbgfile, dd, NULL, FILE_END)) {
-            DWORD wr;
             LockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
             WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
             FlushFileBuffers(dbgfile);
             UnlockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
         }
     }
-    InitializeCriticalSection(&dbglock);
-    return 0;
-}
-
-static void dbgfclose(void)
-{
-    if (IS_VALID_HANDLE(dbgfile)) {
-        FlushFileBuffers(dbgfile);
-        CloseHandle(dbgfile);
-        DeleteCriticalSection(&dbglock);
+    else if (rc == 0) {
+        dbgprints("version", cnamestamp);
     }
-    dbgfile = NULL;
+    return 0;
 }
 
 #endif
@@ -4981,8 +4983,9 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     QueryPerformanceCounter(&i);
     counterbase = i.QuadPart;
 #endif
-#if defined(_DEBUG) && (_DEBUG > 1)
-    dbgfopen();
+#if defined(_DEBUG)
+    if (dbgfopen())
+        return GetLastError();
 #endif
     xmemzero(threads, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
     service = (LPSVCBATCH_SERVICE)xmcalloc( sizeof(SVCBATCH_SERVICE));
@@ -5128,7 +5131,10 @@ int wmain(int argc, LPCWSTR *argv)
             if (cmd >= 0) {
                 argc  -= 2;
                 argv  += 2;
+#if defined(_DEBUG)
+                dbgsvcmode = '+';
                 DBG_PRINTS("started");
+#endif
                 r = xscmexecute(cmd, argc, argv);
                 goto finished;
             }
@@ -5136,9 +5142,10 @@ int wmain(int argc, LPCWSTR *argv)
     }
 #endif
 #if defined(_DEBUG)
-    if (servicemode)
+    if (servicemode) {
         dbgsvcmode = '0';
-    dbgprints(__FUNCTION__, cnamestamp);
+        dbgprints(__FUNCTION__, cnamestamp);
+    }
 #endif
 
     /**
@@ -5193,9 +5200,6 @@ int wmain(int argc, LPCWSTR *argv)
 finished:
 #if defined(_DEBUG)
     DBG_PRINTS("done");
-# if (_DEBUG > 1)
-    dbgfclose();
-# endif
 #endif
     return r;
 }
