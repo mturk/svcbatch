@@ -3798,6 +3798,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'b':
                 svcoptions  |= SVCBATCH_OPT_SEND_BREAK;
             break;
+            case 'g':
+                svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
+            break;
 #if SVCBATCH_LEAN_AND_MEAN
             case 'l':
                 svcoptions  |= SVCBATCH_OPT_LOCALTIME;
@@ -3809,9 +3812,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 svcoptions  |= SVCBATCH_OPT_VERBOSE;
             break;
 #endif
-            case 'g':
-                svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
-            break;
             case 'p':
                 preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
             break;

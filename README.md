@@ -279,6 +279,54 @@ will be reported to Windows Event log.
   ```
 
 
+* **-f [mode]**
+
+  **Set failure mode**
+
+  This option determines how the SvcBatch will handle
+  service failure in case it enters a `STOP` state
+  without explicit Stop command from the SCM.
+
+  The **mode** must be number between `0` and `2`.
+
+  **0**
+
+  This mode will not set the error code when the service
+  fails. The information message will be written to
+  the Windows Event log and service will enter a stop state.
+
+
+  **1**
+
+  This mode will set the error code when the service
+  fails. The warning message will be written to
+  the Windows Event log and service will enter a stop state.
+
+  You can use this mode to initialize service recovery if
+  defined. Add `/f:1` command option when creating service
+
+  ```cmd
+
+  > sc failure myService reset= INFINITE actions= restart/10000
+
+  > sc failureflag myService 1
+
+  ```
+
+  The upper example will restart `myService` service after `10`
+  seconds if it enters a stop state without Stop command.
+
+
+  **2**
+
+  This mode will not report error code to the SCM when
+  the service fails. The error message will be written to
+  the Windows Event log.
+  SvcBatch will call `exit(ERROR_INVALID_LEVEL)` and terminate
+  the current service.
+  This is the default mode.
+
+
 
 * **-g**
 
