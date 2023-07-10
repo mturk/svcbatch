@@ -912,6 +912,10 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
         *(d++) = L'"';
     }
     else {
+        if ((*s2 == L'\'') && (*(s2 + l2 - 1) == L'\'')) {
+            s2++;
+            l2 -= 2;
+        }
         wmemcpy(d, s2, l2);
         d += l2;
     }
