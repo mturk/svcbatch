@@ -437,6 +437,14 @@ static __inline int xisalpha(int ch)
         return 0;
 }
 
+static __inline int xisdigit(int ch)
+{
+    if ((ch > 47) && (ch < 58))
+        return 1;
+    else
+        return 0;
+}
+
 static __inline int xisoptswitch(int c)
 {
     return ((c == 45) || (c == 47));
@@ -567,7 +575,7 @@ static int xwcstoi(LPCWSTR sp, LPWSTR *ep)
     while(xisblank(*sp))
         sp++;
 
-    while(iswdigit(*sp)) {
+    while(xisdigit(*sp)) {
         int dv = *sp - L'0';
 
         if (dv || rv) {
@@ -1695,7 +1703,7 @@ static LPCWSTR skipdotslash(LPCWSTR s)
 static BOOL isabsolutepath(LPCWSTR p)
 {
     if ((p != NULL) && (p[0] < 128)) {
-        if ((p[0] == L'\\') || (isalpha(p[0]) && (p[1] == L':')))
+        if ((p[0] == L'\\') || (xisalpha(p[0]) && (p[1] == L':')))
             return TRUE;
     }
     return FALSE;
