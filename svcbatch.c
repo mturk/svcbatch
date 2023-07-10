@@ -156,7 +156,9 @@ typedef struct _SVCBATCH_NAME_MAP {
 } SVCBATCH_NAME_MAP, *LPSVCBATCH_NAME_MAP;
 
 static int                   svcmainargc = 0;
+static int                   serviceargc = 0;
 static LPCWSTR              *svcmainargv = NULL;
+static LPCWSTR              *serviceargv = NULL;
 static LPSVCBATCH_PROCESS    program     = NULL;
 static LPSVCBATCH_SERVICE    service     = NULL;
 
@@ -3662,7 +3664,7 @@ static DWORD createevents(void)
     return 0;
 }
 
-static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
+static LPWSTR *mergearguments(LPWSTR msz, int *argc)
 {
     int      x = 0;
     int      i = 0;
@@ -3677,10 +3679,10 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
         }
     }
     c   += svcmainargc;
-    c   += orgc;
+    c   += serviceargc;
     argv = xwaalloc(c);
 
-    argv[i++] = (LPWSTR)orgv[0];
+    argv[i++] = (LPWSTR)serviceargv[0];
     /**
      * Add option arguments in the following order
      * ImagePath
@@ -3698,9 +3700,9 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
                 p++;
         }
     }
-    if (orgc > 1) {
-        for (x = 1; x < orgc; x++)
-            argv[i++] = (LPWSTR)orgv[x];
+    if (serviceargc > 1) {
+        for (x = 1; x < serviceargc; x++)
+            argv[i++] = (LPWSTR)serviceargv[x];
     }
     *argc = c;
 #if defined(_DEBUG) && (_DEBUG > 2)
@@ -3711,7 +3713,7 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
     return argv;
 }
 
-static DWORD getsvcarguments(int orgc, LPCWSTR *orgv, int *argc, LPWSTR **argv)
+static DWORD getsvcarguments(int *argc, LPWSTR **argv)
 {
     DWORD   t;
     DWORD   c;
@@ -3738,7 +3740,7 @@ static DWORD getsvcarguments(int orgc, LPCWSTR *orgv, int *argc, LPWSTR **argv)
 finished:
     if (k != NULL)
         RegCloseKey(k);
-    *argv = mergearguments(orgc, orgv, (LPWSTR)b, argc);
+    *argv = mergearguments((LPWSTR)b, argc);
     return ERROR_SUCCESS;
 }
 
@@ -3770,7 +3772,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
     WCHAR    wb[BBUFSIZ];
 
     DBG_PRINTF("started %d", argc);
-    x = getsvcarguments(argc, argv, &rargc, &rargv);
+    serviceargc = argc;
+    serviceargv = argv;
+    x = getsvcarguments(&rargc, &rargv);
     if (x != ERROR_SUCCESS)
         return xsyserror(x, SVCBATCH_SVCARGS, NULL);
     argc = rargc;
