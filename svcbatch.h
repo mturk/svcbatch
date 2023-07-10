@@ -143,7 +143,7 @@
  * The maximum length of each argument is 255
  * characters.
  */
-#define SVCBATCH_MAX_ARGS       8
+#define SVCBATCH_MAX_ARGS      16
 
 /**
  * Maximum length for the path and
