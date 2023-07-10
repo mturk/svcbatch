@@ -2405,6 +2405,12 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                 case L'w':
                     d[i++] = L'0' + tm.wDayOfWeek;
                 break;
+                case L'N':
+                    i = xwcslcpy(d, n, service->name);
+                break;
+                case L'P':
+                    i = xwcslcpy(d, n, program->name);
+                break;
                 default:
                     SetLastError(ERROR_BAD_FORMAT);
                    *dst = WNUL;
