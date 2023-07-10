@@ -2360,17 +2360,34 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                     d[i++] = tm.wSecond / 10 + L'0';
                     d[i++] = tm.wSecond % 10 + L'0';
                 break;
-                case L's':
-                    ASSERT_SIZE(n, 3, siz);
-                    d[i++] = tm.wMilliseconds / 100 + L'0';
-                    d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
-                    d[i++] = tm.wMilliseconds % 10 + L'0';
-                break;
                 case L'j':
                     w = getdayofyear(tm.wYear, tm.wMonth, tm.wDay);
                     d[i++] = w / 100 + L'0';
                     d[i++] = w % 100 / 10 + L'0';
                     d[i++] = w % 10 + L'0';
+                break;
+                case L'F':
+                    ASSERT_SIZE(n, 10, siz);
+                    d[i++] = tm.wYear / 1000 + L'0';
+                    d[i++] = tm.wYear % 1000 / 100 + L'0';
+                    d[i++] = tm.wYear % 100 / 10 + L'0';
+                    d[i++] = tm.wYear % 10 + L'0';
+                    d[i++] = L'-';
+                    d[i++] = tm.wMonth / 10 + L'0';
+                    d[i++] = tm.wMonth % 10 + L'0';
+                    d[i++] = L'-';
+                    d[i++] = tm.wDay  / 10 + L'0';
+                    d[i++] = tm.wDay % 10 + L'0';
+                break;
+                case L'w':
+                    d[i++] = L'0' + tm.wDayOfWeek;
+                break;
+                /** Custom formatting codes */
+                case L's':
+                    ASSERT_SIZE(n,  3, siz);
+                    d[i++] = tm.wMilliseconds / 100 + L'0';
+                    d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
+                    d[i++] = tm.wMilliseconds % 10 + L'0';
                 break;
                 case L'L':
                     ASSERT_SIZE(n, 14, siz);
@@ -2388,52 +2405,6 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                     d[i++] = tm.wMinute % 10 + L'0';
                     d[i++] = tm.wSecond / 10 + L'0';
                     d[i++] = tm.wSecond % 10 + L'0';
-                break;
-                case L'D':
-                    ASSERT_SIZE(n,   8, siz);
-                    d[i++] = tm.wMonth / 10 + L'0';
-                    d[i++] = tm.wMonth % 10 + L'0';
-                    d[i++] = L'-';
-                    d[i++] = tm.wDay  / 10 + L'0';
-                    d[i++] = tm.wDay % 10 + L'0';
-                    d[i++] = L'-';
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
-                break;
-                case L'F':
-                    ASSERT_SIZE(n, 10, siz);
-                    d[i++] = tm.wYear / 1000 + L'0';
-                    d[i++] = tm.wYear % 1000 / 100 + L'0';
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
-                    d[i++] = L'-';
-                    d[i++] = tm.wMonth / 10 + L'0';
-                    d[i++] = tm.wMonth % 10 + L'0';
-                    d[i++] = L'-';
-                    d[i++] = tm.wDay  / 10 + L'0';
-                    d[i++] = tm.wDay % 10 + L'0';
-                break;
-                case L'R':
-                    ASSERT_SIZE(n,  5, siz);
-                    d[i++] = tm.wHour / 10 + L'0';
-                    d[i++] = tm.wHour % 10 + L'0';
-                    d[i++] = L'.';
-                    d[i++] = tm.wMinute / 10 + L'0';
-                    d[i++] = tm.wMinute % 10 + L'0';
-                break;
-                case L'T':
-                    ASSERT_SIZE(n,  8, siz);
-                    d[i++] = tm.wHour / 10 + L'0';
-                    d[i++] = tm.wHour % 10 + L'0';
-                    d[i++] = L'.';
-                    d[i++] = tm.wMinute / 10 + L'0';
-                    d[i++] = tm.wMinute % 10 + L'0';
-                    d[i++] = L'.';
-                    d[i++] = tm.wSecond / 10 + L'0';
-                    d[i++] = tm.wSecond % 10 + L'0';
-                break;
-                case L'w':
-                    d[i++] = L'0' + tm.wDayOfWeek;
                 break;
                 case L'N':
                     i = xwcslcpy(d, n, service->name);
