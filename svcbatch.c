@@ -2459,7 +2459,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     if (xwcschr(np, L'%')) {
         rc = makelogname(nb, SVCBATCH_NAME_MAX, np);
         if (rc == 0)
-            return GetLastError();
+            return xsyserror(GetLastError(), np, NULL);
         rp = FALSE;
         np = nb;
         if (log == statuslog)
