@@ -444,6 +444,14 @@ static __inline int xisblank(int ch)
         return 0;
 }
 
+static __inline int xisalpha(int ch)
+{
+    if (((ch > 64) && (ch < 91)) || ((ch > 96) && (ch < 123)))
+        return 1;
+    else
+        return 0;
+}
+
 static __inline int xisoptswitch(int c)
 {
     return ((c == 45) || (c == 47));
@@ -994,12 +1002,24 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             xwoptarg = nargv[xwoptind++];
             return ':';
         }
-        if ((*place == WNUL) || (*place == option)) {
-            /* We have '--' or '//' */
+        if (*place == WNUL) {
+            /**
+             * We have single '-' or '/'
+             * Skip '-' and end processing
+             */
             place = zerostring;
             if (option == '-')
                 xwoptind++;
             return EOF;
+        }
+        if (*place == option) {
+            /**
+             * We have '--' or '//'
+             * Use it as in-place argument
+             */
+            place = zerostring;
+            xwoptarg = nargv[xwoptind++];
+            return ':';
         }
         xwoption = place;
     }
@@ -1073,7 +1093,7 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
     place  = nargv[xwoptind];
     if (*(place++) != '/')
         return EOF;
-    if ((*place == WNUL) || (*place == '/'))
+    if (!xisalpha(*place))
         return EOF;
     xwoption = place;
     longopt  = longopts;
