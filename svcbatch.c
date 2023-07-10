@@ -245,11 +245,11 @@ static const wchar_t *scmcommands[] = {
 };
 
 static const SVCBATCH_NAME_MAP starttypemap[] = {
-    { L"automatic", SERVICE_AUTO_START      },
-    { L"auto",      SERVICE_AUTO_START      },
-    { L"demand",    SERVICE_DEMAND_START    },
-    { L"disabled",  SERVICE_DISABLED        },
-    { L"manual",    SERVICE_DEMAND_START    },
+    { L"Automatic", SERVICE_AUTO_START      },
+    { L"Auto",      SERVICE_AUTO_START      },
+    { L"Manual",    SERVICE_DEMAND_START    },
+    { L"Demand",    SERVICE_DEMAND_START    },
+    { L"Disabled",  SERVICE_DISABLED        },
     { NULL,         0                       }
 };
 
@@ -954,6 +954,17 @@ static DWORD xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, DWORD def)
             return map[i].code;
     }
     return def;
+}
+
+static LPCWSTR xcodemap(SVCBATCH_NAME_MAP const *map, DWORD c)
+{
+    int i;
+
+    for (i = 0; map[i].name != NULL; i++) {
+        if (map[i].code == c)
+            return map[i].name;
+    }
+    return zerostring;
 }
 
 static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
@@ -4841,7 +4852,7 @@ finished:
             if (cmd == SVCBATCH_SCM_CONTROL)
             fprintf(stdout, "               %S\n", argv[0]);
             if (cmd == SVCBATCH_SCM_CREATE)
-            fprintf(stdout, "     STARTUP : %d\n", starttype);
+            fprintf(stdout, "     STARTUP : %S (%d)\n", xcodemap(starttypemap, starttype), starttype);
             if (cmd == SVCBATCH_SCM_START)
             fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
             if (cmd == SVCBATCH_SCM_STOP)
