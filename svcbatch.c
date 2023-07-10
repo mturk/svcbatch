@@ -1279,9 +1279,9 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
     h[i++] = tm.wSecond / 10 + '0';
     h[i++] = tm.wSecond % 10 + '0';
     h[i++] = '.';
-    h[i++] = tm.wMilliseconds / 100 + L'0';
-    h[i++] = tm.wMilliseconds % 100 / 10 + L'0';
-    h[i++] = tm.wMilliseconds % 10 + L'0';
+    h[i++] = tm.wMilliseconds / 100 + '0';
+    h[i++] = tm.wMilliseconds % 100 / 10 + '0';
+    h[i++] = tm.wMilliseconds % 10 + '0';
 
     i += xsnprintf(h + i, SBUFSIZ - i, " [%.4lu] ", GetCurrentProcessId());
 #endif
