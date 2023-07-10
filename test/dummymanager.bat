@@ -96,7 +96,7 @@ rem Add Batch file arguments
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" %SERVICE_BATCH% run %%TEMP%%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Set Display Name and Description
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /name "A Dummy Service" /description "One dummy SvcBatch service example"
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /display "A Dummy Service" /description "One dummy SvcBatch service example"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Set Dependencies and Privileges
 %BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
@@ -110,7 +110,7 @@ rem
 rem
 rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose ^
-    /name "A Dummy Service" /description "One dummy SvcBatch service example" ^
+    /displayname "A Dummy Service" /description "One dummy SvcBatch service example" ^
     /depend=Tcpip/Afd /privs:SeShutdownPrivilege ^
     -pbL /f:0 /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR% ^
     %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
@@ -128,7 +128,7 @@ rem
 rem
 rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose ^
-    /name "A Dummy Service" /description "One dummy SvcBatch service example" ^
+    /display "A Dummy Service" /desc "One dummy SvcBatch service example" ^
     /username=1 ^
     /h "%TEST_DIR%" %SERVICE_BATCH% run
 rem
