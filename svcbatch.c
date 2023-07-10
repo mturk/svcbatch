@@ -2980,7 +2980,7 @@ static DWORD WINAPI stopthread(void *msg)
     if (ws != WAIT_OBJECT_0) {
         reportsvcstatus(SERVICE_STOP_PENDING, 0);
         SetConsoleCtrlHandler(NULL, TRUE);
-        if (IS_SET(SVCBATCH_OPT_BREAK)) {
+        if (IS_SET(SVCBATCH_OPT_CTRL_BREAK)) {
             DBG_PRINTS("generating CTRL_BREAK_EVENT");
             GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cmdproc->pInfo.dwProcessId);
         }
@@ -3023,7 +3023,7 @@ static void stopshutdown(DWORD rt)
 
     DBG_PRINTS("started");
     SetConsoleCtrlHandler(NULL, TRUE);
-    if (IS_SET(SVCBATCH_OPT_BREAK)) {
+    if (IS_SET(SVCBATCH_OPT_CTRL_BREAK)) {
         DBG_PRINTS("generating CTRL_BREAK_EVENT");
         GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, cmdproc->pInfo.dwProcessId);
     }
@@ -3282,7 +3282,7 @@ static DWORD WINAPI workerthread(void *unused)
 #endif
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     DBG_PRINTF("cmdline %S", cmdproc->commandLine);
-    if (IS_SET(SVCBATCH_OPT_BREAK))
+    if (IS_SET(SVCBATCH_OPT_CTRL_BREAK))
         cf |= CREATE_NEW_PROCESS_GROUP;
     if (!CreateProcessW(cmdproc->application,
                         cmdproc->commandLine,
@@ -3508,7 +3508,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         break;
 #if SVCBATCH_LEAN_AND_MEAN
         case SVCBATCH_CTRL_BREAK:
-            if (IS_SET(SVCBATCH_OPT_CTRL_BREAK)) {
+            if (IS_SET(SVCBATCH_OPT_SEND_BREAK)) {
                 DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
                 logwrstat(statuslog, 2, 0, "Service signaled : SVCBATCH_CTRL_BREAK");
                 /**
@@ -3796,7 +3796,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 'b':
-                svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
+                svcoptions  |= SVCBATCH_OPT_SEND_BREAK;
             break;
 #if SVCBATCH_LEAN_AND_MEAN
             case 'l':
@@ -3810,7 +3810,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
 #endif
             case 'g':
-                svcoptions  |= SVCBATCH_OPT_BREAK;
+                svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
             break;
             case 'p':
                 preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
@@ -3959,6 +3959,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
     service->uuid = xuuidstring(NULL);
     if (IS_EMPTY_WCS(service->uuid))
         return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
+    if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) && IS_SET(SVCBATCH_OPT_SEND_BREAK))
+        return xsyserror(0, L"Options -b and -g are mutually exclusive", NULL);
 #if SVCBATCH_LEAN_AND_MEAN
     if (svcstopparam && qcnt > 1) {
         /**

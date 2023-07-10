@@ -302,6 +302,12 @@ will be reported to Windows Event log.
   not receive `ctrl+c` signal. The `ctrl+break` is the only
   way to interrupt the application.
 
+  **Notice**
+
+  This option is mutually exclusive with `b` command option.
+  If this option is defined together with the mentioned option,
+  the service will fail to start, and write an error message
+  to the Windows Event log.
 
 
 * **-h [path]**
@@ -389,7 +395,7 @@ will be reported to Windows Event log.
 
   **Notice**
 
-  This option is mutually exclusive with `q` optiom.
+  This option is mutually exclusive with `q` option.
   If this option is defined together with the mentioned option,
   the service will fail to start, and write an error message
   to the Windows Event log.
