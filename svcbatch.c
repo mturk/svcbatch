@@ -32,6 +32,10 @@
 static void dbgprintf(LPCSTR, LPCSTR, ...);
 static void dbgprints(LPCSTR, LPCSTR);
 static char dbgsvcmode = 'x';
+# if (_DEBUG > 1)
+static HANDLE           dbgfile = NULL;
+static CRITICAL_SECTION dbglock;
+# endif
 
 # define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
 # define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, Msg)
@@ -1260,14 +1264,35 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
     char    b[SVCBATCH_LINE_MAX];
     va_list ap;
 
+#if (_DEBUG > 1)
+    char    h[TBUFSIZ];
+    xtimehdr(h, TBUFSIZ);
+    n = xsnprintf(b, SVCBATCH_LINE_MAX, "%s [%.4lu] [%.4lu] %c %-16s ", h,
+                  GetCurrentProcessId(),
+                  GetCurrentThreadId(),
+                  dbgsvcmode, funcname);
+#else
     n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
                   GetCurrentThreadId(),
                   dbgsvcmode, funcname);
+#endif
 
     va_start(ap, format);
     xvsnprintf(b + n, SVCBATCH_LINE_MAX - n, format, ap);
     va_end(ap);
     OutputDebugStringA(b);
+#if (_DEBUG > 1)
+    if (IS_VALID_HANDLE(dbgfile)) {
+        DWORD wr;
+
+        n = (int)strlen(b);
+        EnterCriticalSection(&dbglock);
+        WriteFile(dbgfile, b,     n, &wr, NULL);
+        WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
+        FlushFileBuffers(dbgfile);
+        LeaveCriticalSection(&dbglock);
+    }
+#endif
 }
 
 static void dbgprints(LPCSTR funcname, LPCSTR string)
@@ -4871,6 +4896,36 @@ finished:
 }
 #endif
 
+#if defined(_DEBUG) && (_DEBUG > 1)
+static DWORD dbgopenfile(void)
+{
+    DWORD   dn;
+    wchar_t db[MAX_PATH];
+    wchar_t nb[MAX_PATH];
+
+    dn = GetTempPathW(MAX_PATH - 20, db);
+    if ((dn == 0) || (dn >= (MAX_PATH - 20)))
+        return ERROR_INSUFFICIENT_BUFFER;
+    xsnwprintf(nb, MAX_PATH, L"%ssvcbatch.%lu.debug.log", db, GetCurrentProcessId());
+    dbgfile = CreateFileW(nb, GENERIC_WRITE, FILE_SHARE_READ, NULL,
+                          CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (IS_INVALID_HANDLE(dbgfile))
+        return GetLastError();
+    InitializeCriticalSection(&dbglock);
+    return 0;
+}
+
+static void dbgclosefile(void)
+{
+    if (IS_VALID_HANDLE(dbgfile)) {
+        CloseHandle(dbgfile);
+        DeleteCriticalSection(&dbglock);
+    }
+    dbgfile = NULL;
+}
+
+#endif
+
 static int xwmaininit(int argc, LPCWSTR *argv)
 {
     WCHAR  bb[SVCBATCH_PATH_MAX];
@@ -4888,7 +4943,9 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     QueryPerformanceCounter(&i);
     counterbase = i.QuadPart;
 #endif
-
+#if defined(_DEBUG) && (_DEBUG > 1)
+    dbgopenfile();
+#endif
     xmemzero(threads, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
     service = (LPSVCBATCH_SERVICE)xmcalloc( sizeof(SVCBATCH_SERVICE));
     program = (LPSVCBATCH_PROCESS)xmcalloc( sizeof(SVCBATCH_PROCESS));
@@ -4976,6 +5033,7 @@ int wmain(int argc, LPCWSTR *argv)
         cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
         dbgsvcmode = '1';
+        dbgprints(__FUNCTION__, cnamestamp);
 #endif
         sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p);
         if (sharedmmap == NULL)
@@ -4992,7 +5050,6 @@ int wmain(int argc, LPCWSTR *argv)
         svcoptions  = sharedmem->options;
         killdepth   = sharedmem->killdepth;
 #if defined(_DEBUG)
-        dbgprints(__FUNCTION__, cnamestamp);
         dbgprintf(__FUNCTION__, "ppid %lu", sharedmem->processId);
         dbgprintf(__FUNCTION__, "opts 0x%08x", sharedmem->options);
         dbgprintf(__FUNCTION__, "time %lu", stoptimeout);
@@ -5031,6 +5088,7 @@ int wmain(int argc, LPCWSTR *argv)
             if (cmd >= 0) {
                 argc  -= 2;
                 argv  += 2;
+                dbgprints(__FUNCTION__, cnamestamp);
                 return xscmexecute(cmd, argc, argv);
             }
         }
@@ -5039,6 +5097,7 @@ int wmain(int argc, LPCWSTR *argv)
 #if defined(_DEBUG)
     if (servicemode)
         dbgsvcmode = '0';
+    dbgprints(__FUNCTION__, cnamestamp);
 #endif
 
     /**
@@ -5088,6 +5147,11 @@ int wmain(int argc, LPCWSTR *argv)
         r = svcstopmain();
     }
 #endif
+#if defined(_DEBUG)
+# if (_DEBUG > 1)
+    dbgclosefile();
+# endif
     DBG_PRINTS("done");
+#endif
     return r;
 }
