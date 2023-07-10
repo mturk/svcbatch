@@ -9,7 +9,16 @@ For a full list of changes, see the [git commit log][log]
 ## v2.2.0
 
   * In development
+  * Fix return value from service handler when log rotate is disabled or busy
+  * Enable to set options on service start with additional arguments
+  * Add service ImagePathArguments registry value that is added to command options defined in ImagePath
+  * Use svcbatch /? to get the version info
 
+### New Features
+
+  * Add Service Manager code for creating, configuring and managing SvcBatch services
+  * Add -f command option for setting the behavior on service failure
+  * Enable to build 'lite' version of SvcBatch without logging and shutdown
 
 
 ## v2.1.2
