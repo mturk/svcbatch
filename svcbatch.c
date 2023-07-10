@@ -1265,16 +1265,17 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
     va_list ap;
 
 #if (_DEBUG > 1)
+    int     i;
     char    h[SBUFSIZ];
-    n = xtimehdr( h,     SBUFSIZ);
-    n = xsnprintf(h + n, SBUFSIZ - n, " [%.4lu] ", GetCurrentProcessId());
+    i  = xtimehdr( h,     SBUFSIZ);
+    i += xsnprintf(h + i, SBUFSIZ - i, " [%.4lu] ", GetCurrentProcessId());
 #endif
     n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
                   GetCurrentThreadId(),
                   dbgsvcmode, funcname);
 
     va_start(ap, format);
-    xvsnprintf(b + n, SVCBATCH_LINE_MAX - n, format, ap);
+    n += xvsnprintf(b + n, SVCBATCH_LINE_MAX - n, format, ap);
     va_end(ap);
     OutputDebugStringA(b);
 #if (_DEBUG > 1)
@@ -1285,9 +1286,7 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
         EnterCriticalSection(&dbglock);
         SetFilePointerEx(dbgfile, dd, NULL, FILE_END);
         LockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
-        n = (int)strlen(h);
-        WriteFile(dbgfile, h,     n, &wr, NULL);
-        n = (int)strlen(b);
+        WriteFile(dbgfile, h,     i, &wr, NULL);
         WriteFile(dbgfile, b,     n, &wr, NULL);
         WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
         FlushFileBuffers(dbgfile);
