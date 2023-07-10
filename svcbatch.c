@@ -1822,7 +1822,7 @@ static BOOL resolvescript(LPCWSTR bp)
 {
     LPWSTR p;
 
-    DBG_PRINTF("name: %S", bp);
+    DBG_PRINTF("name: '%S'", bp);
     if (cmdproc->script)
         return TRUE;
     if (*bp == L':') {
@@ -2181,9 +2181,11 @@ static void logconfig(HANDLE h)
     logwwrite(h, 0, "Script program   : ", cmdproc->application);
     for (i = 0; i < cmdproc->optc; i++)
     logwwrite(h, 0, "                   ", cmdproc->opts[i]);
+    if (cmdproc->script) {
     logwwrite(h, 0, "Script           : ", cmdproc->script);
     for (i = 0; i < cmdproc->argc; i++)
     logwwrite(h, 0, "                   ", cmdproc->args[i]);
+    }
     if (svcstop) {
     logwwrite(h, 0, "Shutdown         : ", svcstop->script);
     for (i = 0; i < svcstop->argc; i++)
