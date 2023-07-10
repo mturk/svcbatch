@@ -228,6 +228,12 @@ typedef enum {
     SVCBATCH_SCM_STOP
 } SVCBATCH_SCM_CMD;
 
+static const wchar_t *scmsvcaccounts[] = {
+    L".\\LocalSystem",
+    L"NT AUTHORITY\\LocalService",
+    L"NT AUTHORITY\\NetworkService"
+};
+
 static const wchar_t *scmcommands[] = {
     L"Create",                  /* SVCBATCH_SCM_CREATE      */
     L"Config",                  /* SVCBATCH_SCM_CONFIG      */
@@ -286,9 +292,9 @@ static const wchar_t *scmcoptions[] = {
     L"P:privs",
     L"i.interactive",
     L"i.interact",
-    L"u+obj",
-    L"u+username",
-    L"u+user",
+    L"u:obj",
+    L"u:username",
+    L"u:user",
     L"s:start",
     L"v?verbose",
     L"w?wait",
@@ -4404,7 +4410,10 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 displayname = xwoptarg;
             break;
             case 'u':
-                username    = xwoptarg;
+                if ((xwoptarg[0] > 47) && (xwoptarg[0] < 51) && (xwoptarg[1] == WNUL))
+                    username = scmsvcaccounts[xwoptarg[0] - 48];
+                else
+                    username = xwoptarg;
             break;
             case 'w':
                 if (xwoptarg) {

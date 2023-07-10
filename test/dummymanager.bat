@@ -129,7 +129,7 @@ rem
 rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose ^
     /name "A Dummy Service" /description "One dummy SvcBatch service example" ^
-    /username "NT AUTHORITY\LocalService" ^
+    /username=1 ^
     /h "%TEST_DIR%" %SERVICE_BATCH% run
 rem
 rem
