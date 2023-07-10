@@ -1825,6 +1825,11 @@ static BOOL resolvescript(LPCWSTR bp)
     DBG_PRINTF("name: %S", bp);
     if (cmdproc->script)
         return TRUE;
+    if (*bp == L':') {
+        cmdproc->script = xwcsdup(bp + 1);
+        service->base   = service->home;
+        return TRUE;
+    }
     cmdproc->script = xgetfinalpath(bp, 0, NULL, 0);
     if (IS_EMPTY_WCS(cmdproc->script))
         return FALSE;
@@ -2176,7 +2181,7 @@ static void logconfig(HANDLE h)
     logwwrite(h, 0, "Script program   : ", cmdproc->application);
     for (i = 0; i < cmdproc->optc; i++)
     logwwrite(h, 0, "                   ", cmdproc->opts[i]);
-    logwwrite(h, 0, "Script file      : ", cmdproc->script);
+    logwwrite(h, 0, "Script           : ", cmdproc->script);
     for (i = 0; i < cmdproc->argc; i++)
     logwwrite(h, 0, "                   ", cmdproc->args[i]);
     if (svcstop) {
@@ -4093,7 +4098,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
     }
     if (svcstopparam) {
         svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
-        svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
+        if (*svcstopparam == L':')
+            svcstop->script = xwcsdup(svcstopparam + 1);
+        else
+            svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
         if (svcstop->script == NULL)
             return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         for (i = 0; i < scnt; i++) {
