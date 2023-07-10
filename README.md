@@ -291,19 +291,16 @@ will be reported to Windows Event log.
 
   **0**
 
-  This mode will not set the error code when the service
-  fails. The information message will be written to
-  the Windows Event log and service will enter a stop state.
-
-
-  **1**
-
   This mode will set the error code when the service
-  fails. The warning message will be written to
+  fails. The error message will be written to
   the Windows Event log and service will enter a stop state.
+
+  If the service was in `RUNNING` state the error
+  code will be set to `ERROR_PROCESS_ABORTED`, otherwise
+  the error code will be set to `ERROR_SERVICE_START_HANG`.
 
   You can use this mode to initialize service recovery if
-  defined. Add `/f:1` command option when creating service
+  defined.
 
   ```cmd
 
@@ -316,6 +313,14 @@ will be reported to Windows Event log.
   The upper example will restart `myService` service after `10`
   seconds if it enters a stop state without Stop command.
 
+  This is the default mode.
+
+  **1**
+
+  This mode will not set the error code when the service
+  fails. The information message will be written to
+  the Windows Event log and service will enter a stop state.
+
 
   **2**
 
@@ -324,7 +329,6 @@ will be reported to Windows Event log.
   the Windows Event log.
   SvcBatch will call `exit(ERROR_INVALID_LEVEL)` and terminate
   the current service.
-  This is the default mode.
 
 
 

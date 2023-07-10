@@ -186,7 +186,7 @@ static BOOL      servicemode    = TRUE;
 static DWORD     svcoptions     = 0;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
-static int       svcfailmode    = SVCBATCH_FAIL_EXIT;
+static int       svcfailmode    = SVCBATCH_FAIL_ERROR;
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
@@ -1892,8 +1892,8 @@ static void reportsvcstatus(DWORD status, DWORD param)
                     service->status.dwWin32ExitCode = NO_ERROR;
                 }
                 else {
-                    /* svcfailmode == SVCBATCH_FAIL_ERROR */
-                    xsyswarn(param, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+                    /* SVCBATCH_FAIL_ERROR */
+                    xsyserror(param, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
                     if (param == 0) {
                         if (service->status.dwCurrentState == SERVICE_RUNNING)
                             param = ERROR_PROCESS_ABORTED;
