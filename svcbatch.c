@@ -2433,9 +2433,10 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
 
 static DWORD makelogname(LPWSTR dst, int siz, LPCWSTR src)
 {
-    xwcsftime(dst, siz, src);
+    DWORD rc;
+    rc = xwcsftime(dst, siz, src);
     DBG_PRINTF("%S -> %S", src, dst);
-    return 0;
+    return rc;
 }
 
 static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
@@ -2457,8 +2458,8 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     }
     if (xwcschr(np, L'%')) {
         rc = makelogname(nb, SVCBATCH_NAME_MAX, np);
-        if (rc)
-            return rc;
+        if (rc == 0)
+            return GetLastError();
         rp = FALSE;
         np = nb;
         if (log == statuslog)
