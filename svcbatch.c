@@ -224,8 +224,6 @@ typedef enum {
     SVCBATCH_SCM_CONFIG,
     SVCBATCH_SCM_CONTROL,
     SVCBATCH_SCM_DELETE,
-    SVCBATCH_SCM_DESCRIPTION,
-    SVCBATCH_SCM_PRIVS,
     SVCBATCH_SCM_START,
     SVCBATCH_SCM_STOP
 } SVCBATCH_SCM_CMD;
@@ -235,8 +233,6 @@ static const wchar_t *scmcommands[] = {
     L"Config",                  /* SVCBATCH_SCM_CONFIG      */
     L"Control",                 /* SVCBATCH_SCM_CONTROL     */
     L"Delete",                  /* SVCBATCH_SCM_DELETE      */
-    L"Description",             /* SVCBATCH_SCM_DESCRIPTION */
-    L"Privs",                   /* SVCBATCH_SCM_PRIVS       */
     L"Start",                   /* SVCBATCH_SCM_START       */
     L"Stop",                    /* SVCBATCH_SCM_STOP        */
     NULL
@@ -748,14 +744,21 @@ static int xsnprintf(char *dst, int siz, LPCSTR fmt, ...)
 
 static LPWSTR xgetenv(LPCWSTR s)
 {
-    WCHAR b[EBUFSIZ];
-    DWORD z = EBUFSIZ - 2;
-    DWORD n;
+    WCHAR  e[BBUFSIZ];
+    DWORD  n;
+    LPWSTR d = NULL;
 
-    n = GetEnvironmentVariableW(s, b, z);
-    if ((n == 0) || (n >= z))
+    if (IS_EMPTY_WCS(s))
         return NULL;
-    return xwcsdup(b);
+    n = GetEnvironmentVariableW(s, e, BBUFSIZ);
+    if (n == 0)
+        return NULL;
+    d = xwmalloc(n);
+    if (n >= BBUFSIZ)
+        GetEnvironmentVariableW(s, d, n);
+    else
+        wmemcpy(d, e, n);
+    return d;
 }
 
 static LPWSTR xexpandenvstr(LPCWSTR str)
@@ -764,17 +767,18 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
     DWORD   bsz = BBUFSIZ;
     DWORD   len = 0;
 
+    if (IS_EMPTY_WCS(str))
+        return NULL;
     if (xwcschr(str, L'%') == NULL)
         buf = xwcsdup(str);
-
     while (buf == NULL) {
         buf = xwmalloc(bsz);
-        len = ExpandEnvironmentStringsW(str, buf, bsz - 1);
+        len = ExpandEnvironmentStringsW(str, buf, bsz);
         if (len == 0) {
             xfree(buf);
             return NULL;
         }
-        if (len >= bsz) {
+        if (len > bsz) {
             xfree(buf);
             buf = NULL;
             bsz = len + 1;
@@ -785,14 +789,13 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
 
 static DWORD xsetenv(LPCWSTR s)
 {
-    WCHAR  b[EBUFSIZ];
-    DWORD  z = EBUFSIZ - 2;
     DWORD  r = 0;
     LPWSTR n;
     LPWSTR v;
+    LPWSTR e = NULL;
 
+    ASSERT_NULL(s, ERROR_BAD_ENVIRONMENT);
     n = xwcsdup(s);
-    ASSERT_NULL(n, ERROR_BAD_ENVIRONMENT);
     v = xwcschr(n + 1, L'=');
     if (v == NULL) {
         r = ERROR_INVALID_PARAMETER;
@@ -803,25 +806,16 @@ static DWORD xsetenv(LPCWSTR s)
         r = ERROR_INVALID_DATA;
         goto finished;
     }
-    xwcsreplace(v);
-    if (xwcschr(v, L'%')) {
-        DWORD c;
-
-        c = ExpandEnvironmentStringsW(v, b, z);
-        if (c == 0) {
-            r = GetLastError();
-            goto finished;
-        }
-        if (c >= z) {
-            r = ERROR_INSUFFICIENT_BUFFER;
-            goto finished;
-        }
-        v = b;
+    e = xexpandenvstr(v);
+    if (e == NULL) {
+        r = GetLastError();
+        goto finished;
     }
-    if (!SetEnvironmentVariableW(n, v))
+    if (!SetEnvironmentVariableW(n, e))
         r = GetLastError();
 finished:
     xfree(n);
+    xfree(e);
     return r;
 }
 
@@ -1165,24 +1159,40 @@ static LPWSTR xuuidstring(LPWSTR b)
 #if SVCBATCH_LEAN_AND_MEAN
 static LPWSTR xmktimedext(void)
 {
-    static WCHAR b[TBUFSIZ];
-    SYSTEMTIME st;
+    static WCHAR d[TBUFSIZ];
+    SYSTEMTIME tm;
+    int i = 0;
 
     if (IS_SET(SVCBATCH_OPT_LOCALTIME))
-        GetLocalTime(&st);
+        GetLocalTime(&tm);
     else
-        GetSystemTime(&st);
-    xsnwprintf(b, TBUFSIZ, L".%.4d%.2d%.2d%.2d%.2d%.2d",
-               st.wYear, st.wMonth, st.wDay,
-               st.wHour, st.wMinute, st.wSecond);
-    return b;
+        GetSystemTime(&tm);
+    d[i++] = L'.';
+    d[i++] = tm.wYear   / 1000 + L'0';
+    d[i++] = tm.wYear   % 1000 / 100 + L'0';
+    d[i++] = tm.wYear   % 100  / 10  + L'0';
+    d[i++] = tm.wYear   % 10 + L'0';
+    d[i++] = tm.wMonth  / 10 + L'0';
+    d[i++] = tm.wMonth  % 10 + L'0';
+    d[i++] = tm.wDay    / 10 + L'0';
+    d[i++] = tm.wDay    % 10 + L'0';
+    d[i++] = tm.wHour   / 10 + L'0';
+    d[i++] = tm.wHour   % 10 + L'0';
+    d[i++] = tm.wMinute / 10 + L'0';
+    d[i++] = tm.wMinute % 10 + L'0';
+    d[i++] = tm.wSecond / 10 + L'0';
+    d[i++] = tm.wSecond % 10 + L'0';
+    d[i++] = CNUL;
+
+    return d;
 }
 
-static int xtimehdr(char *wb, int sz)
+static int xtimehdr(char *d, int sz)
 {
     LARGE_INTEGER ct = {{ 0, 0 }};
     LARGE_INTEGER et = {{ 0, 0 }};
-    DWORD   ss, us, mm, hh;
+    DWORD ss, us, mm, hh;
+    int   c, i = 0;
 
     QueryPerformanceCounter(&ct);
     et.QuadPart = ct.QuadPart - counterbase;
@@ -1199,8 +1209,25 @@ static int xtimehdr(char *wb, int sz)
     mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % CPP_INT64_C(60));
     hh = (DWORD)((ct.QuadPart / MS_IN_HOUR)   % CPP_INT64_C(24));
 
-    return xsnprintf(wb, sz, "%.2lu:%.2lu:%.2lu.%.6lu",
-                     hh, mm, ss, us);
+    d[i++] = hh / 10 + '0';
+    d[i++] = hh % 10 + '0';
+    d[i++] = ':';
+    d[i++] = mm / 10 + '0';
+    d[i++] = mm % 10 + '0';
+    d[i++] = ':';
+    d[i++] = ss / 10 + '0';
+    d[i++] = ss % 10 + '0';
+    d[i++] = '.';
+    for (c = 0; c < 6; c++)
+        d[i++] = '0';
+    c = i;
+    do {
+        d[--c] = us % 10 + '0';
+        us /= 10;
+    } while (us);
+    d[i] = CNUL;
+
+    return i;
 }
 #endif
 
@@ -4245,7 +4272,7 @@ static int xscmcommand(LPCWSTR ncmd)
 {
     int s = xtolower(*ncmd++);
 
-    if ((s == 'c') || (s == 'd') || (s == 'p') || (s == 's')) {
+    if ((s == 'c') || (s == 'd') || (s == 's')) {
         int i = 0;
         int x = 0;
         WCHAR ccmd[16];
@@ -4726,14 +4753,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             goto finished;
         }
     }
-    if (cmd == SVCBATCH_SCM_DESCRIPTION) {
-        if (argc == 0) {
-            rv = ERROR_INVALID_PARAMETER;
-            ec = __LINE__;
-            goto finished;
-        }
-        description = argv[0];
-    }
     if (description) {
         SERVICE_DESCRIPTIONW sc;
         sc.lpDescription = (LPWSTR)description;
@@ -4742,14 +4761,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ec = __LINE__;
             goto finished;
         }
-    }
-    if (cmd == SVCBATCH_SCM_PRIVS) {
-        if (argc == 0) {
-            rv = ERROR_INVALID_PARAMETER;
-            ec = __LINE__;
-            goto finished;
-        }
-        privileges = argv[0];
     }
     if (privileges) {
         LPWSTR reqprivs;
@@ -4916,9 +4927,9 @@ int wmain(int argc, LPCWSTR *argv)
             return 0;
         }
     }
-    i = xwmaininit();
-    if (i != 0)
-        return i;
+    r = xwmaininit();
+    if (r != 0)
+        return r;
 #if SVCBATCH_LEAN_AND_MEAN
     /**
      * Check if running as service or as a child process.
@@ -4976,7 +4987,7 @@ int wmain(int argc, LPCWSTR *argv)
          * Check if this is a Service Manager command
          */
         i = xwcslen(argv[1]);
-        if ((i > 3) && (i < 12)) {
+        if ((i > 3) && (i < 8)) {
             int cmd = xscmcommand(argv[1]);
             if (cmd >= 0) {
                 argc  -= 2;
