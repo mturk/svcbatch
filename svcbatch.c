@@ -239,11 +239,12 @@ static const wchar_t *scmcommands[] = {
 };
 
 static const SVCBATCH_NAME_MAP starttypemap[] = {
+    { L"automatic", SERVICE_AUTO_START      },
     { L"auto",      SERVICE_AUTO_START      },
     { L"demand",    SERVICE_DEMAND_START    },
     { L"disabled",  SERVICE_DISABLED        },
     { L"manual",    SERVICE_DEMAND_START    },
-    { NULL,      0 }
+    { NULL,         0                       }
 };
 
 static const wchar_t *scmallowed[] = {
@@ -281,9 +282,12 @@ static const wchar_t *scmcoptions[] = {
     L"n+display",
     L"n+name",
     L"p+password",
+    L"P:privileges",
     L"P:privs",
+    L"i.interactive",
     L"i.interact",
     L"u+obj",
+    L"u+username",
     L"u+user",
     L"s:start",
     L"v?verbose",
