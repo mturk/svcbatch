@@ -214,7 +214,7 @@ static LPCWSTR xwoption    = NULL;
 #if SVCBATCH_LEAN_AND_MEAN
 static LPCWSTR cmdoptions  = L"bc:e:f:gh:k:lm:n:o:pqr:s:tvw:";
 #else
-static LPCWSTR cmdoptions  = L"c:e:f:h:k:pw:";
+static LPCWSTR cmdoptions  = L"bc:e:f:gh:k:pw:";
 #endif
 
 #if SVCBATCH_HAVE_SCM
@@ -3795,13 +3795,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         return xsyserror(0, L"Too many arguments", xwoptarg);
                 }
             break;
-#if SVCBATCH_LEAN_AND_MEAN
             case 'b':
                 svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
             break;
-            case 'g':
-                svcoptions  |= SVCBATCH_OPT_BREAK;
-            break;
+#if SVCBATCH_LEAN_AND_MEAN
             case 'l':
                 svcoptions  |= SVCBATCH_OPT_LOCALTIME;
             break;
@@ -3812,6 +3809,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 svcoptions  |= SVCBATCH_OPT_VERBOSE;
             break;
 #endif
+            case 'g':
+                svcoptions  |= SVCBATCH_OPT_BREAK;
+            break;
             case 'p':
                 preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
             break;
