@@ -4916,7 +4916,7 @@ finished:
             fputc('\n', stdout);
         }
     }
-    DBG_PRINTF("done %d", rv);
+    DBG_PRINTS("done");
     return rv;
 }
 #endif
@@ -4942,8 +4942,10 @@ static DWORD dbgfopen(void)
 
         if (SetFilePointerEx(dbgfile, dd, NULL, FILE_END)) {
             DWORD wr;
+            LockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
             WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
-            WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
+            FlushFileBuffers(dbgfile);
+            UnlockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
         }
     }
     InitializeCriticalSection(&dbglock);
@@ -4953,6 +4955,7 @@ static DWORD dbgfopen(void)
 static void dbgfclose(void)
 {
     if (IS_VALID_HANDLE(dbgfile)) {
+        FlushFileBuffers(dbgfile);
         CloseHandle(dbgfile);
         DeleteCriticalSection(&dbglock);
     }
@@ -5125,7 +5128,7 @@ int wmain(int argc, LPCWSTR *argv)
             if (cmd >= 0) {
                 argc  -= 2;
                 argv  += 2;
-                dbgprints(__FUNCTION__, cnamestamp);
+                DBG_PRINTS("started");
                 r = xscmexecute(cmd, argc, argv);
                 goto finished;
             }
