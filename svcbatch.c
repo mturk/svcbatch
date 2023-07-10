@@ -1265,9 +1265,24 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
     va_list ap;
 
 #if (_DEBUG > 1)
-    int     i;
+    int     i = 0;
     char    h[SBUFSIZ];
-    i  = xtimehdr( h,     SBUFSIZ);
+    SYSTEMTIME tm;
+
+    GetLocalTime(&tm);
+    h[i++] = tm.wHour   / 10 + '0';
+    h[i++] = tm.wHour   % 10 + '0';
+    h[i++] = ':';
+    h[i++] = tm.wMinute / 10 + '0';
+    h[i++] = tm.wMinute % 10 + '0';
+    h[i++] = ':';
+    h[i++] = tm.wSecond / 10 + '0';
+    h[i++] = tm.wSecond % 10 + '0';
+    h[i++] = '.';
+    h[i++] = tm.wMilliseconds / 100 + L'0';
+    h[i++] = tm.wMilliseconds % 100 / 10 + L'0';
+    h[i++] = tm.wMilliseconds % 10 + L'0';
+
     i += xsnprintf(h + i, SBUFSIZ - i, " [%.4lu] ", GetCurrentProcessId());
 #endif
     n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
