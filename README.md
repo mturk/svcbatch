@@ -418,15 +418,15 @@ will be reported to Windows Event log.
   SvcBatch will at runtime append `.log` or `.shutdown.log` extension
   to the **log name**.
 
-  If **-n** argument includes any `@` characters, they will be replaced
+  If the **-n** argument contains `@` characters, they will be replaced
   with `%` character at runtime and treated as a format string
-  to `strftime` function.
+  to our custom `strftime` function.
 
   When using `strftime` filename formatting, be sure the
   log file name format has enough granularity to produce a different
   file name each time the logs are rotated. Otherwise rotation
   will overwrite the same file instead of starting a new one.
-  For example, if logfile was `service.@Y-@m-@d` with log rotation
+  For example, if logfile was `service.%Y-%m-%d` with log rotation
   at `5` megabytes, but `5` megabytes was reached twice in the same day,
   the same log file name would be produced and log rotation would
   overwrite the same file.
@@ -436,18 +436,21 @@ will be reported to Windows Event log.
   Here are listed the supported formatting codes:
 
   ```no-highlight
-    @a  Abbreviated weekday name in the locale
-    @b  Abbreviated month name in the locale
-    @d  Day of month as a decimal number (01 - 31)
-    @H  Hour in 24-hour format (00 - 23)
-    @I  Hour in 12-hour format (01 - 12)
-    @j  Day of the year as a decimal number (001 - 366)
-    @m  Month as a decimal number (01 - 12)
-    @M  Minute as a decimal number (00 - 59)
-    @p  The locale's A.M./P.M. indicator for 12-hour clock
-    @S  Second as a decimal number (00 - 59)
-    @y  Year without century, as decimal number (00 - 99)
-    @Y  Year with century, as decimal number
+    %C  The year divided by 100 and truncated to an integer, as a decimal number (00−99)
+    %d  Day of month as a decimal number (01 - 31)
+    %F  Equivalent to %Y-%m-%d
+    %H  Hour in 24-hour format (00 - 23)
+    %j  Day of the year as a decimal number (001 - 366)
+    %L  Equivalent to %Y%m%d%H%M%S
+    %m  Month as a decimal number (01 - 12)
+    %M  Minute as a decimal number (00 - 59)
+    %N  Service Name
+    %P  Program Name
+    %S  Second as a decimal number (00 - 59)
+    %s  Millisecond as a decimal number (000 - 999)
+    %w  Weekday as a decimal number (0 - 6; Sunday is 0)
+    %y  Year without century, as decimal number (00 - 99)
+    %Y  Year with century, as decimal number
   ```
 
   Make sure that log names contain only valid file name characters.
@@ -466,12 +469,8 @@ will be reported to Windows Event log.
   ```
 
   In case the result from `strftime` contains any of the reserved
-  characters they will be removed.
+  characters the function will fail.
 
-  For example if the **-n** argument contains `@D` it will be resolved
-  as equivalent to `@m/@d/@y`. Since `/` is invalid file name character,
-  all occurrences of the `/` character will be removed from the final result.
-  This means that resolved `03/06/23` will make final result as `030623`.
 
 * **-o [path]**
 
