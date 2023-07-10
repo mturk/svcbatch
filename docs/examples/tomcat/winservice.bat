@@ -86,7 +86,7 @@ set "SERVICE_LOGNAME=-nsvcbatch.@Y-@m-@d"
 rem
 rem
 rem
-svcbatch create "%SERVICE_NAME%" /verbose ^
+svcbatch create "%SERVICE_NAME%" ^
     /displayName "Apache Tomcat 10.1 %SERVICE_NAME% Service" ^
     /description "Apache Tomcat 10.1.x Server - https://tomcat.apache.org/" ^
     /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
@@ -104,14 +104,14 @@ rem The JVM will dump the full thread stack to the log file
 :doDumpStacks
 rem
 rem
-svcbatch control "%SERVICE_NAME%" /verbose 233
+svcbatch control "%SERVICE_NAME%" 233
 goto End
 rem
 rem
 :doRotate
 rem
 rem
-svcbatch control "%SERVICE_NAME%" /verbose 234
+svcbatch control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -119,7 +119,7 @@ rem
 :doStart
 rem
 rem
-svcbatch start "%SERVICE_NAME%" /verbose /wait
+svcbatch start "%SERVICE_NAME%" /wait
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -127,7 +127,7 @@ rem
 :doStop
 rem
 rem
-svcbatch stop "%SERVICE_NAME%"  /verbose /wait
+svcbatch stop "%SERVICE_NAME%" /wait
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -135,7 +135,7 @@ rem
 :doDelete
 rem
 rem
-svcbatch delete "%SERVICE_NAME%" /verbose /wait
+svcbatch delete "%SERVICE_NAME%" /wait
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
 rem

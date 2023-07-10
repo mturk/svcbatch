@@ -87,19 +87,19 @@ rem
 goto allInOne
 rem goto doLite
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose -pbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" -pbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Add Additional configuration
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /quiet %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Add Batch file arguments
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" %SERVICE_BATCH% run %%TEMP%%
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /quiet %SERVICE_BATCH% run %%TEMP%%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Set Display Name and Description
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /display "A Dummy Service" /description "One dummy SvcBatch service example"
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /quiet /display "A Dummy Service" /description "One dummy SvcBatch service example"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem Set Dependencies and Privileges
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
+%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /quiet /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
 rem
@@ -109,7 +109,7 @@ rem
 :allInOne
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose ^
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     /displayname "A Dummy Service" /description "One dummy SvcBatch service example" ^
     /depend=Tcpip/Afd /privs:SeShutdownPrivilege ^
     -pbL /f:0 /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR% ^
@@ -127,7 +127,7 @@ rem
 :doLite
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose ^
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /quiet ^
     /display "A Dummy Service" /desc "One dummy SvcBatch service example" ^
     /username=1 ^
     /h "%TEST_DIR%" %SERVICE_BATCH% run
@@ -180,7 +180,7 @@ shift
 goto setStopArgs
 :doneStopArgs
 rem
-%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /verbose /wait=30 %STOP_CMD_ARGS%
+%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /wait=30 %STOP_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Stopped %SERVICE_NAME%
 goto End
@@ -193,7 +193,7 @@ rem
 pushd "..\.build\dbg"
 set "BUILD_DIR=%cd%"
 popd
-%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" /verbose 233
+%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 233
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -205,7 +205,7 @@ rem
 pushd "..\.build\dbg"
 set "BUILD_DIR=%cd%"
 popd
-%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" /verbose 234
+%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -218,7 +218,7 @@ popd
 rem
 echo %~nx0: Deleting %SERVICE_NAME%
 rem
-%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" /verbose /WAIT=30
+%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" /WAIT=30
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %~nx0: Deleted %SERVICE_NAME%
 goto End
