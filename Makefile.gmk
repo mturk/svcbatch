@@ -71,11 +71,16 @@ CLOPTS  = $(LNOPTS) -c
 LDLIBS  = -lkernel32 -ladvapi32 -lbcrypt
 RLOPTS  = --strip-unneeded
 
-
 ifdef VERSION_SFX
 CFLAGS += -DVERSION_SFX=$(VERSION_SFX)
 RFLAGS += -D VERSION_SFX=$(VERSION_SFX)
 endif
+
+ifdef _SVCBATCH_LITE
+CFLAGS += -D_SVCBATCH_LITE
+RFLAGS += -D _SVCBATCH_LITE
+endif
+
 
 OBJECTS = \
 	$(WORKDIR)/$(PROJECT).o \
