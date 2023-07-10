@@ -58,16 +58,17 @@ to use 64-bit compiler.
 
 ## Creating Services
 
-SvcBatch does not contain any code for service management.
-Users should use Microsoft's `sc.exe` utility to
+Starting with version **2.2** SvcBatch has a Service management
+code that contains a subset of Microsoft's `sc.exe` utility to
 create, configure, manage, and delete services.
-`Sc` is an integral part of every Windows distribution and
-there is no need to replicate that functionality internally.
+Check the [managing](docs/manage.md) section for some basic
+guidelines.
+
 Check [Microsoft's SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-config)
 for detailed description how to use the `SC` utility to create
 and manage services.
 
-SvcBatch uses System's `cmd.exe` as a shell to run a batch file.
+By default SvcBatch uses System's `cmd.exe` as a shell to run a batch file.
 Thus the batch file is an *actual* service application from a
 conceptual point of view.
 
@@ -82,6 +83,12 @@ The simplest way to create a service for your batch file
 is to put `svcbatch.exe` in the same directory where your
 `myservice.bat` file is located. Open the command prompt and
 type something like this...
+
+```cmd
+> svcbatch create myservice
+
+```
+... or using `SC` utility
 
 ```cmd
 > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat"
@@ -213,18 +220,7 @@ In case you need to pass `@` character use `@@`.
 Command line options are defined at service install time, so
 make sure to get familiar with `sc.exe` utility.
 
-You can use the `@myservice` as the first command option to set
-the service name which will be then displayed in Windows Event log
-in case there are errors before the main service function.
-
-For example:
-
-```cmd
-> sc create myservice binPath= "%cd%\svcbatch.exe @myservice [options]  [myservice.bat]"
-
-```
-
-If `@ServiceName` was defined, and there is no batch file argument, SvcBatch will
+If there is no batch file argument, SvcBatch will
 try to use `ServiceName.bat` as batch file. If `ServiceName` contain any of the
 invalid file name characters `/\:;<>?*|"`, the service will fail and error message
 will be reported to Windows Event log.
