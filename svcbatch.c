@@ -306,22 +306,6 @@ static const wchar_t *scmcoptions[] = {
 
 #endif
 
-/**
- * (element & 1) == valid file name character
- * (element & 2) == character should be escaped in command line
- */
-static const char xfnchartype[128] =
-{
-    /** Reject all ctrl codes...                                          */
-        0,0,0,0,0,0,0,0,0,2,2,2,2,2,2,0, 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
-    /**   ! " # $ % & ' ( ) * + , - . /  0 1 2 3 4 5 6 7 8 9 : ; < = > ?  */
-        3,1,2,1,1,1,1,1,1,1,0,1,1,1,1,0, 1,1,1,1,1,1,1,1,1,1,0,0,0,1,0,0,
-    /** @ A B C D E F G H I J K L M N O  P Q R S T U V W X Y Z [ \ ] ^ _  */
-        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,2,1,1,1,
-    /** ` a b c d e f g h i j k l m n o  p q r s t u v w x y z { | } ~    */
-        1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1, 1,1,1,1,1,1,1,1,1,1,1,1,0,1,1,1
-};
-
 static int xfatalerr(LPCSTR func, int err)
 {
 
@@ -3751,7 +3735,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
 #endif
     int      ccnt = 0;
     int      rargc;
-    LPCWSTR *rargv;
+    LPWSTR  *rargv;
 
     LPCWSTR  scriptparam  = NULL;
     LPCWSTR  svchomeparam = NULL;
@@ -3771,7 +3755,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (x != ERROR_SUCCESS)
         return xsyserror(x, SVCBATCH_SVCARGS, NULL);
     argc = rargc;
-    argv = rargv;
+    argv = (LPCWSTR *)rargv;
 
     while ((opt = xwgetopt(argc, argv, cmdoptions)) != EOF) {
         switch (opt) {
@@ -4144,7 +4128,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     DBG_PRINTF("%S", service->name);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
 
-    rv = parseoptions(argc, argv);
+    rv = parseoptions(argc, (LPCWSTR *)argv);
     if (rv) {
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
@@ -4926,12 +4910,12 @@ finished:
             if (cmd == SVCBATCH_SCM_CONTROL)
             fprintf(stdout, "               %S\n", argv[0]);
             if (cmd == SVCBATCH_SCM_CREATE)
-            fprintf(stdout, "     STARTUP : %S (%d)\n", xcodemap(starttypemap, starttype), starttype);
+            fprintf(stdout, "     STARTUP : %S (%lu)\n", xcodemap(starttypemap, starttype), starttype);
             if (cmd == SVCBATCH_SCM_START)
             fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
             if (cmd == SVCBATCH_SCM_STOP)
-            fprintf(stdout, "    EXITCODE : %lu (0x%x)\n", ssp->dwServiceSpecificExitCode,
-                                                           ssp->dwServiceSpecificExitCode);
+            fprintf(stdout, "    EXITCODE : %lu (0x%lx)\n", ssp->dwServiceSpecificExitCode,
+                                                            ssp->dwServiceSpecificExitCode);
             if ((cmdverbose > 1) && (argc > 0)) {
             fputs("\n   Arguments :\n", stdout);
             for (i = 0; i < argc; i++)
