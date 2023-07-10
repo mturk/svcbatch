@@ -1040,24 +1040,11 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             while (xisblank(*place))
                 ++place;
         }
-        if (*place) {
-            if (*place == L':')  {
-                ++place;
-                while (xisblank(*place))
-                    ++place;
-                if (*place == WNUL) {
-                    /* Missing explicit in-place argument */
-                    place = zerostring;
-                    return ENOENT;
-                }
-            }
+        if (*place)
             xwoptarg = place;
-        }
-        else if (nargc > ++xwoptind) {
+        else if (nargc > ++xwoptind)
             xwoptarg = nargv[xwoptind];
-            while (xisblank(*xwoptarg))
-                ++xwoptarg;
-        }
+
         xwoptind++;
         place = zerostring;
         if (IS_EMPTY_WCS(xwoptarg)) {
