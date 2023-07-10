@@ -251,8 +251,6 @@ static const wchar_t *scmallowed[] = {
     L"vbdDinpPsu",         /* SVCBATCH_SCM_CONFIG      */
     L"v",                  /* SVCBATCH_SCM_CONTROL     */
     L"vw",                 /* SVCBATCH_SCM_DELETE      */
-    L"v",                  /* SVCBATCH_SCM_DESCRIPTION */
-    L"v",                  /* SVCBATCH_SCM_PRIVS       */
     L"vw",                 /* SVCBATCH_SCM_START       */
     L"vw",                 /* SVCBATCH_SCM_STOP        */
     NULL
@@ -3603,7 +3601,7 @@ static LPWSTR *mergearguments(int orgc, LPCWSTR *orgv, LPWSTR msz, int *argc)
             argv[i++] = (LPWSTR)orgv[x];
     }
     *argc = c;
-#if defined(_DEBUG)
+#if defined(_DEBUG) && (_DEBUG > 2)
     for (x = 0; x < c; x++) {
         DBG_PRINTF("[%d] '%S'", x, argv[x]);
     }
@@ -4325,7 +4323,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     ssr = (PSERVICE_CONTROL_STATUS_REASON_PARAMSW)xmcalloc(sizeof(SERVICE_CONTROL_STATUS_REASON_PARAMSW));
     ssp = &ssr->ServiceStatus;
     service->name = argv[0];
-
+    DBG_PRINTF("%S %S", scmcommands[cmd], service->name);
     if (cmd == SVCBATCH_SCM_CREATE) {
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
@@ -4837,6 +4835,7 @@ finished:
             fputc('\n', stdout);
         }
     }
+    DBG_PRINTF("done %d", rv);
     return rv;
 }
 #endif
@@ -4930,31 +4929,38 @@ int wmain(int argc, LPCWSTR *argv)
         }
     }
     r = xwmaininit(argc, argv);
-    if (r != 0)
+    if (r != 0) {
+        DBG_PRINTF("main failed with error %d", r);
         return r;
+    }
 #if SVCBATCH_LEAN_AND_MEAN
     /**
      * Check if running as service or as a child process.
      */
     if (xwstartswith(p, SVCBATCH_MMAPPFX)) {
+        p += 2;
         servicemode = FALSE;
-        sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p + 2);
+        cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
+        wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
+        cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
+#if defined(_DEBUG)
+        dbgsvcmode = '1';
+#endif
+        sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p);
         if (sharedmmap == NULL)
-            return GetLastError();
+            return xsyserror(GetLastError(), L"OpenFileMapping", p);
+
         sharedmem = (LPSVCBATCH_IPC)MapViewOfFile(
                                         sharedmmap,
                                         FILE_MAP_ALL_ACCESS,
                                         0, 0, DSIZEOF(SVCBATCH_IPC));
         if (sharedmem == NULL)
-            return GetLastError();
-        cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
-        wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
-        cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
+            return xsyserror(GetLastError(), L"MapViewOfFile", p);
+
         stoptimeout = sharedmem->timeout;
         svcoptions  = sharedmem->options;
         killdepth   = sharedmem->killdepth;
 #if defined(_DEBUG)
-        dbgsvcmode = '1';
         dbgprints(__FUNCTION__, cnamestamp);
         dbgprintf(__FUNCTION__, "ppid %lu", sharedmem->processId);
         dbgprintf(__FUNCTION__, "opts 0x%08x", sharedmem->options);
@@ -4999,6 +5005,11 @@ int wmain(int argc, LPCWSTR *argv)
         }
     }
 #endif
+#if defined(_DEBUG)
+    if (servicemode)
+        dbgsvcmode = '0';
+#endif
+
     /**
      * Create logic state events
      */
@@ -5006,7 +5017,8 @@ int wmain(int argc, LPCWSTR *argv)
                                 CREATE_EVENT_MANUAL_RESET,
                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(workerended))
-        return GetLastError();
+        return xsyserror(GetLastError(), L"CreateEventEx", NULL);
+
     SVCBATCH_CS_INIT(service);
     atexit(objectscleanup);
     if (IS_INVALID_HANDLE(program->sInfo.hStdInput)) {
@@ -5021,7 +5033,7 @@ int wmain(int argc, LPCWSTR *argv)
             ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
         }
         else {
-            return GetLastError();
+            return xsyserror(GetLastError(), L"AllocConsole", NULL);
         }
         program->sInfo.hStdInput  = h;
         program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -5033,9 +5045,6 @@ int wmain(int argc, LPCWSTR *argv)
 
     if (servicemode) {
         SERVICE_TABLE_ENTRYW se[2];
-#if defined(_DEBUG)
-        dbgsvcmode = '0';
-#endif
         se[0].lpServiceName = zerostring;
         se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
         se[1].lpServiceName = NULL;
