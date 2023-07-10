@@ -4841,7 +4841,7 @@ finished:
 }
 #endif
 
-static int xwmaininit(void)
+static int xwmaininit(int argc, LPCWSTR *argv)
 {
     WCHAR  bb[SVCBATCH_PATH_MAX];
     LPWSTR dp = NULL;
@@ -4891,6 +4891,9 @@ static int xwmaininit(void)
             break;
         }
     }
+    svcmainargc = argc - 1;
+    svcmainargv = argv + 1;
+
     ASSERT_WSTR(program->application, ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->directory,   ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->name,        ERROR_BAD_PATHNAME);
@@ -4923,11 +4926,10 @@ int wmain(int argc, LPCWSTR *argv)
         p = argv[1];
         if ((p[0] == L'/') && (p[1] == L'?') && (p[2] == WNUL)) {
             fputs(cnamestamp, stdout);
-            fputs("\n\nVisit " SVCBATCH_PROJECT_URL " for more details\n", stdout);
             return 0;
         }
     }
-    r = xwmaininit();
+    r = xwmaininit(argc, argv);
     if (r != 0)
         return r;
 #if SVCBATCH_LEAN_AND_MEAN
@@ -4997,8 +4999,6 @@ int wmain(int argc, LPCWSTR *argv)
         }
     }
 #endif
-    svcmainargc = argc - 1;
-    svcmainargv = argv + 1;
     /**
      * Create logic state events
      */
