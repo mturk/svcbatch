@@ -1280,8 +1280,10 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
 #if (_DEBUG > 1)
     if (IS_VALID_HANDLE(dbgfile)) {
         DWORD wr;
+        LARGE_INTEGER dd = {{ 0, 0 }};
 
         EnterCriticalSection(&dbglock);
+        SetFilePointerEx(dbgfile, dd, NULL, FILE_END);
         n = (int)strlen(h);
         WriteFile(dbgfile, h,     n, &wr, NULL);
         n = (int)strlen(b);
@@ -1778,7 +1780,7 @@ static LPWSTR xsearchexe(LPCWSTR name)
     return xwcsdup(buf);
 }
 
-static BOOL resolvescriptname(LPCWSTR bp)
+static BOOL resolvescript(LPCWSTR bp)
 {
     LPWSTR p;
 
@@ -3978,7 +3980,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     }
     if (service->home == NULL) {
         if (isabsolutepath(scriptparam)) {
-            if (!resolvescriptname(scriptparam))
+            if (!resolvescript(scriptparam))
                 return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
 
             if (svchomeparam == NULL) {
@@ -4013,7 +4015,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
         if (IS_EMPTY_WCS(service->work))
             return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
     }
-    if (!resolvescriptname(scriptparam))
+    if (!resolvescript(scriptparam))
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
     if (commandparam) {
         if (isrelativepath(commandparam))
@@ -4898,17 +4900,27 @@ finished:
 static DWORD dbgopenfile(void)
 {
     DWORD   dn;
+    DWORD   rc;
     wchar_t db[MAX_PATH];
-    wchar_t nb[MAX_PATH];
 
     dn = GetTempPathW(MAX_PATH - 20, db);
     if ((dn == 0) || (dn >= (MAX_PATH - 20)))
         return ERROR_INSUFFICIENT_BUFFER;
-    xsnwprintf(nb, MAX_PATH, L"%ssvcbatch.%lu.debug.log", db, GetCurrentProcessId());
-    dbgfile = CreateFileW(nb, GENERIC_WRITE, FILE_SHARE_READ, NULL,
-                          CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    xwcslcat(db, MAX_PATH, SVCBATCH_LOGNAME L".debug.log");
+    dbgfile = CreateFileW(db, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                          OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    rc = GetLastError();
     if (IS_INVALID_HANDLE(dbgfile))
-        return GetLastError();
+        return rc;
+    if (rc == ERROR_ALREADY_EXISTS) {
+        LARGE_INTEGER dd = {{ 0, 0 }};
+
+        if (SetFilePointerEx(dbgfile, dd, NULL, FILE_END)) {
+            DWORD wr;
+            WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
+            WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
+        }
+    }
     InitializeCriticalSection(&dbglock);
     return 0;
 }
@@ -5152,10 +5164,10 @@ int wmain(int argc, LPCWSTR *argv)
 #endif
 finished:
 #if defined(_DEBUG)
+    DBG_PRINTS("done");
 # if (_DEBUG > 1)
     dbgclosefile();
 # endif
-    DBG_PRINTS("done");
 #endif
     return r;
 }
