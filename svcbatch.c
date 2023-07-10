@@ -1265,17 +1265,13 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
     va_list ap;
 
 #if (_DEBUG > 1)
-    char    h[TBUFSIZ];
-    xtimehdr(h, TBUFSIZ);
-    n = xsnprintf(b, SVCBATCH_LINE_MAX, "%s [%.4lu] [%.4lu] %c %-16s ", h,
-                  GetCurrentProcessId(),
-                  GetCurrentThreadId(),
-                  dbgsvcmode, funcname);
-#else
+    char    h[SBUFSIZ];
+    n = xtimehdr( h,     SBUFSIZ);
+    n = xsnprintf(h + n, SBUFSIZ - n, " [%.4lu] ", GetCurrentProcessId());
+#endif
     n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
                   GetCurrentThreadId(),
                   dbgsvcmode, funcname);
-#endif
 
     va_start(ap, format);
     xvsnprintf(b + n, SVCBATCH_LINE_MAX - n, format, ap);
@@ -1285,8 +1281,10 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
     if (IS_VALID_HANDLE(dbgfile)) {
         DWORD wr;
 
-        n = (int)strlen(b);
         EnterCriticalSection(&dbglock);
+        n = (int)strlen(h);
+        WriteFile(dbgfile, h,     n, &wr, NULL);
+        n = (int)strlen(b);
         WriteFile(dbgfile, b,     n, &wr, NULL);
         WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
         FlushFileBuffers(dbgfile);
@@ -5036,16 +5034,18 @@ int wmain(int argc, LPCWSTR *argv)
         dbgprints(__FUNCTION__, cnamestamp);
 #endif
         sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p);
-        if (sharedmmap == NULL)
-            return xsyserror(GetLastError(), L"OpenFileMapping", p);
-
+        if (sharedmmap == NULL) {
+            r = xsyserror(GetLastError(), L"OpenFileMapping", p);
+            goto finished;
+        }
         sharedmem = (LPSVCBATCH_IPC)MapViewOfFile(
                                         sharedmmap,
                                         FILE_MAP_ALL_ACCESS,
                                         0, 0, DSIZEOF(SVCBATCH_IPC));
-        if (sharedmem == NULL)
-            return xsyserror(GetLastError(), L"MapViewOfFile", p);
-
+        if (sharedmem == NULL) {
+            r = xsyserror(GetLastError(), L"MapViewOfFile", p);
+            goto finished;
+        }
         stoptimeout = sharedmem->timeout;
         svcoptions  = sharedmem->options;
         killdepth   = sharedmem->killdepth;
@@ -5089,7 +5089,8 @@ int wmain(int argc, LPCWSTR *argv)
                 argc  -= 2;
                 argv  += 2;
                 dbgprints(__FUNCTION__, cnamestamp);
-                return xscmexecute(cmd, argc, argv);
+                r = xscmexecute(cmd, argc, argv);
+                goto finished;
             }
         }
     }
@@ -5106,9 +5107,10 @@ int wmain(int argc, LPCWSTR *argv)
     workerended = CreateEventEx(NULL, NULL,
                                 CREATE_EVENT_MANUAL_RESET,
                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
-    if (IS_INVALID_HANDLE(workerended))
-        return xsyserror(GetLastError(), L"CreateEventEx", NULL);
-
+    if (IS_INVALID_HANDLE(workerended)) {
+        r = xsyserror(GetLastError(), L"CreateEventEx", NULL);
+        goto finished;
+    }
     SVCBATCH_CS_INIT(service);
     atexit(objectscleanup);
     if (IS_INVALID_HANDLE(program->sInfo.hStdInput)) {
@@ -5123,7 +5125,8 @@ int wmain(int argc, LPCWSTR *argv)
             ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
         }
         else {
-            return xsyserror(GetLastError(), L"AllocConsole", NULL);
+            r = xsyserror(GetLastError(), L"AllocConsole", NULL);
+            goto finished;
         }
         program->sInfo.hStdInput  = h;
         program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -5147,6 +5150,7 @@ int wmain(int argc, LPCWSTR *argv)
         r = svcstopmain();
     }
 #endif
+finished:
 #if defined(_DEBUG)
 # if (_DEBUG > 1)
     dbgclosefile();
