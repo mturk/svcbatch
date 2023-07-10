@@ -1702,7 +1702,7 @@ static LPCWSTR skipdotslash(LPCWSTR s)
 
 static BOOL isabsolutepath(LPCWSTR p)
 {
-    if ((p != NULL) && (p[0] < 128)) {
+    if ((p != NULL) && (*p != WNUL)) {
         if ((p[0] == L'\\') || (xisalpha(p[0]) && (p[1] == L':')))
             return TRUE;
     }
@@ -1822,9 +1822,13 @@ static BOOL resolvescript(LPCWSTR bp)
 {
     LPWSTR p;
 
-    DBG_PRINTF("name: '%S'", bp);
     if (cmdproc->script)
         return TRUE;
+    if (*bp == WNUL) {
+        cmdproc->script = NULL;
+        service->base   = service->home;
+        return TRUE;
+    }
     if (*bp == L':') {
         cmdproc->script = xwcsdup(bp + 1);
         service->base   = service->home;
@@ -3918,13 +3922,21 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (scriptparam == NULL) {
         if (argc == 0) {
             /**
-             * No batch file defined.
+             * No script file defined.
              */
-            if (xwcspbrk(service->name, L":;<>?*|\""))
-                return xsyserror(0, L"Service name has invalid filename characters", NULL);
-            i = xwcsncat(wb, BBUFSIZ, 0, service->name);
-            i = xwcsncat(wb, BBUFSIZ, i, L".bat");
-            scriptparam = wb;
+            if (commandparam) {
+                /**
+                 * Alternate shell without script
+                 */
+                scriptparam = zerostring;
+            }
+            else {
+                if (xwcspbrk(service->name, L":;<>?*|\""))
+                    return xsyserror(0, L"Service name has invalid filename characters", NULL);
+                i = xwcsncat(wb, BBUFSIZ, 0, service->name);
+                i = xwcsncat(wb, BBUFSIZ, i, L".bat");
+                scriptparam = wb;
+            }
         }
         else {
             scriptparam = argv[0];
@@ -3934,7 +3946,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     }
     for (i = 0; i < argc; i++) {
         /**
-         * Add arguments for batch file
+         * Add arguments for script file
          */
         if (xwcslen(argv[i]) >= SVCBATCH_NAME_MAX)
             return xsyserror(0, L"The argument is too large", argv[i]);
@@ -4063,6 +4075,14 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (!resolvescript(scriptparam))
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
     if (commandparam) {
+        /**
+         * Search the current working folder,
+         * and then search the folders that are
+         * specified in the system path.
+         *
+         * This is the system default value.
+         */
+        SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
         if (isrelativepath(commandparam))
             cmdproc->application = xsearchexe(commandparam);
         else
