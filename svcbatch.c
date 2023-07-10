@@ -1092,9 +1092,14 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         return EOF;
     }
     place  = nargv[xwoptind];
-    if (*(place++) != '/')
+    if (*place != '/') {
+        if ((place[0] == '-') && (place[1] == CNUL)) {
+            /* The single '-' is a command delimiter */
+            xwoptind++;
+        }
         return EOF;
-    if (!xisalpha(*place))
+    }
+    if (!xisalpha(*(++place)))
         return EOF;
     xwoption = place;
     longopt  = longopts;
