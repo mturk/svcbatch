@@ -257,12 +257,12 @@ static const SVCBATCH_NAME_MAP starttypemap[] = {
 };
 
 static const wchar_t *scmallowed[] = {
-    L"vbdDinpPsu",         /* SVCBATCH_SCM_CREATE      */
-    L"vbdDinpPsu",         /* SVCBATCH_SCM_CONFIG      */
-    L"v",                  /* SVCBATCH_SCM_CONTROL     */
-    L"vw",                 /* SVCBATCH_SCM_DELETE      */
-    L"vw",                 /* SVCBATCH_SCM_START       */
-    L"vw",                 /* SVCBATCH_SCM_STOP        */
+    L"vqbdDinpPsu",        /* SVCBATCH_SCM_CREATE      */
+    L"vqbdDinpPsu",        /* SVCBATCH_SCM_CONFIG      */
+    L"vq",                 /* SVCBATCH_SCM_CONTROL     */
+    L"vqw",                /* SVCBATCH_SCM_DELETE      */
+    L"vqw",                /* SVCBATCH_SCM_START       */
+    L"vqw",                /* SVCBATCH_SCM_STOP        */
     NULL
 };
 
@@ -287,13 +287,14 @@ static const wchar_t *scmcoptions[] = {
     L"d+description",
     L"d+desc",
     L"D:depend",
+    L"i.interactive",
+    L"i.interact",
     L"n+displayname",
     L"n+display",
     L"p+password",
     L"P:privileges",
     L"P:privs",
-    L"i.interactive",
-    L"i.interact",
+    L"q.quiet",
     L"u:obj",
     L"u:username",
     L"u:user",
@@ -4392,7 +4393,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       rv = 0;
     int       ec = 0;
     int       ep = 0;
-    int       cmdverbose  = 0;
+    int       cmdverbose  = 1;
     ULONGLONG wtmstart    = 0;
     ULONGLONG wtimeout    = 0;
     LPCWSTR   ed          = NULL;
@@ -4425,6 +4426,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         switch (opt) {
             case 'i':
                 servicetype = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
+            break;
+            case 'q':
+                cmdverbose  = 0;
             break;
             case 'v':
                 cmdverbose = xwcstoi(xwoptarg, NULL);
