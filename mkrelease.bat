@@ -30,6 +30,8 @@ set "ProjectName=svcbatch"
 set "ReleaseArch=win-x64"
 set "BuildDir=.build\rel"
 set "ProjectFiles=%ProjectName%.exe"
+set "DebugPrefix="
+set "LitePrefix="
 set "MakefileArgs="
 rem
 :getOpts
@@ -43,7 +45,7 @@ rem
 :setDebug
 set "BuildDir=.build\dbg"
 set "MakefileArgs=%MakefileArgs% _DEBUG=1"
-set "ReleaseArch=debug-%ReleaseArch%"
+set "DebugPrefix=debug-"
 set "ProjectFiles=%ProjectFiles% %ProjectName%.pdb"
 shift
 goto getOpts
@@ -54,7 +56,7 @@ goto getOpts
 rem
 :setLite
 set "MakefileArgs=%MakefileArgs% _SVCBATCH_LITE=1"
-set "ReleaseArch=lite-%ReleaseArch%"
+set "LitePrefix=lite-"
 shift
 goto getOpts
 rem
@@ -73,6 +75,7 @@ goto setArgs
 rem
 :doneArgs
 rem
+set "ReleaseArch=%DebugPrefix%%LitePrefix%%ReleaseArch%"
 rem nmake /nologo %MakefileArgs% clean
 set "ReleaseName=%ProjectName%-%ReleaseVersion%-%ReleaseArch%"
 set "ReleaseLog=%ReleaseName%.txt
