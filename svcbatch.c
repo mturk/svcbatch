@@ -1262,7 +1262,6 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
 {
     int     n;
     char    b[SVCBATCH_LINE_MAX];
-    va_list ap;
 
 #if (_DEBUG > 1)
     int     i = 0;
@@ -1285,14 +1284,24 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
 
     i += xsnprintf(h + i, SBUFSIZ - i, " [%.4lu] ", GetCurrentProcessId());
 #endif
-    n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
-                  GetCurrentThreadId(),
-                  dbgsvcmode, funcname);
+    if (format) {
+        va_list ap;
+        n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
+                      GetCurrentThreadId(),
+                      dbgsvcmode, funcname);
 
-    va_start(ap, format);
-    n += xvsnprintf(b + n, SVCBATCH_LINE_MAX - n, format, ap);
-    va_end(ap);
-    OutputDebugStringA(b);
+        va_start(ap, format);
+        n += xvsnprintf(b + n, SVCBATCH_LINE_MAX - n, format, ap);
+        va_end(ap);
+        OutputDebugStringA(b);
+    }
+    else {
+        OutputDebugStringA("\n");
+#if (_DEBUG > 1)
+        n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu]",
+                      GetCurrentThreadId());
+#endif
+    }
 #if (_DEBUG > 1)
     if (IS_VALID_HANDLE(dbgfile)) {
         DWORD wr;
@@ -1314,7 +1323,7 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
 static void dbgprints(LPCSTR funcname, LPCSTR string)
 {
     if (string == NULL)
-        OutputDebugStringA("\n");
+        dbgprintf(funcname, NULL, NULL);
     else
         dbgprintf(funcname, "%s", string);
 }
