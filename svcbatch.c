@@ -1284,12 +1284,14 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
 
         EnterCriticalSection(&dbglock);
         SetFilePointerEx(dbgfile, dd, NULL, FILE_END);
+        LockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
         n = (int)strlen(h);
         WriteFile(dbgfile, h,     n, &wr, NULL);
         n = (int)strlen(b);
         WriteFile(dbgfile, b,     n, &wr, NULL);
         WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
         FlushFileBuffers(dbgfile);
+        UnlockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
         LeaveCriticalSection(&dbglock);
     }
 #endif
@@ -4897,7 +4899,7 @@ finished:
 #endif
 
 #if defined(_DEBUG) && (_DEBUG > 1)
-static DWORD dbgopenfile(void)
+static DWORD dbgfopen(void)
 {
     DWORD   dn;
     DWORD   rc;
@@ -4925,7 +4927,7 @@ static DWORD dbgopenfile(void)
     return 0;
 }
 
-static void dbgclosefile(void)
+static void dbgfclose(void)
 {
     if (IS_VALID_HANDLE(dbgfile)) {
         CloseHandle(dbgfile);
@@ -4954,7 +4956,7 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     counterbase = i.QuadPart;
 #endif
 #if defined(_DEBUG) && (_DEBUG > 1)
-    dbgopenfile();
+    dbgfopen();
 #endif
     xmemzero(threads, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
     service = (LPSVCBATCH_SERVICE)xmcalloc( sizeof(SVCBATCH_SERVICE));
@@ -5166,7 +5168,7 @@ finished:
 #if defined(_DEBUG)
     DBG_PRINTS("done");
 # if (_DEBUG > 1)
-    dbgclosefile();
+    dbgfclose();
 # endif
 #endif
     return r;
