@@ -127,10 +127,10 @@ rem
 :doLite
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create %SERVICE_NAME% /verbose ^
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /verbose ^
     /name "A Dummy Service" /description "One dummy SvcBatch service example" ^
-    /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
-    /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_BATCH% run"
+    /username "NT AUTHORITY\LocalService" ^
+    /h "%TEST_DIR%" %SERVICE_BATCH% run
 rem
 rem
 echo %~nx0: Created %SERVICE_NAME%
