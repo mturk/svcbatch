@@ -54,19 +54,6 @@ rem
 rem
 :doCreate
 rem
-pushd %~dp0
-set "SERVICE_BASE=%cd%"
-popd
-rem
-rem Set the path to the svcbatch.exe
-set "SVCBATCH=%SERVICE_BASE%\svcbatch.exe"
-rem
-if not exist "%SVCBATCH%" (
-  echo The svcbatch.exe file does not exist
-  echo Set SVCBATCH environment variable
-  echo to the correct location of the svcbatch executable
-  exit /B 1
-)
 rem
 rem Set Home directory
 set "SERVICE_HOME=/h .."
@@ -76,46 +63,38 @@ rem set "SERVICE_WORK=/w nodes\01"
 rem
 rem Set batch file to execute
 set "SVCBATCH_FILE=bin\runservice.bat"
+rem Call catalina.bat directly
+rem set "SVCBATCH_FILE=bin\catalina.bat"
 rem
 rem Set Arguments to the SVCBATCH_FILE
 set "SVCBATCH_ARGS=run"
 rem
 rem Set shutdown file
-set "SHUTDOWN_FILE=/s %SVCBATCH_FILE%"
+set "SHUTDOWN_FILE=-s%SVCBATCH_FILE%"
 rem
 rem Set Arguments to the SHUTDOWN_FILE
-set "SHUTDOWN_ARGS=/s stop"
+set "SHUTDOWN_ARGS=-sstop"
 rem
 rem Rotate log each day at midnight or if larger then 1 megabyte
 rem set "ROTATE_RULE=-r0 -r1M"
 rem
 rem Enable manual log rotation by using 'winservice.bat rotate'
-rem set "ROTATE_RULE=%ROTATE_RULE% -rS"
+set "ROTATE_RULE=%ROTATE_RULE% -rS"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/n svcbatch.@Y-@m-@d"
+set "SERVICE_LOGNAME=-nsvcbatch.@Y-@m-@d"
 rem
 rem
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%SVCBATCH%\" /blv %SERVICE_HOME% %SERVICE_WORK% %ROTATE_RULE% %SERVICE_LOGNAME% %SHUTDOWN_FILE% %SHUTDOWN_ARGS% %SVCBATCH_FILE% %SVCBATCH_ARGS%"
+svcbatch create "%SERVICE_NAME%" /verbose ^
+    /displayName "Apache Tomcat 10.1 %SERVICE_NAME% Service" ^
+    /description "Apache Tomcat 10.1.x Server - https://tomcat.apache.org/" ^
+    /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
+    /start auto ^
+    /blv %SERVICE_HOME% %SERVICE_WORK% %ROTATE_RULE% %SERVICE_LOGNAME% ^
+    %SHUTDOWN_FILE% %SHUTDOWN_ARGS% %SVCBATCH_FILE% %SVCBATCH_ARGS%
+rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-rem Set Display Name and Description
-sc config "%SERVICE_NAME%" DisplayName= "Apache Tomcat 10.0 %SERVICE_NAME% Service" >NUL
-if %ERRORLEVEL% neq 0 goto Failed
-sc description "%SERVICE_NAME%" "Apache Tomcat 10.0.0 Server - https://tomcat.apache.org/"  >NUL
-if %ERRORLEVEL% neq 0 goto Failed
-rem
-rem Ensure the networking services are running
-rem and that service is started on system startup
-rem
-sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= auto >NUL
-if %ERRORLEVEL% neq 0 goto Failed
-rem
-rem Set required privileges so we can kill the process tree
-rem in case the service created multiple child processes.
-rem
-sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege >NUL
-if %ERRORLEVEL% neq 0 goto Failed
 rem
 echo %~nx0: Created %SERVICE_NAME%
 goto End
@@ -125,56 +104,40 @@ rem The JVM will dump the full thread stack to the log file
 :doDumpStacks
 rem
 rem
-sc control "%SERVICE_NAME%" 233
+svcbatch control "%SERVICE_NAME%" /verbose 233
 goto End
 rem
 rem
 :doRotate
 rem
 rem
-sc control "%SERVICE_NAME%" 234
+svcbatch control "%SERVICE_NAME%" /verbose 234
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
 rem
 :doStart
 rem
 rem
-sc start "%SERVICE_NAME%"
+svcbatch start "%SERVICE_NAME%" /verbose /wait
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
 rem
 :doStop
 rem
 rem
-sc stop "%SERVICE_NAME%"
+svcbatch stop "%SERVICE_NAME%"  /verbose /wait
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
 rem
 :doDelete
 rem
 rem
-sc stop "%SERVICE_NAME%" >NUL
-rem
-if %ERRORLEVEL% equ 0 (
-  echo.
-  echo %~nx0: Waiting for %SERVICE_NAME% to stop ...
-  ping -n 6 127.0.0.1 >NUL
-  echo.
-)
-rem
-sc delete "%SERVICE_NAME%"
+svcbatch delete "%SERVICE_NAME%" /verbose /wait
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %~nx0: Deleted %SERVICE_NAME%
-goto End
 rem
-rem
-rem
-:Failed
-rem
-rem Service installation Failed
-rem
-sc delete "%SERVICE_NAME%" >NUL 2>&1
-exit /B 1
 rem
 rem
 :End

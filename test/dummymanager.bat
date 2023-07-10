@@ -181,7 +181,7 @@ goto setStopArgs
 :doneStopArgs
 rem
 %BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /verbose /wait=30 %STOP_CMD_ARGS%
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Stopped %SERVICE_NAME%
 goto End
 rem
