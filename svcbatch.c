@@ -1221,7 +1221,7 @@ static int xtimehdr(char *d, int sz)
     LARGE_INTEGER ct = {{ 0, 0 }};
     LARGE_INTEGER et = {{ 0, 0 }};
     DWORD ss, us, mm, hh;
-    int   c, i = 0;
+    int i = 0;
 
     QueryPerformanceCounter(&ct);
     et.QuadPart = ct.QuadPart - counterbase;
@@ -1247,13 +1247,12 @@ static int xtimehdr(char *d, int sz)
     d[i++] = ss / 10 + '0';
     d[i++] = ss % 10 + '0';
     d[i++] = '.';
-    for (c = 0; c < 6; c++)
-        d[i++] = '0';
-    c = i;
-    do {
-        d[--c] = us % 10 + '0';
-        us /= 10;
-    } while (us);
+    d[i++] = us / 100000 + '0';
+    d[i++] = us % 100000 / 10000 + '0';
+    d[i++] = us % 10000  / 1000  + '0';
+    d[i++] = us % 1000   / 100   + '0';
+    d[i++] = us % 100    / 10    + '0';
+    d[i++] = us % 10 + L'0';
     d[i] = CNUL;
 
     return i;
