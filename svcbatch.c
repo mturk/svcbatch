@@ -289,8 +289,6 @@ static const wchar_t *scmcoptions[] = {
     L"d+description",
     L"d+desc",
     L"D:depend",
-    L"i.interactive",
-    L"i.interact",
     L"n+displayname",
     L"n+display",
     L"p+password",
@@ -4427,9 +4425,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     while ((opt = xlongopt(argc, argv, scmallowed[cmd], scmcoptions)) != EOF) {
         switch (opt) {
-            case 'i':
-                servicetype = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
-            break;
             case 'q':
                 cmdverbose  = 0;
             break;
