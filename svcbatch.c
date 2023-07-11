@@ -2404,10 +2404,6 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                 case L'%':
                     d[i++] = L'%';
                 break;
-                case L'C':
-                    d[i++] = tm.wYear / 1000 + L'0';
-                    d[i++] = tm.wYear % 1000 / 100 + L'0';
-                break;
                 case L'y':
                     d[i++] = tm.wYear % 100 / 10 + L'0';
                     d[i++] = tm.wYear % 10 + L'0';

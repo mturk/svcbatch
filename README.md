@@ -491,7 +491,6 @@ will be reported to Windows Event log.
   Here are listed the supported formatting codes:
 
   ```no-highlight
-    %C  The year divided by 100 and truncated to an integer, as a decimal number (00−99)
     %d  Day of month as a decimal number (01 - 31)
     %F  Equivalent to %Y-%m-%d
     %H  Hour in 24-hour format (00 - 23)
