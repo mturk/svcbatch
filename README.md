@@ -422,15 +422,15 @@ will be reported to Windows Event log.
   **Set maximum number of log files**
 
   In case the **number** contains a single decimal number
-  between `1 and 9` it will be used instead default `1...9`.
+  between `1 and 9` it will be used instead default `1 .. 2`.
 
   ```cmd
   > sc create ... -m 4
 
   ```
 
-  Instead rotating Svcbatch.log from `1...9` it will rotate
-  exiting log files from `1...4.`.
+  Instead rotating Svcbatch.log from `1 .. 2` it will rotate
+  exiting log files from `1 .. 4.`.
 
   In case log rotation was enabled by using **-r** parameter,
   or the **number** is `1`, SvcBatch will rename existing
@@ -631,7 +631,7 @@ will be reported to Windows Event log.
   ```
 
   On rotation event, existing `SvcBatch.log` will be renamed to
-  `SvcBatch.log.YYYYMMDDhhmmss`, and new `SvcBatch.log` will be crated,
+  `SvcBatch.log.yyjjjhhmmss`, and new `SvcBatch.log` will be crated,
   unless the **-t** option was defined.
 
 

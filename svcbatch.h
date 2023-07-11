@@ -132,7 +132,7 @@
 #define SVCBATCH_MAX_LOGS       9
 
 /**
- * Default maximum number of the
+ * Default number of the SvcBatch.log.N
  * SvcBatch.shutdown.log.N and SvcBatch.status.log.N files
  */
 #define SVCBATCH_DEF_LOGS       2

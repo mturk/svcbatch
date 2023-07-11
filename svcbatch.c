@@ -3948,7 +3948,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
         outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
         outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
-        outputlog->maxLogs = SVCBATCH_MAX_LOGS;
+        outputlog->maxLogs = SVCBATCH_DEF_LOGS;
         outputlog->fileExt = SVCBATCH_LOGFEXT;
         if (maxlogsparam) {
             outputlog->maxLogs = xwcstoi(maxlogsparam, NULL);
