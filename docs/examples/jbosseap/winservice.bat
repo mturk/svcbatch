@@ -9,21 +9,26 @@ rem --------------------------------------------------
 rem
 setlocal
 rem
-rem Set JAVA_HOME to your JDK installation
-set "JAVA_HOME=C:\Java\java-11-openjdk-11.0.9.11-3.windows.redhat.x86_64"
+rem Set JAVA_HOME and JRE_HOME to your JDK installation
+rem
+set "JAVA_HOME=%JDK_8_HOME%"
+set "JRE_HOME=%JRE_8_HOME%"
+rem
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
-rem Run JBoss EAP
-if exist "%~dp0\winservice.conf.bat" (
-   echo %~nx0: Found configuration file -- winservice.conf.bat
-   call "%~dp0\winservice.conf.bat"
-) else (
-   echo %~nx0: No winservice.conf.bat file -- using standalone
-   set "JBOSSEAP_SERVER_MODE=standalone"
-)
-
 echo.
 rem
-rem Call actual batch script
-call %JBOSSEAP_SERVER_MODE%.bat
+rem echo %~nx0: System Information
+rem echo.
+rem Display machine specific properties and configuration
+rem systeminfo
+rem chcp
+rem echo.
+rem echo %~nx0: Environment Variables
+rem echo.
+rem Display environment variables
+rem set
+rem echo.
+rem echo.
+rem Run JBoss EAP
+call standalone.bat %*
 rem
-

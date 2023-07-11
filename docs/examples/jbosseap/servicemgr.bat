@@ -25,15 +25,10 @@ if /i "x%~1" == "xstop"   goto doStop
 rem Unknown option
 echo %~nx0: Unknown option '%~1'
 goto Einval
-
+rem
 rem
 rem Create service
 :doCreate
-set "SERVICE_BASE=%cd%"
-pushd ..
-rem Location for Logs\SvcBatch.log[.n] files
-set "SERVICE_RUNTIME_DIR=%cd%\%JBOSSEAP_SERVER_MODE%"
-popd
 rem
 shift
 set CMD_LINE_ARGS=
@@ -44,64 +39,66 @@ shift
 goto setArgs
 rem
 :doneArgs
-
 rem
-sc create "%SERVICE_NAME%" binPath= "\"%SERVICE_BASE%\svcbatch.exe\" -bp -o \"%SERVICE_RUNTIME_DIR%\log\" %JBOSSEAP_SERVER_MODE%.bat %CMD_LINE_ARGS%"
-sc config "%SERVICE_NAME%" DisplayName= "%SERVICE_DISPLAY%"
-
-rem Ensure the networking services are running
-rem and that service is started on system startup
-sc config "%SERVICE_NAME%" depend= Tcpip/Afd start= auto
-
-rem Set required privileges so we can kill process tree
-rem even if Jvm created multiple child processes.
-sc privs "%SERVICE_NAME%" SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
-rem Description is from JBoss EAP distribution version.txt file
-sc description "%SERVICE_NAME%" "%SERVICE_DESCIPTION%"
 rem
+svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
+    /description "%SERVICE_DESCIPTION%" /depend=Tcpip/Afd ^
+    /privs SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
+    /start:automatic ^
+    /vLpB -rS -o ..\%JBOSSEAP_SERVER_MODE%\log winservice.bat ^
+    %CMD_LINE_ARGS%
+rem
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
-
+rem
 rem
 rem Start service
 :doStart
 rem
-sc start "%SERVICE_NAME%"
+svcbatch start "%SERVICE_NAME%" /wait
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+echo %~nx0: Started %SERVICE_NAME%
 goto End
-
+rem
 rem
 rem Stop service
 :doStop
 rem
-sc stop "%SERVICE_NAME%"
+svcbatch stop "%SERVICE_NAME%" /wait
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+echo %~nx0: Stopped %SERVICE_NAME%
 goto End
-
+rem
 rem
 rem Delete service
 :doDelete
 rem
-sc stop "%SERVICE_NAME%" >NUL
-ping -n 6 localhost >NUL
-sc delete "%SERVICE_NAME%"
+svcbatch delete "%SERVICE_NAME%" /wait
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+echo %~nx0: Deleted %SERVICE_NAME%
 goto End
-
+rem
 rem
 rem Rotate SvcBatch logs
 :doRotate
 rem
-sc control "%SERVICE_NAME%" 234
+svcbatch control "%SERVICE_NAME%" 234
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
-
+rem
 rem
 rem Send CTRL_BREAK_EVENT
 rem Jvm will dump full thread stack to log file
 :doDumpStacks
 rem
-sc control "%SERVICE_NAME%" 233
+svcbatch control "%SERVICE_NAME%" 233
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
-
+rem
 :Einval
 echo Usage: %~nx0 create/delete/rotate/dump/start/stop
 echo.
-exit /b 1
-
+exit /B 1
+rem
 :End
+exit /B 0
