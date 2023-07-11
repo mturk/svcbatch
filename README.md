@@ -372,13 +372,10 @@ will be reported to Windows Event log.
   The home directory is the location from where all relative
   path parameters will be resolved.
 
-  If not specified, the home directory is set to the working
-  directory defined using **-w** option.
-
-  If neither are defined, both home and work directories will
-  be set to the path of the batch file if it was defined
+  If not specified, the home directory will set to the
+  path of the batch file if it was defined
   as an absolute path. Otherwise the directory of the svcbatch.exe
-  will be used as both home and working directory.
+  will be used as home directory.
 
   In case the **path** is relative, it will be resolved
   either to the directory of the batch file, if it was
@@ -757,9 +754,8 @@ will be reported to Windows Event log.
 
   Check **-h** command option for more details.
 
-  If **-h** option was also specified, and the services output
-  directory is not the absolute path, it will be resolved relative
-  to the **path** parameter.
+  If the **path** is not the absolute path, it will
+  be resolved relative to the **-h** directory.
 
 ## Private Environment Variables
 

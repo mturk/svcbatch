@@ -3997,8 +3997,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
      *
      */
 
-    if (svchomeparam == NULL)
-        svchomeparam = svcworkparam;
     if (svcworkparam == NULL)
         svcworkparam = svchomeparam;
 
@@ -4035,7 +4033,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
         }
     }
     SetCurrentDirectoryW(service->home);
-    if (svchomeparam == svcworkparam) {
+    if (svcworkparam == svchomeparam) {
         /* Use the same directories for home and work */
         service->work = service->home;
     }
