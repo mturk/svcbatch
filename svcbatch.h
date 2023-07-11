@@ -276,9 +276,10 @@
  */
 #define SVCBATCH_OPT_YYES           0x00000001   /* Write Y to cmd.exe stdin     */
 #define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time               */
-#define SVCBATCH_OPT_TRUNCATE       0x00000004   /* Truncate Log files           */
-#define SVCBATCH_OPT_QUIET          0x00000008   /* Disable logging              */
-#define SVCBATCH_OPT_CTRL_BREAK     0x00000010   /* Send CTRL_BREAK on stop      */
+#define SVCBATCH_OPT_TRUNCATE       0x00000004   /* Truncate  Log files          */
+#define SVCBATCH_OPT_APPEND         0x00000008   /* Append to Log files          */
+#define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging              */
+#define SVCBATCH_OPT_CTRL_BREAK     0x00000020   /* Send CTRL_BREAK on stop      */
 #define SVCBATCH_OPT_VERBOSE        0x00000100   /* Use SvcBatch.status.log      */
 #define SVCBATCH_OPT_SEND_BREAK     0x00000200   /* Enable sending CTRL_BREAK    */
 #define SVCBATCH_OPT_ROTATE         0x00000400   /* Enable log rotation          */

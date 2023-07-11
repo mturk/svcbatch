@@ -214,7 +214,7 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
 #if SVCBATCH_LEAN_AND_MEAN
-static LPCWSTR cmdoptions  = L"bc:e:f:gh:k:lm:n:o:pqr:s:tvw:";
+static LPCWSTR cmdoptions  = L"abc:e:f:gh:k:lm:n:o:pqr:s:tvw:";
 #else
 static LPCWSTR cmdoptions  = L"bc:e:f:gh:k:pw:";
 #endif
@@ -2529,12 +2529,13 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     LPCWSTR np = log->logName;
     int     i;
 
-    if (ssp) {
-        if (ssh)
-            logwrtime(ssh, 1, "Log create");
-    }
-    else {
-        rp = IS_NOT(SVCBATCH_OPT_TRUNCATE);
+    if (ssp && ssh)
+        logwrtime(ssh, 1, "Log create");
+    if (IS_SET(SVCBATCH_OPT_TRUNCATE))
+        rp = FALSE;
+    if (ssp && IS_SET(SVCBATCH_OPT_APPEND)) {
+        cd = OPEN_ALWAYS;
+        rp = FALSE;
     }
     if (xwcschr(np, L'%')) {
         rc = makelogname(nb, SVCBATCH_NAME_MAX, np);
@@ -2542,8 +2543,6 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
             return xsyserror(GetLastError(), np, NULL);
         rp = FALSE;
         np = nb;
-        if (log == statuslog)
-            cd = OPEN_ALWAYS;
     }
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, 0, service->logs);
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, L"\\");
@@ -3794,6 +3793,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
             break;
 #if SVCBATCH_LEAN_AND_MEAN
+            case 'a':
+                svcoptions  |= SVCBATCH_OPT_APPEND;
+            break;
             case 'l':
                 svcoptions  |= SVCBATCH_OPT_LOCALTIME;
             break;
@@ -3980,6 +3982,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
          * are not defined when -q is defined
          */
         i = 0;
+        if (IS_SET(SVCBATCH_OPT_APPEND))
+            i = xwcsncat(bb, TBUFSIZ, i, L"-a ");
         if (maxlogsparam)
             i = xwcsncat(bb, TBUFSIZ, i, L"-m ");
         if (rcnt)

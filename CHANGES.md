@@ -17,6 +17,7 @@ For a full list of changes, see the [git commit log][log]
 ### New Features
 
   * Add Service Manager code for creating, configuring and managing SvcBatch services
+  * Add -a command option for appending to log files
   * Add -f command option for setting the behavior on service failure
   * Enable to build 'lite' version of SvcBatch without logging and shutdown
 

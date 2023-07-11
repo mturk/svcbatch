@@ -226,6 +226,25 @@ invalid file name characters `/\:;<>?*|"`, the service will fail and error messa
 will be reported to Windows Event log.
 
 
+* **-a**
+
+  **Append to the existing log files**
+
+  When this option is defined SvcBatch will disable any log rotation
+  on startup. Instead it will reuse the existing log file and logging
+  will start at the end of the file.
+
+  If the log file does not exist, a new file is created.
+
+  **Notice**
+
+  This option is effective only on service startup and is
+  mutually exclusive with `q` option.
+  If this option is defined together with the mentioned option,
+  the service will fail to start, and write an error message
+  to the Windows Event log.
+
+
 * **-b**
 
   **Enable sending CTRL_BREAK_EVENT**
@@ -289,7 +308,7 @@ will be reported to Windows Event log.
 
   The **mode** must be number between `0` and `2`.
 
-  **0**
+  **mode 0**
 
   This mode will set the error code when the service
   fails. The error message will be written to
@@ -315,14 +334,14 @@ will be reported to Windows Event log.
 
   This is the default mode.
 
-  **1**
+  **mode 1**
 
   This mode will not set the error code when the service
   fails. The information message will be written to
   the Windows Event log and service will enter a stop state.
 
 
-  **2**
+  **mode 2**
 
   This mode will not report error code to the SCM when
   the service fails. The error message will be written to
@@ -569,7 +588,7 @@ will be reported to Windows Event log.
   **Notice**
 
   This option is mutually exclusive with other log related
-  command options. Do not use options `m`, `r` or `t`
+  command options. Do not use options `a`, `m`, `r` or `t`
   together with this option when installing service.
   Service will fail to start, and write an error message
   to the Windows Event log.
