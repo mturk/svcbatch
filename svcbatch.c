@@ -35,7 +35,7 @@ static char     dbgsvcmode = 'x';
 static volatile HANDLE  dbgfile = NULL;
 static CRITICAL_SECTION dbglock;
 
-# define DBG_FILE_NAME          L"svcbatch.debug.log"
+# define DBG_FILE_NAME          L"svcbatch_debug.log"
 # define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
 # define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, Msg)
 #else
@@ -1274,6 +1274,24 @@ static int xtimehdr(char *d, int sz)
  * Runtime debugging functions
  */
 
+static void dbgflock(HANDLE f)
+{
+    DWORD len = DWORD_MAX;
+    OVERLAPPED  off;
+
+    memset(&off, 0, sizeof(off));
+    LockFileEx(f, LOCKFILE_EXCLUSIVE_LOCK, 0, len, len, &off);
+}
+
+static void dbgfunlock(HANDLE f)
+{
+    DWORD len = DWORD_MAX;
+    OVERLAPPED  off;
+
+    memset(&off, 0, sizeof(off));
+    UnlockFileEx(f, 0, len, len, &off);
+}
+
 static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
 {
     int     i = 0;
@@ -1320,13 +1338,13 @@ static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
         DWORD wr;
         LARGE_INTEGER dd = {{ 0, 0 }};
 
+        dbgflock(h);
         SetFilePointerEx(f, dd, NULL, FILE_END);
-        LockFile(f, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
         WriteFile(f, h,     i, &wr, NULL);
         WriteFile(f, b,     n, &wr, NULL);
         WriteFile(f, CRLFA, 2, &wr, NULL);
         FlushFileBuffers(f);
-        UnlockFile(f, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
+        dbgfunlock(h);
         InterlockedExchangePointer(&dbgfile, f);
     }
     LeaveCriticalSection(&dbglock);
@@ -4886,21 +4904,22 @@ finished:
             xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
             fprintf(stderr, "Service Name : %S\n", service->name);
             fprintf(stderr, "     Command : %S\n", scmcommands[cmd]);
-            if (ep)
-            fprintf(stdout, "               %d (%d)\n", ec, ep);
-            else
-            fprintf(stdout, "               %d\n", ec);
-            if (wtime && cmdverbose > 1)
-            fprintf(stderr, "               %llu ms\n", GetTickCount64() - wtmstart);
             fprintf(stdout, "             : FAILED\n");
-            fprintf(stderr, "             : %d (0x%x)\n", rv,  rv);
-            fprintf(stderr, "             : %S\n", eb);
+            if (ep)
+            fprintf(stdout, "        LINE : %d (%d)\n", ec, ep);
+            else
+            fprintf(stdout, "        LINE : %d\n", ec);
+            fprintf(stderr, "       ERROR : %d (0x%x)\n", rv,  rv);
+            fprintf(stderr, "               %S\n", eb);
             if (ed != NULL)
             fprintf(stderr, "               %S\n", ed);
-            if ((cmdverbose > 1) && (argc > 0)) {
+            if (wtime && cmdverbose > 1) {
+            fprintf(stderr, "               %llu ms\n", GetTickCount64() - wtmstart);
+            if (argc > 0) {
             fputs("\n   Arguments :\n", stderr);
             for (i = 0; i < argc; i++)
             fprintf(stderr, "               %S\n", argv[i]);
+            }
             }
             fputc('\n', stderr);
         }
@@ -4967,12 +4986,12 @@ static DWORD dbgfopen(void)
     if (rc == ERROR_ALREADY_EXISTS) {
         LARGE_INTEGER dd = {{ 0, 0 }};
 
+        dbgflock(dbgfile);
         if (SetFilePointerEx(dbgfile, dd, NULL, FILE_END)) {
-            LockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
             WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
             FlushFileBuffers(dbgfile);
-            UnlockFile(dbgfile, dd.LowPart, dd.HighPart, SVCBATCH_LINE_MAX, 0);
         }
+        dbgfunlock(dbgfile);
     }
     else if (rc == 0) {
         dbgprints("version", cnamestamp);

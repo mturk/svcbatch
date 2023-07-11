@@ -379,6 +379,9 @@
 #define WAIT_OBJECT_2          (WAIT_OBJECT_0 + 2)
 #define WAIT_OBJECT_3          (WAIT_OBJECT_0 + 3)
 
+#ifndef DWORD_MAX
+#define DWORD_MAX               0xffffffffUL  /* maximum DWORD value */
+#endif
 
 /**
  * Error macros
