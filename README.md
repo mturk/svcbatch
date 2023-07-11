@@ -437,13 +437,14 @@ will be reported to Windows Event log.
 
   In case log rotation was enabled by using **-r** parameter,
   or the **number** is `1`, SvcBatch will rename existing
-  `SvcBatch.log` to `SvcBatch.log.YYYYMMDDhhmmss`,
+  `SvcBatch.log` to `SvcBatch.log.yyjjjhhmmss`,
   and create a new `SvcBatch.log`.
 
-  The `YYYYMMDDhhmmss` is the format constructed as four digit year,
-  two digit month (01 .. 12), two digit day of a month (01 .. 31,
-  hour (00 .. 24), minute (00 .. 59) and second (00 .. 59,
-  using current local or system time (depending on **-l** option).
+  The `yyjjjhhmmss` is the format constructed as a two digit
+  current year without century (00 .. 99), tree digit day
+  of the year (001 .. 366), hour (00 .. 24), minute (00 .. 59)
+  and second (00 .. 59, using current local or
+  system time (depending on **-l** option).
 
   **Notice**
 
@@ -495,7 +496,6 @@ will be reported to Windows Event log.
     %F  Equivalent to %Y-%m-%d
     %H  Hour in 24-hour format (00 - 23)
     %j  Day of the year as a decimal number (001 - 366)
-    %L  Equivalent to %Y%m%d%H%M%S
     %m  Month as a decimal number (01 - 12)
     %M  Minute as a decimal number (00 - 59)
     %N  Service Name

@@ -1186,25 +1186,37 @@ static LPWSTR xuuidstring(LPWSTR b)
 }
 
 #if SVCBATCH_LEAN_AND_MEAN
+
+#define _IsLeapYear(y) ((!(y % 4)) ? (((y % 400) && !(y % 100)) ? 0 : 1) : 0)
+static int getdayofyear(int y, int m, int d)
+{
+    static const int dayoffset[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    int r;
+
+    r = dayoffset[m - 1] + d;
+    if (_IsLeapYear(y) && (r > 59))
+        r++;
+    return r;
+}
+
 static LPWSTR xmktimedext(void)
 {
     static WCHAR d[TBUFSIZ];
     SYSTEMTIME tm;
     int i = 0;
+    int w;
 
     if (IS_SET(SVCBATCH_OPT_LOCALTIME))
         GetLocalTime(&tm);
     else
         GetSystemTime(&tm);
+    w = getdayofyear(tm.wYear, tm.wMonth, tm.wDay);
     d[i++] = L'.';
-    d[i++] = tm.wYear   / 1000 + L'0';
-    d[i++] = tm.wYear   % 1000 / 100 + L'0';
     d[i++] = tm.wYear   % 100  / 10  + L'0';
     d[i++] = tm.wYear   % 10 + L'0';
-    d[i++] = tm.wMonth  / 10 + L'0';
-    d[i++] = tm.wMonth  % 10 + L'0';
-    d[i++] = tm.wDay    / 10 + L'0';
-    d[i++] = tm.wDay    % 10 + L'0';
+    d[i++] = w / 100 + L'0';
+    d[i++] = w % 100 / 10 + L'0';
+    d[i++] = w % 10 + L'0';
     d[i++] = tm.wHour   / 10 + L'0';
     d[i++] = tm.wHour   % 10 + L'0';
     d[i++] = tm.wMinute / 10 + L'0';
@@ -2364,18 +2376,6 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     return 0;
 }
 
-#define _IsLeapYear(y) ((!(y % 4)) ? (((y % 400) && !(y % 100)) ? 0 : 1) : 0)
-static int getdayofyear(int y, int m, int d)
-{
-    static const int dayoffset[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-    int r;
-
-    r = dayoffset[m - 1] + d;
-    if (_IsLeapYear(y) && (r > 59))
-        r++;
-    return r;
-}
-
 static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
 {
     LPCWSTR s = fmt;
@@ -2467,23 +2467,6 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                     d[i++] = tm.wMilliseconds / 100 + L'0';
                     d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
                     d[i++] = tm.wMilliseconds % 10 + L'0';
-                break;
-                case L'L':
-                    ASSERT_SIZE(n, 14, siz);
-                    d[i++] = tm.wYear / 1000 + L'0';
-                    d[i++] = tm.wYear % 1000 / 100 + L'0';
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
-                    d[i++] = tm.wMonth / 10 + L'0';
-                    d[i++] = tm.wMonth % 10 + L'0';
-                    d[i++] = tm.wDay  / 10 + L'0';
-                    d[i++] = tm.wDay % 10 + L'0';
-                    d[i++] = tm.wHour / 10 + L'0';
-                    d[i++] = tm.wHour % 10 + L'0';
-                    d[i++] = tm.wMinute / 10 + L'0';
-                    d[i++] = tm.wMinute % 10 + L'0';
-                    d[i++] = tm.wSecond / 10 + L'0';
-                    d[i++] = tm.wSecond % 10 + L'0';
                 break;
                 case L'N':
                     i = xwcslcpy(d, n, service->name);
