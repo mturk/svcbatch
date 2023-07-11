@@ -1712,7 +1712,13 @@ static BOOL isabsolutepath(LPCWSTR p)
 
 static BOOL isrelativepath(LPCWSTR p)
 {
-    return !isabsolutepath(p);
+    if ((p != NULL) && (*p != WNUL)) {
+        if ((p[0] == L'\\') || (xisalpha(p[0]) && (p[1] == L':')))
+            return FALSE;
+        else
+            return TRUE;
+    }
+    return FALSE;
 }
 
 static DWORD fixshortpath(LPWSTR buf, DWORD len)
