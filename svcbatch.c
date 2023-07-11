@@ -576,7 +576,8 @@ static int xwcstoi(LPCWSTR sp, LPWSTR *ep)
     ASSERT_WSTR(sp, -1);
     while(xisblank(*sp))
         sp++;
-
+    if (ep != NULL)
+        *ep = (LPWSTR)sp;
     while(xisdigit(*sp)) {
         int dv = *sp - L'0';
 
@@ -596,7 +597,7 @@ static int xwcstoi(LPCWSTR sp, LPWSTR *ep)
         return -1;
     }
     if (ep != NULL)
-        *ep = (LPWSTR )sp;
+        *ep = (LPWSTR)sp;
     return (int)rv;
 }
 
@@ -2825,7 +2826,7 @@ static BOOL resolverotate(LPCWSTR rp)
             int mm;
 
             mm = xwcstoi(rp, &ep);
-            if (*ep || mm < 0) {
+            if (mm < 0 || *ep) {
                 DBG_PRINTF("invalid rotate timeout %S", rp);
                 return FALSE;
             }
@@ -4734,48 +4735,42 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             }
         }
         else {
+            DWORD   sv;
+            LPWSTR  sp;
             LPCWSTR rp = argv[0];
-            if (xwcschr(rp, L':')) {
-                LPWSTR sp;
-                DWORD  sv;
 
-                sv = xwcstoi(rp, &sp);
-                if ((sv < 1) || (sv > 4)) {
-                    rv = ERROR_INVALID_PARAMETER;
-                    ec = __LINE__;
-                    ed = argv[0];
-                    goto finished;
-                }
-                srflag = (sv << 28);
-                if (*sp == L':') {
-                    rp = sp + 1;
-                    sv = xwcstoi(rp, &sp);
-                    if ((sv < 1) || (sv > 255)) {
-                        rv = ERROR_INVALID_PARAMETER;
-                        ec = __LINE__;
-                        ed = argv[0];
-                        goto finished;
-                    }
-                    srmajor = (sv << 16);
-                }
-                if (*sp == L':') {
-                    rp = sp + 1;
-                    sv = xwcstoi(rp, &sp);
-                    if ((sv < 1) || (sv > 65535)) {
-                        rv = ERROR_INVALID_PARAMETER;
-                        ec = __LINE__;
-                        ed = argv[0];
-                        goto finished;
-                    }
-                    srminor = sv;
-                }
-            }
-            else {
+            sv = xwcstoi(rp, &sp);
+            if ((sv < 1) || (sv > 4)) {
                 rv = ERROR_INVALID_PARAMETER;
                 ec = __LINE__;
                 ed = argv[0];
                 goto finished;
             }
+            srflag = (sv << 28);
+            sv = 0;
+            if (*sp) {
+                rp = sp + 1;
+                sv = xwcstoi(rp, &sp);
+            }
+            if ((sv < 1) || (sv > 255)) {
+                rv = ERROR_INVALID_PARAMETER;
+                ec = __LINE__;
+                ed = argv[0];
+                goto finished;
+            }
+            srmajor = (sv << 16);
+            sv = 0;
+            if (*sp) {
+                rp = sp + 1;
+                sv = xwcstoi(rp, &sp);
+            }
+            if ((sv < 1) || (sv > 65535)) {
+                rv = ERROR_INVALID_PARAMETER;
+                ec = __LINE__;
+                ed = argv[0];
+                goto finished;
+            }
+            srminor = sv;
             if (argc > 1) {
                 /* Comment is limited to 128 chars */
                 xwcslcpy(cb, SBUFSIZ, argv[1]);
