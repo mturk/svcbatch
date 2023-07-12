@@ -1305,6 +1305,10 @@ static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
     static char sep = ',';
     int     n = SVCBATCH_LINE_MAX - 4;
     int     i = 0;
+#if (_DEBUG > 1)
+    int     o;
+    int     p;
+#endif
     char    b[SVCBATCH_LINE_MAX];
     SYSTEMTIME tm;
     HANDLE  h;
@@ -1341,15 +1345,22 @@ static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
     i += xsnprintf(b + i, n - i, "%s(%d)",
                    funcname, line);
     b[i++] = sep;
+#if (_DEBUG > 1)
+    o = i;
+    p = o;
+#endif
     if (format) {
         va_list ap;
 
+#if (_DEBUG > 1)
+        while (i < 62)
+            b[i++] = ' ';
+        p = i;
+#endif
         va_start(ap, format);
         i += xvsnprintf(b + i, n - i, format, ap);
         va_end(ap);
     }
-
-    OutputDebugStringA(b);
     EnterCriticalSection(&dbglock);
     h = InterlockedExchangePointer(&dbgfile, NULL);
     if (IS_VALID_HANDLE(h)) {
@@ -1360,12 +1371,26 @@ static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
         SetFilePointerEx(h, dd, NULL, FILE_END);
         b[i++] = '\r';
         b[i++] = '\n';
-        WriteFile(h, b, i, &wr, NULL);
+#if (_DEBUG > 1)
+        WriteFile(h, b,     o,     &wr, NULL);
+        WriteFile(h, b + p, i - p, &wr, NULL);
+        i -= 2;
+#else
+        WriteFile(h, b,     i,     &wr, NULL);
+#endif
         FlushFileBuffers(h);
         dbgfunlock(h);
         InterlockedExchangePointer(&dbgfile, h);
     }
     LeaveCriticalSection(&dbglock);
+#if (_DEBUG > 1)
+    for (n = 0; n < o; n++) {
+        if (b[n] == sep)
+            b[n] = L' ';
+    }
+    b[i] = CNUL;
+    OutputDebugStringA(b);
+#endif
 }
 
 static void dbgprints(LPCSTR funcname, int line, LPCSTR string)
