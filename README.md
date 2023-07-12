@@ -458,13 +458,13 @@ will be reported to Windows Event log.
 
   In case log rotation was enabled by using **-r** parameter,
   or the **number** is `1`, SvcBatch will rename existing
-  `SvcBatch.log` to `SvcBatch.log.yyjjjhhmmss`,
+  `SvcBatch.log` to `SvcBatch.log.ydddsssss`,
   and create a new `SvcBatch.log`.
 
-  The `yyjjjhhmmss` is the format constructed as a two digit
-  current year without century (00 .. 99), tree digit day
-  of the year (001 .. 366), hour (00 .. 24), minute (00 .. 59)
-  and second (00 .. 59, using current local or
+  The `ydddsssss` is the format constructed as a last
+  digit of the current year (0 .. 9), tree digit day
+  of the year (001 .. 366) and number of seconds since
+  midnight (00000 .. 86400), using current local or
   system time (depending on **-l** option).
 
   **Notice**

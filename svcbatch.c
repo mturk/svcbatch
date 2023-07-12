@@ -1201,8 +1201,8 @@ static LPWSTR xmktimedext(void)
 {
     static WCHAR d[TBUFSIZ];
     SYSTEMTIME tm;
-    int i = 0;
-    int w;
+    int   i = 0;
+    DWORD w;
 
     if (IS_SET(SVCBATCH_OPT_LOCALTIME))
         GetLocalTime(&tm);
@@ -1210,17 +1210,18 @@ static LPWSTR xmktimedext(void)
         GetSystemTime(&tm);
     w = getdayofyear(tm.wYear, tm.wMonth, tm.wDay);
     d[i++] = L'.';
-    d[i++] = tm.wYear   % 100  / 10  + L'0';
-    d[i++] = tm.wYear   % 10 + L'0';
+    d[i++] = tm.wYear % 10 + L'0';
     d[i++] = w / 100 + L'0';
     d[i++] = w % 100 / 10 + L'0';
     d[i++] = w % 10 + L'0';
-    d[i++] = tm.wHour   / 10 + L'0';
-    d[i++] = tm.wHour   % 10 + L'0';
-    d[i++] = tm.wMinute / 10 + L'0';
-    d[i++] = tm.wMinute % 10 + L'0';
-    d[i++] = tm.wSecond / 10 + L'0';
-    d[i++] = tm.wSecond % 10 + L'0';
+    w  = tm.wHour   * 3600;
+    w += tm.wMinute * 60;
+    w += tm.wSecond;
+    d[i++] = w % 100000 / 10000 + L'0';
+    d[i++] = w % 10000  / 1000  + L'0';
+    d[i++] = w % 1000   / 100   + L'0';
+    d[i++] = w % 100    / 10    + L'0';
+    d[i++] = w % 10 + L'0';
     d[i++] = CNUL;
 
     return d;
@@ -1262,7 +1263,7 @@ static int xtimehdr(char *d, int sz)
     d[i++] = us % 10000  / 1000  + '0';
     d[i++] = us % 1000   / 100   + '0';
     d[i++] = us % 100    / 10    + '0';
-    d[i++] = us % 10 + L'0';
+    d[i++] = us % 10 + '0';
     d[i] = CNUL;
 
     return i;
