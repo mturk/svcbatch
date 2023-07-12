@@ -238,8 +238,13 @@ will be reported to Windows Event log.
 
   **Notice**
 
-  This option is effective only on service startup and is
-  mutually exclusive with `q` option.
+  If **-t** command option is also defined the exiting log file
+  will be overwritten instead reused.
+
+
+  **Notice**
+
+  This option is mutually exclusive with `q` option.
   If this option is defined together with the mentioned option,
   the service will fail to start, and write an error message
   to the Windows Event log.

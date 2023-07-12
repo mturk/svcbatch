@@ -2529,13 +2529,18 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     LPCWSTR np = log->logName;
     int     i;
 
-    if (ssp && ssh)
-        logwrtime(ssh, 1, "Log create");
-    if (IS_SET(SVCBATCH_OPT_TRUNCATE))
-        rp = FALSE;
-    if (ssp && IS_SET(SVCBATCH_OPT_APPEND)) {
-        cd = OPEN_ALWAYS;
-        rp = FALSE;
+    if (ssp) {
+        if (IS_SET(SVCBATCH_OPT_APPEND)) {
+            if (ssh || IS_NOT(SVCBATCH_OPT_TRUNCATE))
+                cd = OPEN_ALWAYS;
+            rp = FALSE;
+        }
+        if (ssh)
+            logwrtime(ssh, 1, "Log create");
+    }
+    else {
+        if (IS_SET(SVCBATCH_OPT_TRUNCATE))
+            rp = FALSE;
     }
     if (xwcschr(np, L'%')) {
         rc = makelogname(nb, SVCBATCH_NAME_MAX, np);
