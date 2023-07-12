@@ -29,15 +29,22 @@
 #include "svcbatch.h"
 
 #if defined(_DEBUG)
-static void     dbgprintf(LPCSTR, LPCSTR, ...);
-static void     dbgprints(LPCSTR, LPCSTR);
-static char     dbgsvcmode = 'x';
+static void     dbgprintf(LPCSTR, int, LPCSTR, ...);
+static void     dbgprints(LPCSTR, int, LPCSTR);
+static int      dbgsvcmode = 0;
 static volatile HANDLE  dbgfile = NULL;
 static CRITICAL_SECTION dbglock;
 
+static const char *dbgsvcmodes[] = {
+    "UNKNOWN",
+    "SERVICE",
+    "STOPSVC",
+    "MANAGER"
+};
+
 # define DBG_FILE_NAME          L"svcbatch_debug.log"
-# define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, Fmt, ##__VA_ARGS__)
-# define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, Msg)
+# define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, __LINE__, Fmt, ##__VA_ARGS__)
+# define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, __LINE__, Msg)
 #else
 # define DBG_PRINTF(Fmt, ...)   (void)0
 # define DBG_PRINTS(Msg)        (void)0
@@ -694,10 +701,10 @@ static int xvsnwprintf(LPWSTR dst, int siz,
 
     dst[0] = WNUL;
     n = _vsnwprintf(dst, c, fmt, ap);
-    if ((n < 0) || (n > c)) {
-        dst[c] = WNUL;
-        return siz;
-    }
+    if (n < 0)
+        n = 0;
+    if (n > c)
+        n = c;
     dst[n] = WNUL;
     return n;
 }
@@ -730,10 +737,10 @@ static int xvsnprintf(char *dst, int siz,
 
     dst[0] = '\0';
     n = _vsnprintf(dst, c, fmt, ap);
-    if ((n < 0) || (n > c)) {
-        dst[c] = '\0';
-        return siz;
-    }
+    if (n < 0)
+        n = 0;
+    if (n > c)
+        n = c;
     dst[n] = '\0';
     return n;
 }
@@ -1293,70 +1300,80 @@ static void dbgfunlock(HANDLE f)
     UnlockFileEx(f, 0, len, len, &off);
 }
 
-static void dbgprintf(LPCSTR funcname, LPCSTR format, ...)
+static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
 {
+    static char sep = ',';
+    int     n = SVCBATCH_LINE_MAX - 4;
     int     i = 0;
-    int     n;
     char    b[SVCBATCH_LINE_MAX];
-    char    h[SBUFSIZ];
     SYSTEMTIME tm;
-    HANDLE  f;
+    HANDLE  h;
 
     GetLocalTime(&tm);
-    h[i++] = tm.wHour   / 10 + '0';
-    h[i++] = tm.wHour   % 10 + '0';
-    h[i++] = ':';
-    h[i++] = tm.wMinute / 10 + '0';
-    h[i++] = tm.wMinute % 10 + '0';
-    h[i++] = ':';
-    h[i++] = tm.wSecond / 10 + '0';
-    h[i++] = tm.wSecond % 10 + '0';
-    h[i++] = '.';
-    h[i++] = tm.wMilliseconds / 100 + '0';
-    h[i++] = tm.wMilliseconds % 100 / 10 + '0';
-    h[i++] = tm.wMilliseconds % 10 + '0';
-
-    i += xsnprintf(h + i, SBUFSIZ - i, " [%.4lu] ", GetCurrentProcessId());
+    i = xsnprintf(b, n - SBUFSIZ, "%lu%c%lu%c",
+                  GetCurrentProcessId(), sep,
+                  GetCurrentThreadId(),  sep);
+    b[i++] = tm.wMonth  / 10 + '0';
+    b[i++] = tm.wMonth  % 10 + '0';
+    b[i++] = '/';
+    b[i++] = tm.wDay    / 10 + '0';
+    b[i++] = tm.wDay    % 10 + '0';
+    b[i++] = '/';
+    b[i++] = tm.wYear   % 100 / 10 + '0';
+    b[i++] = tm.wYear   % 10 + '0';
+    b[i++] = sep;
+    b[i++] = tm.wHour   / 10 + '0';
+    b[i++] = tm.wHour   % 10 + '0';
+    b[i++] = ':';
+    b[i++] = tm.wMinute / 10 + '0';
+    b[i++] = tm.wMinute % 10 + '0';
+    b[i++] = ':';
+    b[i++] = tm.wSecond / 10 + '0';
+    b[i++] = tm.wSecond % 10 + '0';
+    b[i++] = '.';
+    b[i++] = tm.wMilliseconds / 100 + '0';
+    b[i++] = tm.wMilliseconds % 100 / 10 + '0';
+    b[i++] = tm.wMilliseconds % 10 + '0';
+    b[i++] = sep;
+    i += xsnprintf(b + i, n - i, "%s",
+                   dbgsvcmodes[dbgsvcmode]);
+    b[i++] = sep;
+    i += xsnprintf(b + i, n - i, "%s(%d)",
+                   funcname, line);
+    b[i++] = sep;
     if (format) {
         va_list ap;
-        n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu] %c %-16s ",
-                      GetCurrentThreadId(),
-                      dbgsvcmode, funcname);
 
         va_start(ap, format);
-        n += xvsnprintf(b + n, SVCBATCH_LINE_MAX - n, format, ap);
+        i += xvsnprintf(b + i, n - i, format, ap);
         va_end(ap);
-        OutputDebugStringA(b);
     }
-    else {
-        OutputDebugStringA("\n");
-        n = xsnprintf(b, SVCBATCH_LINE_MAX, "[%.4lu]",
-                      GetCurrentThreadId());
-    }
+
+    OutputDebugStringA(b);
     EnterCriticalSection(&dbglock);
-    f = InterlockedExchangePointer(&dbgfile, NULL);
-    if (IS_VALID_HANDLE(f)) {
+    h = InterlockedExchangePointer(&dbgfile, NULL);
+    if (IS_VALID_HANDLE(h)) {
         DWORD wr;
         LARGE_INTEGER dd = {{ 0, 0 }};
 
         dbgflock(h);
-        SetFilePointerEx(f, dd, NULL, FILE_END);
-        WriteFile(f, h,     i, &wr, NULL);
-        WriteFile(f, b,     n, &wr, NULL);
-        WriteFile(f, CRLFA, 2, &wr, NULL);
-        FlushFileBuffers(f);
+        SetFilePointerEx(h, dd, NULL, FILE_END);
+        b[i++] = '\r';
+        b[i++] = '\n';
+        WriteFile(h, b, i, &wr, NULL);
+        FlushFileBuffers(h);
         dbgfunlock(h);
-        InterlockedExchangePointer(&dbgfile, f);
+        InterlockedExchangePointer(&dbgfile, h);
     }
     LeaveCriticalSection(&dbglock);
 }
 
-static void dbgprints(LPCSTR funcname, LPCSTR string)
+static void dbgprints(LPCSTR funcname, int line, LPCSTR string)
 {
     if (string == NULL)
-        dbgprintf(funcname, NULL, NULL);
+        dbgprintf(funcname, line, NULL, NULL);
     else
-        dbgprintf(funcname, "%s", string);
+        dbgprintf(funcname, line, "%s", string);
 }
 
 
@@ -1364,7 +1381,7 @@ static void xiphandler(LPCWSTR e,
                        LPCWSTR w, LPCWSTR f,
                        unsigned int n, uintptr_t r)
 {
-    dbgprints(__FUNCTION__,
+    dbgprints(__FUNCTION__, __LINE__,
               "invalid parameter handler called");
 }
 
@@ -1460,7 +1477,7 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     if (ern == 0) {
         ern = ERROR_INVALID_PARAMETER;
 #if defined(_DEBUG)
-        dbgprintf(fn, "%S", hdr + 2);
+        dbgprintf(fn, line, "%S", hdr + 2);
 #endif
     }
     else {
@@ -1468,7 +1485,7 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
         xwinapierror(erb + c, SVCBATCH_LINE_MAX - c, ern);
         errarg[i++] = erb;
 #if defined(_DEBUG)
-        dbgprintf(fn, "%S, %S", hdr + 2, erb + 2);
+        dbgprintf(fn, line, "%S, %S", hdr + 2, erb + 2);
 #endif
     }
 
@@ -2589,10 +2606,10 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     else {
         if (rc == ERROR_ALREADY_EXISTS)
             dbgprintf(ssp ? "createlogfile" : "openlogfile",
-                      "truncated %S", log->logFile);
+                      __LINE__, "truncated %S", log->logFile);
         else
             dbgprintf(ssp ? "createlogfile" : "openlogfile",
-                      "created %S",   log->logFile);
+                      __LINE__, "created %S",   log->logFile);
     }
 #endif
     InterlockedExchange64(&log->size, 0);
@@ -4976,9 +4993,9 @@ static void __cdecl dbgcleanup(void)
 
 static DWORD dbgfopen(void)
 {
+    HANDLE  h;
     DWORD   dn;
     DWORD   rc;
-    DWORD   wr;
     wchar_t db[MAX_PATH];
 
     InitializeCriticalSection(&dbglock);
@@ -4988,25 +5005,17 @@ static DWORD dbgfopen(void)
     if ((dn == 0) || (dn >= (MAX_PATH - 20)))
         return ERROR_INSUFFICIENT_BUFFER;
     xwcslcat(db, MAX_PATH, DBG_FILE_NAME);
-    dbgfile = CreateFileW(db, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
-                          OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    h = CreateFileW(db, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                    OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
-    if (IS_INVALID_HANDLE(dbgfile))
-        return rc;
-    if (rc == ERROR_ALREADY_EXISTS) {
-        LARGE_INTEGER dd = {{ 0, 0 }};
-
-        dbgflock(dbgfile);
-        if (SetFilePointerEx(dbgfile, dd, NULL, FILE_END)) {
-            WriteFile(dbgfile, CRLFA, 2, &wr, NULL);
-            FlushFileBuffers(dbgfile);
-        }
-        dbgfunlock(dbgfile);
+    if (h != INVALID_HANDLE_VALUE) {
+        InterlockedExchangePointer(&dbgfile, h);
+        if (rc == 0)
+            dbgprints(__FUNCTION__, __LINE__, cnamestamp);
+        if (rc == ERROR_ALREADY_EXISTS)
+            rc = 0;
     }
-    else if (rc == 0) {
-        dbgprints("version", cnamestamp);
-    }
-    return 0;
+    return rc;
 }
 
 #endif
@@ -5118,8 +5127,8 @@ int wmain(int argc, LPCWSTR *argv)
         wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
         cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
-        dbgsvcmode = '1';
-        dbgprints(__FUNCTION__, cnamestamp);
+        dbgsvcmode = 2;
+        DBG_PRINTS(cnamestamp);
 #endif
         sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p);
         if (sharedmmap == NULL) {
@@ -5138,9 +5147,9 @@ int wmain(int argc, LPCWSTR *argv)
         svcoptions  = sharedmem->options;
         killdepth   = sharedmem->killdepth;
 #if defined(_DEBUG)
-        dbgprintf(__FUNCTION__, "ppid %lu", sharedmem->processId);
-        dbgprintf(__FUNCTION__, "opts 0x%08x", sharedmem->options);
-        dbgprintf(__FUNCTION__, "time %lu", stoptimeout);
+        DBG_PRINTF("ppid %lu", sharedmem->processId);
+        DBG_PRINTF("opts 0x%08x", sharedmem->options);
+        DBG_PRINTF("time %lu", stoptimeout);
 #endif
         cmdproc->application = sharedmem->application;
         cmdproc->argc   = sharedmem->argc;
@@ -5177,7 +5186,7 @@ int wmain(int argc, LPCWSTR *argv)
                 argc  -= 2;
                 argv  += 2;
 #if defined(_DEBUG)
-                dbgsvcmode = '+';
+                dbgsvcmode = 3;
                 DBG_PRINTS("started");
 #endif
                 r = xscmexecute(cmd, argc, argv);
@@ -5188,8 +5197,8 @@ int wmain(int argc, LPCWSTR *argv)
 #endif
 #if defined(_DEBUG)
     if (servicemode) {
-        dbgsvcmode = '0';
-        dbgprints(__FUNCTION__, cnamestamp);
+        dbgsvcmode = 1;
+        DBG_PRINTS(cnamestamp);
     }
 #endif
 
