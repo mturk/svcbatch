@@ -169,9 +169,9 @@ static LPCWSTR              *serviceargv = NULL;
 static LPSVCBATCH_PROCESS    program     = NULL;
 static LPSVCBATCH_SERVICE    service     = NULL;
 
-static LPSVCBATCH_PROCESS    svcstop     = NULL;
 static LPSVCBATCH_PROCESS    cmdproc     = NULL;
 #if SVCBATCH_LEAN_AND_MEAN
+static LPSVCBATCH_PROCESS    svcstop     = NULL;
 static LPSVCBATCH_LOG        outputlog   = NULL;
 static LPSVCBATCH_LOG        statuslog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
@@ -312,6 +312,47 @@ static const wchar_t *scmcoptions[] = {
 };
 
 #endif
+
+/**
+ * Message strings
+ */
+static const wchar_t *wcsmessages[] = {
+    L"Unknown",
+    L"Service stopped without SERVICE_CONTROL_STOP signal",
+    L"Logs directory cannot be the same as home directory",
+    L"Found multiple -n command options",
+    L"The -n command option value is invalid",
+    L"The -o command option value is invalid",
+    L"The -f command option value is outside valid range",
+    L"The -h command option value is invalid",
+    L"The -w command option value is invalid",
+    L"The -k command option value is outside valid range",
+    L"Too many -c arguments",
+    L"The -c command option value is invalid",
+    L"Too many -s arguments",
+    L"The -s command option value is invalid",
+    L"Too many -r options",
+    L"Missing argument for command line option",
+    L"Invalid command line option",
+    L"Service name has invalid filename characters",
+    L"The argument is too large",
+    L"Too many arguments",
+    L"Options -b and -g are mutually exclusive",
+    L"Invalid -m command option value",
+    L"Option -q is mutually exclusive with option(s)",
+    L"Invalid rotate parameter",
+    L"Service name",
+    L"Log directory",
+    L"Use -o option with parameter set to the exiting directory",
+    L"Failing over to SVCBATCH_SERVICE_WORK",
+    L"The (/) and (\\) are not valid service name characters",
+    L"The maximum service name length is 256 characters",
+    L"The Control code is missing. Use control [service name] <value>",
+
+    NULL
+};
+
+#define SVCBATCH_MSG(_id) wcsmessages[_id]
 
 static int xfatalerr(LPCSTR func, int err)
 {
@@ -1954,19 +1995,19 @@ static void reportsvcstatus(DWORD status, DWORD param)
     else if (status == SERVICE_STOPPED) {
         if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
             if (svcfailmode == SVCBATCH_FAIL_EXIT) {
-                xsyserror(param, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+                xsyserror(param, SVCBATCH_MSG(1), NULL);
                 SVCBATCH_CS_LEAVE(service);
                 exit(ERROR_INVALID_LEVEL);
             }
             else {
                 if (svcfailmode == SVCBATCH_FAIL_NONE) {
-                    xsysinfo(L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+                    xsysinfo(SVCBATCH_MSG(1), NULL);
                     param = 0;
                     service->status.dwWin32ExitCode = NO_ERROR;
                 }
                 else {
                     /* SVCBATCH_FAIL_ERROR */
-                    xsyserror(param, L"Service stopped without SERVICE_CONTROL_STOP signal", NULL);
+                    xsyserror(param, SVCBATCH_MSG(1), NULL);
                     if (param == 0) {
                         if (service->status.dwCurrentState == SERVICE_RUNNING)
                             param = ERROR_PROCESS_ABORTED;
@@ -2350,7 +2391,7 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
             return xsyserror(GetLastError(), L"xgetdirpath", dp);
     }
     if (_wcsicmp(service->logs, service->home) == 0) {
-        xsyserror(0, L"Logs directory cannot be the same as home directory", service->logs);
+        xsyserror(0, SVCBATCH_MSG(2), service->logs);
         return ERROR_INVALID_PARAMETER;
     }
     return 0;
@@ -3873,10 +3914,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
             case 'n':
                 if (svclogfname)
-                    return xsyserror(0, L"Found multiple -n command options", xwoptarg);
+                    return xsyserror(0, SVCBATCH_MSG(3), xwoptarg);
                 svclogfname = xwcsdup(skipdotslash(xwoptarg));
                 if (svclogfname == NULL)
-                    xsyswarn(0, L"The -n command option value is invalid", xwoptarg);
+                    xsyswarn(0, SVCBATCH_MSG(4), xwoptarg);
                 if (xwcspbrk(svclogfname, L"/\\:;<>?*|\""))
                     return xsyserror(0, L"Found invalid filename characters", svclogfname);
                 xwcsreplace(svclogfname);
@@ -3884,28 +3925,28 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'o':
                 outdirparam  = skipdotslash(xwoptarg);
                 if (outdirparam == NULL)
-                    xsyswarn(0, L"The -o command option value is invalid", xwoptarg);
+                    xsyswarn(0, SVCBATCH_MSG(5), xwoptarg);
             break;
 #endif
             case 'f':
                 svcfailmode = xwcstoi(xwoptarg, NULL);
                 if ((svcfailmode < 0) || (svcfailmode > 2))
-                    return xsyserror(0, L"The -f command option value is outside valid range", xwoptarg);
+                    return xsyserror(0, SVCBATCH_MSG(6), xwoptarg);
             break;
             case 'h':
                 svchomeparam = skipdotslash(xwoptarg);
                 if (svchomeparam == NULL)
-                    xsyswarn(0, L"The -h command option value is invalid", xwoptarg);
+                    xsyswarn(0, SVCBATCH_MSG(7), xwoptarg);
             break;
             case 'w':
                 svcworkparam = skipdotslash(xwoptarg);
                 if (svcworkparam == NULL)
-                    xsyswarn(0, L"The -w command option value is invalid", xwoptarg);
+                    xsyswarn(0, SVCBATCH_MSG(8), xwoptarg);
             break;
             case 'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
-                    return xsyserror(0, L"The -k command option value is outside valid range", xwoptarg);
+                    return xsyserror(0, SVCBATCH_MSG(9), xwoptarg);
                 stoptimeout  = stoptimeout * 1000;
             break;
             /**
@@ -3917,12 +3958,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     if (ccnt < SVCBATCH_MAX_ARGS)
                         cparam[ccnt++] = xwoptarg;
                     else
-                        return xsyserror(0, L"Too many -c arguments", xwoptarg);
+                        return xsyserror(0, SVCBATCH_MSG(10), xwoptarg);
                 }
                 else {
                     commandparam = skipdotslash(xwoptarg);
                     if (commandparam == NULL)
-                        xsyswarn(0, L"The -c command option value is invalid", xwoptarg);
+                        xsyswarn(0, SVCBATCH_MSG(11), xwoptarg);
                 }
             break;
             case 'e':
@@ -3940,12 +3981,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     if (scnt < SVCBATCH_MAX_ARGS)
                         sparam[scnt++] = xwoptarg;
                     else
-                        return xsyserror(0, L"Too many -s arguments", xwoptarg);
+                        return xsyserror(0, SVCBATCH_MSG(12), xwoptarg);
                 }
                 else {
                     svcstopparam = skipdotslash(xwoptarg);
                     if (svcstopparam == NULL)
-                        xsyswarn(0, L"The -s command option value is invalid", xwoptarg);
+                        xsyswarn(0, SVCBATCH_MSG(13), xwoptarg);
 
                 }
             break;
@@ -3953,14 +3994,14 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 if (rcnt < 3)
                     rparam[rcnt++] = xwoptarg;
                 else
-                    return xsyserror(0, L"Too many -r options", xwoptarg);
+                    return xsyserror(0, SVCBATCH_MSG(14), xwoptarg);
             break;
 #endif
             case ENOENT:
-                return xsyserror(0, L"Missing argument for command line option", xwoption);
+                return xsyserror(0, SVCBATCH_MSG(15), xwoption);
             break;
             default:
-                return xsyserror(0, L"Invalid command line option", xwoption);
+                return xsyserror(0, SVCBATCH_MSG(16), xwoption);
             break;
         }
     }
@@ -3981,7 +4022,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             }
             else {
                 if (xwcspbrk(service->name, L":;<>?*|\""))
-                    return xsyserror(0, L"Service name has invalid filename characters", NULL);
+                    return xsyserror(0, SVCBATCH_MSG(17), NULL);
                 i = xwcsncat(wb, BBUFSIZ, 0, service->name);
                 i = xwcsncat(wb, BBUFSIZ, i, L".bat");
                 scriptparam = wb;
@@ -3998,18 +4039,18 @@ static int parseoptions(int argc, LPCWSTR *argv)
          * Add arguments for script file
          */
         if (xwcslen(argv[i]) >= SVCBATCH_NAME_MAX)
-            return xsyserror(0, L"The argument is too large", argv[i]);
+            return xsyserror(0, SVCBATCH_MSG(18), argv[i]);
 
         if (cmdproc->argc < SVCBATCH_MAX_ARGS)
             cmdproc->args[cmdproc->argc++] = xwcsdup(argv[i]);
         else
-            return xsyserror(0, L"Too many arguments", argv[i]);
+            return xsyserror(0, SVCBATCH_MSG(19), argv[i]);
     }
     service->uuid = xuuidstring(NULL);
     if (IS_EMPTY_WCS(service->uuid))
         return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) && IS_SET(SVCBATCH_OPT_SEND_BREAK))
-        return xsyserror(0, L"Options -b and -g are mutually exclusive", NULL);
+        return xsyserror(0, SVCBATCH_MSG(20), NULL);
 #if SVCBATCH_LEAN_AND_MEAN
     if (svcstopparam && qcnt > 1) {
         /**
@@ -4026,7 +4067,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
         if (maxlogsparam) {
             outputlog->maxLogs = xwcstoi(maxlogsparam, NULL);
             if ((outputlog->maxLogs < 1) || (outputlog->maxLogs > SVCBATCH_MAX_LOGS))
-                return xsyserror(0, L"Invalid -m command option value", maxlogsparam);
+                return xsyserror(0, SVCBATCH_MSG(21), maxlogsparam);
         }
         SVCBATCH_CS_INIT(outputlog);
     }
@@ -4047,10 +4088,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
             i = xwcsncat(bb, TBUFSIZ, i, L"-t ");
         if (i) {
 #if defined(_DEBUG) && (_DEBUG > 1)
-            xsyswarn(0, L"Option -q is mutually exclusive with option(s)", bb);
+            xsyswarn(0, SVCBATCH_MSG(22), bb);
             rcnt = 0;
 #else
-            return xsyserror(0, L"Option -q is mutually exclusive with option(s)", bb);
+            return xsyserror(0, SVCBATCH_MSG(22), bb);
 #endif
         }
     }
@@ -4142,7 +4183,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             return xsyserror(ERROR_FILE_NOT_FOUND, commandparam, NULL);
         for (i = 0; i < ccnt; i++) {
             if (xwcslen(cparam[i]) >= SVCBATCH_NAME_MAX)
-                return xsyserror(0, L"The argument is too large", cparam[i]);
+                return xsyserror(0, SVCBATCH_MSG(18), cparam[i]);
             cmdproc->opts[cmdproc->optc++] = cparam[i];
         }
     }
@@ -4162,7 +4203,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (rcnt) {
         for (i = 0; i < rcnt; i++) {
             if (!resolverotate(rparam[i]))
-                return xsyserror(0, L"Invalid rotate parameter", rparam[i]);
+                return xsyserror(0, SVCBATCH_MSG(23), rparam[i]);
         }
         if (rotatebysize || rotatebytime)
             outputlog->maxLogs = 0;
@@ -4179,7 +4220,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         for (i = 0; i < scnt; i++) {
             if (xwcslen(sparam[i]) >= SVCBATCH_NAME_MAX)
-                return xsyserror(0, L"The argument is too large", sparam[i]);
+                return xsyserror(0, SVCBATCH_MSG(18), sparam[i]);
             svcstop->args[i] = xwcsdup(sparam[i]);
             xwchreplace(svcstop->args[i]);
         }
@@ -4206,7 +4247,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     if (argc > 0)
         service->name = argv[0];
     if (IS_EMPTY_WCS(service->name)) {
-        xsyserror(ERROR_INVALID_PARAMETER, L"Service name", NULL);
+        xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(24), NULL);
         exit(1);
     }
     service->handle = RegisterServiceCtrlHandlerExW(service->name, servicehandler, NULL);
@@ -4252,9 +4293,8 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     else {
         if (outdirparam == NULL) {
 #if defined(_DEBUG)
-            xsyswarn(ERROR_INVALID_PARAMETER, L"log directory", NULL);
-            xsysinfo(L"Use -o option with parameter set to the exiting directory",
-                     L"failing over to SVCBATCH_SERVICE_WORK");
+            xsyswarn(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(25), NULL);
+            xsysinfo(SVCBATCH_MSG(26), SVCBATCH_MSG(27));
 #endif
             xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
         }
@@ -4597,13 +4637,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     if (xwcspbrk(service->name, L"/\\")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
-        ed = L"The (/) and (\\) are not valid service name characters";
+        ed = SVCBATCH_MSG(28);
         goto finished;
     }
     if (xwcslen(service->name) > 256) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
-        ed = L"The maximum service name length is 256 characters";
+        ed = SVCBATCH_MSG(29);
         goto finished;
     }
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
@@ -4865,7 +4905,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (argc == 0) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
-            ed = L"The Control code is missing. Use control [service name] <value>";
+            ed = SVCBATCH_MSG(30);
             goto finished;
         }
         if (!QueryServiceStatusEx(svc,
