@@ -1942,16 +1942,6 @@ static BOOL resolvescript(LPCWSTR bp)
 
     if (cmdproc->script)
         return TRUE;
-    if (*bp == WNUL) {
-        cmdproc->script = NULL;
-        service->base   = service->home;
-        return TRUE;
-    }
-    if (*bp == L':') {
-        cmdproc->script = xwcsdup(bp + 1);
-        service->base   = service->home;
-        return TRUE;
-    }
     cmdproc->script = xgetfinalpath(bp, 0, NULL, 0);
     if (IS_EMPTY_WCS(cmdproc->script))
         return FALSE;
@@ -3968,7 +3958,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 else {
                     commandparam = skipdotslash(xwoptarg);
                     if (commandparam == NULL)
-                        xsyswarn(0, SVCBATCH_MSG(11), xwoptarg);
+                        return xsyserror(0, SVCBATCH_MSG(11), xwoptarg);
                 }
             break;
             case 'e':
@@ -3991,7 +3981,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 else {
                     svcstopparam = skipdotslash(xwoptarg);
                     if (svcstopparam == NULL)
-                        xsyswarn(0, SVCBATCH_MSG(13), xwoptarg);
+                        return xsyserror(0, SVCBATCH_MSG(13), xwoptarg);
 
                 }
             break;
@@ -4019,19 +4009,11 @@ static int parseoptions(int argc, LPCWSTR *argv)
             /**
              * No script file defined.
              */
-            if (commandparam) {
-                /**
-                 * Alternate shell without script
-                 */
-                scriptparam = zerostring;
-            }
-            else {
-                if (xwcspbrk(service->name, L":;<>?*|\""))
-                    return xsyserror(0, SVCBATCH_MSG(17), NULL);
-                i = xwcsncat(wb, BBUFSIZ, 0, service->name);
-                i = xwcsncat(wb, BBUFSIZ, i, L".bat");
-                scriptparam = wb;
-            }
+            if (xwcspbrk(service->name, L":;<>?*|\""))
+                return xsyserror(0, SVCBATCH_MSG(17), NULL);
+            i = xwcsncat(wb, BBUFSIZ, 0, service->name);
+            i = xwcsncat(wb, BBUFSIZ, i, L".bat");
+            scriptparam = wb;
         }
         else {
             scriptparam = argv[0];
@@ -4214,10 +4196,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     }
     if (svcstopparam) {
         svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
-        if (*svcstopparam == L':')
-            svcstop->script = xwcsdup(svcstopparam + 1);
-        else
-            svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
+        svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
         if (svcstop->script == NULL)
             return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         for (i = 0; i < scnt; i++) {
