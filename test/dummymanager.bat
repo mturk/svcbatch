@@ -156,7 +156,7 @@ shift
 goto setStartArgs
 :doneStartArgs
 rem
-%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /verbose=2 /wait %START_CMD_ARGS%
+%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /wait %START_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Started %SERVICE_NAME%
 goto End
@@ -218,7 +218,7 @@ popd
 rem
 echo %~nx0: Deleting %SERVICE_NAME%
 rem
-%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%" /WAIT=30
+%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %~nx0: Deleted %SERVICE_NAME%
 goto End

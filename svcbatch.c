@@ -266,12 +266,12 @@ static const SVCBATCH_NAME_MAP starttypemap[] = {
 };
 
 static const wchar_t *scmallowed[] = {
-    L"vqbdDinpPsu",        /* SVCBATCH_SCM_CREATE      */
-    L"vqbdDinpPsu",        /* SVCBATCH_SCM_CONFIG      */
-    L"vq",                 /* SVCBATCH_SCM_CONTROL     */
-    L"vqw",                /* SVCBATCH_SCM_DELETE      */
-    L"vqw",                /* SVCBATCH_SCM_START       */
-    L"vqw",                /* SVCBATCH_SCM_STOP        */
+    L"qbdDinpPsu",         /* SVCBATCH_SCM_CREATE      */
+    L"qbdDinpPsu",         /* SVCBATCH_SCM_CONFIG      */
+    L"q",                  /* SVCBATCH_SCM_CONTROL     */
+    L"q",                  /* SVCBATCH_SCM_DELETE      */
+    L"qw",                 /* SVCBATCH_SCM_START       */
+    L"qw",                 /* SVCBATCH_SCM_STOP        */
     NULL
 };
 
@@ -306,7 +306,6 @@ static const wchar_t *scmcoptions[] = {
     L"u:username",
     L"u:user",
     L"s:start",
-    L"v?verbose",
     L"w?wait",
     NULL
 };
@@ -347,7 +346,9 @@ static const wchar_t *wcsmessages[] = {
     L"Failing over to SVCBATCH_SERVICE_WORK",
     L"The (/) and (\\) are not valid service name characters",
     L"The maximum service name length is 256 characters",
+    L"Stop the service and call Delete again",
     L"The Control code is missing. Use control [service name] <value>",
+    L"The service is not in the RUNNING state",
 
     NULL
 };
@@ -4547,11 +4548,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case 'q':
                 cmdverbose  = 0;
             break;
-            case 'v':
-                cmdverbose = xwcstoi(xwoptarg, NULL);
-                if (cmdverbose < 1)
-                    cmdverbose = 1;
-            break;
             case 'b':
                 if (binarypath != NULL) {
                     rv = ERROR_ALREADY_ASSIGNED;
@@ -4636,6 +4632,10 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     argc -= xwoptind;
     argv += xwoptind;
+    if (wtime) {
+        wtimeout = wtime * ONE_SECOND;
+        wtmstart = GetTickCount64();
+    }
     if (xwcspbrk(service->name, L"/\\")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
@@ -4689,10 +4689,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         ed = service->name;
         goto finished;
     }
-    if (wtime) {
-        wtimeout = wtime * ONE_SECOND;
-        wtmstart = GetTickCount64();
-    }
+
     if (cmd == SVCBATCH_SCM_DELETE) {
         if (!QueryServiceStatusEx(svc,
                                   SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
@@ -4701,38 +4698,10 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ec = __LINE__;
             goto finished;
         }
-        if (ssp->dwCurrentState == SERVICE_STOPPED)
-            wtime = 0;
-        if (wtime) {
-            if (ssp->dwCurrentState != SERVICE_STOP_PENDING) {
-                if (!ControlService(svc, SERVICE_CONTROL_STOP, (LPSERVICE_STATUS)ssp)) {
-                    rv = GetLastError();
-                    ec = __LINE__;
-                    goto finished;
-                }
-            }
-            while (ssp->dwCurrentState != SERVICE_STOPPED) {
-                Sleep(ONE_SECOND);
-                if (!QueryServiceStatusEx(svc,
-                                          SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
-                                          SZ_STATUS_PROCESS_INFO, &bneed)) {
-                    rv = GetLastError();
-                    ec = __LINE__;
-                    goto finished;
-                }
-                if (ssp->dwCurrentState == SERVICE_STOPPED)
-                    break;
-                if (GetTickCount64() - wtmstart > wtimeout) {
-                    /* Timeout */
-                    rv = ERROR_SERVICE_REQUEST_TIMEOUT;
-                    ec = __LINE__;
-                    goto finished;
-                }
-            }
-        }
         if (ssp->dwCurrentState != SERVICE_STOPPED) {
             rv = ERROR_SERVICE_ALREADY_RUNNING;
             ec = __LINE__;
+            ed = SVCBATCH_MSG(30);
             goto finished;
         }
         if (!DeleteService(svc)) {
@@ -4907,7 +4876,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (argc == 0) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
-            ed = SVCBATCH_MSG(30);
+            ed = SVCBATCH_MSG(31);
             goto finished;
         }
         if (!QueryServiceStatusEx(svc,
@@ -4920,7 +4889,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (ssp->dwCurrentState != SERVICE_RUNNING) {
             rv = ERROR_SERVICE_CANNOT_ACCEPT_CTRL;
             ec = __LINE__;
-            ed = L"The service is not in the RUNNING state";
+            ed = SVCBATCH_MSG(32);
             goto finished;
         }
         sctrl = xwcstoi(argv[0], NULL);
@@ -5006,6 +4975,8 @@ finished:
             fprintf(stderr, "Service Name : %S\n", service->name);
             fprintf(stderr, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "             : FAILED\n");
+            if ((wtime > 0) && (rv == ERROR_SERVICE_REQUEST_TIMEOUT))
+            fprintf(stderr, "               %llu ms\n", GetTickCount64() - wtmstart);
             if (ep)
             fprintf(stdout, "        LINE : %d (%d)\n", ec, ep);
             else
@@ -5014,14 +4985,6 @@ finished:
             fprintf(stderr, "               %S\n", eb);
             if (ed != NULL)
             fprintf(stderr, "               %S\n", ed);
-            if (wtime && cmdverbose > 1) {
-            fprintf(stderr, "               %llu ms\n", GetTickCount64() - wtmstart);
-            if (argc > 0) {
-            fputs("\n   Arguments :\n", stderr);
-            for (i = 0; i < argc; i++)
-            fprintf(stderr, "               %S\n", argv[i]);
-            }
-            }
             fputc('\n', stderr);
         }
         else {
@@ -5037,13 +5000,7 @@ finished:
             if (cmd == SVCBATCH_SCM_START)
             fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
             if (cmd == SVCBATCH_SCM_STOP)
-            fprintf(stdout, "    EXITCODE : %lu (0x%lx)\n", ssp->dwServiceSpecificExitCode,
-                                                            ssp->dwServiceSpecificExitCode);
-            if ((cmdverbose > 1) && (argc > 0)) {
-            fputs("\n   Arguments :\n", stdout);
-            for (i = 0; i < argc; i++)
-            fprintf(stdout, "               %S\n", argv[i]);
-            }
+            fprintf(stdout, "    EXITCODE : %lu (0x%lx)\n", ssp->dwServiceSpecificExitCode,                                                            ssp->dwServiceSpecificExitCode);
             fputc('\n', stdout);
         }
     }

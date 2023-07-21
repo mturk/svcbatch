@@ -52,17 +52,18 @@ Sends a STOP request to a service.
 # Command options
 
 SvcBatch management command line options are case insensitive
-and `/` is used as command switch.
+and both `-` and `/` can be used as switches. This means that
+`/bin /Bin -bin and -BIN` can be used for the same option.
 
 ## Common options
-
-* **/verbose[:level]**
-
-  **Print status messages**
 
 * **/quiet**
 
   **Disable printing of status messages**
+
+  By default SvcBatch will print the status message
+  to the current console. Use this option to disable
+  printing both status or error messages.
 
 ## Configure options
 
