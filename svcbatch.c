@@ -4046,9 +4046,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
         else
             return xsyserror(0, SVCBATCH_MSG(19), argv[i]);
     }
-    service->uuid = xuuidstring(NULL);
-    if (IS_EMPTY_WCS(service->uuid))
-        return xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) && IS_SET(SVCBATCH_OPT_SEND_BREAK))
         return xsyserror(0, SVCBATCH_MSG(20), NULL);
 #if SVCBATCH_LEAN_AND_MEAN
@@ -4257,7 +4254,16 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     }
     DBG_PRINTF("%S", service->name);
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
-
+    service->uuid = xuuidstring(NULL);
+    if (IS_EMPTY_WCS(service->uuid)) {
+        xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
+        exit(1);
+    }
+    SetEnvironmentVariableW(L"SVCBATCH_APP_BIN",      program->application);
+    SetEnvironmentVariableW(L"SVCBATCH_APP_DIR",      program->directory);
+    SetEnvironmentVariableW(L"SVCBATCH_APP_VER",      SVCBATCH_VERSION_VER);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", service->name);
+    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", service->uuid);
     rv = parseoptions(argc, (LPCWSTR *)argv);
     if (rv) {
         reportsvcstatus(SERVICE_STOPPED, rv);
@@ -4316,15 +4322,9 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
      * Add additional environment variables
      * They are unique to this service instance
      */
-    SetEnvironmentVariableW(L"SVCBATCH_APP_BIN",      program->application);
-    SetEnvironmentVariableW(L"SVCBATCH_APP_DIR",      program->directory);
-    SetEnvironmentVariableW(L"SVCBATCH_APP_VER",      SVCBATCH_VERSION_VER);
-
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_BASE", service->base);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_HOME", service->home);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", service->logs);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", service->name);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", service->uuid);
     SetEnvironmentVariableW(L"SVCBATCH_SERVICE_WORK", service->work);
 #if SVCBATCH_LEAN_AND_MEAN
     if (statuslog) {
