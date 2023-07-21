@@ -1113,6 +1113,7 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
 {
     LPCWSTR *longopt;
     LPCWSTR  place;
+    int      option;
 
     xwoptarg = NULL;
     if (xwoptind >= nargc) {
@@ -1120,20 +1121,21 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         return EOF;
     }
     place  = nargv[xwoptind];
-    if (*place != '/') {
-        if ((place[0] == '-') && (place[1] == CNUL)) {
-            /* The single '-' is a command delimiter */
-            xwoptind++;
-        }
+    option = *(place++);
+
+    if (!xisoptswitch(option))
+        return EOF;
+    if ((option == '-') && (*place == WNUL)) {
+        /* The single '-' is a command delimiter */
+        xwoptind++;
         return EOF;
     }
-    if (!xisalpha(*(++place)))
+    if (!xisalpha(*place))
         return EOF;
     xwoption = place;
     longopt  = longopts;
 
     while (*longopt) {
-        int option;
         int optmod;
         int optsep = 0;
         LPCWSTR optsrc;
