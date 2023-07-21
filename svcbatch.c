@@ -204,7 +204,7 @@ static HANDLE    workerended    = NULL;
 #if SVCBATCH_LEAN_AND_MEAN
 static HANDLE    dologrotate    = NULL;
 static HANDLE    sharedmmap     = NULL;
-static LPCWSTR   outdirparam    = NULL;
+static LPWSTR    outdirparam    = NULL;
 #endif
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
@@ -603,15 +603,6 @@ static void xwchreplace(LPWSTR s)
     *d = WNUL;
 }
 
-static void xwcsreplace(LPWSTR s)
-{
-     while (*s) {
-        if (*s == SVCBATCH_REPLACE_CHAR)
-            *s = L'%';
-        s++;
-    }
-}
-
 /**
  * Simple atoi with range between 0 and INT_MAX.
  * Leading white space characters are ignored.
@@ -826,19 +817,23 @@ static LPWSTR xgetenv(LPCWSTR s)
 
 static LPWSTR xexpandenvstr(LPCWSTR str)
 {
+    LPWSTR  src = NULL;
     LPWSTR  buf = NULL;
     DWORD   bsz = BBUFSIZ;
-    DWORD   len = 0;
+    DWORD   len;
 
-    if (IS_EMPTY_WCS(str))
+    src = xwcsdup(str);
+    if (IS_EMPTY_WCS(src))
         return NULL;
-    if (xwcschr(str, L'%') == NULL)
-        buf = xwcsdup(str);
+    xwchreplace(src);
+    if (xwcschr(src, L'%') == NULL)
+        return src;
     while (buf == NULL) {
         buf = xwmalloc(bsz);
-        len = ExpandEnvironmentStringsW(str, buf, bsz);
+        len = ExpandEnvironmentStringsW(src, buf, bsz);
         if (len == 0) {
             xfree(buf);
+            xfree(src);
             return NULL;
         }
         if (len > bsz) {
@@ -847,6 +842,7 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
             bsz = len + 1;
         }
     }
+    xfree(src);
     return buf;
 }
 
@@ -3836,18 +3832,17 @@ static int parseoptions(int argc, LPCWSTR *argv)
     int      rargc;
     LPWSTR  *rargv;
 
-    LPCWSTR  scriptparam  = NULL;
-    LPCWSTR  svchomeparam = NULL;
-    LPCWSTR  svcworkparam = NULL;
-    LPCWSTR  commandparam = NULL;
+    LPWSTR   scriptparam  = NULL;
+    LPWSTR   svchomeparam = NULL;
+    LPWSTR   svcworkparam = NULL;
+    LPWSTR   commandparam = NULL;
 #if SVCBATCH_LEAN_AND_MEAN
-    LPCWSTR  svcstopparam = NULL;
+    LPWSTR   svcstopparam = NULL;
     LPCWSTR  maxlogsparam = NULL;
     LPCWSTR  sparam[SVCBATCH_MAX_ARGS];
     LPCWSTR  rparam[4];
 #endif
     LPCWSTR  cparam[SVCBATCH_MAX_ARGS];
-    WCHAR    wb[BBUFSIZ];
 
     DBG_PRINTF("started %d", argc);
     serviceargc = argc;
@@ -3862,7 +3857,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
         switch (opt) {
             case ':':
                 if (scriptparam == NULL) {
-                    scriptparam = xwoptarg;
+                    scriptparam = xexpandenvstr(skipdotslash(xwoptarg));
                 }
                 else {
                     /**
@@ -3910,17 +3905,16 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'n':
                 if (svclogfname)
                     return xsyserror(0, SVCBATCH_MSG(3), xwoptarg);
-                svclogfname = xwcsdup(skipdotslash(xwoptarg));
+                svclogfname = xexpandenvstr(skipdotslash(xwoptarg));
                 if (svclogfname == NULL)
-                    xsyswarn(0, SVCBATCH_MSG(4), xwoptarg);
+                    return xsyserror(0, SVCBATCH_MSG(4), xwoptarg);
                 if (xwcspbrk(svclogfname, L"/\\:;<>?*|\""))
-                    return xsyserror(0, L"Found invalid filename characters", svclogfname);
-                xwcsreplace(svclogfname);
+                    return xsyserror(0, SVCBATCH_MSG(17), svclogfname);
             break;
             case 'o':
-                outdirparam  = skipdotslash(xwoptarg);
+                outdirparam  = xexpandenvstr(skipdotslash(xwoptarg));
                 if (outdirparam == NULL)
-                    xsyswarn(0, SVCBATCH_MSG(5), xwoptarg);
+                    return xsyserror(0, SVCBATCH_MSG(5), xwoptarg);
             break;
 #endif
             case 'f':
@@ -3929,14 +3923,14 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     return xsyserror(0, SVCBATCH_MSG(6), xwoptarg);
             break;
             case 'h':
-                svchomeparam = skipdotslash(xwoptarg);
+                svchomeparam = xexpandenvstr(skipdotslash(xwoptarg));
                 if (svchomeparam == NULL)
-                    xsyswarn(0, SVCBATCH_MSG(7), xwoptarg);
+                    return xsyserror(0, SVCBATCH_MSG(7), xwoptarg);
             break;
             case 'w':
-                svcworkparam = skipdotslash(xwoptarg);
+                svcworkparam = xexpandenvstr(skipdotslash(xwoptarg));
                 if (svcworkparam == NULL)
-                    xsyswarn(0, SVCBATCH_MSG(8), xwoptarg);
+                    return xsyserror(0, SVCBATCH_MSG(8), xwoptarg);
             break;
             case 'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
@@ -3956,7 +3950,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         return xsyserror(0, SVCBATCH_MSG(10), xwoptarg);
                 }
                 else {
-                    commandparam = skipdotslash(xwoptarg);
+                    commandparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (commandparam == NULL)
                         return xsyserror(0, SVCBATCH_MSG(11), xwoptarg);
                 }
@@ -3979,7 +3973,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         return xsyserror(0, SVCBATCH_MSG(12), xwoptarg);
                 }
                 else {
-                    svcstopparam = skipdotslash(xwoptarg);
+                    svcstopparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (svcstopparam == NULL)
                         return xsyserror(0, SVCBATCH_MSG(13), xwoptarg);
 
@@ -4011,12 +4005,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
              */
             if (xwcspbrk(service->name, L":;<>?*|\""))
                 return xsyserror(0, SVCBATCH_MSG(17), NULL);
-            i = xwcsncat(wb, BBUFSIZ, 0, service->name);
-            i = xwcsncat(wb, BBUFSIZ, i, L".bat");
-            scriptparam = wb;
+            scriptparam = xwmalloc(BBUFSIZ);
+            i = xwcsncat(scriptparam, BBUFSIZ, 0, service->name);
+            i = xwcsncat(scriptparam, BBUFSIZ, i, L".bat");
         }
         else {
-            scriptparam = argv[0];
+            scriptparam = xexpandenvstr(skipdotslash(argv[0]));
             argc -= 1;
             argv += 1;
         }
@@ -4170,6 +4164,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 return xsyserror(0, SVCBATCH_MSG(18), cparam[i]);
             cmdproc->opts[cmdproc->optc++] = cparam[i];
         }
+        xfree(commandparam);
     }
     else {
         LPWSTR wp = xgetenv(L"COMSPEC");
@@ -4206,6 +4201,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             xwchreplace(svcstop->args[i]);
         }
         svcstop->argc = scnt;
+        xfree(svcstopparam);
     }
 #endif
     DBG_PRINTS("done");
@@ -4524,6 +4520,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
+    wtmstart = GetTickCount64();
     while ((opt = xlongopt(argc, argv, scmallowed[cmd], scmcoptions)) != EOF) {
         switch (opt) {
             case 'q':
@@ -4613,17 +4610,16 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     argc -= xwoptind;
     argv += xwoptind;
-    if (wtime) {
+    if (wtime)
         wtimeout = wtime * ONE_SECOND;
-        wtmstart = GetTickCount64();
-    }
+
     if (xwcspbrk(service->name, L"/\\")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
         ed = SVCBATCH_MSG(28);
         goto finished;
     }
-    if (xwcslen(service->name) > 256) {
+    if (xwcslen(service->name) > SVCBATCH_NAME_MAX) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
         ed = SVCBATCH_MSG(29);
@@ -5160,9 +5156,10 @@ int wmain(int argc, LPCWSTR *argv)
         killdepth   = sharedmem->killdepth;
         svcmaxlogs  = sharedmem->maxLogs;
 #if defined(_DEBUG)
-        DBG_PRINTF("ppid %lu", sharedmem->processId);
-        DBG_PRINTF("opts 0x%08x", sharedmem->options);
-        DBG_PRINTF("time %lu", stoptimeout);
+        DBG_PRINTF("ppid %lu",     sharedmem->processId);
+        DBG_PRINTF("opts 0x%08x",  sharedmem->options);
+        DBG_PRINTF("time %lu",     stoptimeout);
+        DBG_PRINTF("logs %lu",     svcmaxlogs);
 #endif
         cmdproc->application = sharedmem->application;
         cmdproc->argc   = sharedmem->argc;
