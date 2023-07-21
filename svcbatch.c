@@ -143,6 +143,7 @@ typedef struct _SVCBATCH_IPC {
     DWORD   argc;
     DWORD   optc;
     DWORD   killdepth;
+    int     maxLogs;
     WCHAR   uuid[SVCBATCH_UUID_MAX];
     WCHAR   name[SVCBATCH_NAME_MAX];
     WCHAR   logName[SVCBATCH_NAME_MAX];
@@ -164,6 +165,7 @@ typedef struct _SVCBATCH_NAME_MAP {
 
 static int                   svcmainargc = 0;
 static int                   serviceargc = 0;
+static int                   svcmaxlogs  = SVCBATCH_DEF_LOGS;
 static LPCWSTR              *svcmainargv = NULL;
 static LPCWSTR              *serviceargv = NULL;
 static LPSVCBATCH_PROCESS    program     = NULL;
@@ -1261,7 +1263,6 @@ static LPWSTR xmktimedext(void)
         GetSystemTime(&tm);
     w = getdayofyear(tm.wYear, tm.wMonth, tm.wDay);
     d[i++] = L'.';
-    d[i++] = tm.wYear % 10 + L'0';
     d[i++] = w / 100 + L'0';
     d[i++] = w % 100 / 10 + L'0';
     d[i++] = w % 10 + L'0';
@@ -2409,7 +2410,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     WIN32_FILE_ATTRIBUTE_DATA ad;
 
     x = xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->logFile);
-    if (log->maxLogs > 1)
+    if (log->maxLogs > 0)
         x = xwcsncat(lognn, SVCBATCH_PATH_MAX, x, L".0");
     else
         x = xwcsncat(lognn, SVCBATCH_PATH_MAX, x, xmktimedext());
@@ -2442,13 +2443,13 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         else
             return 0;
     }
-    if (log->maxLogs > 1) {
+    if (log->maxLogs > 0) {
         int n = log->maxLogs;
         WCHAR logpn[SVCBATCH_PATH_MAX];
 
         wmemcpy(logpn, lognn, x + 1);
         x--;
-        for (i = 2; i < log->maxLogs; i++) {
+        for (i = 1; i < log->maxLogs; i++) {
             lognn[x] = L'0' + i;
 
             if (!GetFileAttributesExW(lognn, GetFileExInfoStandard, &ad))
@@ -2975,6 +2976,7 @@ static DWORD runshutdown(void)
     sharedmem->options   = svcoptions & 0x000000FF;
     sharedmem->timeout   = stoptimeout;
     sharedmem->killdepth = killdepth;
+    sharedmem->maxLogs   = svcmaxlogs;
     if (outputlog)
         xwcslcpy(sharedmem->logName, SVCBATCH_NAME_MAX, outputlog->logName);
     xwcslcpy(sharedmem->name, SVCBATCH_NAME_MAX, service->name);
@@ -4062,13 +4064,13 @@ static int parseoptions(int argc, LPCWSTR *argv)
         outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
         outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
-        outputlog->maxLogs = SVCBATCH_DEF_LOGS;
         outputlog->fileExt = SVCBATCH_LOGFEXT;
         if (maxlogsparam) {
-            outputlog->maxLogs = xwcstoi(maxlogsparam, NULL);
-            if ((outputlog->maxLogs < 1) || (outputlog->maxLogs > SVCBATCH_MAX_LOGS))
+            svcmaxlogs = xwcstoi(maxlogsparam, NULL);
+            if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
                 return xsyserror(0, SVCBATCH_MSG(21), maxlogsparam);
         }
+        outputlog->maxLogs = svcmaxlogs;
         SVCBATCH_CS_INIT(outputlog);
     }
     else {
@@ -4284,7 +4286,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         statuslog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
         statuslog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
-        statuslog->maxLogs = SVCBATCH_DEF_LOGS;
+        statuslog->maxLogs = svcmaxlogs;
         statuslog->fileExt = SBSTATUS_LOGFEXT;
         SVCBATCH_CS_INIT(statuslog);
 
@@ -5177,6 +5179,7 @@ int wmain(int argc, LPCWSTR *argv)
         stoptimeout = sharedmem->timeout;
         svcoptions  = sharedmem->options;
         killdepth   = sharedmem->killdepth;
+        svcmaxlogs  = sharedmem->maxLogs;
 #if defined(_DEBUG)
         DBG_PRINTF("ppid %lu", sharedmem->processId);
         DBG_PRINTF("opts 0x%08x", sharedmem->options);
@@ -5198,7 +5201,7 @@ int wmain(int argc, LPCWSTR *argv)
             outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
             outputlog->logName = sharedmem->logName;
-            outputlog->maxLogs = SVCBATCH_DEF_LOGS;
+            outputlog->maxLogs = svcmaxlogs;
             outputlog->fileExt = SHUTDOWN_LOGFEXT;
             SVCBATCH_CS_INIT(outputlog);
         }
