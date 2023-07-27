@@ -76,6 +76,7 @@ typedef struct _SVCBATCH_THREAD {
     DWORD                  exitCode;
 #if defined(_DEBUG)
     ULONGLONG              duration;
+    LPCSTR                 name;
 #endif
 } SVCBATCH_THREAD, *LPSVCBATCH_THREAD;
 
@@ -1324,6 +1325,14 @@ static int xtimehdr(char *d, int sz)
  * Runtime debugging functions
  */
 
+static const char *threadnames[] = {
+    "workerthread",
+    "wrpipethread",
+    "stopthread  ",
+    "rotatethread",
+    NULL
+};
+
 static void dbgflock(HANDLE f)
 {
     DWORD len = DWORD_MAX;
@@ -1761,7 +1770,7 @@ static DWORD WINAPI xrunthread(LPVOID param)
     p->exitCode = (*p->startAddress)(p->parameter);
 #if defined(_DEBUG)
     p->duration = GetTickCount64() - p->duration;
-    DBG_PRINTF("[%d] ended %lu", p->id, p->exitCode);
+    DBG_PRINTF("%s ended %lu", p->name, p->exitCode);
 #endif
     InterlockedExchange(&p->started, 0);
     ExitThread(p->exitCode);
@@ -1781,6 +1790,9 @@ static BOOL xcreatethread(SVCBATCH_THREAD_ID id,
          SetLastError(ERROR_BUSY);
          return FALSE;
     }
+#if defined(_DEBUG)
+    threads[id].name         = threadnames[id];
+#endif
     threads[id].id           = id;
     threads[id].startAddress = threadfn;
     threads[id].parameter    = param;
@@ -3651,14 +3663,14 @@ static void threadscleanup(void)
         if (h) {
             if (threads[i].started) {
 #if defined(_DEBUG)
-                DBG_PRINTF("[%d]", i);
                 threads[i].duration = GetTickCount64() - threads[i].duration;
 #endif
                 threads[i].exitCode = ERROR_DISCARDED;
                 TerminateThread(h, threads[i].exitCode);
             }
 #if defined(_DEBUG)
-            DBG_PRINTF("[%d] 0x%08x %10llums", i,
+            DBG_PRINTF("%s %4lu %10llums",
+                        threads[i].name,
                         threads[i].exitCode,
                         threads[i].duration);
 #endif
@@ -3678,13 +3690,13 @@ static void waitforthreads(DWORD ms)
     for(i = 0; i < SVCBATCH_MAX_THREADS; i++) {
         if (threads[i].started) {
 #if defined(_DEBUG)
-            DBG_PRINTF("[%d]", i);
+            DBG_PRINTF("%s", threads[i].name);
 #endif
             wh[nw++] = threads[i].thread;
         }
     }
     if (nw) {
-        DBG_PRINTF("wait for %d", nw);
+        DBG_PRINTF("wait for %d threads", nw);
         if (nw > 1)
             WaitForMultipleObjects(nw, wh, TRUE, ms);
         else

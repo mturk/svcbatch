@@ -58,7 +58,7 @@ rem Set arguments for shutdown bat file
 set "SHUTDOWN_ARGS=/sshutdown /S@SystemRoot@ "/ssome @@argument @@@@@with spaces""
 rem
 rem
-set "SERVICE_LOG_DIR=-o "Logs/%SERVICE_NAME%""
+set "SERVICE_LOG_DIR=-o Logs/@SVCBATCH_SERVICE_NAME@"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/R 10 -r100K"
 set "ROTATE_RULE=/R5 -r20K -rS"
