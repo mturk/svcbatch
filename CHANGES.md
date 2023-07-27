@@ -13,6 +13,7 @@ For a full list of changes, see the [git commit log][log]
   * Enable to set options on service start with additional arguments
   * Add service ImagePathArguments registry value that is added to command options defined in ImagePath
   * Use svcbatch /? to get the version info
+  * Improve detecting mutually exclusive command options
 
 ### New Features
 

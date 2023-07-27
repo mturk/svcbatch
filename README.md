@@ -439,6 +439,12 @@ will be reported to Windows Event log.
   This option causes all logging and rotation
   to use local instead system time.
 
+  **Notice**
+
+  This option is mutually exclusive with `q` option.
+  If this option is defined together with the mentioned option,
+  the service will fail to start, and write an error message
+  to the Windows Event log.
 
 
 * **-m [number]**
@@ -585,13 +591,11 @@ will be reported to Windows Event log.
   Use this option when output from `cmd.exe` is not needed or
   service batch file manages logging on its own.
 
-  In case **-s** option(s) are defined, you can use **-qq**
-  to disable only shutdown logging.
 
   **Notice**
 
   This option is mutually exclusive with other log related
-  command options. Do not use options `a`, `m`, `r` or `t`
+  command options. Do not use options `a`, `l`, `m`, `n` `r`, `t` or `v`
   together with this option when installing service.
   Service will fail to start, and write an error message
   to the Windows Event log.
@@ -924,7 +928,7 @@ Another way to get SvcBatch version and build information
 is to open command prompt and type
 
   ```cmd
-  > svcbatch.exe
+  > svcbatch.exe /?
   SvcBatch 1.2.3.4 ...
 
   >

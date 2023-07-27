@@ -205,10 +205,10 @@ static HANDLE    workerended    = NULL;
 static HANDLE    dologrotate    = NULL;
 static HANDLE    sharedmmap     = NULL;
 static LPWSTR    outdirparam    = NULL;
+static LPWSTR    svclogfname    = NULL;
 #endif
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
-static LPWSTR       svclogfname   = NULL;
 static WCHAR        zerostring[]  = {  0,  0,  0,  0 };
 static WCHAR        CRLFW[]       = { 13, 10,  0,  0 };
 static CHAR         CRLFA[]       = { 13, 10,  0,  0 };
@@ -3826,7 +3826,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
 #if SVCBATCH_LEAN_AND_MEAN
     int      rcnt = 0;
     int      scnt = 0;
-    int      qcnt = 0;
 #endif
     int      ccnt = 0;
     int      rargc;
@@ -3886,6 +3885,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
             case 'l':
                 svcoptions  |= SVCBATCH_OPT_LOCALTIME;
+            break;
+            case 'q':
+                svcoptions  |= SVCBATCH_OPT_QUIET;
             break;
             case 't':
                 svcoptions  |= SVCBATCH_OPT_TRUNCATE;
@@ -3963,10 +3965,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     return xsyserror(x, xwoptarg, NULL);
             break;
 #if SVCBATCH_LEAN_AND_MEAN
-            case 'q':
-                svcoptions |= SVCBATCH_OPT_QUIET;
-                qcnt++;
-            break;
             case 's':
                 if (svcstopparam) {
                     if (scnt < SVCBATCH_MAX_ARGS)
@@ -4034,13 +4032,31 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) && IS_SET(SVCBATCH_OPT_SEND_BREAK))
         return xsyserror(0, SVCBATCH_MSG(20), NULL);
 #if SVCBATCH_LEAN_AND_MEAN
-    if (svcstopparam && qcnt > 1) {
+    if (IS_SET(SVCBATCH_OPT_QUIET)) {
+        WCHAR bb[TBUFSIZ];
         /**
-         * Use -qq to only disable shutdown logging
+         * Ensure that log related command options
+         * are not defined when -q is defined
          */
-        qcnt = 0;
+        i = 0;
+        if (IS_SET(SVCBATCH_OPT_APPEND))
+            i = xwcsncat(bb, TBUFSIZ, i, L"-a ");
+        if (IS_SET(SVCBATCH_OPT_LOCALTIME))
+            i = xwcsncat(bb, TBUFSIZ, i, L"-l ");
+        if (maxlogsparam)
+            i = xwcsncat(bb, TBUFSIZ, i, L"-m ");
+        if (svclogfname)
+            i = xwcsncat(bb, TBUFSIZ, i, L"-n ");
+        if (rcnt)
+            i = xwcsncat(bb, TBUFSIZ, i, L"-r ");
+        if (IS_SET(SVCBATCH_OPT_TRUNCATE))
+            i = xwcsncat(bb, TBUFSIZ, i, L"-t ");
+        if (IS_SET(SVCBATCH_OPT_VERBOSE))
+            i = xwcsncat(bb, TBUFSIZ, i, L"-v ");
+        if (i)
+            return xsyserror(0, SVCBATCH_MSG(22), bb);
     }
-    if (qcnt == 0) {
+    else {
         outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
         outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
@@ -4052,30 +4068,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
         }
         outputlog->maxLogs = svcmaxlogs;
         SVCBATCH_CS_INIT(outputlog);
-    }
-    else {
-        WCHAR bb[TBUFSIZ];
-        /**
-         * Ensure that log related command options
-         * are not defined when -q is defined
-         */
-        i = 0;
-        if (IS_SET(SVCBATCH_OPT_APPEND))
-            i = xwcsncat(bb, TBUFSIZ, i, L"-a ");
-        if (maxlogsparam)
-            i = xwcsncat(bb, TBUFSIZ, i, L"-m ");
-        if (rcnt)
-            i = xwcsncat(bb, TBUFSIZ, i, L"-r ");
-        if (IS_SET(SVCBATCH_OPT_TRUNCATE))
-            i = xwcsncat(bb, TBUFSIZ, i, L"-t ");
-        if (i) {
-#if defined(_DEBUG) && (_DEBUG > 1)
-            xsyswarn(0, SVCBATCH_MSG(22), bb);
-            rcnt = 0;
-#else
-            return xsyserror(0, SVCBATCH_MSG(22), bb);
-#endif
-        }
     }
 #endif
     /**
