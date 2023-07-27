@@ -708,61 +708,70 @@ will be reported to Windows Event log.
 
   ```no-highlight
 
-  00:00:00.026642 SvcBatch 2.1.0.0_2.dbg (msc 193532217.1)
-  00:00:00.026860 OS Name          : Windows Server 2022 Standard
-  00:00:00.026884 OS Version       : 21H2 10.0.20348.1726
-  00:00:00.026902
-  00:00:00.026902 Service name     : adummysvc
-  00:00:00.026948 Service uuid     : 16dc-f363550e-82eb-4872-5bf5-691f7ff30812
-  00:00:00.026967 Batch file       : C:\Workplace\svcbatch\test\dummyservice.bat
-  00:00:00.026987 Shutdown batch   : C:\Workplace\svcbatch\test\dummyservice.bat
-  00:00:00.027006 Program directory: C:\Workplace\svcbatch\.build\dbg
-  00:00:00.027025 Base directory   : C:\Workplace\svcbatch\test
-  00:00:00.027625 Home directory   : C:\Workplace\svcbatch\test
-  00:00:00.027635 Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
-  00:00:00.027641 Work directory   : C:\Workplace\svcbatch\test
-  00:00:00.029821
-  00:00:00.029821 Log create       : 2023-05-15 02:33:07.008
-  00:00:00.030150 + C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
-  00:00:00.030167 Log opened       : 2023-05-15 02:33:07.008
-  00:02:00.039847
-  00:02:00.039847 Rotate ready     : 2023-05-15 02:35:07.021
-  00:04:52.831839 Rotate by size   : 2023-05-15 02:37:59.806
-  00:04:52.832067 Rotating
-  00:04:52.834273   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
-  00:04:52.834304   size           : 20528
-  00:04:52.834310   rotate size    : 20480
-  00:04:52.834315 Log generation   : 1
-  00:04:52.834838 Moving
-  00:04:52.834867   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
-  00:04:52.834875 > C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log.20230515023759
-  00:04:52.835496 + C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
-  00:04:52.835608 Log rotated      : 2023-05-15 02:37:59.806
-  00:05:55.596115
-  00:05:55.596115 Service signaled : SVCBATCH_CTRL_ROTATE
-  00:05:55.596253 Log is busy      : 2023-05-15 02:39:02.574
-  00:06:52.834665 Rotate ready     : 2023-05-15 02:39:59.815
-  00:09:52.838874 Rotate by time   : 2023-05-15 02:42:59.820
-  00:09:52.839110 Rotating
-  00:09:52.841302   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
-  00:09:52.841337   size           : 845
-  00:09:52.841342   rotate size    : 20480
-  00:09:52.841348 Log generation   : 2
-  00:09:52.841859 Moving
-  00:09:52.841877   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
-  00:09:52.841903 > C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log.20230515024259
-  00:09:52.842188 + C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
-  00:09:52.842341 Log rotated      : 2023-05-15 02:42:59.820
-  00:11:52.852978
-  00:11:52.852978 Rotate ready     : 2023-05-15 02:44:59.834
-  00:11:58.221088 Service signaled : SVCBATCH_CTRL_ROTATE
-  00:11:58.221300 Log is empty     : 2023-05-15 02:45:05.195
-  00:12:34.634070
-  00:12:34.634070 Service signaled : SERVICE_CONTROL_STOP
-  00:12:43.385240 Closing
-  00:12:43.385255   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
-  00:12:43.386791 Log closed       : 2023-05-15 02:45:50.364
-  00:12:43.386947 Status closed    : 2023-05-15 02:45:50.364
+  00:00:00.051577 SvcBatch 2.2.0.0_2.dbg (msc 193632537.0)
+  00:00:00.051688 OS Name          : Windows Server 2022 Standard
+  00:00:00.051708 OS Version       : 21H2 10.0.20348.1850
+  00:00:00.051725
+  00:00:00.051725 Service name     : adummysvc
+  00:00:00.051753 Service uuid     : 1094-edc2e747-46a2-e5c7-8499-6311158f0b34
+  00:00:00.051771 Script program   : C:\Windows\System32\cmd.exe
+  00:00:00.051790                    /D /E:ON /V:OFF /C
+  00:00:00.051808 Script           : C:\Workplace\svcbatch\test\dummyservice.bat
+  00:00:00.051826                    run
+  00:00:00.051844                    %TEMP%
+  00:00:00.052086                    %SOME_RANDOM_VARIABLE%
+  00:00:00.052091 Shutdown         : C:\Workplace\svcbatch\test\dummyservice.bat
+  00:00:00.052096                    shutdown
+  00:00:00.052101                    %SystemRoot%
+  00:00:00.052105                    some @argument @@%with spaces
+  00:00:00.052110 Program name     : svcbatch
+  00:00:00.052115 Program directory: C:\Workplace\svcbatch\.build\dbg
+  00:00:00.052120 Base directory   : C:\Workplace\svcbatch\test
+  00:00:00.052125 Home directory   : C:\Workplace\svcbatch\test
+  00:00:00.052129 Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc
+  00:00:00.052134 Work directory   : C:\Workplace\svcbatch\test
+  00:00:00.053945
+  00:00:00.053945 Log create       : 2023-07-27 18:22:06.300
+  00:00:00.054121 + C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
+  00:00:00.054134 Log opened       : 2023-07-27 18:22:06.300
+  00:02:00.082599
+  00:02:00.082599 Rotate ready     : 2023-07-27 18:24:06.331
+  00:04:46.628307 Rotate by size   : 2023-07-27 18:26:52.871
+  00:04:46.630237 Rotating
+  00:04:46.632184   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
+  00:04:46.632238   size           : 20497
+  00:04:46.632243   rotate size    : 20480
+  00:04:46.632248 Log generation   : 1
+  00:04:46.632780 Moving
+  00:04:46.632791   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
+  00:04:46.632796 > C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log.20866412
+  00:04:46.633417 + C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
+  00:04:46.635298 Log rotated      : 2023-07-27 18:26:52.880
+  00:06:29.254866
+  00:06:29.254866 Service signaled : SVCBATCH_CTRL_ROTATE
+  00:06:29.257110 Log is busy      : 2023-07-27 18:28:35.505
+  00:06:46.634551 Rotate ready     : 2023-07-27 18:28:52.883
+  00:09:46.635310 Rotate by time   : 2023-07-27 18:31:52.884
+  00:09:46.637122 Rotating
+  00:09:46.638537   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
+  00:09:46.638552   size           : 1010
+  00:09:46.638557   rotate size    : 20480
+  00:09:46.638562 Log generation   : 2
+  00:09:46.639117 Moving
+  00:09:46.639141   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
+  00:09:46.639145 > C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log.20866712
+  00:09:46.639430 + C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
+  00:09:46.641523 Log rotated      : 2023-07-27 18:31:52.884
+  00:11:46.646543
+  00:11:46.646543 Rotate ready     : 2023-07-27 18:33:52.895
+  00:12:09.366119 Service signaled : SVCBATCH_CTRL_ROTATE
+  00:12:09.368033 Log is empty     : 2023-07-27 18:34:15.618
+  00:12:53.145784
+  00:12:53.145784 Service signaled : SERVICE_CONTROL_STOP
+  00:13:01.993696 Closing
+  00:13:01.993705   C:\Workplace\svcbatch\test\Logs\adummysvc\adummysvc.log
+  00:13:01.994192 Log closed       : 2023-07-27 18:35:08.240
+  00:13:01.995533 Status closed    : 2023-07-27 18:35:08.240
 
   ```
 
