@@ -81,6 +81,23 @@ and both `-` and `/` can be used as switches. This means that
 
   **Wait for service to stop**
 
+  If the service is running, SvcBatch will wait
+  up to **seconds** for service to stop.
+
+  The **seconds** is optional parameter. If not
+  provided as part of **/wait** option, default
+  value of `30` seconds will be used.
+
+* **reason**
+
+  **Optional reason code number for service stop**
+
+  The optional **reason** code number for service stop
+  formed with the following elements in the format:
+
+  **Flag:Major reason:Minor reason**
+
+  E.g. **1:2:8** means Hardware Disk (Unplanned)
 
   ```no-highlight
         Flag                       Major reason
@@ -118,6 +135,12 @@ and both `-` and `/` can be used as switches. This means that
     23           -   MMC
     256-65535    -   Custom
 
-    <comment> = Optional comment for the reason above (127 characters maximum)
-
   ```
+
+* **comment**
+
+  **Optional comment for the reason above**
+
+  The **comment** is optional argument used as a
+  comment for the reason above (127 characters maximum)
+
