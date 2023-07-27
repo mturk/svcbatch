@@ -300,14 +300,14 @@ static const wchar_t *scmcoptions[] = {
     L"D:depend",
     L"n+displayname",
     L"n+display",
-    L"p+password",
+    L"u:obj",
+    L"p:password",
     L"P:privileges",
     L"P:privs",
     L"q.quiet",
-    L"u:obj",
+    L"s:start",
     L"u:username",
     L"u:user",
-    L"s:start",
     L"w?wait",
     NULL
 };
