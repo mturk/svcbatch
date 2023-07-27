@@ -3909,11 +3909,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'n':
                 if (svclogfname)
                     return xsyserror(0, SVCBATCH_MSG(3), xwoptarg);
-                svclogfname = xexpandenvstr(skipdotslash(xwoptarg));
+                svclogfname = xwcsdup(skipdotslash(xwoptarg));
                 if (svclogfname == NULL)
                     return xsyserror(0, SVCBATCH_MSG(4), xwoptarg);
                 if (xwcspbrk(svclogfname, L"/\\:;<>?*|\""))
                     return xsyserror(0, SVCBATCH_MSG(17), svclogfname);
+                xwchreplace(svclogfname);
             break;
             case 'o':
                 outdirparam  = xexpandenvstr(skipdotslash(xwoptarg));
