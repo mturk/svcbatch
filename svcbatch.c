@@ -825,6 +825,7 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
     src = xwcsdup(str);
     if (IS_EMPTY_WCS(src))
         return NULL;
+    xfixpathsep(src);
     xwchreplace(src);
     if (xwcschr(src, L'%') == NULL)
         return src;
@@ -2357,7 +2358,6 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
         i = xwcsncat(dp, SVCBATCH_PATH_MAX, 0, service->work);
         i = xwcsncat(dp, SVCBATCH_PATH_MAX, i, L"\\");
         i = xwcsncat(dp, SVCBATCH_PATH_MAX, i, outdirparam);
-        xfixpathsep(dp);
     }
     else {
         p = xgetfullpath(outdirparam, dp, SVCBATCH_PATH_MAX);
@@ -3858,18 +3858,20 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case ':':
                 if (scriptparam == NULL) {
                     scriptparam = xexpandenvstr(skipdotslash(xwoptarg));
+                    if (scriptparam == NULL)
+                        return xsyserror(ERROR_FILE_NOT_FOUND, xwoptarg, NULL);
                 }
                 else {
                     /**
                      * Add arguments for batch file
                      */
                     if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
-                        return xsyserror(0, L"The argument is too large", xwoptarg);
+                        return xsyserror(0, SVCBATCH_MSG(18), xwoptarg);
 
                     if (cmdproc->argc < SVCBATCH_MAX_ARGS)
                         cmdproc->args[cmdproc->argc++] = xwcsdup(xwoptarg);
                     else
-                        return xsyserror(0, L"Too many arguments", xwoptarg);
+                        return xsyserror(0, SVCBATCH_MSG(19), xwoptarg);
                 }
             break;
             case 'b':
@@ -4011,6 +4013,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
         }
         else {
             scriptparam = xexpandenvstr(skipdotslash(argv[0]));
+            if (scriptparam == NULL)
+                return xsyserror(ERROR_FILE_NOT_FOUND, argv[0], NULL);
             argc -= 1;
             argv += 1;
         }
