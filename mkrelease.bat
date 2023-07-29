@@ -22,6 +22,7 @@ rem    eg: mkrelease 1.2.3
 rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme"
 rem        mkrelease /d ...   create debug release
 rem        mkrelease /s ...   compile with static msvcrt
+rem        mkrelease /h ...   compile with hybrid crt
 rem        mkrelease /l ...   create (lite) release
 rem
 setlocal
@@ -37,6 +38,7 @@ rem
 :getOpts
 rem
 if /i "x%~1" == "x/d" goto setDebug
+if /i "x%~1" == "x/h" goto setHybrid
 if /i "x%~1" == "x/s" goto setStatic
 if /i "x%~1" == "x/l" goto setLite
 rem
@@ -49,6 +51,12 @@ set "DebugPrefix=debug-"
 set "ProjectFiles=%ProjectFiles% %ProjectName%.pdb"
 shift
 goto getOpts
+rem
+:setHybrid
+set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=Hybrid"
+shift
+goto getOpts
+rem
 :setStatic
 set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=1"
 shift
