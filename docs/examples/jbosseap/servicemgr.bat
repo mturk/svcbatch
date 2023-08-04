@@ -73,7 +73,7 @@ rem
 rem Delete service
 :doDelete
 rem
-svcbatch delete "%SERVICE_NAME%" /wait
+svcbatch delete "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %~nx0: Deleted %SERVICE_NAME%
 goto End

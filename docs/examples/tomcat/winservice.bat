@@ -135,7 +135,7 @@ rem
 :doDelete
 rem
 rem
-svcbatch delete "%SERVICE_NAME%" /wait
+svcbatch delete "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
 rem
