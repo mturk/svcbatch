@@ -823,8 +823,7 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
     DWORD   len;
 
     src = xwcsdup(str);
-    if (IS_EMPTY_WCS(src))
-        return NULL;
+    ASSERT_WSTR(src, NULL);
     xfixpathsep(src);
     xwchreplace(src);
     if (xwcschr(src, L'%') == NULL)
@@ -4499,6 +4498,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       ec = 0;
     int       ep = 0;
     int       cmdverbose  = 1;
+    int       wtime       = 0;
     ULONGLONG wtmstart    = 0;
     ULONGLONG wtimeout    = 0;
     LPCWSTR   ed          = NULL;
@@ -4516,7 +4516,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     DWORD     srmajor     = SERVICE_STOP_REASON_MAJOR_NONE;
     DWORD     srminor     = SERVICE_STOP_REASON_MINOR_NONE;
     DWORD     srflag      = SERVICE_STOP_REASON_FLAG_PLANNED;
-    DWORD     wtime       = 0;
     SC_HANDLE mgr         = NULL;
     SC_HANDLE svc         = NULL;
 
@@ -4543,22 +4542,20 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 }
                 pp = xexpandenvstr(skipdotslash(xwoptarg));
                 if (pp == NULL) {
-                    rv = ERROR_FILE_NOT_FOUND;
+                    rv = GetLastError();
                     ec = __LINE__;
                     ed = xwoptarg;
                     goto finished;
                 }
                 bp = xgetfullpath(pp, cb, SVCBATCH_PATH_MAX);
-                xfree(pp);
                 if (bp == NULL) {
-                    rv = ERROR_FILE_NOT_FOUND;
+                    rv = GetLastError();
                     ec = __LINE__;
                     ed = xwoptarg;
                     goto finished;
                 }
-                else {
-                    binarypath = xappendarg(1, NULL, bp);
-                }
+                binarypath = xappendarg(1, NULL, bp);
+                xfree(pp);
             break;
             case 'D':
                 x = xwcslen(xwoptarg);
@@ -4603,11 +4600,19 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case 'w':
                 if (xwoptarg) {
                     wtime = xwcstoi(xwoptarg, NULL);
+                    if (wtime < 1) {
+                        rv = ERROR_INVALID_PARAMETER;
+                        ec = __LINE__;
+                        ed = xwoptarg;
+                        goto finished;
+                    }
                     if (wtime > SVCBATCH_STOP_TMAX)
                         wtime = SVCBATCH_STOP_TMAX;
                 }
-                if (wtime < SVCBATCH_STOP_TMIN)
+                else {
+                    /* Use default wait time */
                     wtime = SVCBATCH_SCM_WAIT_DEF;
+                }
             break;
             case ENOENT:
                 rv = ERROR_BAD_LENGTH;
