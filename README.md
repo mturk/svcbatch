@@ -313,7 +313,7 @@ will be reported to Windows Event log.
 
   The **mode** must be number between `0` and `2`.
 
-  **mode 0**
+  * **mode 0**
 
   This mode will set the error code when the service
   fails. The error message will be written to
@@ -339,14 +339,14 @@ will be reported to Windows Event log.
 
   This is the default mode.
 
-  **mode 1**
+  * **mode 1**
 
   This mode will not set the error code when the service
   fails. The information message will be written to
   the Windows Event log and service will enter a stop state.
 
 
-  **mode 2**
+  * **mode 2**
 
   This mode will not report error code to the SCM when
   the service fails. The error message will be written to
