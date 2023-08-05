@@ -30,7 +30,7 @@ Creates a service.
 
 The following command:
 
-  ```cmd
+  ```no-highlight
   > svcbatch create myService
     Service Name : myService
       Command : Create
@@ -65,7 +65,7 @@ that will signal log rotation. In case the log
 rotation is not ready the following will be displayed:
 
 
-  ```cmd
+  ```no-highlight
   > svcbatch control myService 234
     Service Name : myService
          Command : Control
@@ -80,7 +80,7 @@ In case the service was not installed with `/b` command option,
 the `233` custom control code will be disabled. Trying
 to send this control code to the service will result in:
 
-  ```cmd
+  ```no-highlight
   > svcbatch control myService 233
     Service Name : myService
          Command : Control
@@ -98,7 +98,7 @@ Deletes a service.
 
 The following command:
 
-  ```cmd
+  ```no-highlight
   > svcbatch delete myService
     Service Name : myService
          Command : Delete
@@ -111,7 +111,7 @@ The service must be stopped before calling this command.
 In case the service is running the delete command
 will return something as follows:
 
-  ```cmd
+  ```no-highlight
   > svcbatch delete myService
     Service Name : myService
          Command : Delete
@@ -129,7 +129,7 @@ Starts a service.
 
 The following command:
 
-  ```cmd
+  ```no-highlight
   > svcbatch start myService /wait
     Service Name : myService
          Command : Start
@@ -147,7 +147,7 @@ Sends a STOP request to a service.
 
 The following command:
 
-  ```cmd
+  ```no-highlight
   > svcbatch stop myService /wait
     Service Name : myService
          Command : Stop
@@ -162,7 +162,7 @@ and return when the service is stopped.
 In case the service did not stop within `/wait[:seconds]`
 interval, SvcBatch will report something similar to:
 
-  ```cmd
+  ```no-highlight
   > svcbatch stop myService /wait=2
     Service Name : myService
          Command : Stop
@@ -216,7 +216,7 @@ and both `-` and `/` can be used as switches. This means that
 
   This option sets the description string for a service.
 
-  ```cmd
+  ```no-highlight
   > svcbatch config myService /desc "This is My Service"
   >
   ```
@@ -229,7 +229,7 @@ and both `-` and `/` can be used as switches. This means that
   The **dependencies** string is list of services
   separated by `/` (forward slash) character.
 
-  ```cmd
+  ```no-highlight
   > svcbatch config myService /depend=Tcpip/Afd
   >
   ```
@@ -243,7 +243,7 @@ and both `-` and `/` can be used as switches. This means that
 
   This option sets the DisplayName for a service.
 
-  ```cmd
+  ```no-highlight
   > svcbatch create myService /displayName "My Service"
   >
   ```
@@ -302,7 +302,7 @@ and both `-` and `/` can be used as switches. This means that
 
   The **privileges** are separated by `/` (forward slash) character.
 
-  ```cmd
+  ```no-highlight
   > svcbatch config myService /privs SeBackupPrivilege/SeRestorePrivilege
   >
   ```
@@ -332,7 +332,7 @@ and both `-` and `/` can be used as switches. This means that
     service result in the error code ERROR_SERVICE_DISABLED.
 
 
-  ```cmd
+  ```no-highlight
   > svcbatch config myService /start:auto
   >
   ```
@@ -359,7 +359,7 @@ and both `-` and `/` can be used as switches. This means that
   If defined **arguments** will be passed to
   service on startup.
 
-  ```cmd
+  ```no-highlight
   > svcbatch start myService /wait arg1 arg2 ...
   >
   ```
