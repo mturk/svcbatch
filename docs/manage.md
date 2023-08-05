@@ -16,7 +16,7 @@ create, configure, manage, and delete services.
   - [Stop](#cmd-stop)
 - [Command Options](#command-options)
   - [Common options](#common-options)
-  - [Configure options](#configure-options)
+  - [Create options](#create-options)
   - [Start options](#start-options)
   - [Stop options](#stop-options)
 
@@ -41,6 +41,14 @@ that the script file is **myService.bat**.
 ## Config
 
 Changes the configuration of a service.
+
+This command should be used only when the
+service needs a runtime configuration change
+or as part of service's installation process.
+
+All the configuration for the service should
+be done within **create** command.
+
 
 ## Control
 
@@ -75,7 +83,7 @@ and both `-` and `/` can be used as switches. This means that
   to the current console. Use this option to disable
   printing both status or error messages.
 
-## Configure options
+## Create options
 
 * **/binPath|/bin [path]**
 
