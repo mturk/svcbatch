@@ -25,23 +25,23 @@ provide the complete solution to run and manage Apache Tomcat as
 windows service.
 
 
-Put [winservice](tomcat/winservice.bat) and [runservice](tomcat/runservice.bat)
+Put [servicemgr](tomcat/servicemgr.bat) and [winservice](tomcat/winservice.bat)
 batch files together with `svcbatch.exe` into your `tomcat/bin` directory.
 
-[winservice](tomcat/winservice.bat) is a simple batch file
+[servicemgr](tomcat/servicemgr.bat) is a simple batch file
 that can be used to manage service instead typing multiple commands.
 
-Before executing `winservice.bat`, edit `winservice.bat` and modify
+Before executing `servicemgr.bat`, edit `servicemgr.bat` and modify
 default `SERVICE_NAME`, `DisplayName` and `description`
 parameters to match the Tomcat version you are using.
 
 ```cmd
 
-> winservice.bat create tomcat10
+> servicemgr.bat create tomcat10
 
 ```
 
-After creating a service, edit `runservice.bat` file and add
+After creating a service, edit [winservice](tomcat/winservice.bat) file and add
 or modify any environment variables needed. You can set
 JAVA_HOME to your actual jdk location or replace that line
 with JRE_HOME. You can set JAVA_HOME or JRE_HOME directly inside
@@ -51,7 +51,7 @@ That's it! Now, just type ...
 
 ```cmd
 
-> winservice.bat start tomcat10
+> servicemgr.bat start tomcat10
   or ...
 > sc start tomcat10
   or ...
