@@ -50,12 +50,12 @@ set "SERVICE_LOG_FNAME="
 set "SHUTDOWN_ARGS="
 set "ROTATE_RULE="
 set "SERVICE_BATCH=dummyservice.bat"
-set "SERVICE_SHUTDOWN=/s%SERVICE_BATCH%"
+rem set "SERVICE_SHUTDOWN=/s%SERVICE_BATCH%"
 rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=/sshutdown /S@SystemRoot@ "/ssome @@argument @@@@@with spaces""
+set "SHUTDOWN_ARGS=/s:shutdown /S@SystemRoot@ "/ssome @@argument @@@@@with spaces""
 rem
 rem
 set "SERVICE_LOG_DIR=-o Logs/@SVCBATCH_SERVICE_NAME@"

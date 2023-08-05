@@ -3869,7 +3869,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
         switch (opt) {
             case ':':
                 if (scriptparam == NULL) {
-                    scriptparam = xexpandenvstr(skipdotslash(xwoptarg));
+                    if (*xwoptarg == L':')
+                        scriptparam = xwcsdup(xwoptarg);
+                    else
+                        scriptparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (scriptparam == NULL)
                         return xsyserror(ERROR_FILE_NOT_FOUND, xwoptarg, NULL);
                 }
@@ -3987,7 +3990,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         return xsyserror(0, SVCBATCH_MSG(12), xwoptarg);
                 }
                 else {
-                    svcstopparam = xexpandenvstr(skipdotslash(xwoptarg));
+                    if (*xwoptarg == L':') {
+                        svcstopparam   = xwcsdup(xwoptarg);
+                        sparam[scnt++] = xwoptarg + 1;
+                    }
+                    else
+                        svcstopparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (svcstopparam == NULL)
                         return xsyserror(0, SVCBATCH_MSG(13), xwoptarg);
 
@@ -4024,7 +4032,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
             i = xwcsncat(scriptparam, BBUFSIZ, i, L".bat");
         }
         else {
-            scriptparam = xexpandenvstr(skipdotslash(argv[0]));
+            if (*argv[0] == L':')
+                scriptparam = xwcsdup(argv[0]);
+            else
+                scriptparam = xexpandenvstr(skipdotslash(argv[0]));
             if (scriptparam == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, argv[0], NULL);
             argc -= 1;
@@ -4202,7 +4213,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (svcstopparam) {
         svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
         if (*svcstopparam == L':')
-            svcstop->script = xwcsdup(svcstopparam + 1);
+            svcstop->script = cmdproc->script;
         else
             svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
         if (svcstop->script == NULL)
