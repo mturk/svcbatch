@@ -315,44 +315,44 @@ will be reported to Windows Event log.
 
   * **mode 0**
 
-  This mode will set the error code when the service
-  fails. The error message will be written to
-  the Windows Event log and service will enter a stop state.
+    This mode will set the error code when the service
+    fails. The error message will be written to
+    the Windows Event log and service will enter a stop state.
 
-  If the service was in `RUNNING` state the error
-  code will be set to `ERROR_PROCESS_ABORTED`, otherwise
-  the error code will be set to `ERROR_SERVICE_START_HANG`.
+    If the service was in `RUNNING` state the error
+    code will be set to `ERROR_PROCESS_ABORTED`, otherwise
+    the error code will be set to `ERROR_SERVICE_START_HANG`.
 
-  You can use this mode to initialize service recovery if
-  defined.
+    You can use this mode to initialize service recovery if
+    defined.
 
-  ```cmd
+    ```cmd
 
-  > sc failure myService reset= INFINITE actions= restart/10000
+    > sc failure myService reset= INFINITE actions= restart/10000
 
-  > sc failureflag myService 1
+    > sc failureflag myService 1
 
-  ```
+    ```
 
-  The upper example will restart `myService` service after `10`
-  seconds if it enters a stop state without Stop command.
+    The upper example will restart `myService` service after `10`
+    seconds if it enters a stop state without Stop command.
 
-  This is the default mode.
+    This is the default mode.
 
   * **mode 1**
 
-  This mode will not set the error code when the service
-  fails. The information message will be written to
-  the Windows Event log and service will enter a stop state.
+    This mode will not set the error code when the service
+    fails. The information message will be written to
+    the Windows Event log and service will enter a stop state.
 
 
   * **mode 2**
 
-  This mode will not report error code to the SCM when
-  the service fails. The error message will be written to
-  the Windows Event log.
-  SvcBatch will call `exit(ERROR_INVALID_LEVEL)` and terminate
-  the current service.
+    This mode will not report error code to the SCM when
+    the service fails. The error message will be written to
+    the Windows Event log.
+    SvcBatch will call `exit(ERROR_INVALID_LEVEL)` and terminate
+    the current service.
 
 
 
