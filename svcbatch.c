@@ -824,7 +824,8 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
 
     src = xwcsdup(str);
     ASSERT_WSTR(src, NULL);
-    xfixpathsep(src);
+    if (*src != L'?')
+        xfixpathsep(src);
     xwchreplace(src);
     if (xwcschr(src, L'%') == NULL)
         return src;
@@ -1861,6 +1862,8 @@ static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     DWORD len;
 
     ASSERT_WSTR(path, NULL);
+    if (*path == L'?')
+        ++path;
     len = GetFullPathNameW(path, siz, dst, NULL);
     if ((len == 0) || (len >= siz))
         return NULL;
@@ -1947,7 +1950,7 @@ static BOOL resolvescript(LPCWSTR bp)
 
     if (cmdproc->script)
         return TRUE;
-    if (*bp == L':') {
+    if (*bp == L'?') {
         cmdproc->script = xwcsdup(bp + 1);
         service->base   = service->work;
         return TRUE;
@@ -3869,10 +3872,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
         switch (opt) {
             case ':':
                 if (scriptparam == NULL) {
-                    if (*xwoptarg == L':')
-                        scriptparam = xwcsdup(xwoptarg);
-                    else
-                        scriptparam = xexpandenvstr(skipdotslash(xwoptarg));
+                    scriptparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (scriptparam == NULL)
                         return xsyserror(ERROR_FILE_NOT_FOUND, xwoptarg, NULL);
                 }
@@ -3990,15 +3990,11 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         return xsyserror(0, SVCBATCH_MSG(12), xwoptarg);
                 }
                 else {
-                    if (*xwoptarg == L':') {
-                        svcstopparam   = xwcsdup(xwoptarg);
-                        sparam[scnt++] = xwoptarg + 1;
-                    }
-                    else
-                        svcstopparam = xexpandenvstr(skipdotslash(xwoptarg));
+                    svcstopparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (svcstopparam == NULL)
                         return xsyserror(0, SVCBATCH_MSG(13), xwoptarg);
-
+                    if (*svcstopparam == L'?')
+                        sparam[scnt++] = svcstopparam + 1;
                 }
             break;
             case 'r':
@@ -4032,10 +4028,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             i = xwcsncat(scriptparam, BBUFSIZ, i, L".bat");
         }
         else {
-            if (*argv[0] == L':')
-                scriptparam = xwcsdup(argv[0]);
-            else
-                scriptparam = xexpandenvstr(skipdotslash(argv[0]));
+            scriptparam = xexpandenvstr(skipdotslash(argv[0]));
             if (scriptparam == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, argv[0], NULL);
             argc -= 1;
@@ -4212,7 +4205,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     }
     if (svcstopparam) {
         svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
-        if (*svcstopparam == L':')
+        if (*svcstopparam == L'?')
             svcstop->script = cmdproc->script;
         else
             svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);

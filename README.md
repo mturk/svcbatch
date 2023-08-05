@@ -738,9 +738,9 @@ will be reported to Windows Event log.
   first one will be used as **script** and rest will
   be used as additional **argument** send to the **script**.
 
-  In case the **script** starts with **:** character,
+  In case the **script** starts with **?** character,
   SvcBatch will use the main service script file for shutdown.
-  The rest of the **script** after **:** character will be passed
+  The rest of the **script** after **?** character will be passed
   as the first argument to the shutdown script file.
 
 
