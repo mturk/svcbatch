@@ -33,13 +33,16 @@ The following command:
   ```no-highlight
   > svcbatch create myService
     Service Name : myService
-      Command : Create
-              : SUCCESS
-      STARTUP : Manual (3)
+         Command : Create
+                 : SUCCESS
+         STARTUP : Manual (3)
   ```
 
 will create **myService** service presuming
 that the script file is **myService.bat**.
+
+Check [Create options](#create-options) for
+options that can be used to customize creating services.
 
 ## Config
 
@@ -272,15 +275,15 @@ service's BinaryPathName.
   The **name** parameter can be either the full
   account name or:
 
-  **/user=0**
+  * **/user=0**
 
     This option is the same as **/userName=.\LocalSystem**
 
-  **/user=1**
+  * **/user=1**
 
     This option is the same as **/user "NT AUTHORITY\LocalService"**
 
-  **/user=2**
+  * **/user=2**
 
     This option is the same as **/obj "NT AUTHORITY\NetworkService"**
 
@@ -325,19 +328,19 @@ service's BinaryPathName.
   The **type** parameter is case insensitive and
   can be one of the following values.
 
-    **auto|automatic**
+    * **auto|automatic**
 
     A service started automatically by the service
     control manager during system startup.
 
-    **demand|manual**
+    * **demand|manual**
 
     A service started by the service control manager
     when a process calls the StartService function.
     This is default value.
 
 
-    **disabled**
+    * **disabled**
 
     A service that cannot be started. Attempts to start the
     service result in the error code ERROR_SERVICE_DISABLED.
@@ -347,6 +350,25 @@ service's BinaryPathName.
   > svcbatch config myService /start:auto
   >
   ```
+
+
+When the create or control command encounters the unknown option,
+SvcBatch will stop option processing and save this and
+any additional argument inside Windows Registry. Those
+arguments will be used as command line arguments for the
+SvcBatch service.
+
+For example:
+
+  ```no-highlight
+  > svcbatch create myService
+  ...
+  > svcbatch config myService /start=auto /vl -rS ...
+  ```
+
+Since the `/vl` is not valid control or create option,
+it will used as argument to svcbatch.exe when the
+service is started, as well as any following argument.
 
 
 
