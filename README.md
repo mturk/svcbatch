@@ -628,11 +628,8 @@ will be reported to Windows Event log.
 
   **Notice**
 
-  This option is mutually exclusive with log rotation related
-  command options. Do not use option(s) `r`
-  together with this option when installing service.
-  Service will fail to start, and write an error message
-  to the Windows Event log.
+  This option is will discard any **-r** option if defined
+  at service install time.
 
 
 * **-r [rule]**

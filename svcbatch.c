@@ -4067,11 +4067,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
     }
     if (IS_SET(SVCBATCH_OPT_QUIET)) {
         /**
-         * Ensure that log related command options
-         * are not defined when -q is defined
+         * Discard any log rotate related command options
+         * when -q is defined
          */
-        if (rcnt)
-            return xsyserror(0, SVCBATCH_MSG(23), L"-r");
+        rcnt = 0;
     }
     else {
         outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
