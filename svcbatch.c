@@ -4600,14 +4600,12 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case 'w':
                 if (xwoptarg) {
                     wtime = xwcstoi(xwoptarg, NULL);
-                    if (wtime < 1) {
+                    if ((wtime < 1) || (wtime > SVCBATCH_STOP_TMAX)) {
                         rv = ERROR_INVALID_PARAMETER;
                         ec = __LINE__;
                         ed = xwoptarg;
                         goto finished;
                     }
-                    if (wtime > SVCBATCH_STOP_TMAX)
-                        wtime = SVCBATCH_STOP_TMAX;
                 }
                 else {
                     /* Use default wait time */
