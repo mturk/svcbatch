@@ -212,7 +212,7 @@ service's BinaryPathName.
 
 * **/binPath|/bin [path]**
 
-  **Set service binary path name to .exe file**
+  **Set service binary path**
 
   This option sets the service's binary path name
   to the .exe file pointed by **path** argument.
@@ -222,13 +222,25 @@ service's BinaryPathName.
   used when creating the service.
 
   Use this option when svcbatch.exe is shared between
-  multiple services or if inside a different path
+  multiple services or if its inside a different path
   then the svcbatch.exe used for creating a service.
 
   ```no-highlight
   > svcbatch create myService /bin "@ProgramFiles@\SvcBatch\svcbatch.exe" ...
   >
   ```
+
+  **Notice**
+
+  In case the **path** contains any `@` character(s) they will be
+  replaced by `%` character. In case there is a `%` character
+  in the resulting **path**, SvcBatch will expand environment
+  variable strings and replace them with the values defined
+  for the current user.
+
+  In case the resulting **path** contains space characters, SvcBatch
+  will properly quote the **path**, so make sure that original **path**
+  parameter is not already quoted.
 
 
 * **/description|/desc [description]**
