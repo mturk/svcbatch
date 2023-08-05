@@ -47,10 +47,25 @@ Using Visual Studio, svcbatch.exe can be built
 as statically linked to the MSVCRT library.
 
 Add `_STATIC_MSVCRT=1` as nmake parameter:
+
 ```cmd
 > nmake _STATIC_MSVCRT=1
 
 ```
+
+Use `_STATIC_MSVCRT=Hybrid` as nmake parameter
+to create so called 'Hybrid CRT' build.
+
+The 'Hybrid CRT' is a technique using the Universal
+CRT AND the static CRT to get functional coverage without
+the overhead of the static CRT or the external dependency
+of the dynamic CRT.
+
+```cmd
+> nmake _STATIC_MSVCRT=Hybrid
+
+```
+
 
 ### Build using mingw64
 
@@ -141,8 +156,8 @@ from [CHANGES](../CHANGES.md) file.
 Commit and push the changes with a message similar to
 `Prepare for x.y.z release`.
 
-Use something like unix `date +%y%V%u` command to get release
-date number and use it to modify the  `SVCBATCH_MICRO_VERSION`
+Use something like unix `date +%y%j` or `date +%y%V%u` command to get
+the release date number and use it to modify the  `SVCBATCH_MICRO_VERSION`
 in [svcbatch.h](../svcbatch.h) and `version` parameter in
 [svcbatch.manifest](../svcbatch.manifest) files.
 
