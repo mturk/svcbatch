@@ -32,10 +32,13 @@ The following command:
 
   ```cmd
   > svcbatch create myService
-  >
+    Service Name : myService
+      Command : Create
+              : SUCCESS
+      STARTUP : Manual (3)
   ```
 
-Will create **myService** service presuming
+will create **myService** service presuming
 that the script file is **myService.bat**.
 
 ## Config
@@ -54,17 +57,123 @@ be done within **create** command.
 
 Sends a control to a service.
 
+This command can be used to send Custom control
+codes to the SvcBatch service.
+
+For example `234` is SvcBatch custom control code
+that will signal log rotation. In case the log
+rotation is not ready the following will be displayed:
+
+
+  ```cmd
+  > svcbatch control myService 234
+    Service Name : myService
+         Command : Control
+                 : FAILED
+            LINE : 4890
+           ERROR : 1061 (0x425)
+                   The service cannot accept control messages at this time
+                   234
+  ```
+
+In case the service was not installed with `/b` command option,
+the `233` custom control code will be disabled. Trying
+to send this control code to the service will result in:
+
+  ```cmd
+  > svcbatch control myService 233
+    Service Name : myService
+         Command : Control
+                 : FAILED
+            LINE : 4890
+           ERROR : 1052 (0x41c)
+                   The requested control is not valid for this service
+                   233
+  ```
+
+
 ## Delete
 
 Deletes a service.
+
+The following command:
+
+  ```cmd
+  > svcbatch delete myService
+    Service Name : myService
+         Command : Delete
+                 : SUCCESS
+  ```
+
+will delete **myService** service.
+
+The service must be stopped before calling this command.
+In case the service is running the delete command
+will return something as follows:
+
+  ```cmd
+  > svcbatch delete myService
+    Service Name : myService
+         Command : Delete
+                 : FAILED
+            LINE : 4688
+           ERROR : 1056 (0x420)
+                   An instance of the service is already running
+                   Stop the service and call Delete again
+  ```
+
 
 ## Start
 
 Starts a service.
 
+The following command:
+
+  ```cmd
+  > svcbatch start myService /wait
+    Service Name : myService
+         Command : Start
+                 : SUCCESS
+                   1047 ms
+             PID : 7048
+  ```
+
+will start the **myService** service and return
+when the service is in the running state.
+
 ## Stop
 
 Sends a STOP request to a service.
+
+The following command:
+
+  ```cmd
+  > svcbatch stop myService /wait
+    Service Name : myService
+         Command : Stop
+                 : SUCCESS
+                   3047 ms
+        EXITCODE : 0 (0x0)
+  ```
+
+will send a STOP request to the **myService** service
+and return when the service is stopped.
+
+In case the service did not stop within `/wait[:seconds]`
+interval, SvcBatch will report something similar to:
+
+  ```cmd
+  > svcbatch stop myService /wait=2
+    Service Name : myService
+         Command : Stop
+                 : FAILED
+                   2047 ms
+            LINE : 4853
+           ERROR : 1053 (0x41d)
+                   The service did not respond to the start or control request in a timely fashion
+  ```
+
+
 
 
 # Command options
