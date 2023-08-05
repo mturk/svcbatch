@@ -15,5 +15,5 @@ inside different environments and target applications.
 
 # Maintainer Help
 
-- [Building SvcBatch](building.md
+- [Building SvcBatch](building.md)
 - [Managing Services](manage.md)
