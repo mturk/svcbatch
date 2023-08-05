@@ -3137,7 +3137,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     DWORD  wr = 0;
     HANDLE h;
 
-#if defined(_DEBUG) && (_DEBUG > 2)
+#if defined(_DEBUG) && (_DEBUG > 3)
     DBG_PRINTF("writing %4lu bytes", len);
 #endif
     SVCBATCH_CS_ENTER(log);
@@ -3156,7 +3156,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     SVCBATCH_CS_LEAVE(log);
     if (rc)
         return xsyserror(rc, L"Log write", NULL);
-#if defined(_DEBUG) && (_DEBUG > 2)
+#if defined(_DEBUG) && (_DEBUG > 3)
     DBG_PRINTF("wrote   %4lu bytes", wr);
 #endif
     if (IS_SET(SVCBATCH_OPT_ROTATE) && rotatebysize) {
@@ -5017,7 +5017,7 @@ static void __cdecl dbgcleanup(void)
     DeleteCriticalSection(&dbglock);
 }
 
-static DWORD dbgfopen(void)
+static DWORD dbgfopen(int usefile)
 {
     HANDLE  h;
     DWORD   dn;
@@ -5027,6 +5027,8 @@ static DWORD dbgfopen(void)
     InitializeCriticalSection(&dbglock);
     atexit(dbgcleanup);
 
+    if (!usefile)
+        return 0;
     dn = GetTempPathW(MAX_PATH - 20, db);
     if ((dn == 0) || (dn >= (MAX_PATH - 20)))
         return ERROR_INSUFFICIENT_BUFFER;
@@ -5148,7 +5150,7 @@ int wmain(int argc, LPCWSTR *argv)
         cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
         dbgsvcmode = 2;
-        if (dbgfopen())
+        if (dbgfopen(1))
             return GetLastError();
         DBG_PRINTS(cnamestamp);
 #endif
@@ -5212,7 +5214,7 @@ int wmain(int argc, LPCWSTR *argv)
                 argv  += 2;
 #if defined(_DEBUG)
                 dbgsvcmode = 3;
-                if (dbgfopen())
+                if (dbgfopen(_DEBUG > 2 ? 1 : 0))
                     return GetLastError();
                 DBG_PRINTS("started");
 #endif
@@ -5225,7 +5227,7 @@ int wmain(int argc, LPCWSTR *argv)
 #if defined(_DEBUG)
     if (servicemode) {
         dbgsvcmode = 1;
-        if (dbgfopen())
+        if (dbgfopen(1))
             return GetLastError();
         DBG_PRINTS(cnamestamp);
     }
