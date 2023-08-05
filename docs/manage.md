@@ -73,6 +73,7 @@ SvcBatch management command line options are case insensitive
 and both `-` and `/` can be used as switches. This means that
 `/bin /Bin -bin and -BIN` can be used for the same option.
 
+
 ## Common options
 
 * **/quiet**
@@ -82,6 +83,7 @@ and both `-` and `/` can be used as switches. This means that
   By default SvcBatch will print the status message
   to the current console. Use this option to disable
   printing both status or error messages.
+
 
 ## Create options
 
@@ -93,8 +95,11 @@ and both `-` and `/` can be used as switches. This means that
   to the .exe file pointed by **path** argument.
 
   By default SvcBatch will set the service's BinaryPathName
-  to the current path of the svcbatch.exe on service create.
+  to the current path of the svcbatch.exe executable
+  used when creating the service.
 
+  Use this option when svcbatch.exe is shared between
+  multiple services.
 
 * **/description|/desc [description]**
 
@@ -192,6 +197,37 @@ and both `-` and `/` can be used as switches. This means that
   > svcbatch config myService /privs SeBackupPrivilege/SeRestorePrivilege
   >
   ```
+
+* **/start [type]**
+
+  **Sets the service start options**
+
+  The **type** parameter is case insensitive and
+  can be one of the following values.
+
+    **auto|automatic**
+
+    A service started automatically by the service
+    control manager during system startup.
+
+    **demand|manual**
+
+    A service started by the service control manager
+    when a process calls the StartService function.
+    This is default value.
+
+
+    **disabled**
+
+    A service that cannot be started. Attempts to start the
+    service result in the error code ERROR_SERVICE_DISABLED.
+
+
+  ```cmd
+  > svcbatch config myService /start:auto
+  >
+  ```
+
 
 
 ## Start options
