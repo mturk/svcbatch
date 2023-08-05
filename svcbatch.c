@@ -4060,32 +4060,24 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) && IS_SET(SVCBATCH_OPT_SEND_BREAK))
         return xsyserror(0, SVCBATCH_MSG(21), NULL);
 #if SVCBATCH_LEAN_AND_MEAN
+    if (maxlogsparam) {
+        svcmaxlogs = xwcstoi(maxlogsparam, NULL);
+        if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
+            return xsyserror(0, SVCBATCH_MSG(22), maxlogsparam);
+    }
     if (IS_SET(SVCBATCH_OPT_QUIET)) {
-        WCHAR bb[TBUFSIZ];
         /**
          * Ensure that log related command options
          * are not defined when -q is defined
          */
-        i = 0;
-        if (maxlogsparam)
-            i = xwcsncat(bb, TBUFSIZ, i, L" -m");
-        if (svclogfname)
-            i = xwcsncat(bb, TBUFSIZ, i, L" -n");
         if (rcnt)
-            i = xwcsncat(bb, TBUFSIZ, i, L" -r");
-        if (i)
-            return xsyserror(0, SVCBATCH_MSG(23), bb);
+            return xsyserror(0, SVCBATCH_MSG(23), L"-r");
     }
     else {
         outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
 
         outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
         outputlog->fileExt = SVCBATCH_LOGFEXT;
-        if (maxlogsparam) {
-            svcmaxlogs = xwcstoi(maxlogsparam, NULL);
-            if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
-                return xsyserror(0, SVCBATCH_MSG(22), maxlogsparam);
-        }
         outputlog->maxLogs = svcmaxlogs;
         SVCBATCH_CS_INIT(outputlog);
     }

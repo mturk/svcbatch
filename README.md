@@ -512,13 +512,6 @@ will be reported to Windows Event log.
   midnight (00000 .. 86400), using current local or
   system time (depending on **-l** option).
 
-  **Notice**
-
-  This option is mutually exclusive with `q` option.
-  If this option is defined together with the mentioned option,
-  the service will fail to start, and write an error message
-  to the Windows Event log.
-
 * **-n [log name]**
 
   **Set log file name**
@@ -635,8 +628,8 @@ will be reported to Windows Event log.
 
   **Notice**
 
-  This option is mutually exclusive with other log related
-  command options. Do not use options `m`, `n` or `r`
+  This option is mutually exclusive with log rotation related
+  command options. Do not use option(s) `r`
   together with this option when installing service.
   Service will fail to start, and write an error message
   to the Windows Event log.
