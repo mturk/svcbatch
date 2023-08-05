@@ -16,7 +16,7 @@ create, configure, manage, and delete services.
   - [Stop](#cmd-stop)
 - [Command Options](#command-options)
   - [Common options](#common-options)
-  - [Create options](#create-options)
+  - [Create and configure options](#create-options)
   - [Start options](#start-options)
   - [Stop options](#stop-options)
 
@@ -41,8 +41,8 @@ The following command:
 will create **myService** service presuming
 that the script file is **myService.bat**.
 
-Check [Create options](#create-options) for
-options that can be used to customize creating services.
+Check [Create and configure options](#create-options) for
+options that can be used to customize services creation.
 
 ## Config
 
@@ -208,7 +208,7 @@ service's BinaryPathName.
   printing both status or error messages.
 
 
-## Create options
+## Create and configure options
 
 * **/binPath|/bin [path]**
 
@@ -281,7 +281,7 @@ service's BinaryPathName.
   >
   ```
 
-* **/obj|/username|/user [name]**
+* **/username|/user [name]**
 
   **Sets the service account name**
 
@@ -295,15 +295,12 @@ service's BinaryPathName.
   account name or:
 
   * **/user=0**
-
     This option is the same as **/userName=.\LocalSystem**
 
   * **/user=1**
-
     This option is the same as **/user "NT AUTHORITY\LocalService"**
 
   * **/user=2**
-
     This option is the same as **/obj "NT AUTHORITY\NetworkService"**
 
 
