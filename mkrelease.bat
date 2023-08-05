@@ -113,6 +113,7 @@ del /F /Q %ProjectName%.p 2>NUL
 echo. >> %ReleaseLog%
 echo. >> %ReleaseLog%
 rem
+del /F /Q %ReleaseZip% 2>NUL
 7za.exe a -bd %ReleaseZip% %ProjectFiles%"
 certutil -hashfile %ReleaseZip% SHA256 | findstr /v "CertUtil" >> %ReleaseLog%
 echo. >> %ReleaseLog%

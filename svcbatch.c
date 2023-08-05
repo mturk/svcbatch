@@ -5063,10 +5063,6 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     QueryPerformanceCounter(&i);
     counterbase = i.QuadPart;
 #endif
-#if defined(_DEBUG)
-    if (dbgfopen())
-        return GetLastError();
-#endif
     xmemzero(threads, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
     service = (LPSVCBATCH_SERVICE)xmcalloc( sizeof(SVCBATCH_SERVICE));
     program = (LPSVCBATCH_PROCESS)xmcalloc( sizeof(SVCBATCH_PROCESS));
@@ -5138,10 +5134,8 @@ int wmain(int argc, LPCWSTR *argv)
         }
     }
     r = xwmaininit(argc, argv);
-    if (r != 0) {
-        DBG_PRINTF("main failed with error %d", r);
+    if (r != 0)
         return r;
-    }
 #if SVCBATCH_LEAN_AND_MEAN
     /**
      * Check if running as service or as a child process.
@@ -5154,6 +5148,8 @@ int wmain(int argc, LPCWSTR *argv)
         cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
         dbgsvcmode = 2;
+        if (dbgfopen())
+            return GetLastError();
         DBG_PRINTS(cnamestamp);
 #endif
         sharedmmap  = OpenFileMappingW(FILE_MAP_READ, FALSE, p);
@@ -5216,6 +5212,8 @@ int wmain(int argc, LPCWSTR *argv)
                 argv  += 2;
 #if defined(_DEBUG)
                 dbgsvcmode = 3;
+                if (dbgfopen())
+                    return GetLastError();
                 DBG_PRINTS("started");
 #endif
                 r = xscmexecute(cmd, argc, argv);
@@ -5227,6 +5225,8 @@ int wmain(int argc, LPCWSTR *argv)
 #if defined(_DEBUG)
     if (servicemode) {
         dbgsvcmode = 1;
+        if (dbgfopen())
+            return GetLastError();
         DBG_PRINTS(cnamestamp);
     }
 #endif
