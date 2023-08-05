@@ -4522,6 +4522,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     ULONGLONG wtimeout    = 0;
     LPCWSTR   ed          = NULL;
     LPWSTR    bp          = NULL;
+    LPWSTR    bs          = NULL;
     LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
     LPWSTR    binarypath  = NULL;
@@ -4566,6 +4567,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     ed = xwoptarg;
                     goto finished;
                 }
+                bs = xwcschr(pp, L';');
+                if (bs != NULL)
+                    *bs++ = WNUL;
                 bp = xgetfullpath(pp, cb, SVCBATCH_PATH_MAX);
                 if (bp == NULL) {
                     rv = GetLastError();
@@ -4574,6 +4578,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     goto finished;
                 }
                 binarypath = xappendarg(1, NULL, bp);
+                if (bs != NULL)
+                    binarypath = xappendarg(0, binarypath, bs);
+
                 xfree(pp);
             break;
             case 'D':
