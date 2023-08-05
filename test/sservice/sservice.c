@@ -81,8 +81,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             fprintf(stdout, "[%.2d] %S\n", i, wargv[i]);
         }
     }
-    if (secs < 60)
-        secs = 60;
+    if (secs < 180)
+        secs = 180;
     secs /= 2;
     fprintf(stdout, "\nEnvironment\n\n");
     while (wenv[e] != NULL) {
@@ -91,7 +91,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
-    fprintf(stdout, "\n\n[%.4lu] Program running\n\n", pid);
+    fprintf(stdout, "\n\n[%.4lu] Program running for %d seconds\n\n", pid, secs * 2);
     i = 1;
     for(;;) {
         DWORD ws = WaitForSingleObject(stopsig, 2000);
@@ -105,7 +105,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fprintf(stdout, "[%.4d] ... running\n", i * 2);
         i++;
         if (i > secs) {
-            fprintf(stderr, "\n\n[%.4d] Timeout reached\n", i);
+            fprintf(stderr, "\n\n[%.4d] Timeout reached\n", pid);
             r = ERROR_PROCESS_ABORTED;
             break;
         }

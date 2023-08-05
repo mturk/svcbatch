@@ -21,7 +21,7 @@ if /i "x%~1" == "xdelete" goto doDelete
 rem
 rem goto doStressTest
 rem
-svcbatch create sservice -vlb -rS /c sservice.exe /c "some long argument" /c "\"and quoted one\"" ssinstall.bat
+svcbatch create sservice -vlb -rS /c sservice.exe /c "300 some /c options " /c "\"and quoted one\"" ":fake script" "script argument"
 rem
 goto End
 rem

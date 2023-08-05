@@ -1947,6 +1947,11 @@ static BOOL resolvescript(LPCWSTR bp)
 
     if (cmdproc->script)
         return TRUE;
+    if (*bp == L':') {
+        cmdproc->script = xwcsdup(bp + 1);
+        service->base   = service->work;
+        return TRUE;
+    }
     cmdproc->script = xgetfinalpath(bp, 0, NULL, 0);
     if (IS_EMPTY_WCS(cmdproc->script))
         return FALSE;
@@ -4196,7 +4201,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
     }
     if (svcstopparam) {
         svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
-        svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
+        if (*svcstopparam == L':')
+            svcstop->script = xwcsdup(svcstopparam + 1);
+        else
+            svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
         if (svcstop->script == NULL)
             return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         for (i = 0; i < scnt; i++) {
