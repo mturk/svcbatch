@@ -89,6 +89,22 @@ and both `-` and `/` can be used as switches. This means that
   >
   ```
 
+* **/depend [dependencies]**
+
+  **Sets the service dependencies**
+
+  This option sets service dependencies.
+  The **dependencies** string is list of services
+  separated by `/` (forward slash) character.
+
+  ```cmd
+  > svcbatch config myService /depend=Tcpip/Afd
+  >
+  ```
+
+  The myService will depend on `Tcpip` and `Afd` services.
+
+
 * **/displayname|/display [name]**
 
   **Sets the service display name**
@@ -100,12 +116,78 @@ and both `-` and `/` can be used as switches. This means that
   >
   ```
 
+* **/obj|/username|/user [name]**
+
+  **Sets the service account name**
+
+  This option sets the **name** of the account under which
+  the service should run.
+
+  By default when the service is created it will
+  be run under **LocalSystem** account.
+
+  The **name** parameter can be either the full
+  account name or:
+
+  **/user=0**
+
+    This option is the same as **/userName=.\LocalSystem**
+
+  **/user=1**
+
+    This option is the same as **/user "NT AUTHORITY\LocalService"**
+
+  **/user=2**
+
+    This option is the same as **/obj "NT AUTHORITY\NetworkService"**
+
+
+* **/password [password]**
+
+  **Sets the password for the service account name**
+
+  This option sets the **password** to the account name
+  specified by the **/user [name]** parameter.
+  Do not specify this option if the account has no password
+  or if the service runs in the LocalService, NetworkService,
+  or LocalSystem account.
+
+
+* **/privileges|/privs [privileges]**
+
+  **Changes the required privileges setting of a service**
+
+  The privilege settings take effect when the
+  service process starts due to the first service in
+  the process being started. At that time, the Service
+  Control Manager (SCM) computes the union of all privileges
+  required by all services that will be hosted in the same
+  process and then creates the process with those
+  privileges. An absence of this setting is taken to imply
+  that the service requires all the privileges that
+  the security subsystem allows for the process running
+  in the service's configured account.
+
+  The **privileges** are separated by `/` (forward slash) character.
+
+  ```cmd
+  > svcbatch config myService /privs SeBackupPrivilege/SeRestorePrivilege
+  >
+  ```
+
 
 ## Start options
 
 * **/wait[:seconds]**
 
   **Wait for service to start**
+
+  If the service is not running, SvcBatch will wait
+  up to **seconds** for service to start.
+
+  The **seconds** is optional parameter. If not
+  provided as part of **/wait** option, default
+  value of `30` seconds will be used.
 
 ## Stop options
 
