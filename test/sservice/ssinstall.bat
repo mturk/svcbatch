@@ -21,7 +21,7 @@ if /i "x%~1" == "xdelete" goto doDelete
 rem
 rem goto doStressTest
 rem
-sc create sservice binPath= "%cd%\svcbatch.exe -vlb -rS"
+svcbatch create sservice -vlb -rS /c sservice.exe /c "some long argument" /c "\"and quoted one\"" ssinstall.bat
 rem
 goto End
 rem
