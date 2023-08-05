@@ -1353,7 +1353,7 @@ static void dbgfunlock(HANDLE f)
 
 static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
 {
-    static char sep = ',';
+    static char sep = ':';
     int     n = SVCBATCH_LINE_MAX - 4;
     int     i = 0;
 #if (_DEBUG > 1)
@@ -1364,6 +1364,7 @@ static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
     HANDLE  h;
 
     GetLocalTime(&tm);
+    b[i++] = '[';
     i += xsnprintf(b + i, n - SBUFSIZ, "%lu", GetCurrentProcessId());
 #if (_DEBUG > 1)
     o[0] = i;
@@ -1376,19 +1377,15 @@ static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
     b[i++] = sep;
     b[i++] = tm.wMonth  / 10 + '0';
     b[i++] = tm.wMonth  % 10 + '0';
-    b[i++] = '/';
     b[i++] = tm.wDay    / 10 + '0';
     b[i++] = tm.wDay    % 10 + '0';
-    b[i++] = '/';
     b[i++] = tm.wYear   % 100 / 10 + '0';
     b[i++] = tm.wYear   % 10 + '0';
-    b[i++] = sep;
+    b[i++] = '/';
     b[i++] = tm.wHour   / 10 + '0';
     b[i++] = tm.wHour   % 10 + '0';
-    b[i++] = ':';
     b[i++] = tm.wMinute / 10 + '0';
     b[i++] = tm.wMinute % 10 + '0';
-    b[i++] = ':';
     b[i++] = tm.wSecond / 10 + '0';
     b[i++] = tm.wSecond % 10 + '0';
     b[i++] = '.';
@@ -1410,11 +1407,12 @@ static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
 #if (_DEBUG > 1)
     o[4] = i;
 #endif
-    b[i++] = sep;
+    b[i++] = ']';
     if (format) {
         va_list ap;
 
         va_start(ap, format);
+        b[i++] = ' ';
         i += xvsnprintf(b + i, n - i, format, ap);
         va_end(ap);
     }
@@ -1443,7 +1441,7 @@ static void dbgprintf(LPCSTR funcname, int line, LPCSTR format, ...)
 
         for (i = 0; i < 6; i++)
             b[o[i]] = CNUL;
-        xsnprintf(s, SVCBATCH_LINE_MAX, "%-4s %4s %s %-22s %s", b,
+        xsnprintf(s, SVCBATCH_LINE_MAX, "%-4s %4s %s %-22s %s", b + 1,
                   b + o[0] + 1, b + o[2] + 1,
                   b + o[3] + 1, b + o[4] + 1);
         OutputDebugStringA(s);
