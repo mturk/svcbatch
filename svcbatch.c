@@ -1047,20 +1047,20 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         if (*place == WNUL) {
             /**
              * We have single '-' or '/'
-             * Skip '-' and end processing
+             * Skip option and end processing
              */
             place = zerostring;
-            if (option == '-')
-                xwoptind++;
+            xwoptind++;
             return EOF;
         }
         if (*place == option) {
             /**
              * We have '--' or '//'
-             * Use it as in-place argument
+             * Skip first char and use it as in-place argument
              */
-            place = zerostring;
-            xwoptarg = nargv[xwoptind++];
+            xwoptarg = place;
+            place    = zerostring;
+            xwoptind++;
             return ':';
         }
         xwoption = place;
