@@ -1151,9 +1151,15 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         else {
             int endpos = xwstartswith(xwoption, optsrc + 2);
             if (endpos) {
-                optopt = xwoption + endpos;
-                if ((*optopt == ':') || (*optopt == '='))
-                    optsep = *optopt++;
+                LPCWSTR oo = xwoption + endpos;
+                /* Check for /option, /option: or /option= */
+                if (*oo == WNUL) {
+                    optopt = zerostring;
+                }
+                else if ((*oo == ':') || (*oo == '=')) {
+                    optsep = *oo;
+                    optopt =  oo + 1;
+                }
             }
         }
         if (optopt == NULL) {
@@ -1173,16 +1179,10 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         while (xisblank(*optopt))
             optopt++;
         if (*optopt) {
-            if ((optmod == ':') && !optsep) {
-                /* Data without separator */
-                return ENOENT;
-            }
-            else {
-                /* Argument is part of the option */
-                xwoptarg = optopt;
-                xwoptind++;
-                return option;
-            }
+            /* Argument is part of the option */
+            xwoptarg = optopt;
+            xwoptind++;
+            return option;
         }
         if (optsep) {
             /* Empty in place argument */
