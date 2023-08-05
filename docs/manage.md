@@ -222,7 +222,14 @@ service's BinaryPathName.
   used when creating the service.
 
   Use this option when svcbatch.exe is shared between
-  multiple services.
+  multiple services or if inside a different path
+  then the svcbatch.exe used for creating a service.
+
+  ```no-highlight
+  > svcbatch create myService /bin "@ProgramFiles@\SvcBatch\svcbatch.exe" ...
+  >
+  ```
+
 
 * **/description|/desc [description]**
 

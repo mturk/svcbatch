@@ -4491,7 +4491,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
 {
     PSERVICE_CONTROL_STATUS_REASON_PARAMSW ssr;
     LPSERVICE_STATUS_PROCESS ssp;
-    WCHAR     cb[SBUFSIZ];
+    WCHAR     cb[SVCBATCH_PATH_MAX];
     DWORD     bneed;
     int       i;
     int       x;
@@ -4503,6 +4503,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     ULONGLONG wtmstart    = 0;
     ULONGLONG wtimeout    = 0;
     LPCWSTR   ed          = NULL;
+    LPWSTR    bp          = NULL;
     LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
     LPWSTR    binarypath  = NULL;
@@ -4541,16 +4542,23 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     ed = xwoptarg;
                     goto finished;
                 }
-                pp = xgetfinalpath(skipdotslash(xwoptarg), 0, NULL, 0);
+                pp = xexpandenvstr(skipdotslash(xwoptarg));
                 if (pp == NULL) {
                     rv = ERROR_FILE_NOT_FOUND;
                     ec = __LINE__;
                     ed = xwoptarg;
                     goto finished;
                 }
+                bp = xgetfullpath(pp, cb, SVCBATCH_PATH_MAX);
+                xfree(pp);
+                if (bp == NULL) {
+                    rv = ERROR_FILE_NOT_FOUND;
+                    ec = __LINE__;
+                    ed = xwoptarg;
+                    goto finished;
+                }
                 else {
-                    binarypath = xappendarg(1, NULL, pp);
-                    xfree(pp);
+                    binarypath = xappendarg(1, NULL, bp);
                 }
             break;
             case 'D':
