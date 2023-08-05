@@ -4243,8 +4243,9 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     service->uuid = xuuidstring(NULL);
     if (IS_EMPTY_WCS(service->uuid)) {
-        xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
-        exit(1);
+        rv = xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
+        reportsvcstatus(SERVICE_STOPPED, rv);
+        return;
     }
     SetEnvironmentVariableW(L"SVCBATCH_APP_BIN",      program->application);
     SetEnvironmentVariableW(L"SVCBATCH_APP_DIR",      program->directory);
