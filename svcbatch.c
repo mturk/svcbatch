@@ -5017,18 +5017,13 @@ static void __cdecl dbgcleanup(void)
     DeleteCriticalSection(&dbglock);
 }
 
-static DWORD dbgfopen(int usefile)
+static DWORD dbgfopen(void)
 {
     HANDLE  h;
     DWORD   dn;
     DWORD   rc;
     wchar_t db[MAX_PATH];
 
-    InitializeCriticalSection(&dbglock);
-    atexit(dbgcleanup);
-
-    if (!usefile)
-        return 0;
     dn = GetTempPathW(MAX_PATH - 20, db);
     if ((dn == 0) || (dn >= (MAX_PATH - 20)))
         return ERROR_INSUFFICIENT_BUFFER;
@@ -5064,6 +5059,10 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     counterfreq = i.QuadPart;
     QueryPerformanceCounter(&i);
     counterbase = i.QuadPart;
+#endif
+#if defined (_DEBUG)
+    InitializeCriticalSection(&dbglock);
+    atexit(dbgcleanup);
 #endif
     xmemzero(threads, SVCBATCH_MAX_THREADS, sizeof(SVCBATCH_THREAD));
     service = (LPSVCBATCH_SERVICE)xmcalloc( sizeof(SVCBATCH_SERVICE));
@@ -5150,7 +5149,7 @@ int wmain(int argc, LPCWSTR *argv)
         cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
         dbgsvcmode = 2;
-        if (dbgfopen(1))
+        if (dbgfopen())
             return GetLastError();
         DBG_PRINTS(cnamestamp);
 #endif
@@ -5214,8 +5213,10 @@ int wmain(int argc, LPCWSTR *argv)
                 argv  += 2;
 #if defined(_DEBUG)
                 dbgsvcmode = 3;
-                if (dbgfopen(_DEBUG > 2 ? 1 : 0))
+#if (_DEBUG > 2)
+                if (dbgfopen())
                     return GetLastError();
+#endif
                 DBG_PRINTS("started");
 #endif
                 r = xscmexecute(cmd, argc, argv);
@@ -5227,7 +5228,7 @@ int wmain(int argc, LPCWSTR *argv)
 #if defined(_DEBUG)
     if (servicemode) {
         dbgsvcmode = 1;
-        if (dbgfopen(1))
+        if (dbgfopen())
             return GetLastError();
         DBG_PRINTS(cnamestamp);
     }
