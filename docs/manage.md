@@ -8,15 +8,15 @@ create, configure, manage, and delete services.
 
 - [Table of Contents](#table-of-contents)
 - [Commands](#commands)
-  - [Create](#cmd-create)
-  - [Config](#cmd-config)
-  - [Control](#cmd-control)
-  - [Delete](#cmd-delete)
-  - [Start](#cmd-start)
-  - [Stop](#cmd-stop)
+  - [Create](#create)
+  - [Config](#config)
+  - [Control](#control)
+  - [Delete](#delete)
+  - [Start](#start)
+  - [Stop](#stop)
 - [Command Options](#command-options)
   - [Common options](#common-options)
-  - [Create and configure options](#create-options)
+  - [Create and config options](#create-and-config-options)
   - [Start options](#start-options)
   - [Stop options](#stop-options)
 
@@ -41,7 +41,7 @@ The following command:
 will create **myService** service presuming
 that the script file is **myService.bat**.
 
-Check [Create and configure options](#create-options) for
+Check [Create and config options](#create-and-config-options) for
 options that can be used to customize services creation.
 
 ## Config
@@ -208,7 +208,7 @@ service's BinaryPathName.
   printing both status or error messages.
 
 
-## Create and configure options
+## Create and config options
 
 * **/binPath|/bin [path]**
 
@@ -295,12 +295,15 @@ service's BinaryPathName.
   account name or:
 
   * **/user=0**
+
     This option is the same as **/userName=.\LocalSystem**
 
   * **/user=1**
+
     This option is the same as **/user "NT AUTHORITY\LocalService"**
 
   * **/user=2**
+
     This option is the same as **/obj "NT AUTHORITY\NetworkService"**
 
 
