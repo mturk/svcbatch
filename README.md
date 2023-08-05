@@ -27,9 +27,10 @@ with your application.
 - [Table of Contents](#table-of-contents)
 - [Getting Started](#getting-started)
   - [Supported Windows Versions](#supported-windows-versions)
-  - [Building](#building)
+  - [Building SvcBatch](#building-svcbatch)
   - [Creating Services](#creating-services)
   - [Managing Services](#managing-services)
+  - [Debugging Services](#debugging-services)
 - [Examples](#examples)
 - [Main Features](#main-features)
   - [Log Rotation](#log-rotation)
@@ -39,7 +40,6 @@ with your application.
   - [Stop and Shutdown](#stop-and-shutdown)
   - [Version Information](#version-information)
   - [Error Logging](#error-logging)
-- [Debugging](#debugging)
 - [License](#license)
 
 # Getting Started
@@ -50,7 +50,7 @@ The minimum supported version is *Windows 7 SP1* or
 *Windows Server 2008 R2* 64-bit.
 
 
-## Building
+## Building SvcBatch
 
 To build the SvcBatch from source code follow the
 directions explained in [Building](docs/building.md) document.
@@ -151,6 +151,66 @@ detailed usage.
 To get an overview on how to create and manage
 SvcBatch services, check the [managing](docs/manage.md)
 section for some basic guidelines.
+
+## Debugging Services
+
+Debugging a service can be a complex task, because the services
+run without interacting with the user.
+
+In case your service fails without apparent reason, first check
+the Windows Event Log.
+
+The next option is to use **debug** build of the SvcBatch.
+Download or build svcbatch.exe compiled with `_DEBUG=1` option
+and replace the svcbatch.exe with this binary.
+
+Debug version of SvcBatch will create a **svcbatch_debug.log** file
+inside the **TEMP** directory of the current service user account.
+
+The typical content of the **svcbatch_debug.log** file might
+look something like the following:
+
+
+```no-highlight
+[5876:5352:080523/155543.405:SERVICE:wmain(5233)] SvcBatch 2.2.0.0_2.dbg (msc 192930151.0)
+[5876:4284:080523/155543.436:SERVICE:servicemain(4225)] started
+[5876:4284:080523/155543.450:SERVICE:servicemain(4240)] adummysvc
+[5876:4284:080523/155543.452:SERVICE:parseoptions(3854)] started 1
+[5876:4284:080523/155543.468:SERVICE:resolverotate(2941)] rotate each 5 minutes
+[5876:4284:080523/155543.468:SERVICE:resolverotate(2880)] rotate if larger then 20K
+[5876:4284:080523/155543.468:SERVICE:resolverotate(2840)] rotate by signal
+[5876:4284:080523/155543.468:SERVICE:parseoptions(4212)] done
+[5876:4284:080523/155543.468:SERVICE:makelogname(2607)] %N.%Y-%m-%d -> adummysvc.2023-08-05
+
+...
+
+[5876:5880:080523/155550.837:SERVICE:runshutdown(3015)] waiting 10000 ms for shutdown process 4900
+[4900:5744:080523/155550.869:STOPSVC:wmain(5154)] SvcBatch Shutdown 2.2.0.0_2.dbg (msc 192930151.0)
+[4900:5744:080523/155550.869:STOPSVC:wmain(5175)] ppid 5876
+[4900:5744:080523/155550.869:STOPSVC:wmain(5176)] opts 0x0000000b
+
+...
+
+[5876:4284:080523/155559.395:SERVICE:threadscleanup(3656)] started
+[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] workerthread    0      14515ms
+[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] wrpipethread  109      14500ms
+[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] stopthread      0       8562ms
+[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] rotatethread    0       7344ms
+[5876:4284:080523/155559.395:SERVICE:threadscleanup(3676)] done
+[5876:4284:080523/155559.411:SERVICE:servicemain(4366)] done
+[5876:5352:080523/155559.411:SERVICE:wmain(5288)] done
+[5876:5352:080523/155559.411:SERVICE:cconsolecleanup(3707)] done
+[5876:5352:080523/155559.411:SERVICE:objectscleanup(3722)] done
+
+```
+
+The format of this log file is:
+
+**[ProcessId:ThreadId:MonthDayYear/HourMinuteSecond.Millisecond:Mode:FunctionName(line)] message**
+
+
+If the **svcbatch_debug.log** file already exists, debug messages will
+be appended to the end of the file.
 
 
 # Examples
@@ -958,66 +1018,6 @@ SvcBatch logs any runtime error to Windows Event Log.
 Use Windows **Event Viewer** and check `Windows Logs/Application/SvcBatch`
 events.
 
-
-# Debugging
-
-Debugging a service can be a complex task, because the services
-run without interacting with the user.
-
-In case your service fails without apparent reason, first check
-the Windows Event Log.
-
-The next option is to use **debug** build of the SvcBatch.
-Download or build svcbatch.exe compiled with `_DEBUG=1` option
-and replace the svcbatch.exe with this binary.
-
-Debug version of SvcBatch will create a **svcbatch_debug.log** file
-inside the **TEMP** directory of the current service user account.
-
-The typical content of the **svcbatch_debug.log** file might
-look something like the following:
-
-
-```no-highlight
-[5876:5352:080523/155543.405:SERVICE:wmain(5233)] SvcBatch 2.2.0.0_2.dbg (msc 192930151.0)
-[5876:4284:080523/155543.436:SERVICE:servicemain(4225)] started
-[5876:4284:080523/155543.450:SERVICE:servicemain(4240)] adummysvc
-[5876:4284:080523/155543.452:SERVICE:parseoptions(3854)] started 1
-[5876:4284:080523/155543.468:SERVICE:resolverotate(2941)] rotate each 5 minutes
-[5876:4284:080523/155543.468:SERVICE:resolverotate(2880)] rotate if larger then 20K
-[5876:4284:080523/155543.468:SERVICE:resolverotate(2840)] rotate by signal
-[5876:4284:080523/155543.468:SERVICE:parseoptions(4212)] done
-[5876:4284:080523/155543.468:SERVICE:makelogname(2607)] %N.%Y-%m-%d -> adummysvc.2023-08-05
-
-...
-
-[5876:5880:080523/155550.837:SERVICE:runshutdown(3015)] waiting 10000 ms for shutdown process 4900
-[4900:5744:080523/155550.869:STOPSVC:wmain(5154)] SvcBatch Shutdown 2.2.0.0_2.dbg (msc 192930151.0)
-[4900:5744:080523/155550.869:STOPSVC:wmain(5175)] ppid 5876
-[4900:5744:080523/155550.869:STOPSVC:wmain(5176)] opts 0x0000000b
-
-...
-
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3656)] started
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] workerthread    0      14515ms
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] wrpipethread  109      14500ms
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] stopthread      0       8562ms
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] rotatethread    0       7344ms
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3676)] done
-[5876:4284:080523/155559.411:SERVICE:servicemain(4366)] done
-[5876:5352:080523/155559.411:SERVICE:wmain(5288)] done
-[5876:5352:080523/155559.411:SERVICE:cconsolecleanup(3707)] done
-[5876:5352:080523/155559.411:SERVICE:objectscleanup(3722)] done
-
-```
-
-The format of this log file is:
-
-**[ProcessId:ThreadId:MonthDayYear/HourMinuteSecond.Millisecond:Mode:FunctionName(line)] message**
-
-
-If the **svcbatch_debug.log** file already exists, debug messages will
-be appended to the end of the file.
 
 
 # License
