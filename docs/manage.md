@@ -67,7 +67,39 @@ and both `-` and `/` can be used as switches. This means that
 
 ## Configure options
 
-* **/binPath [path]**
+* **/binPath|/bin [path]**
+
+  **Set service binary path name to .exe file**
+
+  This option sets the service's binary path name
+  to the .exe file pointed by **path** argument.
+
+  By default SvcBatch will set the service's BinaryPathName
+  to the current path of the svcbatch.exe on service create.
+
+
+* **/description|/desc [description]**
+
+  **Sets the description string for a service**
+
+  This option sets the description string for a service.
+
+  ```cmd
+  > svcbatch config myService /desc "This is My Service"
+  >
+  ```
+
+* **/displayname|/display [name]**
+
+  **Sets the service display name**
+
+  This option sets the DisplayName for a service.
+
+  ```cmd
+  > svcbatch create myService /displayName "My Service"
+  >
+  ```
+
 
 ## Start options
 
