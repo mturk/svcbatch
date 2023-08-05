@@ -182,6 +182,17 @@ SvcBatch management command line options are case insensitive
 and both `-` and `/` can be used as switches. This means that
 `/bin /Bin -bin and -BIN` can be used for the same option.
 
+Command options arguments can be part or the command option
+separated by either `:` or `=` character. This means that
+`/start:auto`, `/start=auto` or `/start auto` are the same.
+
+However arguments for options `/binpath`, `/description` and
+`/displayname` must be declared as separate command line argument.
+
+Some command options have alternate names. For example
+either `/bin` or `/binpath` can be used to set the
+service's BinaryPathName.
+
 
 ## Common options
 
