@@ -302,11 +302,6 @@ will be reported to Windows Event log.
   If **-rT** command option is also defined the exiting log file
   will be overwritten instead reused.
 
-  This option is mutually exclusive with `q` option.
-  If this option is defined together with the mentioned option,
-  the service will fail to start, and write an error message
-  to the Windows Event log.
-
 
 * **-b**
 
@@ -493,14 +488,6 @@ will be reported to Windows Event log.
   This option causes all logging and rotation
   to use local instead system time.
 
-  **Notice**
-
-  This option is mutually exclusive with `q` option.
-  If this option is defined together with the mentioned option,
-  the service will fail to start, and write an error message
-  to the Windows Event log.
-
-
 * **-m [number]**
 
   **Set maximum number of log files**
@@ -639,8 +626,8 @@ will be reported to Windows Event log.
 
   This option disables both logging and log rotation.
 
-  When defined no log files or directories will be created and
-  any output from service batch files will be discarded.
+  When defined, no log files or directories will be created
+  unless the **-v** option was defined as well.
 
   Use this option when output from `cmd.exe` is not needed or
   service batch file manages logging on its own.
@@ -649,7 +636,7 @@ will be reported to Windows Event log.
   **Notice**
 
   This option is mutually exclusive with other log related
-  command options. Do not use options `a`, `l`, `m`, `n` `r` or `v`
+  command options. Do not use options `m`, `n` or `r`
   together with this option when installing service.
   Service will fail to start, and write an error message
   to the Windows Event log.

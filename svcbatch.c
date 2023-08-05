@@ -4067,18 +4067,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
          * are not defined when -q is defined
          */
         i = 0;
-        if (IS_SET(SVCBATCH_OPT_APPEND))
-            i = xwcsncat(bb, TBUFSIZ, i, L"-a ");
-        if (IS_SET(SVCBATCH_OPT_LOCALTIME))
-            i = xwcsncat(bb, TBUFSIZ, i, L"-l ");
         if (maxlogsparam)
-            i = xwcsncat(bb, TBUFSIZ, i, L"-m ");
+            i = xwcsncat(bb, TBUFSIZ, i, L" -m");
         if (svclogfname)
-            i = xwcsncat(bb, TBUFSIZ, i, L"-n ");
+            i = xwcsncat(bb, TBUFSIZ, i, L" -n");
         if (rcnt)
-            i = xwcsncat(bb, TBUFSIZ, i, L"-r ");
-        if (IS_SET(SVCBATCH_OPT_VERBOSE))
-            i = xwcsncat(bb, TBUFSIZ, i, L"-v ");
+            i = xwcsncat(bb, TBUFSIZ, i, L" -r");
         if (i)
             return xsyserror(0, SVCBATCH_MSG(23), bb);
     }
