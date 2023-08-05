@@ -5145,17 +5145,18 @@ int wmain(int argc, LPCWSTR *argv)
         dbgsvcmode = 2;
         DBG_PRINTS(cnamestamp);
 #endif
-        sharedmmap  = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, p);
+        sharedmmap  = OpenFileMappingW(FILE_MAP_READ, FALSE, p);
         if (sharedmmap == NULL) {
             r = xsyserror(GetLastError(), L"OpenFileMapping", p);
             goto finished;
         }
         sharedmem = (LPSVCBATCH_IPC)MapViewOfFile(
                                         sharedmmap,
-                                        FILE_MAP_ALL_ACCESS,
+                                        FILE_MAP_READ,
                                         0, 0, DSIZEOF(SVCBATCH_IPC));
         if (sharedmem == NULL) {
             r = xsyserror(GetLastError(), L"MapViewOfFile", p);
+            CloseHandle(sharedmmap);
             goto finished;
         }
         stoptimeout = sharedmem->timeout;
