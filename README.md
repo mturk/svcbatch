@@ -722,12 +722,12 @@ will be reported to Windows Event log.
   unless the **-t** option was defined.
 
 
-* **-s [batchfile][argument]**
+* **-s [script][argument]**
 
-  **Execute batch file on service stop or shutdown**
+  **Execute script file on service stop or shutdown**
 
   If defined, on shutdown or stop event the service
-  will create separate `svcbatch.exe` process and call **batchfile**.
+  will create separate `svcbatch.exe` process and call **script**.
   The purpose of that file is to use some sort of `IPC` mechanism
   and signal the service to exit.
 
@@ -735,8 +735,14 @@ will be reported to Windows Event log.
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
   If multiple **-s** command line option are defined the
-  first one will be used as **batchfile** and rest will
-  be used as additional **argument** send to the **batchfile**.
+  first one will be used as **script** and rest will
+  be used as additional **argument** send to the **script**.
+
+  In case the **script** starts with **:** character,
+  SvcBatch will use the main service script file for shutdown.
+  The rest of the **script** after **:** character will be passed
+  as the first argument to the shutdown script file.
+
 
 * **-t**
 
