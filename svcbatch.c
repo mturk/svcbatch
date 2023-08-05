@@ -893,7 +893,7 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
 
     if (nq) {
         nq = 0;
-        if (xwcspbrk(s2, L" \t\"")) {
+        if ((*s2 != L'"') && xwcspbrk(s2, L" \t\"")) {
             for (c = s2; ; c++, nq++) {
                 int b = 0;
 
