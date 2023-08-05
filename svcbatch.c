@@ -1862,8 +1862,6 @@ static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     DWORD len;
 
     ASSERT_WSTR(path, NULL);
-    if (*path == L'?')
-        ++path;
     len = GetFullPathNameW(path, siz, dst, NULL);
     if ((len == 0) || (len >= siz))
         return NULL;
@@ -4553,7 +4551,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     ed = xwoptarg;
                     goto finished;
                 }
-                pp = xexpandenvstr(skipdotslash(xwoptarg));
+                pp = xwcsdup(skipdotslash(xwoptarg));
                 if (pp == NULL) {
                     rv = GetLastError();
                     ec = __LINE__;
@@ -4563,17 +4561,18 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 bs = xwcschr(pp, L';');
                 if (bs != NULL)
                     *bs++ = WNUL;
-                bp = xgetfullpath(pp, cb, SVCBATCH_PATH_MAX);
-                if (bp == NULL) {
+                bp = xexpandenvstr(pp);
+                if (xgetfullpath(bp, cb, SVCBATCH_PATH_MAX) == NULL) {
                     rv = GetLastError();
                     ec = __LINE__;
                     ed = xwoptarg;
                     goto finished;
                 }
-                binarypath = xappendarg(1, NULL, bp);
+                binarypath = xappendarg(1, NULL, cb);
                 if (bs != NULL)
                     binarypath = xappendarg(0, binarypath, bs);
 
+                xfree(bp);
                 xfree(pp);
             break;
             case 'D':
