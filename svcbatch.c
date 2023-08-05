@@ -3153,7 +3153,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     DWORD  wr = 0;
     HANDLE h;
 
-#if defined(_DEBUG) && (_DEBUG > 3)
+#if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("writing %4lu bytes", len);
 #endif
     SVCBATCH_CS_ENTER(log);
@@ -3172,7 +3172,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     SVCBATCH_CS_LEAVE(log);
     if (rc)
         return xsyserror(rc, L"Log write", NULL);
-#if defined(_DEBUG) && (_DEBUG > 3)
+#if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("wrote   %4lu bytes", wr);
 #endif
     if (IS_SET(SVCBATCH_OPT_ROTATE) && rotatebysize) {
@@ -3803,9 +3803,9 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
             argv[i++] = (LPWSTR)serviceargv[x];
     }
     *argc = c;
-#if defined(_DEBUG) && (_DEBUG > 2)
+#if defined(_DEBUG) && (_DEBUG > 1)
     for (x = 0; x < c; x++) {
-        DBG_PRINTF("[%d] '%S'", x, argv[x]);
+        DBG_PRINTF("[%.2d] '%S'", x, argv[x]);
     }
 #endif
     return argv;
