@@ -21,7 +21,9 @@ For a full list of changes, see the [git commit log][log]
   * Add -a command option for appending to log files
   * Add -f command option for setting the behavior on service failure
   * Enable to build 'lite' version of SvcBatch without logging and shutdown
-
+  * Use -k command option for changing default kill depth
+  * Use -t command option for changing default stop timeout
+  * Enable log truncation by using -rT option
 
 ## v2.1.2
 

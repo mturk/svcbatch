@@ -238,6 +238,13 @@
  */
 #define SVCBATCH_SCM_WAIT_DEF   30
 
+/**
+ * Default process kill depth
+ */
+#define SVCBATCH_DEF_KILLDEPTH  2
+#define SVCBATCH_MAX_KILLDEPTH  4
+
+
 #define ONE_SECOND              1000
 #define MS_IN_DAY               86400000
 #define MS_IN_SECOND            CPP_INT64_C(1000)
