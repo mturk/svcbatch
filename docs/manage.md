@@ -28,6 +28,16 @@ Every command must be followed by **Service Name**
 
 Creates a service.
 
+The following command:
+
+  ```cmd
+  > svcbatch create myService
+  >
+  ```
+
+Will create **myService** service presuming
+that the script file is **myService.bat**.
+
 ## Config
 
 Changes the configuration of a service.
@@ -188,6 +198,19 @@ and both `-` and `/` can be used as switches. This means that
   The **seconds** is optional parameter. If not
   provided as part of **/wait** option, default
   value of `30` seconds will be used.
+
+* **arguments ...**
+
+  **Optional arguments for service start**
+
+  If defined **arguments** will be passed to
+  service on startup.
+
+  ```cmd
+  > svcbatch start myService /wait arg1 arg2 ...
+  >
+  ```
+
 
 ## Stop options
 
