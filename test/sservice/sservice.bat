@@ -17,7 +17,7 @@ rem
 rem
 setlocal
 rem
-rem goto doStressTest
+goto doStressTest
 rem
 echo %~nx0: Running inside %SVCBATCH_SERVICE_NAME%
 echo.
