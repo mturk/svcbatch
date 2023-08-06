@@ -297,10 +297,6 @@ will be reported to Windows Event log.
 
   If the log file does not exist, a new file is created.
 
-  **Notice**
-
-  If **-rT** command option is also defined the exiting log file
-  will be overwritten instead reused.
 
 
 * **-b**
@@ -330,6 +326,23 @@ will be reported to Windows Event log.
   SvcBatch will execute **powershell.exe** instead **cmd.exe** and pass
   **parameters** as arguments to the powershell.
 
+
+* **-d [depth]**
+
+  **Set the nested process kill depth**
+
+  This option sets the **depth** of the process
+  tree that SvcBatch will kill on service stop.
+
+  The valid **depth** range is between `0` and `4`
+  seconds (two minutes).
+  By default this value is set to `2`.
+
+  This option is used only when manually stopping the
+  service. In case the service STOP is initiated by
+  system shutdown, SvcBatch will not traverse its
+  process tree, but rather let the operating system
+  to kill all child processes.
 
 
 * **-e [name=value]**
@@ -464,22 +477,25 @@ will be reported to Windows Event log.
   to the Windows Event log.
 
 
-* **-k [depth]**
+* **-k [timeout]**
 
-  **Set the nested process kill depth**
+  **Set stop timeout in seconds**
 
-  This option sets the **depth** of the process
-  tree that SvcBatch will kill on service stop.
-
-  The valid **depth** range is between `0` and `4`
+  This option sets the **timeout** when service receives
+  stop or shutdown signal.
+  The valid **timeout** range is between `2` and `120`
   seconds (two minutes).
-  By default this value is set to `2`.
 
-  This option is used only when manually stopping the
-  service. In case the service STOP is initiated by
-  system shutdown, SvcBatch will not traverse its
-  process tree, but rather let the operating system
-  to kill all child processes.
+  By default this value is set to `10` seconds.
+
+  Also make sure to check the **WaitToKillServiceTimeout**
+  value specified in the following registry key:
+
+  **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control**
+
+  If the operating system is rebooting, this value is used
+  as time limit.
+
 
 * **-l**
 
@@ -647,9 +663,6 @@ will be reported to Windows Event log.
   log rotation will be enabled by using the
   `sc.exe control [service name] 234` command.
 
-  In case the **rule** starts with the capital letter `T`,
-  on rotation the existing log file will be truncated.
-
   Time and size values can be combined, that allows
   to rotate logs at specific time or size which ever first.
   For example one can define **rule** so that rotate logs
@@ -717,24 +730,23 @@ will be reported to Windows Event log.
   as the first argument to the shutdown script file.
 
 
-* **-t [timeout]**
+* **-t**
 
-  **Set stop timeout in seconds**
+  **Truncate log file on rotation**
 
-  This option sets the **timeout** when service receives
-  stop or shutdown signal.
-  The valid **timeout** range is between `2` and `120`
-  seconds (two minutes).
+  This option causes the log file to be truncated instead of rotated.
 
-  By default this value is set to `10` seconds.
+  This is useful when a log is processed in real time by a command
+  like tail, and there is no need for archived data.
 
-  Also make sure to check the **WaitToKillServiceTimeout**
-  value specified in the following registry key:
 
-  **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control**
+  ```cmd
+  > sc create ... -t ...
 
-  If the operating system is rebooting, this value is used
-  as time limit.
+  ```
+
+  This will truncate existing `SvcBatch.log`
+  on rotate instead creating a new file.
 
 
 * **-v**

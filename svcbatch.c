@@ -224,9 +224,9 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
 #if SVCBATCH_LEAN_AND_MEAN
-static LPCWSTR cmdoptions  = L"abc:e:f:gh:k:lm:n:o:pqr:s:t:vw:";
+static LPCWSTR cmdoptions  = L"abc:d:e:f:gh:k:lm:n:o:pqr:s:tvw:";
 #else
-static LPCWSTR cmdoptions  = L"bc:e:f:gh:k:pt:w:";
+static LPCWSTR cmdoptions  = L"bc:d:e:f:gh:k:pw:";
 #endif
 
 #if SVCBATCH_HAVE_SCM
@@ -327,8 +327,8 @@ static const wchar_t *wcsmessages[] = {
     L"The -f command option value is outside valid range",
     L"The -h command option value is invalid",
     L"The -w command option value is invalid",
+    L"The -d command option value is outside valid range",
     L"The -k command option value is outside valid range",
-    L"The -t command option value is outside valid range",
     L"Too many -c arguments",
     L"The -c command option value is invalid",
     L"Too many -s arguments",
@@ -825,8 +825,7 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
 
     src = xwcsdup(str);
     ASSERT_WSTR(src, NULL);
-    if (*src != L'?')
-        xfixpathsep(src);
+
     xwchreplace(src);
     if (xwcschr(src, L'%') == NULL)
         return src;
@@ -1743,6 +1742,7 @@ static DWORD xcreatedir(LPCWSTR path)
          * One or more intermediate directories do not exist
          */
         xwcslcpy(pp, SVCBATCH_PATH_MAX, path);
+        xfixpathsep(pp);
         rc = xmdparent(pp);
         if (rc == 0) {
             /**
@@ -1866,6 +1866,7 @@ static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     len = GetFullPathNameW(path, siz, dst, NULL);
     if ((len == 0) || (len >= siz))
         return NULL;
+    xfixpathsep(dst);
     fixshortpath(dst, len);
     return dst;
 }
@@ -1951,7 +1952,7 @@ static BOOL resolvescript(LPCWSTR bp)
         return TRUE;
     if (*bp == L'?') {
         cmdproc->script = xwcsdup(bp + 1);
-        service->base   = service->work;
+        service->base   = service->home;
         return TRUE;
     }
     cmdproc->script = xgetfinalpath(bp, 0, NULL, 0);
@@ -2627,8 +2628,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
 
     if (ssp) {
         if (IS_SET(SVCBATCH_OPT_APPEND)) {
-            if (ssh || IS_NOT(SVCBATCH_OPT_TRUNCATE))
-                cd = OPEN_ALWAYS;
+            cd = OPEN_ALWAYS;
             rp = FALSE;
         }
         if (ssh)
@@ -3913,6 +3913,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'q':
                 svcoptions  |= SVCBATCH_OPT_QUIET;
             break;
+            case 't':
+                svcoptions  |= SVCBATCH_OPT_TRUNCATE;
+            break;
             case 'v':
                 svcoptions  |= SVCBATCH_OPT_VERBOSE;
             break;
@@ -3941,6 +3944,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 outdirparam  = xexpandenvstr(skipdotslash(xwoptarg));
                 if (outdirparam == NULL)
                     return xsyserror(0, SVCBATCH_MSG(5), xwoptarg);
+                xfixpathsep(outdirparam);
             break;
 #endif
             case 'f':
@@ -3952,18 +3956,20 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 svchomeparam = xexpandenvstr(skipdotslash(xwoptarg));
                 if (svchomeparam == NULL)
                     return xsyserror(0, SVCBATCH_MSG(7), xwoptarg);
+                xfixpathsep(svchomeparam);
             break;
             case 'w':
                 svcworkparam = xexpandenvstr(skipdotslash(xwoptarg));
                 if (svcworkparam == NULL)
                     return xsyserror(0, SVCBATCH_MSG(8), xwoptarg);
+                xfixpathsep(svcworkparam);
             break;
-            case 'k':
+            case 'd':
                 killdepth    = xwcstoi(xwoptarg, NULL);
                 if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
                     return xsyserror(0, SVCBATCH_MSG(9), xwoptarg);
             break;
-            case 't':
+            case 'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
                     return xsyserror(0, SVCBATCH_MSG(10), xwoptarg);
@@ -3993,7 +3999,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
 #if SVCBATCH_LEAN_AND_MEAN
             case 'r':
-                if (rcnt < 4)
+                if (rcnt < 3)
                     rparam[rcnt++] = xwoptarg;
                 else
                     return xsyserror(0, SVCBATCH_MSG(15), xwoptarg);
@@ -4191,10 +4197,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
             if (!resolverotate(rparam[i]))
                 return xsyserror(0, SVCBATCH_MSG(24), rparam[i]);
         }
-        if (rotatebysize || rotatebytime)
+        if (outputlog && (rotatebysize || rotatebytime))
             outputlog->maxLogs = 0;
-        if (IS_NOT(SVCBATCH_OPT_TRUNCATE) || (rcnt > 1))
-            svcoptions |= SVCBATCH_OPT_ROTATE;
+        svcoptions |= SVCBATCH_OPT_ROTATE;
     }
     if (svcstopparam) {
         svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
@@ -4507,8 +4512,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     ULONGLONG wtmstart    = 0;
     ULONGLONG wtimeout    = 0;
     LPCWSTR   ed          = NULL;
-    LPWSTR    bp          = NULL;
-    LPWSTR    bs          = NULL;
     LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
     LPWSTR    binarypath  = NULL;
@@ -4546,28 +4549,14 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     ed = xwoptarg;
                     goto finished;
                 }
-                pp = xwcsdup(skipdotslash(xwoptarg));
+                pp = xexpandenvstr(skipdotslash(xwoptarg));
                 if (pp == NULL) {
                     rv = GetLastError();
                     ec = __LINE__;
                     ed = xwoptarg;
                     goto finished;
                 }
-                bs = xwcschr(pp, L';');
-                if (bs != NULL)
-                    *bs++ = WNUL;
-                bp = xexpandenvstr(pp);
-                if (xgetfullpath(bp, cb, SVCBATCH_PATH_MAX) == NULL) {
-                    rv = GetLastError();
-                    ec = __LINE__;
-                    ed = xwoptarg;
-                    goto finished;
-                }
-                binarypath = xappendarg(1, NULL, cb);
-                if (bs != NULL)
-                    binarypath = xappendarg(0, binarypath, bs);
-
-                xfree(bp);
+                binarypath = xappendarg(1, NULL, pp);
                 xfree(pp);
             break;
             case 'D':

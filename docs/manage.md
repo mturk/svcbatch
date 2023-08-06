@@ -239,8 +239,11 @@ service's BinaryPathName.
   for the current user.
 
   In case the resulting **path** contains space characters, SvcBatch
-  will properly quote the **path**, so make sure that original **path**
-  parameter is not already quoted.
+  will properly quote the **path**.
+
+  However if the **path** starts with `"` character, no quoting
+  will be performed, since the **path** parameter is presumed
+  to be properly quoted.
 
 
 * **/description|/desc [description]**
