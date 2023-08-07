@@ -3049,10 +3049,10 @@ static DWORD runshutdown(void)
     xwcslcpy(sharedmem->application, SVCBATCH_PATH_MAX, cmdproc->application);
     sharedmem->argc = svcstop->argc;
     for (i = 0; i < svcstop->argc; i++)
-        wmemcpy(sharedmem->args[i], svcstop->args[i], SVCBATCH_NAME_MAX);
+        xwcslcpy(sharedmem->args[i], SVCBATCH_NAME_MAX, svcstop->args[i]);
     sharedmem->optc = cmdproc->optc;
     for (i = 0; i < cmdproc->optc; i++)
-        wmemcpy(sharedmem->opts[i], cmdproc->opts[i], SVCBATCH_NAME_MAX);
+        xwcslcpy(sharedmem->opts[i], SVCBATCH_NAME_MAX, cmdproc->opts[i]);
 
     rc = createiopipes(&svcstop->sInfo, NULL, NULL, 0);
     if (rc != 0) {
