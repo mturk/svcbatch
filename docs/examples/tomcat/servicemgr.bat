@@ -62,18 +62,20 @@ rem Set Work directory
 rem set "SERVICE_WORK=/w nodes\01"
 rem
 rem Set batch file to execute
-set "SVCBATCH_FILE=bin\runservice.bat"
+set "SVCBATCH_FILE=bin\winservice.bat"
 rem Call catalina.bat directly
 rem set "SVCBATCH_FILE=bin\catalina.bat"
+rem set "SHUTDOWN_FILE=bin\shutdown.bat"
 rem
 rem Set Arguments to the SVCBATCH_FILE
 set "SVCBATCH_ARGS=run"
 rem
 rem Set shutdown file
-set "SHUTDOWN_FILE=-s%SVCBATCH_FILE%"
+rem set "SHUTDOWN_FILE=-s%SVCBATCH_FILE%"
+set "SHUTDOWN_FILE=/s?stop"
 rem
 rem Set Arguments to the SHUTDOWN_FILE
-set "SHUTDOWN_ARGS=-sstop"
+rem set "SHUTDOWN_ARGS=-sstop"
 rem
 rem Rotate log each day at midnight or if larger then 1 megabyte
 rem set "ROTATE_RULE=-r0 -r1M"
@@ -82,7 +84,7 @@ rem Enable manual log rotation by using 'servicemgr.bat rotate'
 set "ROTATE_RULE=%ROTATE_RULE% -rS"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=-nsvcbatch.@Y-@m-@d"
+set "SERVICE_LOGNAME=/nservice.@Y-@m-@d"
 rem
 rem
 rem
@@ -105,6 +107,7 @@ rem The JVM will dump the full thread stack to the log file
 rem
 rem
 svcbatch control "%SERVICE_NAME%" 233
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
 rem
