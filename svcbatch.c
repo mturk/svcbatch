@@ -180,7 +180,7 @@ static LPSVCBATCH_LOG        statuslog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
 #endif
 
-static volatile LONG         killdepth   = SVCBATCH_DEF_KILLDEPTH;
+static volatile LONG         killdepth   = 0;
 
 #if SVCBATCH_LEAN_AND_MEAN
 static LONGLONG              counterbase    = CPP_INT64_C(0);

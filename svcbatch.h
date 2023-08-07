@@ -239,9 +239,8 @@
 #define SVCBATCH_SCM_WAIT_DEF   30
 
 /**
- * Default process kill depth
+ * Maximum process tree kill depth
  */
-#define SVCBATCH_DEF_KILLDEPTH  2
 #define SVCBATCH_MAX_KILLDEPTH  4
 
 

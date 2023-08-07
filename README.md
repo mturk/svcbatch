@@ -334,9 +334,8 @@ will be reported to Windows Event log.
   This option sets the **depth** of the process
   tree that SvcBatch will kill on service stop.
 
-  The valid **depth** range is between `0` and `4`
-  seconds (two minutes).
-  By default this value is set to `2`.
+  The valid **depth** range is between `0` and `4`.
+  By default this value is set to `0`.
 
   This option is used only when manually stopping the
   service. In case the service STOP is initiated by
@@ -344,6 +343,9 @@ will be reported to Windows Event log.
   process tree, but rather let the operating system
   to kill all child processes.
 
+  Use this option if the service script file creates
+  a process that do not respond to STOP command, but
+  keeps running in the background.
 
 * **-e [name=value]**
 
