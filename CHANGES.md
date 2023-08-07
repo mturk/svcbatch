@@ -22,6 +22,7 @@ For a full list of changes, see the [git commit log][log]
   * Add -d command option for changing default kill depth
   * Add -f command option for setting the behavior on service failure
   * Enable to build 'lite' version of SvcBatch without logging and shutdown
+  * Use application name as prefix for private environment variables.
 
 ## v2.1.2
 

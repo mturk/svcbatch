@@ -215,6 +215,9 @@ static WCHAR        CRLFW[]       = { 13, 10,  0,  0 };
 static CHAR         CRLFA[]       = { 13, 10,  0,  0 };
 static BYTE         YYES[]        = { 89, 13, 10,  0 };
 
+static WCHAR        ccwappname[SVCBATCH_NAME_MAX];
+static WCHAR        ucwappname[SVCBATCH_NAME_MAX];
+
 static LPCSTR  cnamestamp  = SVCBATCH_RES_NAME " " SVCBATCH_VERSION_TXT;
 static LPCWSTR wnamestamp  = CPP_WIDEN(SVCBATCH_RES_NAME) L" " SVCBATCH_VERSION_WCS;
 static LPCWSTR cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
@@ -471,6 +474,26 @@ static __inline int xtolower(int ch)
         return ch + 32;
     else
         return ch;
+}
+
+static __inline int xtoupper(int ch)
+{
+    if ((ch > 96) && (ch < 123))
+        return ch - 32;
+    else
+        return ch;
+}
+
+static __inline void xwcslower(LPWSTR str)
+{
+    for (; *str != 0; str++)
+        *str = xtolower(*str);
+}
+
+static __inline void xwcsupper(LPWSTR str)
+{
+    for (; *str != 0; str++)
+        *str = xtoupper(*str);
 }
 
 static __inline int xisblank(int ch)
@@ -877,6 +900,23 @@ finished:
     xfree(n);
     xfree(e);
     return r;
+}
+
+static DWORD xsetenvvar(LPCWSTR p, LPCWSTR n, LPCWSTR v)
+{
+    int   i;
+    WCHAR b[SVCBATCH_NAME_MAX];
+
+    ASSERT_NULL(n, ERROR_BAD_ENVIRONMENT);
+
+    i = xwcsncat(b, SVCBATCH_NAME_MAX, 0, p);
+    i = xwcsncat(b, SVCBATCH_NAME_MAX, i, n);
+    if (i >= SVCBATCH_NAME_MAX)
+        return ERROR_INVALID_PARAMETER;
+    if (!SetEnvironmentVariableW(b, v))
+        return GetLastError();
+    else
+        return 0;
 }
 
 static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
@@ -4042,6 +4082,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             scriptparam = xwmalloc(BBUFSIZ);
             i = xwcsncat(scriptparam, BBUFSIZ, 0, service->name);
             i = xwcsncat(scriptparam, BBUFSIZ, i, L".bat");
+            xwcslower(scriptparam);
         }
         else {
             scriptparam = xexpandenvstr(skipdotslash(argv[0]));
@@ -4255,11 +4296,11 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         reportsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
-    SetEnvironmentVariableW(L"SVCBATCH_APP_BIN",      program->application);
-    SetEnvironmentVariableW(L"SVCBATCH_APP_DIR",      program->directory);
-    SetEnvironmentVariableW(L"SVCBATCH_APP_VER",      SVCBATCH_VERSION_VER);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_NAME", service->name);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_UUID", service->uuid);
+    xsetenvvar(ucwappname, L"_APP_BIN",      program->application);
+    xsetenvvar(ucwappname, L"_APP_DIR",      program->directory);
+    xsetenvvar(ucwappname, L"_APP_VER",      SVCBATCH_VERSION_VER);
+    xsetenvvar(ucwappname, L"_SERVICE_NAME", service->name);
+    xsetenvvar(ucwappname, L"_SERVICE_UUID", service->uuid);
     rv = parseoptions(argc, (LPCWSTR *)argv);
     if (rv) {
         reportsvcstatus(SERVICE_STOPPED, rv);
@@ -4318,10 +4359,10 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
      * Add additional environment variables
      * They are unique to this service instance
      */
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_BASE", service->base);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_HOME", service->home);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_LOGS", service->logs);
-    SetEnvironmentVariableW(L"SVCBATCH_SERVICE_WORK", service->work);
+    xsetenvvar(ucwappname, L"_SERVICE_BASE", service->base);
+    xsetenvvar(ucwappname, L"_SERVICE_HOME", service->home);
+    xsetenvvar(ucwappname, L"_SERVICE_LOGS", service->logs);
+    xsetenvvar(ucwappname, L"_SERVICE_WORK", service->work);
 #if SVCBATCH_LEAN_AND_MEAN
     if (statuslog) {
         rv = openlogfile(statuslog, TRUE, NULL);
@@ -5029,7 +5070,7 @@ static DWORD dbgfopen(void)
     dn = GetTempPathW(MAX_PATH - 32, db);
     if ((dn == 0) || (dn >= (MAX_PATH - 32)))
         return ERROR_INSUFFICIENT_BUFFER;
-    xwcslcat(db, MAX_PATH, program->name);
+    xwcslcat(db, MAX_PATH, ccwappname);
     xwcslcat(db, MAX_PATH, DBG_FILE_NAME);
     h = CreateFileW(db, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                     OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -5120,6 +5161,10 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     ASSERT_WSTR(program->directory,   ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->name,        ERROR_BAD_PATHNAME);
 
+    xwcslcpy( ccwappname, SVCBATCH_NAME_MAX, program->name);
+    xwcslcpy( ucwappname, SVCBATCH_NAME_MAX, program->name);
+    xwcslower(ccwappname);
+    xwcsupper(ucwappname);
     return 0;
 }
 

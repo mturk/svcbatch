@@ -948,6 +948,23 @@ SvcBatch sets for each instance.
   of the SvcBatch executable running the service.
 
 
+* **Notice**
+
+  In case the SvcBatch executable file name part is different
+  then **svcbatch.exe**, the private environment variables
+  will be prefixed with the executable name instead with
+  **SVCBATCH**.
+
+  For example if you rename **svcbatch.exe** to **myservice.exe**,
+  all private environment variables will be prefixed with
+  **MYSERVICE**, meaning that instead  **SVCBATCH_SERVICE_BASE**,
+  SvcBatch will set **MYSERVICE_SERVICE_BASE** environment
+  variable.
+
+  This feature is enable starting with SvcBatch version **2.2**.
+
+
+
 ## Custom Control Codes
 
 SvcBatch can send `CTRL_BREAK_EVENT` signal to its child processes.
