@@ -137,6 +137,32 @@ by using the following:
 This will create build with version strings set to `x.y.z_1.acme` where
 `x.y.z` are SvcBatch version numbers.
 
+
+### SvcBatch Lite
+
+
+Starting with version **2.2** SvcBatch can be build
+as "lite" version.
+
+The Lite version contains only the minimum functionality
+needed to run the service.
+
+Entire Logging and Shutdown processing is disabled.
+On service STOP SvcBatch will send `CTRL+C` or `CTRL+BREAK`
+(if `-g` command option was defined) to its child script interpreter.
+
+To compile the Lite version use the:
+
+```cmd
+> nmake ...  _SVCBATCH_LITE=1"
+```
+
+All log related command options are disabled with
+this build. The service will fail to start in case
+it contains any of tyhe `a`, `l`, `m`, `n`, `o`, `q`,
+`r`, `s`, `t` or `v` command option(s).
+
+
 ## Creating Release
 
 Ensure that each release tag starts with letter **v**,
