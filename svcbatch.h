@@ -124,7 +124,7 @@
  *        over this switch.
  *
  */
-#define SVCBATCH_DEF_ARGS      L"/D /E:ON /V:OFF"
+#define SVCBATCH_DEF_ARGS      L"/D /E:ON /V:OFF /C"
 
 /**
  * Maximum number of the SvcBatch.log.N files

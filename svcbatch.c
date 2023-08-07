@@ -101,7 +101,7 @@ typedef struct _SVCBATCH_PROCESS {
     LPWSTR              directory;
     LPWSTR              name;
     LPWSTR              args[SVCBATCH_MAX_ARGS];
-    LPCWSTR             opts[SVCBATCH_MAX_ARGS];
+    LPWSTR              opts[SVCBATCH_MAX_ARGS];
 } SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
 
 typedef struct _SVCBATCH_SERVICE {
@@ -3902,7 +3902,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
     int      rcnt = 0;
     int      scnt = 0;
 #endif
-    int      ccnt = 0;
     int      rargc;
     LPWSTR  *rargv;
 
@@ -3916,7 +3915,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
     LPCWSTR  sparam[SVCBATCH_MAX_ARGS];
     LPCWSTR  rparam[4];
 #endif
-    LPCWSTR  cparam[SVCBATCH_MAX_ARGS];
 
     DBG_PRINTF("started %d", argc);
     serviceargc = argc;
@@ -4031,16 +4029,19 @@ static int parseoptions(int argc, LPCWSTR *argv)
              * multiple times
              */
             case 'c':
-                if (commandparam) {
-                    if (ccnt < SVCBATCH_MAX_ARGS)
-                        cparam[ccnt++] = xwoptarg;
-                    else
-                        return xsyserror(0, SVCBATCH_MSG(11), xwoptarg);
-                }
-                else {
+                if (commandparam == NULL) {
                     commandparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (commandparam == NULL)
                         return xsyserror(0, SVCBATCH_MSG(12), xwoptarg);
+                }
+                else {
+                    if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
+                        return xsyserror(0, SVCBATCH_MSG(19), xwoptarg);
+
+                    if (cmdproc->optc < SVCBATCH_MAX_ARGS)
+                        cmdproc->opts[cmdproc->optc++] = xwcsdup(xwoptarg);
+                    else
+                        return xsyserror(0, SVCBATCH_MSG(11), xwoptarg);
                 }
             break;
             case 'e':
@@ -4224,11 +4225,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
             cmdproc->application = xgetfinalpath(commandparam, 0, NULL, 0);
         if (cmdproc->application == NULL)
             return xsyserror(ERROR_FILE_NOT_FOUND, commandparam, NULL);
-        for (i = 0; i < ccnt; i++) {
-            if (xwcslen(cparam[i]) >= SVCBATCH_NAME_MAX)
-                return xsyserror(0, SVCBATCH_MSG(19), cparam[i]);
-            cmdproc->opts[cmdproc->optc++] = cparam[i];
-        }
         xfree(commandparam);
     }
     else {
@@ -4240,7 +4236,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
         if (cmdproc->application == NULL)
             return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
         xfree(wp);
-        cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS L" /C";
+        cmdproc->opts[cmdproc->optc++] = xwcsdup(SVCBATCH_DEF_ARGS);
         svcoptions |= SVCBATCH_OPT_YYES;
     }
 #if SVCBATCH_LEAN_AND_MEAN
@@ -4366,6 +4362,8 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 #endif
     for (i = 0; i < cmdproc->argc; i++)
         xwchreplace(cmdproc->args[i]);
+    for (i = 0; i < cmdproc->optc; i++)
+        xwchreplace(cmdproc->opts[i]);
     /**
      * Add additional environment variables
      * They are unique to this service instance
