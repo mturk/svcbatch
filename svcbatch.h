@@ -69,16 +69,16 @@
 # define SVCBATCH_LEAN_AND_MEAN 0
 # define SVCBATCH_IS_LITE       1
 # define SVCBATCH_RES_NAME      "SvcBatch Lite"
+# if (_SVCBATCH_LITE > 1)
+#  define SVCBATCH_HAVE_SCM     0
+# else
+#  define SVCBATCH_HAVE_SCM     1
+# endif
 #else
 # define SVCBATCH_LEAN_AND_MEAN 1
+# define SVCBATCH_HAVE_SCM      1
 # define SVCBATCH_IS_LITE       0
 # define SVCBATCH_RES_NAME      "SvcBatch"
-#endif
-
-#if defined(_NO_SCM)
-# define SVCBATCH_HAVE_SCM      0
-#else
-# define SVCBATCH_HAVE_SCM      1
 #endif
 
 #define SVCBATCH_NAME           "SvcBatch"

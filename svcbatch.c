@@ -5175,7 +5175,6 @@ int wmain(int argc, LPCWSTR *argv)
 #if SVCBATCH_LEAN_AND_MEAN
     DWORD   x;
 #endif
-    int     i;
     int     r = 0;
     LPCWSTR p = NULL;
 
@@ -5270,7 +5269,7 @@ int wmain(int argc, LPCWSTR *argv)
         /**
          * Check if this is a Service Manager command
          */
-        i = xwcslen(argv[1]);
+        int i = xwcslen(argv[1]);
         if ((i > 3) && (i < 8)) {
             int cmd = xscmcommand(argv[1]);
             if (cmd >= 0) {

@@ -169,6 +169,14 @@ Use this build for service's that do not require
 or manage its own logging, and no special shutdown
 IPC mechanism is required.
 
+To compile out Service Management code as well,
+create the build using the following:
+
+```cmd
+> nmake ...  _SVCBATCH_LITE=2"
+```
+
+
 ## Creating Release
 
 Ensure that each release tag starts with letter **v**,
