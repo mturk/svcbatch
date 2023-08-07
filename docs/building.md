@@ -186,7 +186,7 @@ for more guidelines.
 
 To create a .zip distribution archive download
 and extract the 7-zip standalone console version from
-[7-Zip Extra](https://www.7-zip.org/a/7z2107-extra.7z)
+[7-Zip Extra](https://www.7-zip.org/a/7z2301-extra.7z)
 and put **7za.exe** somewhere in the PATH.
 
 Change `SVCBATCH_ISDEV_VERSION` to `0` in [svcbatch.h](../svcbatch.h)
@@ -215,3 +215,19 @@ and set `SVCBATCH_ISDEV_VERSION` back to `1` in [svcbatch.h](../svcbatch.h).
 
 Update `version="x.x.x.x"` to the new one [svcbatch.manifest](../svcbatch.manifest)
 file, and add a new section above the current one in [CHANGES](../CHANGES.md) file.
+
+The official binary release contains debug and Lite
+SvcBatch builds.
+
+It is done by invoking:
+
+```cmd
+> mkrelease.bat /h x.y.x
+...
+> mkrelease.bat /h /l x.y.x
+...
+> mkrelease.bat /d /s x.y.x
+...
+> mkrelease.bat /d /l /s x.y.x
+
+```
