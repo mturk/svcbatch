@@ -151,6 +151,9 @@ Entire Logging and Shutdown processing is disabled.
 On service STOP SvcBatch will send `CTRL+C` or `CTRL+BREAK`
 (if `-g` command option was defined) to its child script interpreter.
 
+The resulting executable has both the smaller size
+and uses less memory resources the a standard version.
+
 To compile the Lite version use the:
 
 ```cmd
@@ -159,9 +162,12 @@ To compile the Lite version use the:
 
 All log related command options are disabled with
 this build. The service will fail to start in case
-it contains any of tyhe `a`, `l`, `m`, `n`, `o`, `q`,
+it contains any of the `a`, `l`, `m`, `n`, `o`, `q`,
 `r`, `s`, `t` or `v` command option(s).
 
+Use this build for service's that do not require
+or manage its own logging, and no special shutdown
+IPC mechanism is required.
 
 ## Creating Release
 
