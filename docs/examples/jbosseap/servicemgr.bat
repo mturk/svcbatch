@@ -52,12 +52,16 @@ goto setArgs
 rem
 :doneArgs
 rem
+set "SERVICE_BATCH_FILE=%JBOSSEAP_SERVER_MODE%.bat"
+rem
+rem set "SERVICE_BATCH_FILE=winservice.bat"
 rem
 svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
     /description "%SERVICE_DESCIPTION%" /depend=Tcpip/Afd ^
     /privs SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
-    /start:automatic  /nservice ^
-    /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log winservice.bat ^
+    /start:automatic /nservice /eNOPAUSE=Y ^
+    /sjboss-cli.bat "/s'--controller=127.0.0.1:9990 --connect --command=:shutdown'" ^
+    /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log %SERVICE_BATCH_FILE% ^
     %CMD_LINE_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
@@ -79,10 +83,9 @@ rem
 rem
 svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
     /description "%SERVICE_DESCIPTION%" /depend=Tcpip/Afd ^
-    /privs SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
     /start:automatic ^
     /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log /nservice ^
-    /sjboss-cli.ps1 /s--controller=127.0.0.1:9990 /s--connect /s--command=:shutdown ^
+    /sjboss-cli.ps1 "/s'--controller=127.0.0.1:9990 --connect --command=:shutdown'" ^
     /cpowershell "/c-NoProfile -ExecutionPolicy Bypass -File" ^
     %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS%
 
