@@ -72,6 +72,8 @@ set "SVCBATCH_ARGS=run"
 rem
 rem Set shutdown file
 rem set "SHUTDOWN_FILE=-s%SVCBATCH_FILE%"
+rem
+rem Use the service batch file for shutdown
 set "SHUTDOWN_FILE=/s?stop"
 rem
 rem Set Arguments to the SHUTDOWN_FILE
@@ -81,10 +83,11 @@ rem Rotate log each day at midnight or if larger then 1 megabyte
 rem set "ROTATE_RULE=-r0 -r1M"
 rem
 rem Enable manual log rotation by using 'servicemgr.bat rotate'
-set "ROTATE_RULE=%ROTATE_RULE% -rS"
+rem set "ROTATE_RULE=%ROTATE_RULE% -rS"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/nservice.@Y-@m-@d"
+set "SERVICE_LOGNAME=/nwinservice.@Y-@m-@d"
+rem set "SERVICE_LOGNAME=/n%SERVICE_NAME%service"
 rem
 rem
 rem
