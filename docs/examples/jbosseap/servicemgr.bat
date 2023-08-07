@@ -82,6 +82,7 @@ svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
     /privs SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
     /start:automatic ^
     /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log /nservice ^
+    /sjboss-cli.ps1 /s--controller=127.0.0.1:9990 /s--connect /s--command=:shutdown ^
     /cpowershell "/c-NoProfile -ExecutionPolicy Bypass -File" ^
     %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS%
 
