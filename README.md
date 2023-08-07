@@ -961,6 +961,10 @@ SvcBatch sets for each instance.
   SvcBatch will set **MYSERVICE_SERVICE_BASE** environment
   variable.
 
+  Make sure that renamed file name does not contains space (` `)
+  or (`=`) characters, or the service will fail to start.
+  The best practice is to only use alphanumeric ANSI characters.
+
   This feature is enable starting with SvcBatch version **2.2**.
 
 

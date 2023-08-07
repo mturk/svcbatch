@@ -520,14 +520,6 @@ static __inline void xfixpathsep(LPWSTR str)
     }
 }
 
-static __inline void xfixblanks(LPWSTR str)
-{
-    for (; *str != 0; str++) {
-        if (xisblank(*str))
-            *str = L'_';
-    }
-}
-
 static __inline int xisoptswitch(int c)
 {
     return ((c == 45) || (c == 47));
@@ -4090,8 +4082,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             scriptparam = xwmalloc(BBUFSIZ);
             i = xwcsncat(scriptparam, BBUFSIZ, 0, service->name);
             i = xwcsncat(scriptparam, BBUFSIZ, i, L".bat");
-            xfixblanks(scriptparam);
-            xwcslower( scriptparam);
+            xwcslower(scriptparam);
         }
         else {
             scriptparam = xexpandenvstr(skipdotslash(argv[0]));
@@ -5170,7 +5161,8 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     ASSERT_WSTR(program->directory,   ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->name,        ERROR_BAD_PATHNAME);
 
-    xfixblanks(program->name);
+    if (xwcspbrk(program->name, L" ="))
+        return ERROR_INVALID_NAME;
     xwcslcpy( ccwappname, SVCBATCH_NAME_MAX, program->name);
     xwcslcpy( ucwappname, SVCBATCH_NAME_MAX, program->name);
     xwcslower(ccwappname);
