@@ -3900,7 +3900,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
     int      opt;
 #if SVCBATCH_LEAN_AND_MEAN
     int      rcnt = 0;
-    int      scnt = 0;
 #endif
     int      rargc;
     LPWSTR  *rargv;
@@ -3912,7 +3911,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
 #if SVCBATCH_LEAN_AND_MEAN
     LPWSTR   svcstopparam = NULL;
     LPCWSTR  maxlogsparam = NULL;
-    LPCWSTR  sparam[SVCBATCH_MAX_ARGS];
     LPCWSTR  rparam[4];
 #endif
 
@@ -4057,18 +4055,22 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     return xsyserror(0, SVCBATCH_MSG(15), xwoptarg);
             break;
             case 's':
-                if (svcstopparam) {
-                    if (scnt < SVCBATCH_MAX_ARGS)
-                        sparam[scnt++] = xwoptarg;
-                    else
-                        return xsyserror(0, SVCBATCH_MSG(13), xwoptarg);
-                }
-                else {
+                if (svcstopparam == NULL) {
+                    svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                     svcstopparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (svcstopparam == NULL)
                         return xsyserror(0, SVCBATCH_MSG(14), xwoptarg);
                     if (*svcstopparam == L'?')
-                        sparam[scnt++] = svcstopparam + 1;
+                        svcstop->args[svcstop->argc++] = xwcsdup(svcstopparam + 1);
+                }
+                else {
+                    if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
+                        return xsyserror(0, SVCBATCH_MSG(19), xwoptarg);
+                    if (svcstop->argc < SVCBATCH_MAX_ARGS)
+                        svcstop->args[svcstop->argc] = xwcsdup(xwoptarg);
+                    else
+                        return xsyserror(0, SVCBATCH_MSG(13), xwoptarg);
+                    xwchreplace(svcstop->args[svcstop->argc++]);
                 }
             break;
 #endif
@@ -4250,20 +4252,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
         svcoptions |= SVCBATCH_OPT_ROTATE;
     }
     if (svcstopparam) {
-        svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
         if (*svcstopparam == L'?')
             svcstop->script = cmdproc->script;
         else
             svcstop->script = xgetfinalpath(svcstopparam, 0, NULL, 0);
         if (svcstop->script == NULL)
             return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
-        for (i = 0; i < scnt; i++) {
-            if (xwcslen(sparam[i]) >= SVCBATCH_NAME_MAX)
-                return xsyserror(0, SVCBATCH_MSG(19), sparam[i]);
-            svcstop->args[i] = xwcsdup(sparam[i]);
-            xwchreplace(svcstop->args[i]);
-        }
-        svcstop->argc = scnt;
         xfree(svcstopparam);
     }
 #endif
