@@ -162,13 +162,19 @@ detailed usage.
   ```
 
   This will allow SvcBatch to terminate the entire
-  descendant process tree on shutdown.
+  descendant process tree on shutdown in case the
+  child process creates a process with different
+  security credentials.
+
+  Also check the [Managing Services](#managing-services)
+  section for further guidelines.
 
 ## Managing Services
 
 To get an overview on how to create and manage
 SvcBatch services, check the [managing](docs/manage.md)
 section for some basic guidelines.
+
 
 ## Debugging Services
 
