@@ -933,7 +933,11 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
 
     if (nq) {
         nq = 0;
-        if ((*s2 != L'"') && xwcspbrk(s2, L" \t\"")) {
+        if (*s2 == L'\'') {
+            s2 += 1;
+            l2 -= 2;
+        }
+        else if ((*s2 != L'"') && xwcspbrk(s2, L" \t\"")) {
             for (c = s2; ; c++, nq++) {
                 int b = 0;
 
@@ -3402,13 +3406,8 @@ static DWORD WINAPI workerthread(void *unused)
     for (i = 0; i < cmdproc->optc; i++)
         cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, cmdproc->opts[i]);
     cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->script);
-    for (i = 0; i < cmdproc->argc; i++) {
-        LPCWSTR p = cmdproc->args[i];
-        if (*p == L'!')
-            cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, p + 1);
-        else
-            cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, p);
-    }
+    for (i = 0; i < cmdproc->argc; i++)
+        cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
 #if SVCBATCH_LEAN_AND_MEAN
     if (outputlog) {
         op = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
