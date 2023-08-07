@@ -212,6 +212,12 @@ The format of this log file is:
 If the **svcbatch_debug.log** file already exists, debug messages will
 be appended to the end of the file.
 
+You can rename **svcbatch.exe** executable to **myservice.exe**
+and modify service ImagePath registry value. When the service
+start, SvcBatch will use **myservice_debug.log** as log file.
+This can be useful when multiple service share the same SvcBatch executable.
+
+
 
 # Examples
 

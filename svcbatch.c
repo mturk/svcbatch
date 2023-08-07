@@ -42,7 +42,7 @@ static const char *dbgsvcmodes[] = {
     "MANAGER"
 };
 
-# define DBG_FILE_NAME          L"svcbatch_debug.log"
+# define DBG_FILE_NAME          L"_debug.log"
 # define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, __LINE__, Fmt, ##__VA_ARGS__)
 # define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, __LINE__, Msg)
 #else
@@ -5026,9 +5026,10 @@ static DWORD dbgfopen(void)
     DWORD   rc;
     wchar_t db[MAX_PATH];
 
-    dn = GetTempPathW(MAX_PATH - 20, db);
-    if ((dn == 0) || (dn >= (MAX_PATH - 20)))
+    dn = GetTempPathW(MAX_PATH - 32, db);
+    if ((dn == 0) || (dn >= (MAX_PATH - 32)))
         return ERROR_INSUFFICIENT_BUFFER;
+    xwcslcat(db, MAX_PATH, program->name);
     xwcslcat(db, MAX_PATH, DBG_FILE_NAME);
     h = CreateFileW(db, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                     OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -5037,8 +5038,22 @@ static DWORD dbgfopen(void)
         InterlockedExchangePointer(&dbgfile, h);
         if (rc == 0)
             dbgprints(__FUNCTION__, __LINE__, cnamestamp);
-        if (rc == ERROR_ALREADY_EXISTS)
+        if (rc == ERROR_ALREADY_EXISTS) {
             rc = 0;
+#if (_DEBUG > 1)
+            if (dbgsvcmode == 1) {
+                LARGE_INTEGER ee = {{ 0, 0 }};
+                if (SetFilePointerEx(dbgfile, ee, NULL, FILE_BEGIN)) {
+                    if (SetEndOfFile(dbgfile)) {
+                        dbgprints(__FUNCTION__, __LINE__, cnamestamp);
+                        dbgprintf(__FUNCTION__, __LINE__, "Truncated %S", db);
+                        return 0;
+                    }
+                }
+                rc = GetLastError();
+            }
+#endif
+        }
     }
     return rc;
 }
@@ -5151,8 +5166,9 @@ int wmain(int argc, LPCWSTR *argv)
         cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
         dbgsvcmode = 2;
-        if (dbgfopen())
-            return GetLastError();
+        r = dbgfopen();
+        if (r)
+            return r;
         DBG_PRINTS(cnamestamp);
 #endif
         sharedmmap  = OpenFileMappingW(FILE_MAP_READ, FALSE, p);
@@ -5216,8 +5232,9 @@ int wmain(int argc, LPCWSTR *argv)
 #if defined(_DEBUG)
                 dbgsvcmode = 3;
 #if (_DEBUG > 2)
-                if (dbgfopen())
-                    return GetLastError();
+                r = dbgfopen();
+                if (r)
+                    return r;
 #endif
                 DBG_PRINTS("started");
 #endif
@@ -5230,8 +5247,9 @@ int wmain(int argc, LPCWSTR *argv)
 #if defined(_DEBUG)
     if (servicemode) {
         dbgsvcmode = 1;
-        if (dbgfopen())
-            return GetLastError();
+        r = dbgfopen();
+        if (r)
+            return r;
         DBG_PRINTS(cnamestamp);
     }
 #endif
