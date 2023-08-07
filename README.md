@@ -107,6 +107,11 @@ detailed usage.
 
   **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\myservice**
 
+  In case the service was installed using SvcBatch, additional
+  **ImagePathArgumets** value is created under the service's
+  registry key that contains arguments SvcBatch will merge at
+  runtime with the value of **ImagePath**.
+
   The changes made, will be used next the service starts.
 
 
@@ -130,6 +135,19 @@ detailed usage.
 
   In that case the `myservice.bat` will receive `param1 param2 param3`
   as arguments.
+
+
+  Since SvcBatch version **2.2**, you can use the
+  SvcBatch itself to start the service.
+
+  ```cmd
+  > svcbatch create myservice myservice.bat param1"
+
+  ...
+
+  > svcbatch start myservice /wait param2 param3
+
+  ```
 
 
 * **Notice**
@@ -257,7 +275,7 @@ present inside `Logs` directory using the following procedure:
 
 ```
 
-In case **-r** option was defined, users can use
+In case **-rS** option was defined, users can use
 `sc.exe control [service name] 234` to initiate a
 log rotation at any time while the service is running.
 Note that **234** is our custom service control code.
@@ -619,7 +637,7 @@ will be reported to Windows Event log.
   location where SvcBatch.log files will be created.
   SvcBatch will create a **path** directory if it doesn't exist.
 
-  If not set, SvcBatch will create and use the  **SVCBATCH_SERVICE_HOME\Logs**
+  If not set, SvcBatch will create and use the  **SVCBATCH_SERVICE_WORK\Logs**
   directory as a location for log files and any runtime data
   that has to be created.
 
@@ -852,6 +870,8 @@ will be reported to Windows Event log.
 
   If the **path** is not the absolute path, it will
   be resolved relative to the **-h** directory.
+
+
 
 ## Private Environment Variables
 
