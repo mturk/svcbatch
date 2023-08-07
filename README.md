@@ -377,9 +377,9 @@ will be reported to Windows Event log.
   a process that do not respond to STOP command, but
   keeps running in the background.
 
-* **-e [name=value]**
+* **-e [name<=value>]**
 
-  **Set environment variable**
+  **Sets or deletes environment variable**
 
   This option allows to set the contents of the specified
   environment variable. The content of the **name** environment
@@ -397,6 +397,17 @@ will be reported to Windows Event log.
 
   ```cmd
   > sc create ... -e \"PATH=@ProgramFiles@\SomeApplication;@PATH@\" ...
+
+  ```
+
+  In case the **value** is not specified, the **name** variable
+  is deleted from the current process's environment.
+
+  The following example will delete `SOME_VARIABLE` environment
+  variable for the current process:
+
+  ```cmd
+  > sc create ... /eSOME_VARIABLE ...
 
   ```
 
