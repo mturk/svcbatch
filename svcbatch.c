@@ -3402,8 +3402,13 @@ static DWORD WINAPI workerthread(void *unused)
     for (i = 0; i < cmdproc->optc; i++)
         cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, cmdproc->opts[i]);
     cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->script);
-    for (i = 0; i < cmdproc->argc; i++)
-        cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
+    for (i = 0; i < cmdproc->argc; i++) {
+        LPCWSTR p = cmdproc->args[i];
+        if (*p == L'!')
+            cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, p + 1);
+        else
+            cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, p);
+    }
 #if SVCBATCH_LEAN_AND_MEAN
     if (outputlog) {
         op = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
