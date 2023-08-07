@@ -810,7 +810,7 @@ will be reported to Windows Event log.
   00:00:00.052101                    %SystemRoot%
   00:00:00.052105                    some @argument @@%with spaces
   00:00:00.052110 Program name     : svcbatch
-  00:00:00.052115 Program directory: C:\Workplace\svcbatch\.build\dbg
+  00:00:00.052115 Program directory: C:\Workplace\svcbatch\build\dbg
   00:00:00.052120 Base directory   : C:\Workplace\svcbatch\test
   00:00:00.052125 Home directory   : C:\Workplace\svcbatch\test
   00:00:00.052129 Logs directory   : C:\Workplace\svcbatch\test\Logs\adummysvc

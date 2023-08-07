@@ -37,13 +37,13 @@ rem
 pushd "%~dp0"
 set "TEST_DIR=%cd%"
 popd
-if not exist "%TEST_DIR%\..\.build\dbg" (
+if not exist "%TEST_DIR%\..\build\dbg" (
     echo.
     echo Cannot find build directory.
     echo Run [n]make tests _DEBUG=1
     exit /B 1
 )
-pushd "..\.build\dbg"
+pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 set "SERVICE_LOG_FNAME="
@@ -139,7 +139,7 @@ rem
 :doStart
 rem
 rem
-pushd "..\.build\dbg"
+pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 rem
@@ -163,7 +163,7 @@ goto End
 rem
 :doStop
 rem
-pushd "..\.build\dbg"
+pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 rem
@@ -190,7 +190,7 @@ rem
 rem
 rem sc control "%SERVICE_NAME%" 233
 rem
-pushd "..\.build\dbg"
+pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 %BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 233
@@ -202,7 +202,7 @@ rem
 rem
 rem sc control "%SERVICE_NAME%" 234
 rem
-pushd "..\.build\dbg"
+pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 %BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 234
@@ -212,7 +212,7 @@ rem
 :doDelete
 rem
 rem
-pushd "..\.build\dbg"
+pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 rem

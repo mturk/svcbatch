@@ -41,7 +41,7 @@ LN = $(CC)
 SRCDIR  = .
 PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
-WORKTOP = $(SRCDIR)/.build
+WORKTOP = $(SRCDIR)/build
 
 ifdef _DEBUG
 WORKDIR = $(WORKTOP)/dbg

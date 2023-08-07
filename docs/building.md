@@ -41,7 +41,7 @@ After setting the compiler, use the following
 
 ```
 
-The binary should be inside **.build\rel** subdirectory.
+The binary should be inside **build\rel** subdirectory.
 
 Using Visual Studio, svcbatch.exe can be built
 as statically linked to the MSVCRT library.
@@ -91,7 +91,7 @@ $ make -f Makefile.gmk
 ```
 
 In case there are no compile errors the svcbatch.exe is located
-inside **.build\rel** subdirectory.
+inside **build\rel** subdirectory.
 
 ### Debug builds
 
@@ -103,7 +103,7 @@ builds of svcbatch.exe
 ```
 
 In case there are no compile errors the svcbatch.exe is located
-inside **.build\dbg** subdirectory.
+inside **build\dbg** subdirectory.
 
 
 ### Makefile targets
@@ -116,14 +116,14 @@ for SvcBatch development and maintenance
 ```
 
 This will remove all produced binaries and object files
-by deleting **.build\rel** subdirectory.
+by deleting **build\rel** subdirectory.
 
 ```cmd
 > nmake tests
 ```
 
 This will compile various test programs
-and put them inside **.build\rel** subdirectory.
+and put them inside **build\rel** subdirectory.
 
 ### Vendor version support
 

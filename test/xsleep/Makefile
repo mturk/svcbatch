@@ -24,7 +24,7 @@ PROJECT = xsleep
 BLDARCH = x64
 WINVER  = 0x0601
 
-WORKTOP = $(SRCDIR)\..\..\.build
+WORKTOP = $(SRCDIR)\..\..\build
 !IF DEFINED(_DEBUG)
 WORKDIR = $(WORKTOP)\dbg
 !ELSE

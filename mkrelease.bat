@@ -29,7 +29,7 @@ setlocal
 rem
 set "ProjectName=svcbatch"
 set "ReleaseArch=win-x64"
-set "BuildDir=.build\rel"
+set "BuildDir=build\rel"
 set "ProjectFiles=%ProjectName%.exe"
 set "DebugPrefix="
 set "LitePrefix="
@@ -45,7 +45,7 @@ rem
 goto doneOpts
 rem
 :setDebug
-set "BuildDir=.build\dbg"
+set "BuildDir=build\dbg"
 set "MakefileArgs=%MakefileArgs% _DEBUG=1"
 set "DebugPrefix=debug-"
 set "ProjectFiles=%ProjectFiles% %ProjectName%.pdb"
