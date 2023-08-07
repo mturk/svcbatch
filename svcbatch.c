@@ -881,7 +881,7 @@ static DWORD xsetenv(LPCWSTR s)
     n = xwcsdup(s);
     v = xwcschr(n + 1, L'=');
     if (v == NULL) {
-        r = ERROR_INVALID_PARAMETER;
+        SetEnvironmentVariableW(n, NULL);
         goto finished;
     }
     *v++ = WNUL;
@@ -3930,6 +3930,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     scriptparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (scriptparam == NULL)
                         return xsyserror(ERROR_FILE_NOT_FOUND, xwoptarg, NULL);
+                    if (isrelativepath(scriptparam))
+                        xwcslower(scriptparam);
                 }
                 else {
                     /**
@@ -4102,6 +4104,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
             scriptparam = xexpandenvstr(skipdotslash(argv[0]));
             if (scriptparam == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, argv[0], NULL);
+            if (isrelativepath(scriptparam))
+                xwcslower(scriptparam);
             argc -= 1;
             argv += 1;
         }
