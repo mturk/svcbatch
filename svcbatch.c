@@ -930,14 +930,21 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
     l2 = xwcslen(s2);
     if (l2 == 0)
         return s1;
-
+    if (l2 <  3)
+        nq = 0;
     if (nq) {
         nq = 0;
-        if ((s2[0] == L'\'') && (l2 > 2) && (s2[l2 - 1] == L'\'')) {
+        if ((s2[0] == L'\'') && (s2[l2 - 1] == L'\'')) {
             s2 += 1;
             l2 -= 2;
         }
-        else if ((*s2 != L'"') && xwcspbrk(s2, L" \t\"")) {
+        else if (*s2 == L'"') {
+            /**
+             * Presume the user provided properly
+             * quoted argument.
+             */
+        }
+        else if (xwcspbrk(s2, L" \t\"")) {
             for (c = s2; ; c++, nq++) {
                 int b = 0;
 
