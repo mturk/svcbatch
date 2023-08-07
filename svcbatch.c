@@ -1992,7 +1992,7 @@ static BOOL resolvescript(LPCWSTR bp)
         return TRUE;
     if (*bp == L'?') {
         cmdproc->script = xwcsdup(bp + 1);
-        service->base   = service->home;
+        service->base   = service->work;
         return TRUE;
     }
     cmdproc->script = xgetfinalpath(bp, 0, NULL, 0);
