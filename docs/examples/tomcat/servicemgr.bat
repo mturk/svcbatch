@@ -40,7 +40,7 @@ rem
 rem
 echo Unknown command %~1
 echo.
-echo Usage: winservice ( commands ... ) [service_name]
+echo Usage: %~nx0 ( commands ... ) [service_name]
 echo commands:
 echo   create            Create the service
 echo   delete            Delete the service

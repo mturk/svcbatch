@@ -22,9 +22,19 @@ if /i "x%~1" == "xdump"   goto doDumpStacks
 if /i "x%~1" == "xrotate" goto doRotate
 if /i "x%~1" == "xstart"  goto doStart
 if /i "x%~1" == "xstop"   goto doStop
-rem Unknown option
-echo %~nx0: Unknown option '%~1'
-goto Einval
+rem
+echo Unknown command '%~1'
+echo.
+echo Usage: %~nx0 ( commands ... ) [service_name]
+echo commands:
+echo   create            Create the service
+echo   delete            Delete the service
+echo   dump              Dump JVM full thread stack to the log file
+echo   rotate            Rotate log files
+echo   start             Start the service
+echo   stop              Stop the service
+rem
+exit /B 1
 rem
 rem
 rem Create service
@@ -45,7 +55,7 @@ svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
     /description "%SERVICE_DESCIPTION%" /depend=Tcpip/Afd ^
     /privs SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
     /start:automatic ^
-    /vLpB -rS -o ..\%JBOSSEAP_SERVER_MODE%\log winservice.bat ^
+    /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log winservice.bat ^
     %CMD_LINE_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
@@ -93,12 +103,8 @@ rem Jvm will dump full thread stack to log file
 rem
 svcbatch control "%SERVICE_NAME%" 233
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
 rem
-:Einval
-echo Usage: %~nx0 create/delete/rotate/dump/start/stop
-echo.
-exit /B 1
+rem
 rem
 :End
 exit /B 0
