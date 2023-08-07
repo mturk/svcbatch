@@ -933,7 +933,7 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
 
     if (nq) {
         nq = 0;
-        if ((*s2 == L'\'') && (l2 > 2)) {
+        if ((s2[0] == L'\'') && (l2 > 2) && (s2[l2 - 1] == L'\'')) {
             s2 += 1;
             l2 -= 2;
         }
