@@ -609,19 +609,20 @@ Is the same as
 
   This option allows a user to set the alternate log file names.
 
-  By default SvcBatch will use `SvcBatch.log` as **log name**
-  and `SvcBatch.shutdown.log` as shutdown log name.
+  By default SvcBatch will use `SvcBatch` as **log name**,
+  and append `.log`, `.shutdown.log` or `.status.log` extension,
+  depending on the type of the log.
 
-  To redefine default log names use **-n**
-  command options at service install:
+  To redefine default log names use the **-n**
+  command option at service install:
 
   ```cmd
   > sc create ... -n MyService ...
 
   ```
 
-  SvcBatch will at runtime append `.log` or `.shutdown.log` extension
-  to the **log name**.
+  SvcBatch will at runtime append `.log`, `.shutdown.log`
+  or `.status.log` extension to the **log name**.
 
   If the **-n** argument contains `@` characters, they will be replaced
   with `%` character at runtime and treated as a format string
