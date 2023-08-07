@@ -1,6 +1,6 @@
 # Managing SvcBatch Services
 
-Starting with version **2.2** SvcBatch has a Service management
+Starting with version **3.0.0** SvcBatch has a Service management
 code that contains a subset of Microsoft's `sc.exe` utility to
 create, configure, manage, and delete services.
 

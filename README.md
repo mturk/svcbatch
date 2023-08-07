@@ -59,7 +59,7 @@ to use 64-bit compiler.
 
 ## Creating Services
 
-Starting with version **2.2** SvcBatch has a Service management
+Starting with version **3.0.0** SvcBatch has a Service management
 code that contains a subset of Microsoft's `sc.exe` utility to
 create, configure, manage, and delete services.
 Check the [managing](docs/manage.md) section for some basic
@@ -137,7 +137,7 @@ detailed usage.
   as arguments.
 
 
-  Since SvcBatch version **2.2**, you can use the
+  Since SvcBatch version **3.0.0**, you can use the
   SvcBatch itself to start the service.
 
   ```cmd
@@ -196,7 +196,7 @@ look something like the following:
 
 
 ```no-highlight
-[5876:5352:080523/155543.405:SERVICE:wmain(5233)] SvcBatch 2.2.0.0_2.dbg (msc 192930151.0)
+[5876:5352:080523/155543.405:SERVICE:wmain(5233)] SvcBatch 3.0.0.0_2.dbg (msc 192930151.0)
 [5876:4284:080523/155543.436:SERVICE:servicemain(4225)] started
 [5876:4284:080523/155543.450:SERVICE:servicemain(4240)] adummysvc
 [5876:4284:080523/155543.452:SERVICE:parseoptions(3854)] started 1
@@ -209,7 +209,7 @@ look something like the following:
 ...
 
 [5876:5880:080523/155550.837:SERVICE:runshutdown(3015)] waiting 10000 ms for shutdown process 4900
-[4900:5744:080523/155550.869:STOPSVC:wmain(5154)] SvcBatch Shutdown 2.2.0.0_2.dbg (msc 192930151.0)
+[4900:5744:080523/155550.869:STOPSVC:wmain(5154)] SvcBatch Shutdown 3.0.0.0_2.dbg (msc 192930151.0)
 [4900:5744:080523/155550.869:STOPSVC:wmain(5175)] ppid 5876
 [4900:5744:080523/155550.869:STOPSVC:wmain(5176)] opts 0x0000000b
 
@@ -793,7 +793,7 @@ will be reported to Windows Event log.
 
   ```no-highlight
 
-  00:00:00.051577 SvcBatch 2.2.0.0_2.dbg (msc 193632537.0)
+  00:00:00.051577 SvcBatch 3.0.0.0_2.dbg (msc 193632537.0)
   00:00:00.051688 OS Name          : Windows Server 2022 Standard
   00:00:00.051708 OS Version       : 21H2 10.0.20348.1850
   00:00:00.051725
@@ -991,7 +991,7 @@ SvcBatch sets for each instance.
   or (`=`) characters, or the service will fail to start.
   The best practice is to only use alphanumeric ANSI characters.
 
-  This feature is enable starting with SvcBatch version **2.2**.
+  This feature is enable starting with SvcBatch version **3.0.0**.
 
 
 

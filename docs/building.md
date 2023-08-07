@@ -141,7 +141,7 @@ This will create build with version strings set to `x.y.z_1.acme` where
 ### SvcBatch Lite
 
 
-Starting with version **2.2** SvcBatch can be build
+Starting with version **3.0.0** SvcBatch can be build
 as "lite" version.
 
 The Lite version contains only the minimum functionality

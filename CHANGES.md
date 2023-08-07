@@ -6,7 +6,9 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
-## v2.2.0
+## v3.0.0
+
+### This is major version upgrade that could cause incompatibility with previous versions
 
   * In development
   * Fix return value from service handler when log rotate is disabled or busy
