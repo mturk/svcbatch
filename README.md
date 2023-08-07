@@ -316,6 +316,38 @@ try to use `ServiceName.bat` as batch file. If `ServiceName` contain any of the
 invalid file name characters `/\:;<>?*|"`, the service will fail and error message
 will be reported to Windows Event log.
 
+Command line options that do not require argument can
+be combined as one option. For example instead using
+multiple options
+
+```cmd
+> sc create ... -b /l /v -a ...
+
+```
+
+You can combine those multiple options using a single one
+
+```cmd
+> sc create ... /bLva ...
+
+```
+
+Command line options that require argument can use either
+the rest of the command option if present, or next
+command argument.
+
+For example:
+
+```no-highlight
+> sc create ... /m4 "-sSome argument"...
+
+Is the same as
+
+> sc create ... /m 4 -s "Some argument" ...
+
+```
+
+
 
 * **-a**
 
