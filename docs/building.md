@@ -201,7 +201,7 @@ the release date number and use it to modify the  `SVCBATCH_MICRO_VERSION`
 in [svcbatch.h](../svcbatch.h) and `version` parameter in
 [svcbatch.manifest](../svcbatch.manifest) files.
 
-Run the [mkrelease.bat](../mkrelease.bat) or [mkrelease.sh](../mkrelease.sh) script file
+Run the [mkrelease.bat](../mkrelease.bat) script file
 to compile and create required metadata and release assets.
 
 Edit **svcbatch-x.y.z.txt** and put it's content
@@ -213,10 +213,10 @@ file to the release assets.
 After publishing the release, increment the `SVCBATCH_PATCH_VERSION`
 and set `SVCBATCH_ISDEV_VERSION` back to `1` in [svcbatch.h](../svcbatch.h).
 
-Update `version="x.x.x.x"` to the new one [svcbatch.manifest](../svcbatch.manifest)
+Update `version="x.x.x.x"` to the new one in [svcbatch.manifest](../svcbatch.manifest)
 file, and add a new section above the current one in [CHANGES](../CHANGES.md) file.
 
-The official binary release contains debug and Lite
+The official binary release contains standard, debug and lite
 SvcBatch builds.
 
 It is done by invoking:
