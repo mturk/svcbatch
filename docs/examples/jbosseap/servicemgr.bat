@@ -3,7 +3,7 @@ rem
 rem ---------------------------------------------------------------
 rem JBoss EAP Service Management Tool
 rem
-rem Usage: servicemgr.bat create/delete/rotate/dump/start/stop
+rem Usage: servicemgr.bat create/createps/delete/rotate/dump/start/stop
 rem
 rem ---------------------------------------------------------------
 rem
@@ -16,18 +16,20 @@ set "SERVICE_DESCIPTION=JBoss EAP continuous delivery - Version 7.4.4"
 set "JBOSSEAP_SERVER_MODE=standalone"
 rem
 rem
-if /i "x%~1" == "xcreate" goto doCreate
-if /i "x%~1" == "xdelete" goto doDelete
-if /i "x%~1" == "xdump"   goto doDumpStacks
-if /i "x%~1" == "xrotate" goto doRotate
-if /i "x%~1" == "xstart"  goto doStart
-if /i "x%~1" == "xstop"   goto doStop
+if /i "x%~1" == "xcreate"   goto doCreate
+if /i "x%~1" == "xcreateps" goto doCreatePs
+if /i "x%~1" == "xdelete"   goto doDelete
+if /i "x%~1" == "xdump"     goto doDumpStacks
+if /i "x%~1" == "xrotate"   goto doRotate
+if /i "x%~1" == "xstart"    goto doStart
+if /i "x%~1" == "xstop"     goto doStop
 rem
 echo Unknown command '%~1'
 echo.
 echo Usage: %~nx0 ( commands ... ) [service_name]
 echo commands:
 echo   create            Create the service
+echo   createps          Create the service using powershell
 echo   delete            Delete the service
 echo   dump              Dump JVM full thread stack to the log file
 echo   rotate            Rotate log files
@@ -54,20 +56,44 @@ rem
 svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
     /description "%SERVICE_DESCIPTION%" /depend=Tcpip/Afd ^
     /privs SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
-    /start:automatic ^
+    /start:automatic  /nservice ^
     /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log winservice.bat ^
     %CMD_LINE_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
+rem Run service using powershell
+:doCreatePs
+rem
+shift
+set CMD_LINE_ARGS=
+:setPsArgs
+if "x%~1" == "x" goto donePsArgs
+set "CMD_LINE_ARGS=%CMD_LINE_ARGS% %~1"
+shift
+goto setPsArgs
+rem
+:donePsArgs
+rem
+rem
+svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
+    /description "%SERVICE_DESCIPTION%" /depend=Tcpip/Afd ^
+    /privs SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
+    /start:automatic ^
+    /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log /nservice ^
+    /cpowershell "/c-NoProfile -ExecutionPolicy Bypass -File" ^
+    %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS%
+
+rem
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
 rem
 rem Start service
 :doStart
 rem
 svcbatch start "%SERVICE_NAME%" /wait
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %~nx0: Started %SERVICE_NAME%
 goto End
 rem
 rem
@@ -76,7 +102,6 @@ rem Stop service
 rem
 svcbatch stop "%SERVICE_NAME%" /wait
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %~nx0: Stopped %SERVICE_NAME%
 goto End
 rem
 rem
@@ -85,7 +110,6 @@ rem Delete service
 rem
 svcbatch delete "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %~nx0: Deleted %SERVICE_NAME%
 goto End
 rem
 rem
