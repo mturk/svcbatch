@@ -230,9 +230,9 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
 #if SVCBATCH_LEAN_AND_MEAN
-static LPCWSTR cmdoptions  = L"abc:d:e:f:gh:k:lm:n:o:pqr:s:tu:vw:";
+static LPCWSTR cmdoptions  = L"abc:d:e:f:gh:k:lm:n:o:pqr:s:tuvw:";
 #else
-static LPCWSTR cmdoptions  = L"bc:d:e:f:gh:k:pu:w:";
+static LPCWSTR cmdoptions  = L"bc:d:e:f:gh:k:puw:";
 #endif
 
 #if SVCBATCH_HAVE_SCM
@@ -358,7 +358,7 @@ static const wchar_t *wcsmessages[] = {
     L"Stop the service and call Delete again",
     L"The Control code is missing. Use control [service name] <value>",
     L"The service is not in the RUNNING state",
-    L"The -u command option value contains invalid characters",
+    L"The -e command option value contains invalid characters",
 
     NULL
 };
@@ -4011,6 +4011,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'g':
                 svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
             break;
+            case 'u':
+                svcoptions  |= SVCBATCH_OPT_NOENV;
+            break;
 #if SVCBATCH_LEAN_AND_MEAN
             case 'a':
                 svcoptions  |= SVCBATCH_OPT_APPEND;
@@ -4104,7 +4107,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 'e':
-                if (*xwoptarg == L'~') {
+                if (*xwoptarg == L':') {
+                    if (xwcspbrk(xwoptarg, L" ="))
+                        return xsyserror(0, SVCBATCH_MSG(34), xwoptarg);
+                    cwsenvname = xwoptarg + 1;
+                }
+                else if (*xwoptarg == L'~') {
                     if (cmdproc->envc < SVCBATCH_MAX_ARGS)
                         cmdproc->envs[cmdproc->envc++] = xwoptarg + 1;
                 }
@@ -4149,17 +4157,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
 #endif
-            case 'u':
-                if ((xwoptarg[0] == L'~') && (xwoptarg[1] == WNUL)) {
-                    svcoptions |= SVCBATCH_OPT_NOENV;
-                    cwsenvname  = NULL;
-                }
-                else {
-                    if (xwcspbrk(xwoptarg, L" ="))
-                        return xsyserror(0, SVCBATCH_MSG(34), xwoptarg);
-                    cwsenvname = xwoptarg;
-                }
-            break;
             case ENOENT:
                 return xsyserror(0, SVCBATCH_MSG(16), xwoption);
             break;
