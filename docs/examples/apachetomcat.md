@@ -15,17 +15,18 @@ and put `svcbatch.exe` into your `tomcat/bin` directory.
 The SvcBatch executable can be shared between multiple Tomcat instances.
 Put `svcbatch.exe` into the desired directory and modify
 your service create scripts to set the work directory using `/W`
-command line option for each different instance.
+command line option that is unique for each different instance.
 
 
 ### Example service
 
-Inside the [Tomcat](tomcat/) directory there are is a batch file that
+Inside the [Tomcat](tomcat/) directory there are two batch files that
 provide the complete solution to run and manage Apache Tomcat as
 windows service.
 
 
-Put [service](tomcat/service.bat) batch file
+Put [service](tomcat/service.bat) and eventually
+[setenv](tomcat/setenv.bat) batch files
 together with `svcbatch.exe` into your `tomcat/bin` directory.
 
 [service](tomcat/service.bat) is a simple batch file
@@ -54,6 +55,13 @@ That's it! Now, just type ...
 > svcbatch start tomcat11 -security
 
 ```
+
+Eventually after creating the service, you can
+edit [setenv](tomcat/setenv.bat) file and add
+or modify any environment variables needed. You can set
+JAVA_HOME to your actual jdk location or replace that line
+with JRE_HOME.
+
 
 ### Step by step
 

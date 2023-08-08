@@ -37,7 +37,7 @@ rem
 set CMD_LINE_ARGS=
 if "x%~1x" == "xx" goto doneSetArgs
 rem Set service name
-set "SERVICE_NAME=%DEFAULT_SERVICE_NAME%"
+set "SERVICE_NAME=%~1"
 shift
 rem
 :setArgs
@@ -75,12 +75,6 @@ rem
 :doCreate
 rem
 rem
-rem Set Home directory
-set "SERVICE_HOME=/h.."
-rem
-rem Set Work directory
-rem set "SERVICE_WORK=/w nodes\01"
-rem
 rem Set batch file to execute
 set "SVCBATCH_FILE=bin\catalina.bat"
 rem
@@ -95,7 +89,7 @@ rem set "ROTATE_RULE=%ROTATE_RULE% -rS"
 rem
 rem Set the log name
 set "SERVICE_LOGNAME=/nservice.@Y-@m-@d"
-rem set "SERVICE_LOGNAME=/n%SERVICE_NAME%service"
+rem set "SERVICE_LOGNAME=/ncatalina_service"
 rem
 rem
 rem
@@ -103,7 +97,7 @@ rem
     /displayName "Apache Tomcat 11.0 %SERVICE_NAME%" ^
     /description "Apache Tomcat 11.1.x Server - https://tomcat.apache.org/" ^
     /start:auto ^
-    /blv %SERVICE_HOME% %SERVICE_LOGNAME% ^
+    /bl /h.. %SERVICE_LOGNAME% ^
     %SHUTDOWN_ARGS% %CMD_LINE_ARGS% %SVCBATCH_FILE% run
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
