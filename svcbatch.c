@@ -95,6 +95,7 @@ typedef struct _SVCBATCH_PROCESS {
     DWORD               exitCode;
     DWORD               argc;
     DWORD               optc;
+    DWORD               envc;
     LPWSTR              commandLine;
     LPWSTR              application;
     LPWSTR              script;
@@ -102,6 +103,7 @@ typedef struct _SVCBATCH_PROCESS {
     LPWSTR              name;
     LPWSTR              args[SVCBATCH_MAX_ARGS];
     LPWSTR              opts[SVCBATCH_MAX_ARGS];
+    LPCWSTR             envs[SVCBATCH_MAX_ARGS];
 } SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
 
 typedef struct _SVCBATCH_SERVICE {
@@ -196,6 +198,7 @@ static BOOL      rotatebysignal = FALSE;
 static BOOL      servicemode    = TRUE;
 
 static DWORD     svcoptions     = 0;
+static DWORD     stopoption     = 0;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 static int       svcfailmode    = SVCBATCH_FAIL_ERROR;
@@ -3034,7 +3037,7 @@ static DWORD runshutdown(void)
         return GetLastError();
     ZeroMemory(sharedmem, sizeof(SVCBATCH_IPC));
     sharedmem->processId = program->pInfo.dwProcessId;
-    sharedmem->options   = svcoptions & 0x000000FF;
+    sharedmem->options   = (svcoptions | stopoption) & 0x000000FF;
     sharedmem->timeout   = stoptimeout;
     sharedmem->killdepth = killdepth;
     sharedmem->maxLogs   = svcmaxlogs;
@@ -3900,6 +3903,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     int      opt;
 #if SVCBATCH_LEAN_AND_MEAN
     int      rcnt = 0;
+    int      qcnt = 0;
 #endif
     int      rargc;
     LPWSTR  *rargv;
@@ -3960,7 +3964,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 svcoptions  |= SVCBATCH_OPT_LOCALTIME;
             break;
             case 'q':
-                svcoptions  |= SVCBATCH_OPT_QUIET;
+                stopoption  |= SVCBATCH_OPT_QUIET;
+                qcnt++;
             break;
             case 't':
                 svcoptions  |= SVCBATCH_OPT_TRUNCATE;
@@ -4045,9 +4050,15 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 'e':
-                x = xsetenv(xwoptarg);
-                if (x)
-                    return xsyserror(x, xwoptarg, NULL);
+                if (*xwoptarg == L'=') {
+                    if (cmdproc->envc < SVCBATCH_MAX_ARGS)
+                        cmdproc->envs[cmdproc->envc++] = xwoptarg + 1;
+                }
+                else {
+                    x = xsetenv(xwoptarg);
+                    if (x)
+                        return xsyserror(x, xwoptarg, NULL);
+                }
             break;
 #if SVCBATCH_LEAN_AND_MEAN
             case 'r':
@@ -4129,6 +4140,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
         svcmaxlogs = xwcstoi(maxlogsparam, NULL);
         if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
             return xsyserror(0, SVCBATCH_MSG(22), maxlogsparam);
+    }
+    if (qcnt) {
+        if ((svcstopparam == NULL) || (qcnt == 1))
+            svcoptions |= SVCBATCH_OPT_QUIET;
     }
     if (IS_SET(SVCBATCH_OPT_QUIET)) {
         /**
@@ -4358,10 +4373,6 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 #else
     service->logs = service->work;
 #endif
-    for (i = 0; i < cmdproc->argc; i++)
-        xwchreplace(cmdproc->args[i]);
-    for (i = 0; i < cmdproc->optc; i++)
-        xwchreplace(cmdproc->opts[i]);
     /**
      * Add additional environment variables
      * They are unique to this service instance
@@ -4370,6 +4381,13 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     xsetenvvar(ucwappname, L"_SERVICE_HOME", service->home);
     xsetenvvar(ucwappname, L"_SERVICE_LOGS", service->logs);
     xsetenvvar(ucwappname, L"_SERVICE_WORK", service->work);
+
+    for (i = 0; i < cmdproc->argc; i++)
+        xwchreplace(cmdproc->args[i]);
+    for (i = 0; i < cmdproc->optc; i++)
+        xwchreplace(cmdproc->opts[i]);
+    for (i = 0; i < cmdproc->envc; i++)
+        xsetenv(cmdproc->envs[i]);
 #if SVCBATCH_LEAN_AND_MEAN
     if (statuslog) {
         rv = openlogfile(statuslog, TRUE, NULL);
