@@ -32,12 +32,12 @@ batch files together with `svcbatch.exe` into your `tomcat/bin` directory.
 that can be used to manage service instead typing multiple commands.
 
 Before executing `servicemgr.bat`, edit `servicemgr.bat` and modify
-default `SERVICE_NAME`, `DisplayName` and `description`
+default `SERVICE_NAME`, `displayName` and `description`
 parameters to match the Tomcat version you are using.
 
-```cmd
+```no-highlight
 
-> servicemgr.bat create tomcat10
+> servicemgr.bat create
 
 ```
 
@@ -49,7 +49,7 @@ System Environment.
 
 That's it! Now, just type ...
 
-```cmd
+```no-highlight
 
 > servicemgr.bat start tomcat10
   or ...
@@ -57,7 +57,7 @@ That's it! Now, just type ...
   or ...
 > net start tomcat10
   or ...
-> sc start tomcat10 -security
+> svcbatch start tomcat10 -security
 
 ```
 
@@ -67,48 +67,42 @@ Instead above example, you can create your own
 service by following the next few steps.
 
 #### Step 1:
+
 Create a service by opening command prompt with Administrator
 privileges inside your `tomcat/bin` directory
 
-```cmd
+```no-highlight
 
-> sc.exe create Tomcat DisplayName= "Apache Tomcat" binPath= "\"%cd%\svcbatch.exe\" /b /w ..\ bin\catalina.bat run"
+> svcbatch create Tomcat /displayName "Apache Tomcat" /b /h.. bin\catalina.bat run"
   Optionally you can add ...
-> sc.exe description Tomcat "Apache Tomcat Service"
-  And/Or ...
-> sc.exe config Tomcat start= auto
-
-  Ensure system networking is up
-> sc.exe config Tomcat depend= LanmanServer
-  ... or at least TCP/IP and Winsock services
-> sc.exe config Tomcat depend= Tcpip/Afd
+> svcbatch config Tomcat /description "Apache Tomcat Service"
+  And ...
+> svcbatch config Tomcat /start=auto
 
 ```
 
-To start the service at boot time either add the `start= auto` to `sc.exe create ... `,
-or type `sc.exe config Tomcat start= auto` after calling create.
-
-SC utility has somehow unusual approach to the command line options
-which require a space after equal character. This means that you have
-to use `start= auto` since `start=auto` will fail. Yes those
-blanks are not typos :D
-
-Check the [SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-create)
-for detailed description how to use the SC utility to create a service
+Check the [Managing Services documentation](../manage.md)
+for detailed description how to use the SvcBatch to create and manage services
 
 #### Step 2:
+
 Start the service by entering
 
-```cmd
-> sc.exe start Tomcat
+```no-highlight
+
+> svcbatch start Tomcat /wait
+  Or ..
+> sc start Tomcat
 
 ```
 
 #### Step 3:
+
 Get the full java thread dump
 
-```cmd
-> sc.exe control Tomcat 233
+```no-highlight
+
+> sc control Tomcat 233
 
 ```
 SvcBatch sends `CONSOLE_CTRL_BREAK` signal which is captured
@@ -119,30 +113,38 @@ This feature is enabled only if `/b` command line switch was
 defined at service's install.
 
 #### Step 4:
+
 Rotate log files
 This will move Logs/SvcBatch.log to Logs/SvcBatch.log.1
 and create a new Logs/SvcBatch.log file
 Read the Log Rotation section for more details.
 
-```cmd
-> sc.exe control Tomcat 234
+```no-highlight
+
+> svcbatch control Tomcat 234
 
 ```
 
 #### Step 5:
+
 Stop the service by entering
 
-```cmd
-> sc.exe stop Tomcat
+```no-highlight
+
+> svcbatch stop Tomcat
 
 ```
 
 #### Step 6:
+
 Delete the service by entering
 
-```cmd
-> sc.exe delete Tomcat
+```no-highlight
+
+> svcbatch delete Tomcat
 
 ```
 
-**!!!** Ensure the service was stopped before deletion
+* **Notice**
+
+   Ensure the service is stopped before deletion

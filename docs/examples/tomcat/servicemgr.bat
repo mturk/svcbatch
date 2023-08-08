@@ -94,7 +94,6 @@ rem
 svcbatch create "%SERVICE_NAME%" ^
     /displayName "Apache Tomcat 10.1 %SERVICE_NAME% Service" ^
     /description "Apache Tomcat 10.1.x Server - https://tomcat.apache.org/" ^
-    /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
     /start auto ^
     /blv %SERVICE_HOME% %SERVICE_WORK% %ROTATE_RULE% %SERVICE_LOGNAME% ^
     %SHUTDOWN_FILE% %SHUTDOWN_ARGS% %SVCBATCH_FILE% %SVCBATCH_ARGS%

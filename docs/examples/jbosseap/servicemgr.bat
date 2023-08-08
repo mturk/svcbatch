@@ -57,8 +57,7 @@ rem
 rem set "SERVICE_BATCH_FILE=winservice.bat"
 rem
 svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
-    /description "%SERVICE_DESCIPTION%" /depend=Tcpip/Afd ^
-    /privs SeCreateSymbolicLinkPrivilege/SeDebugPrivilege ^
+    /description "%SERVICE_DESCIPTION%" ^
     /start:automatic /nservice /eNOPAUSE=Y ^
     /sjboss-cli.bat "/s'--controller=127.0.0.1:9990 --connect --command=:shutdown'" ^
     /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log %SERVICE_BATCH_FILE% ^
@@ -82,7 +81,7 @@ rem
 rem
 rem
 svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
-    /description "%SERVICE_DESCIPTION%" /depend=Tcpip/Afd ^
+    /description "%SERVICE_DESCIPTION%" ^
     /start:automatic ^
     /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log /nservice ^
     /sjboss-cli.ps1 "/s'--controller=127.0.0.1:9990 --connect --command=:shutdown'" ^

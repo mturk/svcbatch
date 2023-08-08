@@ -85,13 +85,13 @@ is to put `svcbatch.exe` in the same directory where your
 `myservice.bat` file is located. Open the command prompt and
 type something like this...
 
-```cmd
+```no-highlight
 > svcbatch create myservice
 
 ```
 ... or using `SC` utility
 
-```cmd
+```no-highlight
 > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat"
 
 ```
@@ -124,7 +124,7 @@ detailed usage.
   service start application to the batch file's existing arguments
   defined at install time.
 
-  ```cmd
+  ```no-highlight
   > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat param1"
 
   ...
@@ -140,7 +140,7 @@ detailed usage.
   Since SvcBatch version **3.0.0**, you can use the
   SvcBatch itself to start the service.
 
-  ```cmd
+  ```no-highlight
   > svcbatch create myservice myservice.bat param1"
 
   ...
@@ -156,7 +156,7 @@ detailed usage.
   its own child processes, ensure you setup the following
   privileges to the service:
 
-  ```cmd
+  ```no-highlight
   > sc privs myservice SeDebugPrivilege
 
   ```
@@ -320,14 +320,14 @@ Command line options that do not require argument can
 be combined as one option. For example instead using
 multiple options
 
-```cmd
+```no-highlight
 > sc create ... -b /l /v -a ...
 
 ```
 
 You can combine those multiple options using a single one
 
-```cmd
+```no-highlight
 > sc create ... /bLva ...
 
 ```
@@ -380,7 +380,7 @@ Is the same as
 
   For example:
 
-  ```cmd
+  ```no-highlight
   > sc create ... -c powershell -c -NoProfile -c \"-ExecutionPolicy Bypass\" -c -File myservice.ps1 ...
 
   ```
@@ -419,7 +419,7 @@ Is the same as
 
   For example:
 
-  ```cmd
+  ```no-highlight
   > sc create ... -e MY_VARIABLE_NAME=Very -e MY_VARIABLE_VALUE=Fancy ...
 
   ```
@@ -427,7 +427,7 @@ Is the same as
   The following example will modify `PATH` environment
   variable for the current process:
 
-  ```cmd
+  ```no-highlight
   > sc create ... -e \"PATH=@ProgramFiles@\SomeApplication;@PATH@\" ...
 
   ```
@@ -438,7 +438,7 @@ Is the same as
   The following example will delete `SOME_VARIABLE` environment
   variable for the current process:
 
-  ```cmd
+  ```no-highlight
   > sc create ... /eSOME_VARIABLE ...
 
   ```
@@ -467,7 +467,7 @@ Is the same as
     You can use this mode to initialize service recovery if
     defined.
 
-    ```cmd
+    ```no-highlight
 
     > sc failure myService reset= INFINITE actions= restart/10000
 
@@ -586,7 +586,7 @@ Is the same as
   In case the **number** contains a single decimal number
   between `1 and 9` it will be used instead default `1 .. 2`.
 
-  ```cmd
+  ```no-highlight
   > sc create ... -m 4
 
   ```
@@ -616,7 +616,7 @@ Is the same as
   To redefine default log names use the **-n**
   command option at service install:
 
-  ```cmd
+  ```no-highlight
   > sc create ... -n MyService ...
 
   ```
@@ -745,7 +745,7 @@ Is the same as
   is run each day at `17:00:00` hours or if log files gets
   larger then `100K` bytes.
 
-  ```cmd
+  ```no-highlight
   > sc create ... -r 17:00:00 -r 100K
 
   ```
@@ -753,7 +753,7 @@ Is the same as
   If time is given without a colons, SvcBatch will use it
   as minutes between log rotation.
 
-  ```cmd
+  ```no-highlight
   >sc create ... -r 90 - r 200K
 
   ```
@@ -816,7 +816,7 @@ Is the same as
   like tail, and there is no need for archived data.
 
 
-  ```cmd
+  ```no-highlight
   > sc create ... -t ...
 
   ```
@@ -1088,7 +1088,7 @@ Explorer, click on Properties, and then on the Details tab.
 Another way to get SvcBatch version and build information
 is to open command prompt and type
 
-  ```cmd
+  ```no-highlight
   > svcbatch.exe /?
   SvcBatch 1.2.3.4 ...
 
