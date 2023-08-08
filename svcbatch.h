@@ -57,12 +57,12 @@
  */
 #define SVCBATCH_MAJOR_VERSION  3
 #define SVCBATCH_MINOR_VERSION  0
-#define SVCBATCH_PATCH_VERSION  0
+#define SVCBATCH_PATCH_VERSION  1
 #define SVCBATCH_MICRO_VERSION  0
 /**
  * Set to zero for release versions
  */
-#define SVCBATCH_ISDEV_VERSION  0
+#define SVCBATCH_ISDEV_VERSION  1
 
 
 #if defined(_SVCBATCH_LITE)

@@ -6,6 +6,11 @@ For a full list of changes, see the [git commit log][log]
   [log]: https://github.com/mturk/svcbatch/commits/
 
 
+## v3.0.1
+
+  * In development
+
+
 ## v3.0.0
 
 ### This is major version upgrade that could cause incompatibility with previous versions
