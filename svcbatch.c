@@ -921,12 +921,7 @@ static DWORD xsetusrenv(LPCWSTR s)
         goto finished;
     }
     *v++ = WNUL;
-    if (*v != L'~') {
-        if (!SetEnvironmentVariableW(n, v))
-            r = GetLastError();
-        goto finished;
-    }
-    switch (xtolower(*(++v))) {
+    switch (xtolower(*v)) {
         case 'a':
             e = program->application;
         break;
@@ -949,7 +944,7 @@ static DWORD xsetusrenv(LPCWSTR s)
             e = service->uuid;
         break;
         case 'w':
-            e = service->uuid;
+            e = service->work;
         break;
         case 'v':
             e = SVCBATCH_VERSION_VER;
@@ -4109,7 +4104,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 'e':
-                if (*xwoptarg == L'=') {
+                if (*xwoptarg == L'~') {
                     if (cmdproc->envc < SVCBATCH_MAX_ARGS)
                         cmdproc->envs[cmdproc->envc++] = xwoptarg + 1;
                 }
