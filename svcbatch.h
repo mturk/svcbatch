@@ -62,7 +62,7 @@
 /**
  * Set to zero for release versions
  */
-#define SVCBATCH_ISDEV_VERSION  1
+#define SVCBATCH_ISDEV_VERSION  0
 
 
 #if defined(_SVCBATCH_LITE)

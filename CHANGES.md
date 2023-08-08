@@ -10,7 +10,6 @@ For a full list of changes, see the [git commit log][log]
 
 ### This is major version upgrade that could cause incompatibility with previous versions
 
-  * In development
   * Fix return value from service handler when log rotate is disabled or busy
   * Enable to set options on service start with additional arguments
   * Add service ImagePathArguments registry value that is added to command options defined in ImagePath
