@@ -58,7 +58,7 @@ rem Set arguments for shutdown bat file
 set "SHUTDOWN_ARGS=/s?shutdown /S@SystemRoot@ "/s\"some @@argument @@@@@with spaces\"""
 rem
 rem
-set "SERVICE_LOG_DIR=-o Logs/@SVCBATCH_SERVICE_NAME@"
+set "SERVICE_LOG_DIR=/oLogs/%SERVICE_NAME%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/R 10 -r100K"
 set "ROTATE_RULE=/R5 -r20K -rS"
@@ -78,7 +78,7 @@ rem
 set "SERVICE_LOG_FNAME=/n@N.%%Y-@m-%%d"
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=/ePATH=%BUILD_DIR%;%%PATH%% /e=ADUMMYSVC_HOME=@SVCBATCH_SERVICE_HOME@"
+set "SERVICE_ENVIRONMENT=/ePATH=%BUILD_DIR%;%%PATH%% /e=ADUMMYSVC_HOME=@h"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line

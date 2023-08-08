@@ -84,6 +84,7 @@
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
+#define SVCBATCH_ENVNAME       L"SVCBATCH_SERVICE"
 #define SVCBATCH_LOGNAME       L"SvcBatch"
 #define SVCBATCH_LOGFEXT       L".log"
 #define SHUTDOWN_LOGFEXT       L".shutdown.log"
@@ -286,6 +287,7 @@
 #define SVCBATCH_OPT_APPEND         0x00000008   /* Append to Log files          */
 #define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging              */
 #define SVCBATCH_OPT_CTRL_BREAK     0x00000020   /* Send CTRL_BREAK on stop      */
+#define SVCBATCH_OPT_NOENV          0x00000040   /* Do not set private envvars   */
 #define SVCBATCH_OPT_VERBOSE        0x00000100   /* Use SvcBatch.status.log      */
 #define SVCBATCH_OPT_SEND_BREAK     0x00000200   /* Enable sending CTRL_BREAK    */
 #define SVCBATCH_OPT_ROTATE         0x00000400   /* Enable log rotation          */
