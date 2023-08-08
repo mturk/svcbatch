@@ -6,7 +6,7 @@ as a Windows service.
 ### Prerequisites
 
 Download the latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
-and put `svcbatch.exe` into your `jboes-eap-x.x/bin` directory.
+and put `svcbatch.exe` into your `jboss-eap-x.x/bin` directory.
 
 The SvcBatch executable can be shared between multiple JBoss instances.
 Put `svcbatch.exe` into the desired directory and modify
@@ -23,7 +23,7 @@ windows service.
 
 Put [servicemgr](jbosseap/servicemgr.bat) and
 eventually [winservice](jbosseap/winservice.bat)
-batch files into your `jboes-eap-x.x/bin` directory.
+batch files into your `jboss-eap-x.x/bin` directory.
 
 The [servicemgr](jbosseap/servicemgr.bat) is a batch file
 used to manage the services.
