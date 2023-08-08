@@ -3036,12 +3036,13 @@ static DWORD runshutdown(void)
     if (sharedmem == NULL)
         return GetLastError();
     ZeroMemory(sharedmem, sizeof(SVCBATCH_IPC));
+    stopoption |= svcoptions;
     sharedmem->processId = program->pInfo.dwProcessId;
-    sharedmem->options   = (svcoptions | stopoption) & 0x000000FF;
+    sharedmem->options   = stopoption & 0x000000FF;
     sharedmem->timeout   = stoptimeout;
     sharedmem->killdepth = killdepth;
     sharedmem->maxLogs   = svcmaxlogs;
-    if (outputlog)
+    if (((stopoption & SVCBATCH_OPT_QUIET) != SVCBATCH_OPT_QUIET) && (outputlog != NULL))
         xwcslcpy(sharedmem->logName, SVCBATCH_NAME_MAX, outputlog->logName);
     xwcslcpy(sharedmem->name, SVCBATCH_NAME_MAX, service->name);
     xwcslcpy(sharedmem->home, SVCBATCH_PATH_MAX, service->home);
@@ -3903,7 +3904,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
     int      opt;
 #if SVCBATCH_LEAN_AND_MEAN
     int      rcnt = 0;
-    int      qcnt = 0;
 #endif
     int      rargc;
     LPWSTR  *rargv;
@@ -3964,8 +3964,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 svcoptions  |= SVCBATCH_OPT_LOCALTIME;
             break;
             case 'q':
-                stopoption  |= SVCBATCH_OPT_QUIET;
-                qcnt++;
+                svcoptions  |= SVCBATCH_OPT_QUIET;
             break;
             case 't':
                 svcoptions  |= SVCBATCH_OPT_TRUNCATE;
@@ -4068,13 +4067,19 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     return xsyserror(0, SVCBATCH_MSG(15), xwoptarg);
             break;
             case 's':
-                if (svcstopparam == NULL) {
+                if (svcstop == NULL)
                     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
-                    svcstopparam = xexpandenvstr(skipdotslash(xwoptarg));
-                    if (svcstopparam == NULL)
-                        return xsyserror(0, SVCBATCH_MSG(14), xwoptarg);
-                    if (*svcstopparam == L'?')
-                        svcstop->args[svcstop->argc++] = xwcsdup(svcstopparam + 1);
+                if (svcstopparam == NULL) {
+                    if ((xwoptarg[0] == L'-') && (xwoptarg[1] == WNUL)) {
+                        stopoption |= SVCBATCH_OPT_QUIET;
+                    }
+                    else {
+                        svcstopparam = xexpandenvstr(skipdotslash(xwoptarg));
+                        if (svcstopparam == NULL)
+                            return xsyserror(0, SVCBATCH_MSG(14), xwoptarg);
+                        if (*svcstopparam == L'?')
+                            svcstop->args[svcstop->argc++] = xwcsdup(svcstopparam + 1);
+                    }
                 }
                 else {
                     if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
@@ -4140,10 +4145,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
         svcmaxlogs = xwcstoi(maxlogsparam, NULL);
         if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
             return xsyserror(0, SVCBATCH_MSG(22), maxlogsparam);
-    }
-    if (qcnt) {
-        if ((svcstopparam == NULL) || (qcnt == 1))
-            svcoptions |= SVCBATCH_OPT_QUIET;
     }
     if (IS_SET(SVCBATCH_OPT_QUIET)) {
         /**
