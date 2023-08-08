@@ -17,30 +17,50 @@ rem
 rem --------------------------------------------------
 rem Apache Tomcat Service management script
 rem
-rem Usage: servicemgr.bat command [service_name]
+rem Usage: service.bat command [service_name]
 rem
 setlocal
 rem
 rem
+set "EXECUTABLE=svcbatch.exe"
 rem Set default service name
-set "SERVICE_NAME=tomcat10"
-if not "x%~2" == "x" (
-  set "SERVICE_NAME=%~2"
-)
+set "DEFAULT_SERVICE_NAME=Tomcat11"
+set "SERVICE_NAME=%DEFAULT_SERVICE_NAME%"
+rem
+rem Parse the Arguments
+rem
+if "x%~1x" == "xx" goto displayUsage
+rem
+set "SERVICE_CMD=%~1"
+shift
+rem
+set CMD_LINE_ARGS=
+if "x%~1x" == "xx" goto doneSetArgs
+rem Set service name
+set "SERVICE_NAME=%DEFAULT_SERVICE_NAME%"
+shift
+rem
+:setArgs
+if "x%~1x" == "xx" goto doneSetArgs
+set "CMD_LINE_ARGS=%CMD_LINE_ARGS% "%~1""
+shift
+goto setArgs
+:doneSetArgs
+rem
+rem Process the requested command
+rem
+if /i "%SERVICE_CMD%" == "create"  goto doCreate
+if /i "%SERVICE_CMD%" == "delete"  goto doDelete
+if /i "%SERVICE_CMD%" == "dump"    goto doDumpStacks
+if /i "%SERVICE_CMD%" == "rotate"  goto doRotate
+if /i "%SERVICE_CMD%" == "start"   goto doStart
+if /i "%SERVICE_CMD%" == "stop"    goto doStop
 rem
 rem
-rem
-if /i "x%~1" == "xcreate"  goto doCreate
-if /i "x%~1" == "xdelete"  goto doDelete
-if /i "x%~1" == "xdump"    goto doDumpStacks
-if /i "x%~1" == "xrotate"  goto doRotate
-if /i "x%~1" == "xstart"   goto doStart
-if /i "x%~1" == "xstop"    goto doStop
-rem
-rem
-echo Unknown command %~1
+echo Unknown command "%SERVICE_CMD%"
+:displayUsage
 echo.
-echo Usage: %~nx0 ( commands ... ) [service_name]
+echo Usage: %~nx0 ( commands ... ) [service_name] [arguments ...]
 echo commands:
 echo   create            Create the service
 echo   delete            Delete the service
@@ -56,51 +76,37 @@ rem
 rem
 rem
 rem Set Home directory
-set "SERVICE_HOME=/h .."
+set "SERVICE_HOME=/h.."
 rem
 rem Set Work directory
 rem set "SERVICE_WORK=/w nodes\01"
 rem
 rem Set batch file to execute
-set "SVCBATCH_FILE=bin\winservice.bat"
-rem Call catalina.bat directly
-rem set "SVCBATCH_FILE=bin\catalina.bat"
-rem set "SHUTDOWN_FILE=bin\shutdown.bat"
-rem
-rem Set Arguments to the SVCBATCH_FILE
-set "SVCBATCH_ARGS=run"
-rem
-rem Set shutdown file
-rem set "SHUTDOWN_FILE=-s%SVCBATCH_FILE%"
+set "SVCBATCH_FILE=bin\catalina.bat"
 rem
 rem Use the service batch file for shutdown
-set "SHUTDOWN_FILE=/s?stop"
-rem
-rem Set Arguments to the SHUTDOWN_FILE
-rem set "SHUTDOWN_ARGS=-sstop"
+set "SHUTDOWN_ARGS=/s?stop"
 rem
 rem Rotate log each day at midnight or if larger then 1 megabyte
 rem set "ROTATE_RULE=-r0 -r1M"
 rem
-rem Enable manual log rotation by using 'servicemgr.bat rotate'
+rem Enable manual log rotation by using 'service.bat rotate'
 rem set "ROTATE_RULE=%ROTATE_RULE% -rS"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/nwinservice.@Y-@m-@d"
+set "SERVICE_LOGNAME=/nservice.@Y-@m-@d"
 rem set "SERVICE_LOGNAME=/n%SERVICE_NAME%service"
 rem
 rem
 rem
-svcbatch create "%SERVICE_NAME%" ^
-    /displayName "Apache Tomcat 10.1 %SERVICE_NAME% Service" ^
-    /description "Apache Tomcat 10.1.x Server - https://tomcat.apache.org/" ^
-    /start auto ^
-    /blv %SERVICE_HOME% %SERVICE_WORK% %ROTATE_RULE% %SERVICE_LOGNAME% ^
-    %SHUTDOWN_FILE% %SHUTDOWN_ARGS% %SVCBATCH_FILE% %SVCBATCH_ARGS%
+%EXECUTABLE% create "%SERVICE_NAME%" ^
+    /displayName "Apache Tomcat 11.0 %SERVICE_NAME%" ^
+    /description "Apache Tomcat 11.1.x Server - https://tomcat.apache.org/" ^
+    /start:auto ^
+    /blv %SERVICE_HOME% %SERVICE_LOGNAME% ^
+    %SHUTDOWN_ARGS% %CMD_LINE_ARGS% %SVCBATCH_FILE% run
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-rem
-echo %~nx0: Created %SERVICE_NAME%
 goto End
 rem
 rem Send CTRL_BREAK_EVENT
@@ -108,7 +114,7 @@ rem The JVM will dump the full thread stack to the log file
 :doDumpStacks
 rem
 rem
-svcbatch control "%SERVICE_NAME%" 233
+%EXECUTABLE% control "%SERVICE_NAME%" 233
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -116,7 +122,7 @@ rem
 :doRotate
 rem
 rem
-svcbatch control "%SERVICE_NAME%" 234
+%EXECUTABLE% control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -124,7 +130,7 @@ rem
 :doStart
 rem
 rem
-svcbatch start "%SERVICE_NAME%" /wait
+%EXECUTABLE% start "%SERVICE_NAME%" /wait %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -132,7 +138,7 @@ rem
 :doStop
 rem
 rem
-svcbatch stop "%SERVICE_NAME%" /wait
+%EXECUTABLE% stop "%SERVICE_NAME%" /wait %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -140,7 +146,7 @@ rem
 :doDelete
 rem
 rem
-svcbatch delete "%SERVICE_NAME%"
+%EXECUTABLE% delete "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
 rem
