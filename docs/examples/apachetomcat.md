@@ -14,50 +14,44 @@ and put `svcbatch.exe` into your `tomcat/bin` directory.
 
 The SvcBatch executable can be shared between multiple Tomcat instances.
 Put `svcbatch.exe` into the desired directory and modify
-your service create scripts to set the home directory using `/W`
+your service create scripts to set the work directory using `/W`
 command line option for each different instance.
 
 
 ### Example service
 
-Inside the [Tomcat](tomcat/) directory there are two batch files that
+Inside the [Tomcat](tomcat/) directory there are is a batch file that
 provide the complete solution to run and manage Apache Tomcat as
 windows service.
 
 
-Put [servicemgr](tomcat/servicemgr.bat) and [winservice](tomcat/winservice.bat)
-batch files together with `svcbatch.exe` into your `tomcat/bin` directory.
+Put [service](tomcat/service.bat) batch file
+together with `svcbatch.exe` into your `tomcat/bin` directory.
 
-[servicemgr](tomcat/servicemgr.bat) is a simple batch file
+[service](tomcat/service.bat) is a simple batch file
 that can be used to manage service instead typing multiple commands.
 
-Before executing `servicemgr.bat`, edit `servicemgr.bat` and modify
+Before executing `service.bat`, edit `service.bat` and modify
 default `SERVICE_NAME`, `displayName` and `description`
 parameters to match the Tomcat version you are using.
 
 ```no-highlight
 
-> servicemgr.bat create
+> service.bat create
 
 ```
-
-After creating a service, edit [winservice](tomcat/winservice.bat) file and add
-or modify any environment variables needed. You can set
-JAVA_HOME to your actual jdk location or replace that line
-with JRE_HOME. You can set JAVA_HOME or JRE_HOME directly inside
-System Environment.
 
 That's it! Now, just type ...
 
 ```no-highlight
 
-> servicemgr.bat start tomcat10
+> service.bat start
   or ...
-> sc start tomcat10
+> sc start tomcat11
   or ...
-> net start tomcat10
+> net start tomcat11
   or ...
-> svcbatch start tomcat10 -security
+> svcbatch start tomcat11 -security
 
 ```
 
@@ -147,4 +141,4 @@ Delete the service by entering
 
 * **Notice**
 
-   Ensure the service is stopped before deletion
+  Ensure the service is stopped before deletion
