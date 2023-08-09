@@ -231,9 +231,9 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
 #if SVCBATCH_LEAN_AND_MEAN
-static LPCWSTR cmdoptions  = L"abc:d:e:f:gh:k:lm:n:o:pqr:s:tuvw:";
+static LPCWSTR cmdoptions  = L"abc:d:e:f:gh:k:lm:n:o:pqr:s:tvw:";
 #else
-static LPCWSTR cmdoptions  = L"bc:d:e:f:gh:k:puw:";
+static LPCWSTR cmdoptions  = L"bc:d:e:f:gh:k:pw:";
 #endif
 
 #if SVCBATCH_HAVE_SCM
@@ -3288,7 +3288,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     InterlockedExchangePointer(&log->fd, h);
     SVCBATCH_CS_LEAVE(log);
     if (rc)
-        return xsyserror(rc, L"Log write", NULL);
+        return xsyserror(rc, L"LogWrite", NULL);
 #if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("wrote   %4lu bytes", wr);
 #endif
@@ -3524,7 +3524,7 @@ static DWORD WINAPI workerthread(void *unused)
                            1, wrpipethread, wr)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
-            xsyserror(rc, L"Write thread", NULL);
+            xsyserror(rc, L"WriteThread", NULL);
             TerminateProcess(cmdproc->pInfo.hProcess, rc);
             cmdproc->exitCode = rc;
             goto finished;
@@ -3536,7 +3536,7 @@ static DWORD WINAPI workerthread(void *unused)
                            1, rotatethread, NULL)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
-            xsyserror(rc, L"Rotate thread", NULL);
+            xsyserror(rc, L"RotateThread", NULL);
             TerminateProcess(cmdproc->pInfo.hProcess, rc);
             cmdproc->exitCode = rc;
             goto finished;
@@ -4018,9 +4018,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'g':
                 svcoptions  |= SVCBATCH_OPT_CTRL_BREAK;
             break;
-            case 'u':
-                svcoptions  |= SVCBATCH_OPT_NOENV;
-            break;
 #if SVCBATCH_LEAN_AND_MEAN
             case 'a':
                 svcoptions  |= SVCBATCH_OPT_APPEND;
@@ -4114,16 +4111,27 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 'e':
-                if (*xwoptarg == L':') {
+                if (*xwoptarg == L'~') {
+                    xwoptarg++;
+                    if (*xwoptarg == WNUL) {
+                        if (IS_SET(SVCBATCH_OPT_NOENV))
+                            return xsyserrno(10, L"-e~", NULL);
+                        cwsenvname  = NULL;
+                        svcoptions |= SVCBATCH_OPT_NOENV;
+                    }
+                    else {
+                        if (cmdproc->envc < SVCBATCH_MAX_ARGS)
+                            cmdproc->envs[cmdproc->envc++] = xwoptarg;
+                        else
+                            return xsyserrno(17, L"-e~", xwoptarg);
+                    }
+
+                }
+                else if (*xwoptarg == L':') {
+                    xwoptarg++;
                     if (xwcspbrk(xwoptarg, L" ="))
                         return xsyserrno(14, L"-e:", xwoptarg);
-                    cwsenvname = xwoptarg + 1;
-                }
-                else if (*xwoptarg == L'~') {
-                    if (cmdproc->envc < SVCBATCH_MAX_ARGS)
-                        cmdproc->envs[cmdproc->envc++] = xwoptarg + 1;
-                    else
-                        return xsyserrno(17, L"-e~", xwoptarg);
+                    cwsenvname = xwoptarg;
                 }
                 else {
                     x = xsetenv(xwoptarg);
@@ -4434,7 +4442,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         else {
             LPWSTR op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
             if (op == NULL) {
-                rv = xsyserror(GetLastError(), L"Final Path", outdirparam);
+                rv = xsyserror(GetLastError(), L"GetFinalPath", outdirparam);
                 reportsvcstatus(SERVICE_STOPPED, rv);
                 return;
             }
@@ -4485,7 +4493,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
-        rv = xsyserror(GetLastError(), L"Worker thread", NULL);
+        rv = xsyserror(GetLastError(), L"WorkerThread", NULL);
         goto finished;
     }
     WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, INFINITE);
@@ -4529,7 +4537,7 @@ static DWORD svcstopmain(void)
 
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
-        rc = xsyserror(GetLastError(), L"Worker thread", NULL);
+        rc = xsyserror(GetLastError(), L"WorkerThread", NULL);
         setsvcstatusexit(rc);
         goto finished;
     }
@@ -4775,13 +4783,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     if (xwcspbrk(service->name, L"/\\")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
-        ed = SVCBATCH_MSG(29);
+        ed = SVCBATCH_MSG(26);
         goto finished;
     }
     if (xwcslen(service->name) > SVCBATCH_NAME_MAX) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
-        ed = SVCBATCH_MSG(30);
+        ed = SVCBATCH_MSG(27);
         goto finished;
     }
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
@@ -4837,7 +4845,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (ssp->dwCurrentState != SERVICE_STOPPED) {
             rv = ERROR_SERVICE_ALREADY_RUNNING;
             ec = __LINE__;
-            ed = SVCBATCH_MSG(31);
+            ed = SVCBATCH_MSG(28);
             goto finished;
         }
         if (!DeleteService(svc)) {
@@ -5012,7 +5020,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (argc == 0) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
-            ed = SVCBATCH_MSG(32);
+            ed = SVCBATCH_MSG(29);
             goto finished;
         }
         if (!QueryServiceStatusEx(svc,
@@ -5025,7 +5033,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (ssp->dwCurrentState != SERVICE_RUNNING) {
             rv = ERROR_SERVICE_CANNOT_ACCEPT_CTRL;
             ec = __LINE__;
-            ed = SVCBATCH_MSG(33);
+            ed = SVCBATCH_MSG(2);
             goto finished;
         }
         sctrl = xwcstoi(argv[0], NULL);
