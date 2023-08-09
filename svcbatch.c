@@ -4065,47 +4065,47 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
             case 'n':
                 if (svclogfname)
-                    return xsyserrno(10, L"-n", xwoptarg);
+                    return xsyserrno(10, L"n", xwoptarg);
                 svclogfname = xwcsdup(skipdotslash(xwoptarg));
                 if (svclogfname == NULL)
-                    return xsyserrno(11, L"-n", xwoptarg);
+                    return xsyserrno(11, L"n", xwoptarg);
                 if (xwcspbrk(svclogfname, L"/\\:;<>?*|\""))
-                    return xsyserrno(14, L"-n", svclogfname);
+                    return xsyserrno(14, L"n", svclogfname);
                 xwchreplace(svclogfname);
             break;
             case 'o':
                 outdirparam  = xwcsdup(skipdotslash(xwoptarg));
                 if (outdirparam == NULL)
-                    return xsyserrno(11, L"-o", xwoptarg);
+                    return xsyserrno(11, L"o", xwoptarg);
                 xfixpathsep(outdirparam);
             break;
 #endif
             case 'f':
                 svcfailmode = xwcstoi(xwoptarg, NULL);
                 if ((svcfailmode < 0) || (svcfailmode > 2))
-                    return xsyserrno(13, L"-f", xwoptarg);
+                    return xsyserrno(13, L"f", xwoptarg);
             break;
             case 'h':
                 svchomeparam = xwcsdup(skipdotslash(xwoptarg));
                 if (svchomeparam == NULL)
-                    return xsyserrno(11, L"-o", xwoptarg);
+                    return xsyserrno(11, L"o", xwoptarg);
                 xfixpathsep(svchomeparam);
             break;
             case 'w':
                 svcworkparam = xwcsdup(skipdotslash(xwoptarg));
                 if (svcworkparam == NULL)
-                    return xsyserrno(11, L"-w", xwoptarg);
+                    return xsyserrno(11, L"w", xwoptarg);
                 xfixpathsep(svcworkparam);
             break;
             case 'd':
                 killdepth    = xwcstoi(xwoptarg, NULL);
                 if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
-                    return xsyserrno(13, L"-d", xwoptarg);
+                    return xsyserrno(13, L"d", xwoptarg);
             break;
             case 'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
-                    return xsyserrno(13, L"-k", xwoptarg);
+                    return xsyserrno(13, L"k", xwoptarg);
                 stoptimeout  = stoptimeout * 1000;
             break;
             /**
@@ -4116,16 +4116,16 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 if (commandparam == NULL) {
                     commandparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (commandparam == NULL)
-                        return xsyserrno(11, L"-c", xwoptarg);
+                        return xsyserrno(11, L"c", xwoptarg);
                 }
                 else {
                     if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
-                        return xsyserrno(18, L"-c", xwoptarg);
+                        return xsyserrno(18, L"c", xwoptarg);
 
                     if (cmdproc->optc < SVCBATCH_MAX_ARGS)
                         cmdproc->opts[cmdproc->optc++] = xwcsdup(xwoptarg);
                     else
-                        return xsyserrno(17, L"-c", xwoptarg);
+                        return xsyserrno(17, L"c", xwoptarg);
                 }
             break;
             case 'e':
@@ -4162,7 +4162,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 if (rcnt < 3)
                     rparam[rcnt++] = xwoptarg;
                 else
-                    return xsyserrno(19, L"-r", xwoptarg);
+                    return xsyserrno(19, L"rotate", xwoptarg);
             break;
             case 's':
                 if (svcstop == NULL)
@@ -4175,7 +4175,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     else {
                         svcstopparam = xwcsdup(skipdotslash(xwoptarg));
                         if (svcstopparam == NULL)
-                            return xsyserrno(11, L"-s", xwoptarg);
+                            return xsyserrno(11, L"s", xwoptarg);
                         if (*svcstopparam == L'?')
                             svcstop->args[svcstop->argc++] = xwcsdup(svcstopparam + 1);
                         else
@@ -4184,11 +4184,11 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
                 else {
                     if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
-                        return xsyserrno(18, L"-s", xwoptarg);
+                        return xsyserrno(18, L"s", xwoptarg);
                     if (svcstop->argc < SVCBATCH_MAX_ARGS)
                         svcstop->args[svcstop->argc] = xwcsdup(xwoptarg);
                     else
-                        return xsyserrno(17, L"-s", xwoptarg);
+                        return xsyserrno(17, L"s", xwoptarg);
                     xwchreplace(svcstop->args[svcstop->argc++]);
                 }
             break;
@@ -4240,12 +4240,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
             return xsyserrno(17, L"script", argv[i]);
     }
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) && IS_SET(SVCBATCH_OPT_SEND_BREAK))
-        return xsyserrno(21, L"-b and -g", NULL);
+        return xsyserrno(21, L"b and g", NULL);
 #if SVCBATCH_LEAN_AND_MEAN
     if (maxlogsparam) {
         svcmaxlogs = xwcstoi(maxlogsparam, NULL);
         if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
-            return xsyserrno(13, L"-m", maxlogsparam);
+            return xsyserrno(13, L"m", maxlogsparam);
     }
     if (IS_SET(SVCBATCH_OPT_QUIET)) {
         /**
@@ -4366,7 +4366,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (rcnt) {
         for (i = 0; i < rcnt; i++) {
             if (!resolverotate(rparam[i]))
-                return xsyserrno(12, L"-r", rparam[i]);
+                return xsyserrno(12, L"r", rparam[i]);
         }
         if (outputlog && (rotatebysize || rotatebytime))
             outputlog->maxLogs = 0;
