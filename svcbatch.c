@@ -231,9 +231,9 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
 #if SVCBATCH_LEAN_AND_MEAN
-static LPCWSTR cmdoptions  = L"abc:d:e:f:gh:k:lm:n:o:pqr:s:tvw:";
+static LPCWSTR cmdoptions  = L"abc:d+e:f+gh:k+lm+n:o:pqr:s:tvw:";
 #else
-static LPCWSTR cmdoptions  = L"bc:d:e:f:gh:k:pw:";
+static LPCWSTR cmdoptions  = L"bc:d+e:f+gh:k+pw:";
 #endif
 
 #if SVCBATCH_HAVE_SCM
@@ -347,7 +347,7 @@ static const wchar_t *wcsmessages[] = {
     L"Too many %s command options defined",                                 /* 19 */
     L"The %s contains invalid filename characters",                         /* 20 */
     L"The %s options are mutually exclusive",                               /* 21 */
-    L"Invalid %s parameter",                                                /* 22 */
+    L"Unknown %s command option",                                           /* 22 */
     L"Service name",                                                        /* 23 */
     L"Log directory",                                                       /* 24 */
     L"Failing over to SVCBATCH_SERVICE_WORK",                               /* 25 */
@@ -1171,7 +1171,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         xwoption = place;
     }
     option = *(place++);
-    if (option != ':') {
+    if ((option != ':') && (option != '+')) {
         /* Options are case insensitive */
         oli = xwcschr(opts, xtolower(option));
     }
@@ -1197,6 +1197,24 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         else if (nargc > ++xwoptind)
             xwoptarg = nargv[xwoptind];
 
+        xwoptind++;
+        place = zerostring;
+        if (IS_EMPTY_WCS(xwoptarg)) {
+            /* Option-argument is absent or empty */
+            return ENOENT;
+        }
+    }
+    else if (oli[1] == L'+') {
+        /**
+         * Option-argument must be the rest of this argument
+         */
+        if (*place) {
+            /* Skip blanks */
+            while (xisblank(*place))
+                ++place;
+            if (*place)
+                xwoptarg = place;
+        }
         xwoptind++;
         place = zerostring;
         if (IS_EMPTY_WCS(xwoptarg)) {
@@ -4150,7 +4168,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 if (svcstop == NULL)
                     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                 if (svcstopparam == NULL) {
-                    if ((xwoptarg[0] == L'-') && (xwoptarg[1] == WNUL)) {
+                    if ((xwoptarg[0] == L'~') && (xwoptarg[1] == WNUL)) {
+                        /* Disable shutdown logging */
                         stopoption |= SVCBATCH_OPT_QUIET;
                     }
                     else {
@@ -4175,7 +4194,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
 #endif
             case ENOENT:
-                return xsyserrno(22, L"empty", xwoption);
+                return xsyserrno(11, xwoption, NULL);
             break;
             default:
                 return xsyserrno(22, xwoption, NULL);
@@ -4383,7 +4402,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     if (argc > 0)
         service->name = argv[0];
     if (IS_EMPTY_WCS(service->name)) {
-        xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(23), NULL);
+        xsyserror(ERROR_INVALID_PARAMETER, L"InvalidServiceName", NULL);
         exit(1);
     }
     service->handle = RegisterServiceCtrlHandlerExW(service->name, servicehandler, NULL);
