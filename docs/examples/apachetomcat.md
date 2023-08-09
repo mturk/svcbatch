@@ -25,20 +25,16 @@ provide the complete solution to run and manage Apache Tomcat as
 windows service.
 
 
-Put [service](tomcat/service.bat) and eventually
+Put [winservice](tomcat/winservice.bat) and eventually
 [setenv](tomcat/setenv.bat) batch files
 together with `svcbatch.exe` into your `tomcat/bin` directory.
 
-[service](tomcat/service.bat) is a simple batch file
+[winservice](tomcat/winservice.bat) is a batch file
 that can be used to manage service instead typing multiple commands.
-
-Before executing `service.bat`, edit `service.bat` and modify
-default `SERVICE_NAME`, `displayName` and `description`
-parameters to match the Tomcat version you are using.
 
 ```no-highlight
 
-> service.bat create
+> winservice.bat create
 
 ```
 
@@ -46,21 +42,15 @@ That's it! Now, just type ...
 
 ```no-highlight
 
-> service.bat start
-  or ...
-> sc start tomcat11
-  or ...
-> net start tomcat11
-  or ...
-> svcbatch start tomcat11 -security
+> winservice.bat start
 
 ```
 
-Eventually after creating the service, you can
-edit [setenv](tomcat/setenv.bat) file and add
-or modify any environment variables needed. You can set
-JAVA_HOME to your actual jdk location or replace that line
-with JRE_HOME.
+The [setenv](tomcat/setenv.bat) batch file (or the existing one)
+can be used to modify any environment variables needed.
+For example, you can set the JAVA_HOME or JRE_HOME or any other
+environment variable to the location different then the one defined
+for the account under which the service is running.
 
 
 ### Step by step
@@ -88,7 +78,7 @@ for detailed description how to use the SvcBatch to create and manage services
 
 #### Step 2:
 
-Start the service by entering
+To manually start the service use:
 
 ```no-highlight
 
@@ -117,15 +107,18 @@ defined at service's install.
 #### Step 4:
 
 Rotate log files
-This will move Logs/SvcBatch.log to Logs/SvcBatch.log.1
-and create a new Logs/SvcBatch.log file
-Read the Log Rotation section for more details.
 
 ```no-highlight
 
 > svcbatch control Tomcat 234
 
 ```
+
+This feature is enable only if the log rotation is enabled.
+Add `/rS` command option to enable manual log
+
+Read the Log Rotation section for more details.
+
 
 #### Step 5:
 
@@ -149,4 +142,7 @@ Delete the service by entering
 
 * **Notice**
 
-  Ensure the service is stopped before deletion
+  This command will fail if the service is
+  running. In that case stop the service, and
+  call this command again.
+

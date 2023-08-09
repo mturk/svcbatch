@@ -15,9 +15,9 @@ rem See the License for the specific language governing permissions and
 rem limitations under the License.
 rem
 rem --------------------------------------------------
-rem Apache Tomcat Service management script
+rem Apache Tomcat Service SvcBatch management script
+rem --------------------------------------------------
 rem
-rem Usage: service.bat command [service_name]
 rem
 setlocal
 rem
@@ -35,6 +35,7 @@ set "SERVICE_CMD=%~1"
 shift
 rem
 set CMD_LINE_ARGS=
+rem Process additional command arguments
 if "x%~1x" == "xx" goto doneSetArgs
 rem Set service name
 set "SERVICE_NAME=%~1"
@@ -89,7 +90,6 @@ rem set "ROTATE_RULE=%ROTATE_RULE% -rS"
 rem
 rem Set the log name
 set "SERVICE_LOGNAME=/nservice.@Y-@m-@d"
-rem set "SERVICE_LOGNAME=/ncatalina_service"
 rem
 rem
 rem
