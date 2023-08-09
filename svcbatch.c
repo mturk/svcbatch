@@ -52,8 +52,9 @@ static const char *dbgsvcmodes[] = {
 
 #define xsyserrno(_i, _d, _p)   svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_ERROR_TYPE,       0, wcsmessages[_i], _d, _p)
 #define xsyserror(_n, _d, _p)   svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_ERROR_TYPE,      _n, NULL, _d, _p)
-#define xsyswarn(_n, _e, _d)    svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_WARNING_TYPE,    _n, _e, _d,  0)
-#define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d,  0)
+#define xsyswarn(_n, _e, _d)    svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_WARNING_TYPE,    _n, _e, _d,  NULL)
+#define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d,  NULL)
+#define xsvcstatus(_s, _p)      reportsvcstatus(__FUNCTION__, __LINE__, _s, _p)
 
 #define SZ_STATUS_PROCESS_INFO  sizeof(SERVICE_STATUS_PROCESS)
 #define SYSTEM_SVC_SUBKEY       L"SYSTEM\\CurrentControlSet\\Services"
@@ -2117,7 +2118,7 @@ static void setsvcstatusexit(DWORD e)
     SVCBATCH_CS_LEAVE(service);
 }
 
-static void reportsvcstatus(DWORD status, DWORD param)
+static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
 {
     static volatile LONG cpcnt = 0;
 
@@ -2140,7 +2141,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
     else if (status == SERVICE_STOPPED) {
         if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
             if (svcfailmode == SVCBATCH_FAIL_EXIT) {
-                xsyserror(param, SVCBATCH_MSG(1), NULL);
+                svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL, SVCBATCH_MSG(1), NULL);
                 SVCBATCH_CS_LEAVE(service);
                 exit(ERROR_INVALID_LEVEL);
             }
@@ -2152,7 +2153,7 @@ static void reportsvcstatus(DWORD status, DWORD param)
                 }
                 else {
                     /* SVCBATCH_FAIL_ERROR */
-                    xsyserror(param, SVCBATCH_MSG(1), NULL);
+                    svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL, SVCBATCH_MSG(1), NULL);
                     if (param == 0) {
                         if (service->status.dwCurrentState == SERVICE_RUNNING)
                             param = ERROR_PROCESS_ABORTED;
@@ -2565,7 +2566,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
         if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
             return xsyserror(GetLastError(), log->logFile, lognn);
         if (ssp)
-            reportsvcstatus(SERVICE_START_PENDING, 0);
+            xsvcstatus(SERVICE_START_PENDING, 0);
         if (ssh) {
             logwrline(ssh, 0, "Moving");
             logwwrite(ssh, 0, "  ", log->logFile);
@@ -2611,7 +2612,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
                     if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
                         return xsyserror(GetLastError(), logpn, lognn);
                     if (ssp)
-                        reportsvcstatus(SERVICE_START_PENDING, 0);
+                        xsvcstatus(SERVICE_START_PENDING, 0);
                     if (ssh) {
                         logwwrite(ssh, 0, "  ", logpn);
                         logwwrite(ssh, 0, "> ", lognn);
@@ -3186,7 +3187,7 @@ static DWORD WINAPI stopthread(void *msg)
     SetEvent(stopstarted);
 
     if (msg == NULL)
-        reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
+        xsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
     DBG_PRINTS("started");
 #if SVCBATCH_LEAN_AND_MEAN
     if (outputlog) {
@@ -3204,7 +3205,7 @@ static DWORD WINAPI stopthread(void *msg)
         rc = runshutdown();
         ri = (int)(GetTickCount64() - rs);
         DBG_PRINTF("shutdown finished in %d ms", ri);
-        reportsvcstatus(SERVICE_STOP_PENDING, 0);
+        xsvcstatus(SERVICE_STOP_PENDING, 0);
         ri = stoptimeout - ri;
         if (ri < SVCBATCH_STOP_SYNC)
             ri = SVCBATCH_STOP_SYNC;
@@ -3213,7 +3214,7 @@ static DWORD WINAPI stopthread(void *msg)
     }
 #endif
     if (ws != WAIT_OBJECT_0) {
-        reportsvcstatus(SERVICE_STOP_PENDING, 0);
+        xsvcstatus(SERVICE_STOP_PENDING, 0);
         SetConsoleCtrlHandler(NULL, TRUE);
         if (IS_SET(SVCBATCH_OPT_CTRL_BREAK)) {
             DBG_PRINTS("generating CTRL_BREAK_EVENT");
@@ -3228,7 +3229,7 @@ static DWORD WINAPI stopthread(void *msg)
         SetConsoleCtrlHandler(NULL, FALSE);
     }
 
-    reportsvcstatus(SERVICE_STOP_PENDING, 0);
+    xsvcstatus(SERVICE_STOP_PENDING, 0);
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
         killprocess(cmdproc, ws);
@@ -3237,7 +3238,7 @@ static DWORD WINAPI stopthread(void *msg)
         DBG_PRINTS("worker process ended");
         cleanprocess(cmdproc);
     }
-    reportsvcstatus(SERVICE_STOP_PENDING, 0);
+    xsvcstatus(SERVICE_STOP_PENDING, 0);
     SetEvent(svcstopdone);
     DBG_PRINTS("done");
     return rc;
@@ -3478,7 +3479,7 @@ static DWORD WINAPI workerthread(void *unused)
 #endif
 
     DBG_PRINTS("started");
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    xsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_STARTING);
 #if SVCBATCH_LEAN_AND_MEAN
     if (outputlog)
@@ -3515,7 +3516,7 @@ static DWORD WINAPI workerthread(void *unused)
         }
     }
 #endif
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    xsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     DBG_PRINTF("cmdline %S", cmdproc->commandLine);
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK))
         cf |= CREATE_NEW_PROCESS_GROUP;
@@ -3567,7 +3568,7 @@ static DWORD WINAPI workerthread(void *unused)
         ResumeThread(threads[SVCBATCH_WRPIPE_THREAD].thread);
 
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
-    reportsvcstatus(SERVICE_RUNNING, 0);
+    xsvcstatus(SERVICE_RUNNING, 0);
     DBG_PRINTF("running process %lu", cmdproc->pInfo.dwProcessId);
 #if SVCBATCH_LEAN_AND_MEAN
     if (IS_SET(SVCBATCH_OPT_ROTATE))
@@ -3736,7 +3737,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             DBG_PRINTF("service %s", msg);
             SVCBATCH_CS_ENTER(service);
             if (service->state == SERVICE_RUNNING) {
-                reportsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
+                xsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
                 xcreatethread(SVCBATCH_STOP_THREAD, 0, stopthread, (LPVOID)msg);
             }
             SVCBATCH_CS_LEAVE(service);
@@ -4411,22 +4412,22 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         exit(1);
     }
     DBG_PRINTF("%S", service->name);
-    reportsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
+    xsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     service->uuid = xuuidstring(NULL);
     if (IS_EMPTY_WCS(service->uuid)) {
         rv = xsyserror(GetLastError(), L"SVCBATCH_SERVICE_UUID", NULL);
-        reportsvcstatus(SERVICE_STOPPED, rv);
+        xsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
     rv = parseoptions(argc, (LPCWSTR *)argv);
     if (rv) {
-        reportsvcstatus(SERVICE_STOPPED, rv);
+        xsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
     rv = createevents();
     if (rv) {
         xsyserror(rv, L"CreateEvent", NULL);
-        reportsvcstatus(SERVICE_STOPPED, rv);
+        xsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
 #if SVCBATCH_LEAN_AND_MEAN
@@ -4446,7 +4447,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
             outdirparam = SVCBATCH_LOGSDIR;
         rv = createlogsdir(log);
         if (rv) {
-            reportsvcstatus(SERVICE_STOPPED, rv);
+            xsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
     }
@@ -4462,7 +4463,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
             LPWSTR op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
             if (op == NULL) {
                 rv = xsyserror(GetLastError(), L"GetFinalPath", outdirparam);
-                reportsvcstatus(SERVICE_STOPPED, rv);
+                xsvcstatus(SERVICE_STOPPED, rv);
                 return;
             }
         }
@@ -4492,23 +4493,23 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     if (statuslog) {
         rv = openlogfile(statuslog, TRUE, NULL);
         if (rv != 0) {
-            reportsvcstatus(SERVICE_STOPPED, rv);
+            xsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
         sh = statuslog->fd;
         logconfig(sh);
     }
     if (outputlog) {
-        reportsvcstatus(SERVICE_START_PENDING, 0);
+        xsvcstatus(SERVICE_START_PENDING, 0);
 
         rv = openlogfile(outputlog, TRUE, sh);
         if (rv != 0) {
-            reportsvcstatus(SERVICE_STOPPED, rv);
+            xsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
     }
 #endif
-    reportsvcstatus(SERVICE_START_PENDING, 0);
+    xsvcstatus(SERVICE_START_PENDING, 0);
 
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
@@ -4538,7 +4539,7 @@ finished:
     closelogfile(statuslog);
 #endif
     threadscleanup();
-    reportsvcstatus(SERVICE_STOPPED, rv);
+    xsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");
 }
 
