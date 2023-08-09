@@ -1656,6 +1656,7 @@ finished:
 
 static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, LPCWSTR eds, LPCWSTR erp)
 {
+    WCHAR   buf[SBUFSIZ];
     WCHAR   hdr[SVCBATCH_LINE_MAX];
     WCHAR   erb[SVCBATCH_LINE_MAX];
     LPCWSTR errarg[10];
@@ -1665,32 +1666,28 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     errarg[i++] = wnamestamp;
     if (service->name)
         errarg[i++] = service->name;
+
+    if (typ == EVENTLOG_ERROR_TYPE)
+        errarg[i++] = L"service reported the following error:";
     xwcslcpy(hdr, SVCBATCH_LINE_MAX, CRLFW);
-    if (typ != EVENTLOG_INFORMATION_TYPE) {
-        if (typ == EVENTLOG_ERROR_TYPE)
-            errarg[i++] = L"\r\nreported the following error:";
-        c = xsnwprintf(hdr + 2, SVCBATCH_LINE_MAX - 2,
-                       L"svcbatch.c(%.4d, %S) ", line, fn);
-        c += 2;
-    }
     if (err) {
         if (xwcschr(err, L'%')) {
-            xsnwprintf(hdr + c, SVCBATCH_LINE_MAX - c, err, eds);
-            eds = erp;
+            xsnwprintf(hdr + 2, SVCBATCH_LINE_MAX - 2, err, eds);
         }
         else {
             xwcslcat(hdr, SVCBATCH_LINE_MAX, err);
+            if (eds) {
+                xwcslcat(hdr, SVCBATCH_LINE_MAX, L": ");
+                xwcslcat(hdr, SVCBATCH_LINE_MAX, eds);
+            }
         }
     }
     else {
-        err = eds;
-        eds = erp;
-        xwcslcat(hdr, SVCBATCH_LINE_MAX, err);
-    }
-    if (eds) {
-        if (err)
-            xwcslcat(hdr, SVCBATCH_LINE_MAX, L": ");
         xwcslcat(hdr, SVCBATCH_LINE_MAX, eds);
+        if (erp) {
+            xwcslcat(hdr, SVCBATCH_LINE_MAX, L": ");
+            xwcslcat(hdr, SVCBATCH_LINE_MAX, erp);
+        }
     }
     errarg[i++] = hdr;
     if (ern == 0) {
@@ -1706,6 +1703,11 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
 #if defined(_DEBUG)
         dbgprintf(fn, line, "%S, %S", hdr + 2, erb + 2);
 #endif
+    }
+    if (typ != EVENTLOG_INFORMATION_TYPE) {
+        xsnwprintf(buf, SBUFSIZ,
+                   L"\r\nsvcbatch.c(%.4d, %S)", line, fn);
+        errarg[i++] = buf;
     }
 
     errarg[i++] = CRLFW;
@@ -2141,21 +2143,22 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
     else if (status == SERVICE_STOPPED) {
         if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
             if (svcfailmode == SVCBATCH_FAIL_EXIT) {
-                svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL,
-                            L"fail(exit)", SVCBATCH_MSG(1));
+                svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, 0, NULL,
+                            SVCBATCH_MSG(1), NULL);
                 SVCBATCH_CS_LEAVE(service);
                 exit(ERROR_INVALID_LEVEL);
             }
             else {
                 if (svcfailmode == SVCBATCH_FAIL_NONE) {
-                    xsysinfo(SVCBATCH_MSG(1), NULL);
+                    svcsyserror(fn, line, EVENTLOG_INFORMATION_TYPE, 0, NULL,
+                                SVCBATCH_MSG(1), NULL);
                     param = 0;
                     service->status.dwWin32ExitCode = NO_ERROR;
                 }
                 else {
                     /* SVCBATCH_FAIL_ERROR */
-                    svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL,
-                                L"fail(error)", SVCBATCH_MSG(1));
+                    svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, 0, NULL,
+                                SVCBATCH_MSG(1), NULL);
                     if (param == 0) {
                         if (service->status.dwCurrentState == SERVICE_RUNNING)
                             param = ERROR_PROCESS_ABORTED;
