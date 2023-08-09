@@ -50,9 +50,10 @@ static const char *dbgsvcmodes[] = {
 # define DBG_PRINTS(Msg)        (void)0
 #endif
 
-#define xsyserror(_n, _e, _d)   svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_ERROR_TYPE,      _n, _e, _d)
-#define xsyswarn(_n, _e, _d)    svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_WARNING_TYPE,    _n, _e, _d)
-#define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d)
+#define xsyserrno(_i, _d, _p)   svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_ERROR_TYPE,       0, wcsmessages[_i], _d, _p)
+#define xsyserror(_n, _d, _p)   svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_ERROR_TYPE,      _n, NULL, _d, _p)
+#define xsyswarn(_n, _e, _d)    svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_WARNING_TYPE,    _n, _e, _d,  0)
+#define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d,  0)
 
 #define SZ_STATUS_PROCESS_INFO  sizeof(SERVICE_STATUS_PROCESS)
 #define SYSTEM_SVC_SUBKEY       L"SYSTEM\\CurrentControlSet\\Services"
@@ -325,40 +326,35 @@ static const wchar_t *scmcoptions[] = {
  */
 static const wchar_t *wcsmessages[] = {
     L"Unknown",
-    L"Service stopped without SERVICE_CONTROL_STOP signal",
-    L"Logs directory cannot be the same as home directory",
-    L"Found multiple -n command options",
-    L"The -n command option value is invalid",
-    L"The -o command option value is invalid",
-    L"The -f command option value is outside valid range",
-    L"The -h command option value is invalid",
-    L"The -w command option value is invalid",
-    L"The -d command option value is outside valid range",
-    L"The -k command option value is outside valid range",
-    L"Too many -c arguments",
-    L"The -c command option value is invalid",
-    L"Too many -s arguments",
-    L"The -s command option value is invalid",
-    L"Too many -r options",
-    L"Missing argument for command line option",
-    L"Invalid command line option",
-    L"Service name has invalid filename characters",
-    L"The argument is too large",
-    L"Too many arguments",
-    L"Options -b and -g are mutually exclusive",
-    L"Invalid -m command option value",
-    L"Option -q is mutually exclusive with option(s)",
-    L"Invalid rotate parameter",
-    L"Service name",
-    L"Log directory",
-    L"Use -o option with parameter set to the exiting directory",
-    L"Failing over to SVCBATCH_SERVICE_WORK",
-    L"The (/) and (\\) are not valid service name characters",
-    L"The maximum service name length is 256 characters",
-    L"Stop the service and call Delete again",
-    L"The Control code is missing. Use control [service name] <value>",
-    L"The service is not in the RUNNING state",
-    L"The -e command option value contains invalid characters",
+    L"Service stopped without SERVICE_CONTROL_STOP signal",                 /*  1 */
+    L"The service is not in the RUNNING state",                             /*  2 */
+    L"Reserved for the future use",                                         /*  3 */
+    NULL,                                                                   /*  4 */
+    NULL,                                                                   /*  5 */
+    NULL,                                                                   /*  6 */
+    NULL,                                                                   /*  7 */
+    NULL,                                                                   /*  8 */
+    NULL,                                                                   /*  9 */
+    L"The %s command option was already defined",                           /* 10 */
+    L"The %s command option value is empty",                                /* 11 */
+    L"The %s command option value is invalid",                              /* 12 */
+    L"The %s command option value is outside valid range",                  /* 13 */
+    L"The %s command option value contains invalid characters",             /* 14 */
+    L"The %s command option value is set to the invalid directory",         /* 15 */
+    L"Too many arguments for the %s command option",                        /* 16 */
+    L"Too many %s arguments",                                               /* 17 */
+    L"The %s argument is too large",                                        /* 18 */
+    L"Too many %s command options defined",                                 /* 19 */
+    L"The %s contains invalid filename characters",                         /* 20 */
+    L"The %s options are mutually exclusive",                               /* 21 */
+    L"Invalid %s parameter",                                                /* 22 */
+    L"Service name",                                                        /* 23 */
+    L"Log directory",                                                       /* 24 */
+    L"Failing over to SVCBATCH_SERVICE_WORK",                               /* 25 */
+    L"The (/) and (\\) are not valid service name characters",              /* 26 */
+    L"The maximum service name length is 256 characters",                   /* 27 */
+    L"Stop the service and call Delete again",                              /* 28 */
+    L"The Control code is missing. Use control [service name] <value>",     /* 29 */
 
     NULL
 };
@@ -1639,12 +1635,13 @@ finished:
     return ssrv;
 }
 
-static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, LPCWSTR eds)
+static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, LPCWSTR eds, LPCWSTR erp)
 {
     WCHAR   hdr[SVCBATCH_LINE_MAX];
     WCHAR   erb[SVCBATCH_LINE_MAX];
     LPCWSTR errarg[10];
-    int     c, i = 0;
+    int     c = 0;
+    int     i = 0;
 
     errarg[i++] = wnamestamp;
     if (service->name)
@@ -1653,10 +1650,24 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     if (typ != EVENTLOG_INFORMATION_TYPE) {
         if (typ == EVENTLOG_ERROR_TYPE)
             errarg[i++] = L"\r\nreported the following error:";
-        xsnwprintf(hdr + 2, SVCBATCH_LINE_MAX - 2,
-                   L"svcbatch.c(%.4d, %S) ", line, fn);
+        c = xsnwprintf(hdr + 2, SVCBATCH_LINE_MAX - 2,
+                       L"svcbatch.c(%.4d, %S) ", line, fn);
+        c += 2;
     }
-    xwcslcat(hdr, SVCBATCH_LINE_MAX, err);
+    if (err) {
+        if (xwcschr(err, L'%')) {
+            xsnwprintf(hdr + c, SVCBATCH_LINE_MAX - c, err, eds);
+            eds = erp;
+        }
+        else {
+            xwcslcat(hdr, SVCBATCH_LINE_MAX, err);
+        }
+    }
+    else {
+        err = eds;
+        eds = erp;
+        xwcslcat(hdr, SVCBATCH_LINE_MAX, err);
+    }
     if (eds) {
         if (err)
             xwcslcat(hdr, SVCBATCH_LINE_MAX, L": ");
@@ -2487,7 +2498,7 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
     else {
         p = xgetfullpath(outdirparam, dp, SVCBATCH_PATH_MAX);
         if (p == NULL) {
-            xsyserror(0, L"xgetfullpath", outdirparam);
+            xsyserror(0, L"GetFullPath", outdirparam);
             return ERROR_BAD_PATHNAME;
         }
     }
@@ -2496,18 +2507,14 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
         DWORD rc = GetLastError();
 
         if (rc > ERROR_PATH_NOT_FOUND)
-            return xsyserror(rc, L"xgetdirpath", dp);
+            return xsyserror(rc, L"GetDirPath", dp);
 
         rc = xcreatedir(dp);
         if (rc != 0)
-            return xsyserror(rc, L"xcreatedir", dp);
+            return xsyserror(rc, L"CreateDirectory", dp);
         p = xgetdirpath(dp, service->logs, SVCBATCH_PATH_MAX);
         if (p == NULL)
-            return xsyserror(GetLastError(), L"xgetdirpath", dp);
-    }
-    if (_wcsicmp(service->logs, service->home) == 0) {
-        xsyserror(0, SVCBATCH_MSG(2), service->logs);
-        return ERROR_INVALID_PARAMETER;
+            return xsyserror(GetLastError(), L"GetDirPath", dp);
     }
     return 0;
 }
@@ -3997,12 +4004,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
                      * Add arguments for batch file
                      */
                     if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
-                        return xsyserror(0, SVCBATCH_MSG(19), xwoptarg);
+                        return xsyserrno(18, L"script", xwoptarg);
 
                     if (cmdproc->argc < SVCBATCH_MAX_ARGS)
                         cmdproc->args[cmdproc->argc++] = xwcsdup(xwoptarg);
                     else
-                        return xsyserror(0, SVCBATCH_MSG(20), xwoptarg);
+                        return xsyserrno(17, L"script", xwoptarg);
                 }
             break;
             case 'b':
@@ -4043,47 +4050,47 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
             case 'n':
                 if (svclogfname)
-                    return xsyserror(0, SVCBATCH_MSG(3), xwoptarg);
+                    return xsyserrno(10, L"-n", xwoptarg);
                 svclogfname = xwcsdup(skipdotslash(xwoptarg));
                 if (svclogfname == NULL)
-                    return xsyserror(0, SVCBATCH_MSG(4), xwoptarg);
+                    return xsyserrno(11, L"-n", xwoptarg);
                 if (xwcspbrk(svclogfname, L"/\\:;<>?*|\""))
-                    return xsyserror(0, SVCBATCH_MSG(18), svclogfname);
+                    return xsyserrno(14, L"-n", svclogfname);
                 xwchreplace(svclogfname);
             break;
             case 'o':
                 outdirparam  = xwcsdup(skipdotslash(xwoptarg));
                 if (outdirparam == NULL)
-                    return xsyserror(0, SVCBATCH_MSG(5), xwoptarg);
+                    return xsyserrno(11, L"-o", xwoptarg);
                 xfixpathsep(outdirparam);
             break;
 #endif
             case 'f':
                 svcfailmode = xwcstoi(xwoptarg, NULL);
                 if ((svcfailmode < 0) || (svcfailmode > 2))
-                    return xsyserror(0, SVCBATCH_MSG(6), xwoptarg);
+                    return xsyserrno(13, L"-f", xwoptarg);
             break;
             case 'h':
                 svchomeparam = xwcsdup(skipdotslash(xwoptarg));
                 if (svchomeparam == NULL)
-                    return xsyserror(0, SVCBATCH_MSG(7), xwoptarg);
+                    return xsyserrno(11, L"-o", xwoptarg);
                 xfixpathsep(svchomeparam);
             break;
             case 'w':
                 svcworkparam = xwcsdup(skipdotslash(xwoptarg));
                 if (svcworkparam == NULL)
-                    return xsyserror(0, SVCBATCH_MSG(8), xwoptarg);
+                    return xsyserrno(11, L"-w", xwoptarg);
                 xfixpathsep(svcworkparam);
             break;
             case 'd':
                 killdepth    = xwcstoi(xwoptarg, NULL);
                 if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
-                    return xsyserror(0, SVCBATCH_MSG(9), xwoptarg);
+                    return xsyserrno(13, L"-d", xwoptarg);
             break;
             case 'k':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
-                    return xsyserror(0, SVCBATCH_MSG(10), xwoptarg);
+                    return xsyserrno(13, L"-k", xwoptarg);
                 stoptimeout  = stoptimeout * 1000;
             break;
             /**
@@ -4094,32 +4101,34 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 if (commandparam == NULL) {
                     commandparam = xexpandenvstr(skipdotslash(xwoptarg));
                     if (commandparam == NULL)
-                        return xsyserror(0, SVCBATCH_MSG(12), xwoptarg);
+                        return xsyserrno(11, L"-c", xwoptarg);
                 }
                 else {
                     if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
-                        return xsyserror(0, SVCBATCH_MSG(19), xwoptarg);
+                        return xsyserrno(18, L"-c", xwoptarg);
 
                     if (cmdproc->optc < SVCBATCH_MAX_ARGS)
                         cmdproc->opts[cmdproc->optc++] = xwcsdup(xwoptarg);
                     else
-                        return xsyserror(0, SVCBATCH_MSG(11), xwoptarg);
+                        return xsyserrno(17, L"-c", xwoptarg);
                 }
             break;
             case 'e':
                 if (*xwoptarg == L':') {
                     if (xwcspbrk(xwoptarg, L" ="))
-                        return xsyserror(0, SVCBATCH_MSG(34), xwoptarg);
+                        return xsyserrno(14, L"-e:", xwoptarg);
                     cwsenvname = xwoptarg + 1;
                 }
                 else if (*xwoptarg == L'~') {
                     if (cmdproc->envc < SVCBATCH_MAX_ARGS)
                         cmdproc->envs[cmdproc->envc++] = xwoptarg + 1;
+                    else
+                        return xsyserrno(17, L"-e~", xwoptarg);
                 }
                 else {
                     x = xsetenv(xwoptarg);
                     if (x)
-                        return xsyserror(x, xwoptarg, NULL);
+                        return xsyserror(x, L"SetEnvironment", xwoptarg);
                 }
             break;
 #if SVCBATCH_LEAN_AND_MEAN
@@ -4127,7 +4136,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 if (rcnt < 3)
                     rparam[rcnt++] = xwoptarg;
                 else
-                    return xsyserror(0, SVCBATCH_MSG(15), xwoptarg);
+                    return xsyserrno(19, L"-r", xwoptarg);
             break;
             case 's':
                 if (svcstop == NULL)
@@ -4139,7 +4148,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     else {
                         svcstopparam = xwcsdup(skipdotslash(xwoptarg));
                         if (svcstopparam == NULL)
-                            return xsyserror(0, SVCBATCH_MSG(14), xwoptarg);
+                            return xsyserrno(11, L"-s", xwoptarg);
                         if (*svcstopparam == L'?')
                             svcstop->args[svcstop->argc++] = xwcsdup(svcstopparam + 1);
                         else
@@ -4148,20 +4157,20 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
                 else {
                     if (xwcslen(xwoptarg) >= SVCBATCH_NAME_MAX)
-                        return xsyserror(0, SVCBATCH_MSG(19), xwoptarg);
+                        return xsyserrno(18, L"-s", xwoptarg);
                     if (svcstop->argc < SVCBATCH_MAX_ARGS)
                         svcstop->args[svcstop->argc] = xwcsdup(xwoptarg);
                     else
-                        return xsyserror(0, SVCBATCH_MSG(13), xwoptarg);
+                        return xsyserrno(17, L"-s", xwoptarg);
                     xwchreplace(svcstop->args[svcstop->argc++]);
                 }
             break;
 #endif
             case ENOENT:
-                return xsyserror(0, SVCBATCH_MSG(16), xwoption);
+                return xsyserrno(22, L"empty", xwoption);
             break;
             default:
-                return xsyserror(0, SVCBATCH_MSG(17), xwoption);
+                return xsyserrno(22, xwoption, NULL);
             break;
         }
     }
@@ -4175,7 +4184,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
              * No script file defined.
              */
             if (xwcspbrk(service->name, L":;<>?*|\""))
-                return xsyserror(0, SVCBATCH_MSG(18), NULL);
+                return xsyserrno(20, L"service name", service->name);
             scriptparam = xwmalloc(BBUFSIZ);
             i = xwcsncat(scriptparam, BBUFSIZ, 0, service->name);
             i = xwcsncat(scriptparam, BBUFSIZ, i, L".bat");
@@ -4196,20 +4205,20 @@ static int parseoptions(int argc, LPCWSTR *argv)
          * Add arguments for script file
          */
         if (xwcslen(argv[i]) >= SVCBATCH_NAME_MAX)
-            return xsyserror(0, SVCBATCH_MSG(19), argv[i]);
+            return xsyserrno(18, L"script", argv[i]);
 
         if (cmdproc->argc < SVCBATCH_MAX_ARGS)
             cmdproc->args[cmdproc->argc++] = xwcsdup(argv[i]);
         else
-            return xsyserror(0, SVCBATCH_MSG(20), argv[i]);
+            return xsyserrno(17, L"script", argv[i]);
     }
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) && IS_SET(SVCBATCH_OPT_SEND_BREAK))
-        return xsyserror(0, SVCBATCH_MSG(21), NULL);
+        return xsyserrno(21, L"-b and -g", NULL);
 #if SVCBATCH_LEAN_AND_MEAN
     if (maxlogsparam) {
         svcmaxlogs = xwcstoi(maxlogsparam, NULL);
         if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
-            return xsyserror(0, SVCBATCH_MSG(22), maxlogsparam);
+            return xsyserrno(13, L"-m", maxlogsparam);
     }
     if (IS_SET(SVCBATCH_OPT_QUIET)) {
         /**
@@ -4330,7 +4339,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (rcnt) {
         for (i = 0; i < rcnt; i++) {
             if (!resolverotate(rparam[i]))
-                return xsyserror(0, SVCBATCH_MSG(24), rparam[i]);
+                return xsyserrno(12, L"-r", rparam[i]);
         }
         if (outputlog && (rotatebysize || rotatebytime))
             outputlog->maxLogs = 0;
@@ -4366,7 +4375,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     if (argc > 0)
         service->name = argv[0];
     if (IS_EMPTY_WCS(service->name)) {
-        xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(25), NULL);
+        xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(23), NULL);
         exit(1);
     }
     service->handle = RegisterServiceCtrlHandlerExW(service->name, servicehandler, NULL);
@@ -4417,15 +4426,15 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     else {
         if (outdirparam == NULL) {
 #if defined(_DEBUG)
-            xsyswarn(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(26), NULL);
-            xsysinfo(SVCBATCH_MSG(27), SVCBATCH_MSG(28));
+            xsyswarn(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(24), NULL);
+            xsysinfo(NULL, SVCBATCH_MSG(25));
 #endif
             xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
         }
         else {
             LPWSTR op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
             if (op == NULL) {
-                rv = xsyserror(GetLastError(), L"xgetfinalpath", outdirparam);
+                rv = xsyserror(GetLastError(), L"Final Path", outdirparam);
                 reportsvcstatus(SERVICE_STOPPED, rv);
                 return;
             }
