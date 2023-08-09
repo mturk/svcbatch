@@ -2141,7 +2141,8 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
     else if (status == SERVICE_STOPPED) {
         if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
             if (svcfailmode == SVCBATCH_FAIL_EXIT) {
-                svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL, SVCBATCH_MSG(1), NULL);
+                svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL,
+                            L"fail(exit)", SVCBATCH_MSG(1));
                 SVCBATCH_CS_LEAVE(service);
                 exit(ERROR_INVALID_LEVEL);
             }
@@ -2153,7 +2154,8 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
                 }
                 else {
                     /* SVCBATCH_FAIL_ERROR */
-                    svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL, SVCBATCH_MSG(1), NULL);
+                    svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL,
+                                L"fail(error)", SVCBATCH_MSG(1));
                     if (param == 0) {
                         if (service->status.dwCurrentState == SERVICE_RUNNING)
                             param = ERROR_PROCESS_ABORTED;
