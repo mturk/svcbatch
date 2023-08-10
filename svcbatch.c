@@ -1174,7 +1174,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         }
         place    = nargv[xwoptind];
         xwoptswc = *(place++);
-        if (!xisoptswitch(xwoptswc)) {
+        if (xwoptswc != '/') {
             place = zerostring;
             /**
              * Argument is not an option
@@ -1185,7 +1185,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         }
         if (*place == WNUL) {
             /**
-             * We have single '-' or '/'
+             * We have single '/'
              * Skip option and end processing
              */
             place = zerostring;
@@ -1194,9 +1194,10 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         }
         if (*place == xwoptswc) {
             /**
-             * We have '--' or '//'
+             * We have '//'
              * Skip first char and use it as in-place argument
              */
+            xioptarg = 1;
             xwoptarg = place;
             place    = zerostring;
             xwoptind++;
@@ -4057,7 +4058,7 @@ finished:
 
 static int xisoptionswitch(void)
 {
-    if (xwoptarg && xioptarg && (xwoptswc == '/') && (*xwoptarg == L':'))
+    if (xwoptarg && xioptarg && xwoptswc && (*xwoptarg == L':'))
         return 1;
     else
         return 0;
