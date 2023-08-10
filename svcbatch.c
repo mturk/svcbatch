@@ -230,9 +230,9 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
 #if SVCBATCH_LEAN_AND_MEAN
-static LPCWSTR cmdoptions  = L"abc:d+e:f+gh:k+lm+n:o:pqr:s:tvw:";
+static LPCWSTR cmdoptions  = L"abc:d::e:f::gh:k::lm::n:o:pqr:s:tvw:";
 #else
-static LPCWSTR cmdoptions  = L"bc:d+e:f+gh:k+pw:";
+static LPCWSTR cmdoptions  = L"bc:d::e:f::gh:k::pw:";
 #endif
 
 #if SVCBATCH_HAVE_SCM
@@ -1170,7 +1170,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         xwoption = place;
     }
     option = *(place++);
-    if ((option != ':') && (option != '+')) {
+    if (option != ':') {
         /* Options are case insensitive */
         oli = xwcschr(opts, xtolower(option));
     }
@@ -1179,7 +1179,6 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         place = zerostring;
         return EINVAL;
     }
-
     /* Does this option need an argument? */
     if (oli[1] == L':') {
         /**
@@ -1193,33 +1192,12 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         }
         if (*place)
             xwoptarg = place;
-        else if (nargc > ++xwoptind)
+        else if ((oli[2] != L':') && (nargc > ++xwoptind))
             xwoptarg = nargv[xwoptind];
-
         xwoptind++;
         place = zerostring;
-        if (IS_EMPTY_WCS(xwoptarg)) {
-            /* Option-argument is absent or empty */
+        if (IS_EMPTY_WCS(xwoptarg))
             return ENOENT;
-        }
-    }
-    else if (oli[1] == L'+') {
-        /**
-         * Option-argument must be the rest of this argument
-         */
-        if (*place) {
-            /* Skip blanks */
-            while (xisblank(*place))
-                ++place;
-            if (*place)
-                xwoptarg = place;
-        }
-        xwoptind++;
-        place = zerostring;
-        if (IS_EMPTY_WCS(xwoptarg)) {
-            /* Option-argument is absent or empty */
-            return ENOENT;
-        }
     }
     else {
         /* Don't need argument */
