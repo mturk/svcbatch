@@ -3006,33 +3006,91 @@ static BOOL resolverotate(LPCWSTR rp)
 
     ASSERT_WSTR(rp, FALSE);
 
+    rotateinterval      = CPP_INT64_C(0);
+    rotatetime.QuadPart = CPP_INT64_C(0);
+    rotatebysignal      = FALSE;
+    rotatebytime        = FALSE;
+    rotatebysize        = FALSE;
+
     if (*rp == L'S') {
-        if (rotatebysignal) {
-            DBG_PRINTS("rotate by signal already defined");
-            return FALSE;
-        }
+        ++rp;
         DBG_PRINTS("rotate by signal");
         rotatebysignal = TRUE;
-        return TRUE;
+        if (*(rp++) != L'+')
+            return TRUE;
     }
     if (*rp == L'T') {
-        if (IS_SET(SVCBATCH_OPT_TRUNCATE)) {
-            DBG_PRINTS("truncate on rotate already defined");
-            return FALSE;
-        }
+        ++rp;
         DBG_PRINTS("truncate on rotate");
         svcoptions |= SVCBATCH_OPT_TRUNCATE;
-        return TRUE;
+        if (*(rp++) != L'+')
+            return TRUE;
+    }
+    if (xwcschr(rp, L':')) {
+        int hh, mm, ss;
+
+        hh = xwcstoi(rp, &ep);
+        if ((hh < 0) || (hh > 23))
+            return FALSE;
+        if (*ep != L':')
+            return FALSE;
+        rp = ep + 1;
+        mm = xwcstoi(rp, &ep);
+        if ((mm < 0) || (mm > 59))
+            return FALSE;
+        if (*ep != L':')
+            return FALSE;
+        rp = ep + 1;
+        ss = xwcstoi(rp, &ep);
+        if ((ss < 0) || (ss > 59))
+            return FALSE;
+
+        DBG_PRINTF("rotate each day at %.2d:%.2d:%.2d",
+                   hh, mm, ss);
+        resolvetimeout(hh, mm, ss, 1);
+        rp = ep;
+        if (*(rp++) != L'+')
+            return TRUE;
+
+    }
+    else {
+        int mm = xwcstoi(rp, &ep);
+
+        if (mm < 0) {
+            DBG_PRINTF("invalid rotate parameter %S", rp);
+            return FALSE;
+        }
+        if ((*ep == L'+') || (*ep == WNUL)) {
+
+            if (mm == 0) {
+                DBG_PRINTS("rotate at midnight");
+                resolvetimeout(0, 0, 0, 1);
+            }
+            else if (mm == 60) {
+                DBG_PRINTS("rotate on each full hour");
+                resolvetimeout(0, 0, 0, 0);
+            }
+            else {
+                if (mm < SVCBATCH_MIN_ROTATE_INT) {
+                    DBG_PRINTF("rotate time %d is less then %d minutes",
+                               mm, SVCBATCH_MIN_ROTATE_INT);
+                    return FALSE;
+                }
+                rotateinterval = mm * ONE_MINUTE * CPP_INT64_C(-1);
+                DBG_PRINTF("rotate each %d minutes", mm);
+                rotatetime.QuadPart = rotateinterval;
+                rotatebytime = TRUE;
+            }
+            rp = ep;
+            if (*(rp++) != L'+')
+                return TRUE;
+        }
     }
     if (xwcspbrk(rp, L"BKMG")) {
         int      val;
         LONGLONG siz;
         LONGLONG mux = CPP_INT64_C(0);
 
-        if (rotatebysize) {
-            DBG_PRINTS("rotate by size already defined");
-            return FALSE;
-        }
         val = xwcstoi(rp, &ep);
         if (val < 1)
             return FALSE;
@@ -3055,76 +3113,14 @@ static BOOL resolverotate(LPCWSTR rp)
         }
         siz = val * mux;
         if (siz < KILOBYTES(SVCBATCH_MIN_ROTATE_SIZ)) {
-            DBG_PRINTF("rotate size %S is less then %dK",
-                       rp, SVCBATCH_MIN_ROTATE_SIZ);
+            DBG_PRINTF("rotate size is less then %dK",
+                       SVCBATCH_MIN_ROTATE_SIZ);
             return FALSE;
         }
         else {
-            DBG_PRINTF("rotate if larger then %S", rp);
+            DBG_PRINTF("rotate if larger then %llu bytes", siz);
             rotatesize   = siz;
             rotatebysize = TRUE;
-        }
-    }
-    else {
-        if (rotatebytime) {
-            DBG_PRINTS("rotate by time already defined");
-            return FALSE;
-        }
-        rotateinterval      = CPP_INT64_C(0);
-        rotatetime.QuadPart = CPP_INT64_C(0);
-
-        if (xwcschr(rp, L':')) {
-            int hh, mm, ss;
-
-            hh = xwcstoi(rp, &ep);
-            if ((hh < 0) || (hh > 23))
-                return FALSE;
-            if (*ep != L':')
-                return FALSE;
-            rp = ep + 1;
-            mm = xwcstoi(rp, &ep);
-            if ((mm < 0) || (mm > 59))
-                return FALSE;
-            if (*ep != L':')
-                return FALSE;
-            rp = ep + 1;
-            ss = xwcstoi(rp, &ep);
-            if ((ss < 0) || (ss > 59))
-                return FALSE;
-            if (*ep)
-                return FALSE;
-
-            DBG_PRINTF("rotate each day at %.2d:%.2d:%.2d",
-                       hh, mm, ss);
-            resolvetimeout(hh, mm, ss, 1);
-        }
-        else {
-            int mm;
-
-            mm = xwcstoi(rp, &ep);
-            if (mm < 0 || *ep) {
-                DBG_PRINTF("invalid rotate timeout %S", rp);
-                return FALSE;
-            }
-            else if (mm == 0) {
-                DBG_PRINTS("rotate at midnight");
-                resolvetimeout(0, 0, 0, 1);
-            }
-            else if (mm == 60) {
-                DBG_PRINTS("rotate on each full hour");
-                resolvetimeout(0, 0, 0, 0);
-            }
-            else {
-                if (mm < SVCBATCH_MIN_ROTATE_INT) {
-                    DBG_PRINTF("rotate time %d is less then %d minutes",
-                               mm, SVCBATCH_MIN_ROTATE_INT);
-                    return FALSE;
-                }
-                rotateinterval = mm * ONE_MINUTE * CPP_INT64_C(-1);
-                DBG_PRINTF("rotate each %d minutes", mm);
-                rotatetime.QuadPart = rotateinterval;
-                rotatebytime = TRUE;
-            }
         }
     }
     return TRUE;
@@ -4015,9 +4011,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
     DWORD    x;
     int      i;
     int      opt;
-#if SVCBATCH_LEAN_AND_MEAN
-    int      rcnt = 0;
-#endif
     int      rargc;
     LPWSTR  *rargv;
 
@@ -4028,7 +4021,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
 #if SVCBATCH_LEAN_AND_MEAN
     LPWSTR   svcstopparam = NULL;
     LPCWSTR  maxlogsparam = NULL;
-    LPCWSTR  rparam[4];
+    LPCWSTR  rotateparam  = NULL;
 #endif
 
     DBG_PRINTF("started %d", argc);
@@ -4165,6 +4158,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     return xsyserrno(11, L"o", xwoptarg);
                 xfixpathsep(outdirparam);
             break;
+            case 'r':
+                rotateparam  = xwoptarg;
+            break;
 #endif
             case 'f':
                 svcfailmode = xwcstoi(xwoptarg, NULL);
@@ -4236,12 +4232,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
 #if SVCBATCH_LEAN_AND_MEAN
-            case 'r':
-                if (rcnt < 3)
-                    rparam[rcnt++] = xwoptarg;
-                else
-                    return xsyserrno(19, L"rotate", xwoptarg);
-            break;
             case 's':
                 if (svcstopparam == NULL) {
                     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
@@ -4317,7 +4307,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
          * Discard any log rotate related command options
          * when -q is defined
          */
-        rcnt = 0;
+        rotateparam = NULL;
     }
     else {
         outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
@@ -4425,11 +4415,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
         svcoptions |= SVCBATCH_OPT_YYES;
     }
 #if SVCBATCH_LEAN_AND_MEAN
-    if (rcnt) {
-        for (i = 0; i < rcnt; i++) {
-            if (!resolverotate(rparam[i]))
-                return xsyserrno(12, L"r", rparam[i]);
-        }
+    if (rotateparam) {
+        if (!resolverotate(rotateparam))
+            return xsyserrno(12, L"r", rotateparam);
         if (outputlog && (rotatebysize || rotatebytime))
             outputlog->maxLogs = 0;
         svcoptions |= SVCBATCH_OPT_ROTATE;
