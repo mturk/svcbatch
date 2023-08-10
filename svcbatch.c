@@ -1252,12 +1252,12 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
         return EOF;
     }
     place  = nargv[xwoptind];
-    option = *(place++);
-
-    if (!xisoptswitch(option))
+    if ((*(place++) != L'-') || (*(place++) != L'-')) {
+        /* Not an --option */
         return EOF;
-    if ((option == '-') && (*place == WNUL)) {
-        /* The single '-' is a command delimiter */
+    }
+    if (*place == WNUL) {
+        /* The '--' is a command delimiter */
         xwoptind++;
         return EOF;
     }
@@ -1282,7 +1282,7 @@ static int xlongopt(int nargc, LPCWSTR *nargv, LPCWSTR opts, LPCWSTR *longopts)
             int endpos = xwstartswith(xwoption, optsrc + 2);
             if (endpos) {
                 LPCWSTR oo = xwoption + endpos;
-                /* Check for /option, /option: or /option= */
+                /* Check for --option , --option: or --option= */
                 if (*oo == WNUL) {
                     optopt = zerostring;
                 }

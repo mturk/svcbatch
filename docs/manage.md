@@ -133,7 +133,7 @@ Starts a service.
 The following command:
 
   ```no-highlight
-  > svcbatch start myService /wait
+  > svcbatch start myService --wait
     Service Name : myService
          Command : Start
                  : SUCCESS
@@ -151,7 +151,7 @@ Sends a STOP request to a service.
 The following command:
 
   ```no-highlight
-  > svcbatch stop myService /wait
+  > svcbatch stop myService --wait
     Service Name : myService
          Command : Stop
                  : SUCCESS
@@ -162,11 +162,11 @@ The following command:
 will send a STOP request to the **myService** service
 and return when the service is stopped.
 
-In case the service did not stop within `/wait[:seconds]`
+In case the service did not stop within `--wait[:seconds]`
 interval, SvcBatch will report something similar to:
 
   ```no-highlight
-  > svcbatch stop myService /wait=2
+  > svcbatch stop myService --wait=2
     Service Name : myService
          Command : Stop
                  : FAILED
@@ -181,25 +181,24 @@ interval, SvcBatch will report something similar to:
 
 # Command options
 
-SvcBatch management command line options are case insensitive
-and both `-` and `/` can be used as switches. This means that
-`/bin /Bin -bin and -BIN` can be used for the same option.
+SvcBatch management command line options are case insensitive.
+This means that `--bin, --Bin or ---BIN` can be used for the same option.
 
 Command options arguments can be part or the command option
 separated by either `:` or `=` character. This means that
-`/start:auto`, `/start=auto` or `/start auto` are the same.
+`--start:auto`, `--start=auto` or `--start auto` are the same.
 
-However arguments for options `/binpath`, `/description` and
-`/displayname` must be declared as separate command line argument.
+However arguments for options like `--binpath`, `--description` and
+`--displayname` must be declared as separate command line argument.
 
 Some command options have alternate names. For example
-either `/bin` or `/binpath` can be used to set the
+either `--desc` or `--description` can be used to set the
 service's BinaryPathName.
 
 
 ## Common options
 
-* **/quiet**
+* **--quiet**
 
   **Disable printing of status messages**
 
@@ -210,7 +209,7 @@ service's BinaryPathName.
 
 ## Create and config options
 
-* **/binPath|/bin [path]**
+* **--binPath|--bin [path]**
 
   **Set service binary path**
 
@@ -226,7 +225,7 @@ service's BinaryPathName.
   then the svcbatch.exe used for creating a service.
 
   ```no-highlight
-  > svcbatch create myService /bin "@ProgramFiles@\SvcBatch\svcbatch.exe" ...
+  > svcbatch create myService --bin "@ProgramFiles@\SvcBatch\svcbatch.exe" ...
   >
   ```
 
@@ -246,18 +245,18 @@ service's BinaryPathName.
   to be properly quoted.
 
 
-* **/description|/desc [description]**
+* **--description|--desc [description]**
 
   **Sets the description string for a service**
 
   This option sets the description string for a service.
 
   ```no-highlight
-  > svcbatch config myService /desc "This is My Service"
+  > svcbatch config myService --desc "This is My Service"
   >
   ```
 
-* **/depend [dependencies]**
+* **--depend [dependencies]**
 
   **Sets the service dependencies**
 
@@ -266,25 +265,25 @@ service's BinaryPathName.
   separated by `/` (forward slash) character.
 
   ```no-highlight
-  > svcbatch config myService /depend=Tcpip/Afd
+  > svcbatch config myService --depend=Tcpip/Afd
   >
   ```
 
   The myService will depend on `Tcpip` and `Afd` services.
 
 
-* **/displayname|/display [name]**
+* **--displayname|--display [name]**
 
   **Sets the service display name**
 
   This option sets the DisplayName for a service.
 
   ```no-highlight
-  > svcbatch create myService /displayName "My Service"
+  > svcbatch create myService --displayName "My Service"
   >
   ```
 
-* **/username|/user [name]**
+* **--username|--user [name]**
 
   **Sets the service account name**
 
@@ -297,31 +296,30 @@ service's BinaryPathName.
   The **name** parameter can be either the full
   account name or:
 
-  * **/user=0**
+  * **--user=0**
 
-    This option is the same as **/userName=.\LocalSystem**
+    This option is the same as **--user .\LocalSystem**
 
-  * **/user=1**
+  * **--user=1**
 
-    This option is the same as **/user "NT AUTHORITY\LocalService"**
+    This option is the same as **--user "NT AUTHORITY\LocalService"**
 
-  * **/user=2**
+  * **--user:2**
+    This option is the same as **--user "NT AUTHORITY\NetworkService"**
 
-    This option is the same as **/obj "NT AUTHORITY\NetworkService"**
 
-
-* **/password [password]**
+* **--password [password]**
 
   **Sets the password for the service account name**
 
   This option sets the **password** to the account name
-  specified by the **/user [name]** parameter.
+  specified by the **--user [name]** parameter.
   Do not specify this option if the account has no password
   or if the service runs in the LocalService, NetworkService,
   or LocalSystem account.
 
 
-* **/privileges|/privs [privileges]**
+* **--privileges|--privs [privileges]**
 
   **Changes the required privileges setting of a service**
 
@@ -339,11 +337,11 @@ service's BinaryPathName.
   The **privileges** are separated by `/` (forward slash) character.
 
   ```no-highlight
-  > svcbatch config myService /privs SeBackupPrivilege/SeRestorePrivilege
+  > svcbatch config myService --privs SeBackupPrivilege/SeRestorePrivilege
   >
   ```
 
-* **/start [type]**
+* **--start [type]**
 
   **Sets the service start options**
 
@@ -369,7 +367,7 @@ service's BinaryPathName.
 
 
   ```no-highlight
-  > svcbatch config myService /start:auto
+  > svcbatch config myService --start:auto
   >
   ```
 
@@ -385,7 +383,7 @@ For example:
   ```no-highlight
   > svcbatch create myService
   ...
-  > svcbatch config myService /start=auto /vl -rS ...
+  > svcbatch config myService --start=auto /vl -rS ...
   ```
 
 Since the `/vl` is not valid control or create option,
@@ -396,7 +394,7 @@ service is started, as well as any following argument.
 
 ## Start options
 
-* **/wait[:seconds]**
+* **--wait[:seconds]**
 
   **Wait for service to start**
 
@@ -404,7 +402,7 @@ service is started, as well as any following argument.
   up to **seconds** for service to start.
 
   The **seconds** is optional parameter. If not
-  provided as part of **/wait** option, default
+  provided as part of **--wait** option, default
   value of `30` seconds will be used.
 
 * **arguments ...**
@@ -415,14 +413,14 @@ service is started, as well as any following argument.
   service on startup.
 
   ```no-highlight
-  > svcbatch start myService /wait arg1 arg2 ...
+  > svcbatch start myService --wait arg1 arg2 ...
   >
   ```
 
 
 ## Stop options
 
-* **/wait[:seconds]**
+* **--wait[:seconds]**
 
   **Wait for service to stop**
 
@@ -430,7 +428,7 @@ service is started, as well as any following argument.
   up to **seconds** for service to stop.
 
   The **seconds** is optional parameter. If not
-  provided as part of **/wait** option, default
+  provided as part of **--wait** option, default
   value of `30` seconds will be used.
 
 * **reason**

@@ -84,34 +84,9 @@ rem Presuming this is the build tree ...
 rem Create a service command line
 rem
 rem
-goto allInOne
-rem goto doLite
-rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" -pbL /h "%TEST_DIR%" "%SERVICE_ENVIRONMENT%" %SERVICE_LOG_DIR%
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-rem Add Additional configuration
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /quiet %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS%
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-rem Add Batch file arguments
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /quiet %SERVICE_BATCH% run %%TEMP%%
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-rem Set Display Name and Description
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /quiet /display "A Dummy Service" /description "One dummy SvcBatch service example"
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-rem Set Dependencies and Privileges
-%BUILD_DIR%\svcbatch.exe config "%SERVICE_NAME%" /quiet /depend=Tcpip/Afd /privs:SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-rem
-rem
-echo %~nx0: Created %SERVICE_NAME%
-goto End
-rem
-:allInOne
-rem
-rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
-    /displayname "A Dummy Service" /description "One dummy SvcBatch service example" ^
-    /depend=Tcpip/Afd /privs:SeShutdownPrivilege ^
+    --displayName "A Dummy Service" --description "One dummy SvcBatch service example" ^
+    --depend=Tcpip/Afd --privs:SeShutdownPrivilege ^
     -pbLva /f1 /$S:OFF /$E:ON /h ../../test %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
     %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
     %SERVICE_BATCH% run %%TEMP%% %%SOME_RANDOM_VARIABLE%%
@@ -127,9 +102,9 @@ rem
 :doLite
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" /quiet ^
-    /display "A Dummy Service" /desc "One dummy SvcBatch service example" ^
-    /username=1 ^
+%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" --quiet ^
+    --display "A Dummy Service" --desc "One dummy SvcBatch service example" ^
+    --username=1 ^
     /h "%TEST_DIR%" %SERVICE_BATCH% run
 rem
 rem
@@ -156,7 +131,7 @@ shift
 goto setStartArgs
 :doneStartArgs
 rem
-%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" /wait %START_CMD_ARGS%
+%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" --wait %START_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Started %SERVICE_NAME%
 goto End
@@ -180,7 +155,7 @@ shift
 goto setStopArgs
 :doneStopArgs
 rem
-%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" /wait=30 %STOP_CMD_ARGS%
+%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" --wait=30 %STOP_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Stopped %SERVICE_NAME%
 goto End
