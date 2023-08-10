@@ -292,6 +292,9 @@
 #define SVCBATCH_OPT_SEND_BREAK     0x00000200   /* Enable sending CTRL_BREAK    */
 #define SVCBATCH_OPT_ROTATE         0x00000400   /* Enable log rotation          */
 
+#define SVCBATCH_OPT_NO_SCRIPT      0x00001000   /* Do not resolve scriptparam   */
+#define SVCBATCH_OPT_NO_STOPSCRIPT  0x00002000   /* Use service script for stop  */
+
 #define SVCBATCH_FAIL_ERROR     0   /* Set service error if run endeded without stop    */
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
 #define SVCBATCH_FAIL_EXIT      2   /* Call exit() on on stop without scm CTRL_STOP     */
@@ -308,6 +311,8 @@
 #define IS_VALID_WCS(_s)        (((_s) != NULL) && (*(_s) != WNUL))
 #define IS_SET(_o)              ((svcoptions & (_o)) == (_o))
 #define IS_NOT(_o)              ((svcoptions & (_o)) != (_o))
+#define OPT_SET(_o)             svcoptions |=  (_o)
+#define OPT_CLR(_o)             svcoptions &= ~(_o)
 
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 

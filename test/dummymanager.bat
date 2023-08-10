@@ -55,7 +55,7 @@ rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=/s?shutdown /S@SystemRoot@ "/s\"some @@argument @@@@@with spaces\"""
+set "SHUTDOWN_ARGS=/sshutdown /S@SystemRoot@ "/s\"some @@argument @@@@@with spaces\"""
 rem
 rem
 set "SERVICE_LOG_DIR=/oLogs/%SERVICE_NAME%"
@@ -112,7 +112,7 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     /displayname "A Dummy Service" /description "One dummy SvcBatch service example" ^
     /depend=Tcpip/Afd /privs:SeShutdownPrivilege ^
-    -pbLva /f1 /h ../../test %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
+    -pbLva /f1 /$S:OFF /$E:ON /h ../../test %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
     %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
     %SERVICE_BATCH% run %%TEMP%% %%SOME_RANDOM_VARIABLE%%
 rem
