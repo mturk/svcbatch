@@ -228,6 +228,21 @@ static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
 #if SVCBATCH_LEAN_AND_MEAN
+static const char *setsvcoption[] = {
+    "On",
+    "Yes",
+    "Enabled",
+    NULL
+};
+
+static const char *notsvcoption[] = {
+    "Off",
+    "No",
+    "Disabled",
+    NULL
+};
+
+
 static LPCWSTR cmdoptions  = L"$::abc:d::e:f::gh:k::lm::n:o:pqr:s:tvw:";
 #else
 static LPCWSTR cmdoptions  = L"$::bc:d::e:f::gh:k::pw:";
@@ -2436,6 +2451,13 @@ finished:
     CloseHandle(hk);
 }
 
+static LPCSTR xgetoptval(int m, DWORD opt)
+{
+    if (IS_SET(opt))
+        return setsvcoption[m];
+    else
+        return notsvcoption[m];
+}
 
 static void logconfig(HANDLE h)
 {
@@ -2464,6 +2486,12 @@ static void logconfig(HANDLE h)
     logwwrite(h, 0, "Home directory   : ", service->home);
     logwwrite(h, 0, "Logs directory   : ", service->logs);
     logwwrite(h, 0, "Work directory   : ", service->work);
+
+    logwrline(h, 1, "Runtime options");
+    logwlines(h, 0, "     Log rotation: ", xgetoptval(2, SVCBATCH_OPT_ROTATE));
+    logwlines(h, 0, "    Truncate Logs: ", xgetoptval(1, SVCBATCH_OPT_TRUNCATE));
+    logwlines(h, 0, "   Use Local Time: ", xgetoptval(1, SVCBATCH_OPT_LOCALTIME));
+    logprintf(h, 0, "     Stop Timeout: %lu sec", stoptimeout / 1000);
 
     FlushFileBuffers(h);
 }
