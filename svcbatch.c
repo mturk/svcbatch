@@ -224,10 +224,11 @@ static LPCSTR  cnamestamp  = SVCBATCH_RES_NAME " " SVCBATCH_VERSION_TXT;
 static LPCWSTR cwsenvname  = SVCBATCH_ENVNAME;
 
 static int     xwoptind    = 1;
+static int     xwoptswc    = 0;
+static int     xioptarg    = 0;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
-#if SVCBATCH_LEAN_AND_MEAN
 static const char *setsvcoption[] = {
     "On",
     "Yes",
@@ -243,9 +244,10 @@ static const char *notsvcoption[] = {
 };
 
 
-static LPCWSTR cmdoptions  = L"$::abc:d::e:f::gh:k::lm::n:o:pqr:s:vw:";
+#if SVCBATCH_LEAN_AND_MEAN
+static LPCWSTR cmdoptions  = L"abc:d::e:f::gh:k::lm::n:o:pqr:s:vw:";
 #else
-static LPCWSTR cmdoptions  = L"$::bc:d::e:f::gh:k::pw:";
+static LPCWSTR cmdoptions  = L"bc:d::e:f::gh:k::pw:";
 #endif
 
 static DWORD   setuserenvc = 0;
@@ -1159,9 +1161,10 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
 {
     static LPCWSTR place = zerostring;
     LPCWSTR oli = NULL;
-    int optsw = 0;
     int option;
 
+    xioptarg = 0;
+    xwoptswc = 0;
     xwoptarg = NULL;
     if (*place == WNUL) {
         if (xwoptind >= nargc) {
@@ -1169,9 +1172,9 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             place = zerostring;
             return EOF;
         }
-        place = nargv[xwoptind];
-        optsw = *(place++);
-        if (!xisoptswitch(optsw)) {
+        place    = nargv[xwoptind];
+        xwoptswc = *(place++);
+        if (!xisoptswitch(xwoptswc)) {
             place = zerostring;
             /**
              * Argument is not an option
@@ -1189,7 +1192,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             xwoptind++;
             return EOF;
         }
-        if (*place == optsw) {
+        if (*place == xwoptswc) {
             /**
              * We have '--' or '//'
              * Skip first char and use it as in-place argument
@@ -1213,19 +1216,19 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     }
     /* Does this option need an argument? */
     if (oli[1] == L':') {
-        if (optsw == 0) {
+        if (xwoptswc == 0) {
             /**
              * The option that requires an
              * argument is not a standalone option
              * Treat is as an option that does not
              * require an argument.
              */
+            xwoptarg = oli;
             if (*place == WNUL) {
                 xwoptind++;
                 place = zerostring;
             }
-
-            return oli[0];
+            return '?';
         }
         /**
          * Option-argument is either the rest of this argument
@@ -1245,6 +1248,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
                 ++place;
         }
         if (*place) {
+            xioptarg = 1;
             xwoptarg = place;
         }
         else if (oli[2] == L':') {
@@ -1267,13 +1271,13 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     }
     else {
         /* Don't need argument */
-        if ((optsw == L'/') && (*place == L':')) {
+        if ((xwoptswc == '/') && (*place == L':')) {
             /**
              * Set Option-argument for
              * stand-alone /O if
              * followed by ':' character
              */
-             place++;
+             xioptarg = 1;
              xwoptarg = place;
              place    = zerostring;
         }
@@ -4051,6 +4055,14 @@ finished:
     return ERROR_SUCCESS;
 }
 
+static int xisoptionswitch(void)
+{
+    if (xwoptarg && xioptarg && (xwoptswc == '/') && (*xwoptarg == L':'))
+        return 1;
+    else
+        return 0;
+}
+
 static int parseoptions(int argc, LPCWSTR *argv)
 {
     DWORD    x;
@@ -4080,60 +4092,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
 
     while ((opt = xwgetopt(argc, argv, cmdoptions)) != EOF) {
         switch (opt) {
-            case '$':
-                opt = xtolower(*(xwoptarg++));
-                if ((*(xwoptarg++) != L':') || (*xwoptarg == WNUL))
-                    return xsyserrno(11, xwoption, NULL);
-                switch (opt) {
-                    case 'b':
-                        if (xisstrbool(0, xwoptarg))
-                            OPT_SET(SVCBATCH_OPT_NO_SCRIPT);
-                        else if (xisstrbool(1, xwoptarg))
-                            OPT_CLR(SVCBATCH_OPT_NO_SCRIPT);
-                        else
-                            return xsyserrno(12, xwoption, NULL);
-                    break;
-                    case 'e':
-                        if (xisstrbool(0, xwoptarg))
-                            OPT_SET(SVCBATCH_OPT_NOENV);
-                        else if (xisstrbool(1, xwoptarg))
-                            OPT_CLR(SVCBATCH_OPT_NOENV);
-                        else {
-                            if (xwcspbrk(xwoptarg, L" ="))
-                                return xsyserrno(14, xwoption, NULL);
-                            cwsenvname = xwoptarg;
-                        }
-                    break;
-#if SVCBATCH_LEAN_AND_MEAN
-                    case 'l':
-                        if (xisstrbool(0, xwoptarg))
-                            stopoption |= SVCBATCH_OPT_QUIET;
-                        else if (xisstrbool(1, xwoptarg))
-                            stopoption  = 0;
-                        else
-                            return xsyserrno(12, xwoption, NULL);
-                    break;
-                    case 's':
-                        if (xisstrbool(0, xwoptarg))
-                            OPT_SET(SVCBATCH_OPT_NO_STOPSCRIPT);
-                        else if (xisstrbool(1, xwoptarg))
-                            OPT_CLR(SVCBATCH_OPT_NO_STOPSCRIPT);
-                        else
-                            return xsyserrno(12, xwoption, NULL);
-                    break;
-                    case 'v':
-                        if (xisstrbool(1, xwoptarg))
-                            OPT_SET(SVCBATCH_OPT_VERBOSE);
-                        else if (xisstrbool(0, xwoptarg))
-                            OPT_CLR(SVCBATCH_OPT_VERBOSE);
-                        else
-                            return xsyserrno(12, xwoption, NULL);
-                    break;
-#endif
-                    default:
-                        return xsyserrno(22, xwoption, NULL);
-                    break;
-                }
+            case '?':
+                DBG_PRINTF("in-place option that requires argument: %C", *xwoptarg);
             break;
             case ':':
                 if (scriptparam == NULL) {
@@ -4155,7 +4115,18 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 'b':
-                OPT_SET(SVCBATCH_OPT_SEND_BREAK);
+                if (xisoptionswitch()) {
+                    xwoptarg++;
+                    if (xisstrbool(0, xwoptarg))
+                        OPT_SET(SVCBATCH_OPT_NO_SCRIPT);
+                    else if (xisstrbool(1, xwoptarg))
+                        OPT_SET(SVCBATCH_OPT_NO_SCRIPT);
+                    else
+                        return xsyserrno(12, xwoption, NULL);
+                }
+                else {
+                    OPT_SET(SVCBATCH_OPT_SEND_BREAK);
+                }
             break;
             case 'g':
                 OPT_SET(SVCBATCH_OPT_CTRL_BREAK);
@@ -4205,14 +4176,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
 #endif
             case 'f':
-                if (xwoptarg) {
-                    svcfailmode = xwcstoi(xwoptarg, NULL);
-                    if ((svcfailmode < 0) || (svcfailmode > 2))
-                        return xsyserrno(13, L"f", xwoptarg);
-                }
-                else {
-                    DBG_PRINTS("Empty f option");
-                }
+                svcfailmode = xwcstoi(xwoptarg, NULL);
+                if ((svcfailmode < 0) || (svcfailmode > 2))
+                    return xsyserrno(13, L"f", xwoptarg);
             break;
             case 'h':
                 svchomeparam = xwcsdup(skipdotslash(xwoptarg));
@@ -4258,10 +4224,24 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 'e':
-                {
-                    LPCWSTR p;
-
-                    p = xwcschr(xwoptarg + 1, L'=');
+                if (xisoptionswitch()) {
+                    xwoptarg++;
+                    if (xisstrbool(0, xwoptarg)) {
+                        OPT_SET(SVCBATCH_OPT_NOENV);
+                        DBG_PRINTS("S:OFF");
+                        break;
+                    }
+                    if (xisstrbool(1, xwoptarg)) {
+                        OPT_CLR(SVCBATCH_OPT_NOENV);
+                        DBG_PRINTS("E:ON");
+                        break;
+                    }
+                    if (xwcspbrk(xwoptarg, L" ="))
+                        return xsyserrno(14, xwoption, NULL);
+                    cwsenvname = xwoptarg;
+                }
+                else {
+                    LPCWSTR p = xwcschr(xwoptarg + 1, L'=');
                     if (p == NULL)
                         return xsyserrno(12, L"e", xwoptarg);
                     p++;
@@ -4280,6 +4260,23 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
 #if SVCBATCH_LEAN_AND_MEAN
             case 's':
+                if (xisoptionswitch()) {
+                    if (xisstrbool(0, xwoptarg + 1)) {
+                        OPT_SET(SVCBATCH_OPT_NO_STOPSCRIPT);
+                        DBG_PRINTS("S:OFF");
+                        break;
+                    }
+                    if (xisstrbool(1, xwoptarg + 1)) {
+                        OPT_CLR(SVCBATCH_OPT_NO_STOPSCRIPT);
+                        DBG_PRINTS("S:ON");
+                        break;
+                    }
+                    if ((xtolower(xwoptarg[1]) == L'q') && (xwoptarg[2] == WNUL)) {
+                        stopoption |= SVCBATCH_OPT_QUIET;
+                        DBG_PRINTS("S:Q");
+                        break;
+                    }
+                }
                 if (svcstopparam == NULL) {
                     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                     svcstopparam = xwcsdup(skipdotslash(xwoptarg));
