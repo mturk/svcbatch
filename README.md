@@ -141,11 +141,11 @@ detailed usage.
   SvcBatch itself to start the service.
 
   ```no-highlight
-  > svcbatch create myservice myservice.bat param1"
+  > svcbatch create myservice myservice.bat param1
 
   ...
 
-  > svcbatch start myservice /wait param2 param3
+  > svcbatch start myservice --wait param2 param3
 
   ```
 
@@ -297,8 +297,8 @@ rotation, SvcBatch will not rotate logs.
 ## Command Line Options
 
 SvcBatch command line options allow users to customize
-service deployments. Options are case insensitive and both `-` and `/` can be
-used as switches. This means that `/b /B -b and -B` can be used for the same option..
+service deployments. Options are defined with **/** as
+command switch. This means that `/b /B` can be used for the same option..
 
 After handling switches SvcBatch will use the next argument
 as the batch file to execute.
@@ -321,14 +321,15 @@ be combined as one option. For example instead using
 multiple options
 
 ```no-highlight
-> sc create ... -b /l /v -a ...
+> svcbatch create ... /B /L /V /a ...
 
 ```
 
-You can combine those multiple options using a single one
+You can combine those multiple options using a single
+command option.
 
 ```no-highlight
-> sc create ... /bLva ...
+> svcbatch create ... /bLvA ...
 
 ```
 
@@ -339,17 +340,17 @@ command argument.
 For example:
 
 ```no-highlight
-> sc create ... /m4 "-sSome argument"...
+> svcbatch create ... /M4 "/Ssome argument"...
 
 Is the same as
 
-> sc create ... /m 4 -s "Some argument" ...
+> svcbatch create ... /M:4 /S "Some argument" ...
 
 ```
 
 
 
-* **-a**
+* **/A*
 
   **Append to the existing log files**
 
@@ -361,7 +362,7 @@ Is the same as
 
 
 
-* **-b**
+* **/B**
 
   **Enable sending CTRL_BREAK_EVENT**
 
@@ -371,7 +372,7 @@ Is the same as
   See [Custom Control Codes](#custom-control-codes) section below for more details
 
 
-* **-c [shell][parameters]**
+* **/C [shell][parameters]**
 
   **Use alternative shell**
 
@@ -381,7 +382,7 @@ Is the same as
   For example:
 
   ```no-highlight
-  > sc create ... -c powershell -c -NoProfile -c \"-ExecutionPolicy Bypass\" -c -File myservice.ps1 ...
+  > svcbatch create ... /C powershell /C -NoProfile /C \"-ExecutionPolicy Bypass\" /C -File myservice.ps1 ...
 
   ```
 
@@ -389,15 +390,15 @@ Is the same as
   **parameters** as arguments to the powershell.
 
 
-* **-d [depth]**
+* **/D[<:>depth]**
 
   **Set the nested process kill depth**
 
   This option sets the **depth** of the process
   tree that SvcBatch will kill on service stop.
 
-  The valid **depth** range is between `0` and `4`.
-  By default this value is set to `0`.
+  The valid **depth** range is between **0**
+  and **4**. By default this value is set to zero.
 
   This option is used only when manually stopping the
   service. In case the service STOP is initiated by
@@ -409,7 +410,8 @@ Is the same as
   a process that do not respond to STOP command, but
   keeps running in the background.
 
-* **-e [name<=value>]**
+
+* **/E [name<=value>]**
 
   **Sets or deletes environment variable**
 
@@ -420,7 +422,7 @@ Is the same as
   For example:
 
   ```no-highlight
-  > sc create ... -e MY_VARIABLE_NAME=Very -e MY_VARIABLE_VALUE=Fancy ...
+  > svcbatch create ... /EMY_VARIABLE=Very /E "MY_LONHG_VARIABLE=Very Fancy" ...
 
   ```
 
@@ -428,7 +430,7 @@ Is the same as
   variable for the current process:
 
   ```no-highlight
-  > sc create ... -e \"PATH=@ProgramFiles@\SomeApplication;@PATH@\" ...
+  > svcbatch create ... /E \"PATH=@ProgramFiles@\SomeApplication;@PATH@\" ...
 
   ```
 
@@ -439,12 +441,12 @@ Is the same as
   variable for the current process:
 
   ```no-highlight
-  > sc create ... /eSOME_VARIABLE ...
+  > svcbatch create ... /eSOME_VARIABLE ...
 
   ```
 
 
-* **-f [mode]**
+* **/F[<:>mode]**
 
   **Set failure mode**
 
@@ -452,7 +454,8 @@ Is the same as
   service failure in case it enters a `STOP` state
   without explicit Stop command from the SCM.
 
-  The **mode** must be number between `0` and `2`.
+  Use **/F:[0|1|2]** to enable desired **mode**.
+
 
   * **mode 0**
 
@@ -486,7 +489,6 @@ Is the same as
     fails. The information message will be written to
     the Windows Event log and service will enter a stop state.
 
-
   * **mode 2**
 
     This mode will not report error code to the SCM when
@@ -497,7 +499,7 @@ Is the same as
 
 
 
-* **-g**
+* **/G**
 
   **Generate CTRL_BREAK on service stop**
 
@@ -527,7 +529,7 @@ Is the same as
   to the Windows Event log.
 
 
-* **-h [path]**
+* **/H [path]**
 
   **Set service home directory**
 
@@ -552,7 +554,7 @@ Is the same as
   to the Windows Event log.
 
 
-* **-k [timeout]**
+* **/K[<:>timeout]**
 
   **Set stop timeout in seconds**
 
@@ -572,14 +574,14 @@ Is the same as
   as time limit.
 
 
-* **-l**
+* **/L**
 
   **Use local time**
 
   This option causes all logging and rotation
   to use local instead system time.
 
-* **-m [number]**
+* **/M[<:>number]**
 
   **Set maximum number of log files**
 
@@ -587,23 +589,23 @@ Is the same as
   between `1 and 9` it will be used instead default `1 .. 2`.
 
   ```no-highlight
-  > sc create ... -m 4
+  > svcbatch create ... /m4
 
   ```
 
   Instead rotating Svcbatch.log from `1 .. 2` it will rotate
   exiting log files from `1 .. 4.`.
 
-  In case log rotation was enabled by using **-r** parameter,
+  In case log rotation was enabled by using **/R** parameter,
   SvcBatch will rename existing`SvcBatch.log` to
   `SvcBatch.log.dddsssss`, and create a new `SvcBatch.log`.
 
   The `dddsssss` is the format constructed as tree digit day
   of the current year (001 .. 366) and number of seconds since
   midnight (00000 .. 86400), using current local or
-  system time (depending on **-l** option).
+  system time (depending on **/L** option).
 
-* **-n [log name]**
+* **/N [log name]**
 
   **Set log file name**
 
@@ -617,14 +619,14 @@ Is the same as
   command option at service install:
 
   ```no-highlight
-  > sc create ... -n MyService ...
+  > svcbatch create ... /N myLog ...
 
   ```
 
   SvcBatch will at runtime append `.log`, `.shutdown.log`
   or `.status.log` extension to the **log name**.
 
-  If the **-n** argument contains `@` characters, they will be replaced
+  If the **/N** argument contains `@` characters, they will be replaced
   with `%` character at runtime and treated as a format string
   to our custom `strftime` function.
 
@@ -676,7 +678,7 @@ Is the same as
   characters the function will fail.
 
 
-* **-o [path]**
+* **/O [path]**
 
   **Set service output directory**
 
@@ -696,7 +698,7 @@ Is the same as
   in that location.
 
 
-* **-p**
+* **/P**
 
   **Enable preshutdown service notification**
 
@@ -705,14 +707,14 @@ Is the same as
   preshutdown time-out value expires
 
 
-* **-q**
+* **/Q**
 
   **Disable logging**
 
   This option disables both logging and log rotation.
 
   When defined, no log files or directories will be created
-  unless the **-v** option was defined as well.
+  unless the **/V** option was defined as well.
 
   Use this option when output from `cmd.exe` is not needed or
   service batch file manages logging on its own.
@@ -720,11 +722,10 @@ Is the same as
 
   **Notice**
 
-  This option is will discard any **-r** option if defined
-  at service install time.
+  Any eventual log rotation option will not be processed.
 
 
-* **-r [rule]**
+* **/R [rule]**
 
   **Rotate logs by size or time interval**
 
@@ -739,14 +740,28 @@ Is the same as
   log rotation will be enabled by using the
   `sc.exe control [service name] 234` command.
 
+  In case the **rule** starts with the capital letter `T`,
+  log files will be truncated insteadotated.
+
+  This is useful when a log is processed in real time by a command
+  like tail, and there is no need for archived data.
+
+
   Time and size values can be combined, that allows
   to rotate logs at specific time or size which ever first.
   For example one can define **rule** so that rotate logs
   is run each day at `17:00:00` hours or if log files gets
   larger then `100K` bytes.
 
+  To combine multiple values use the **+** character as
+  value separator. The order is important.
+
   ```no-highlight
-  > sc create ... -r 17:00:00 -r 100K
+    <S[ignal]>+<T[runcate]>+<Time>+<Size>
+  ```
+
+  ```no-highlight
+  > svcbatch create ... /R 17:00:00+100K
 
   ```
 
@@ -754,7 +769,7 @@ Is the same as
   as minutes between log rotation.
 
   ```no-highlight
-  >sc create ... -r 90 - r 200K
+  >svcbatch create ... /R 90+200K
 
   ```
 
@@ -765,7 +780,7 @@ Is the same as
 
   In case **rule** parameter is `0` SvcBatch will rotate
   log files each day at midnight. This is the same as
-  defining `-r 00:00:00`.
+  defining `/R 00:00:00`.
 
   In case **rule** parameter is `60` SvcBatch will rotate
   log files every full hour.
@@ -776,15 +791,29 @@ Is the same as
   The **rule** parameter uses the following format:
 
   ```no-highlight
-      <[minutes|hh:mm:ss]>|<size[B|K|M|G]>|<S[ignal]>
+      <S>[+]<T>[+]<[minutes|hh:mm:ss]>[+]<size[B|K|M|G]>
   ```
+
+  Example with all features enabled is as follows:
+
+
+  ```no-highlight
+  >svcbatch create ... /R S+T+60+200K
+
+  ```
+
+  The upper example will enable rotation by signal. It will
+  truncate existing log files instead generating new ones.
+  It will do that each full hour or when the log file
+  gets larger the 200Kbytes.
+
 
   On rotation event, existing `SvcBatch.log` will be renamed to
   `SvcBatch.log.yyjjjhhmmss`, and new `SvcBatch.log` will be crated,
-  unless the **-t** option was defined.
+  unless the log truncation was defined as part or **rule**.
 
 
-* **-s [script][argument]**
+* **/S [script][argument]**
 
   **Execute script file on service stop or shutdown**
 
@@ -796,36 +825,17 @@ Is the same as
   This is particularly useful for services that do not handle
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
-  If multiple **-s** command line option are defined the
+  If multiple **/S** command line option are defined the
   first one will be used as **script** and rest will
   be used as additional **argument** send to the **script**.
 
-  In case the **script** starts with **?** character,
-  SvcBatch will use the main service script file for shutdown.
-  The rest of the **script** after **?** character will be passed
-  as the first argument to the shutdown script file.
+  Add **/S:OFF** as command option to your service to enable
+  SvcBatch to use the main service script file for shutdown.
+  In that case **script** will be passed
+  as the first **argument** to the shutdown script file.
 
 
-* **-t**
-
-  **Truncate log file on rotation**
-
-  This option causes the log file to be truncated instead of rotated.
-
-  This is useful when a log is processed in real time by a command
-  like tail, and there is no need for archived data.
-
-
-  ```no-highlight
-  > sc create ... -t ...
-
-  ```
-
-  This will truncate existing `SvcBatch.log`
-  on rotate instead creating a new file.
-
-
-* **-v**
+* **/V**
 
   **Log internal messages**
 
@@ -905,7 +915,7 @@ Is the same as
   ```
 
 
-* **-w [path]**
+* **/W [path]**
 
   **Set service working directory**
 
@@ -914,12 +924,12 @@ Is the same as
   is set to this path.
 
   If not specified, the working directory is set
-  to the home directory defined using **-h** option.
+  to the home directory defined using **/H** option.
 
-  Check **-h** command option for more details.
+  Check **/H** command option for more details.
 
   If the **path** is not the absolute path, it will
-  be resolved relative to the **-h** directory.
+  be resolved relative to the **/H** directory.
 
 
 
@@ -927,7 +937,7 @@ Is the same as
 
 SvcBatch sets a few private environment variables that
 provide more info about running environments to batch files.
-
+Those variable by default have **SVCBATCH_SERVICE** prefix.
 
 Here is the list of environment variables that
 SvcBatch sets for each instance.
@@ -945,13 +955,13 @@ SvcBatch sets for each instance.
 
   This variable is set to the service's log directory.
 
-  In case the logging is disabled, by using **-q**
-  command option, and **-v** option was not defined,
+  In case the logging is disabled, by using **/Q**
+  command option, and **/V** option was not defined,
   this variable is set to the **SVCBATCH_SERVICE_HOME** directory.
 
-  However, if the **-o** command line option was defined
-  together with **-q** option, and without **-v** option,
-  the directory specified by the **-o** command option
+  However, if the **/O** command line option was defined
+  together with **/Q** option, and without **/V** option,
+  the directory specified by the **/O** command option
   parameter must exist, or the service will fail to start
   and write error message to the Windows Event Log.
 
@@ -959,7 +969,7 @@ SvcBatch sets for each instance.
 * **SVCBATCH_SERVICE_NAME**
 
   This variable is set to the actual service name
-  defined with `sc create [service name] ...`
+  defined with `svcbatch create [service name] ...`
 
   ```batchfile
   @echo off
@@ -1000,42 +1010,24 @@ SvcBatch sets for each instance.
   but in future versions, it will have the option to be configured
   separately.
 
-  Currently this variable points to the path defined by **-w**
+  Currently this variable points to the path defined by **/W**
   command option, and it remain as such.
-
-
-* **SVCBATCH_APP_BIN**
-
-  Set to the current SvcBatch executable running the service
-
-* **SVCBATCH_APP_DIR**
-
-  Set to the directory of the SvcBatch executable running the service
-
-* **SVCBATCH_APP_VER**
-
-  This environment variable is set to the current version
-  of the SvcBatch executable running the service.
 
 
 * **Notice**
 
-  In case the SvcBatch executable file name part is different
-  then **svcbatch.exe**, the private environment variables
-  will be prefixed with the executable name instead with
-  **SVCBATCH**.
+  To change the prefix for those variables add
+  the **/E:MYSERVICE** to your service configuration.
 
-  For example if you rename **svcbatch.exe** to **myservice.exe**,
-  all private environment variables will be prefixed with
-  **MYSERVICE**, meaning that instead  **SVCBATCH_SERVICE_BASE**,
-  SvcBatch will set **MYSERVICE_SERVICE_BASE** environment
-  variable.
+  This In case the SvcBatch will export **MYSERVICE_NAME**
+  instead **SVCBATCH_SERVICE_NAME**.
 
-  Make sure that renamed file name does not contains space (` `)
-  or (`=`) characters, or the service will fail to start.
-  The best practice is to only use alphanumeric ANSI characters.
+  Adding **/E:OFF** to the service's configuration
+  will disable to export those variables.
 
-  This feature is enable starting with SvcBatch version **3.0.0**.
+
+
+  This feature is enable starting with SvcBatch version **3.0.1**.
 
 
 
@@ -1053,7 +1045,7 @@ Again, as with log rotate, the **233** is our custom control code.
 
 * **Important**
 
-  This option is enabled at service install time with `/b` command
+  This option is enabled at service install time with **/B** command
   switch option.
 
   Do not send `CTRL_BREAK_EVENT` if the batch file runs a process
@@ -1067,7 +1059,7 @@ When you type `sc.exe stop myservice` or when your machine gets into the
 shutdown state, SvcBatch running as a service will receive
 stop or shutdown event. SvcBatch will send `CTRL_C_EVENT` to its
 child processes or run shutdown batch file in case
-**-s [batchfile]** was defined at install time.
+**/S [batchfile]** was defined at install time.
 
 It is up to the application started from batch file to
 handle this event and do any cleanup needed and then exit.
