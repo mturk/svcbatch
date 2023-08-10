@@ -370,6 +370,7 @@ static const wchar_t *wcsmessages[] = {
     L"The maximum service name length is 256 characters",                   /* 27 */
     L"Stop the service and call Delete again",                              /* 28 */
     L"The Control code is missing. Use control [service name] <value>",     /* 29 */
+    L"Invalid option",                                                      /* 30 */
 
     NULL
 };
@@ -1198,7 +1199,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             xwoptind++;
             return ':';
         }
-        xwoption = place;
+        xwoption = nargv[xwoptind];
     }
     option = *(place++);
     if (option != ':') {
@@ -1716,7 +1717,7 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
         dbgprintf(fn, line, "%S, %S", msg + 2, erb + 2);
 #endif
     }
-    if (typ != EVENTLOG_INFORMATION_TYPE) {
+    if (typ == EVENTLOG_ERROR_TYPE) {
         xsnwprintf(buf, SBUFSIZ,
                    L"\r\n" SVCBATCH_RES_NAME L" " SVCBATCH_VERSION_WCS \
                    L" %S %d", fn, line);
@@ -4043,11 +4044,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
         switch (opt) {
             case '$':
                 opt = xtolower(*(xwoptarg++));
-                if (*xwoptarg != L':')
-                    return xsyserrno(11, xwoption, NULL);
-                xwoptarg++;
-                if (*xwoptarg == WNUL)
-                    return xsyserrno(11, xwoption, NULL);
+                if (*(xwoptarg++) != ':')
+                    opt = 0;
                 switch (opt) {
                     case 'b':
                         if (xisstrbool(0, xwoptarg))
@@ -4055,7 +4053,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         else if (xisstrbool(1, xwoptarg))
                             OPT_CLR(SVCBATCH_OPT_NO_SCRIPT);
                         else
-                            return xsyserrno(12, L"$B:", xwoptarg);
+                            xsyswarn(0, SVCBATCH_MSG(30), xwoption);
                     break;
                     case 'e':
                         if (xisstrbool(0, xwoptarg))
@@ -4064,8 +4062,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
                             OPT_CLR(SVCBATCH_OPT_NOENV);
                         else {
                             if (xwcspbrk(xwoptarg, L" ="))
-                                return xsyserrno(14, L"$E:", xwoptarg);
-                            cwsenvname = xwoptarg;
+                                xsyswarn(0, SVCBATCH_MSG(30), xwoption);
+                            else
+                                cwsenvname = xwoptarg;
                         }
                     break;
 #if SVCBATCH_LEAN_AND_MEAN
@@ -4075,7 +4074,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         else if (xisstrbool(1, xwoptarg))
                             stopoption  = 0;
                         else
-                            return xsyserrno(12, L"$L:", xwoptarg);
+                            xsyswarn(0, SVCBATCH_MSG(30), xwoption);
                     break;
                     case 's':
                         if (xisstrbool(0, xwoptarg))
@@ -4083,7 +4082,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         else if (xisstrbool(1, xwoptarg))
                             OPT_CLR(SVCBATCH_OPT_NO_STOPSCRIPT);
                         else
-                            return xsyserrno(12, L"$S:", xwoptarg);
+                            xsyswarn(0, SVCBATCH_MSG(30), xwoption);
                     break;
                     case 'v':
                         if (xisstrbool(1, xwoptarg))
@@ -4091,11 +4090,11 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         else if (xisstrbool(0, xwoptarg))
                             OPT_CLR(SVCBATCH_OPT_VERBOSE);
                         else
-                            return xsyserrno(12, L"$V:", xwoptarg);
+                            xsyswarn(0, SVCBATCH_MSG(30), xwoption);
                     break;
 #endif
                     default:
-                        return xsyserrno(22, xwoption, NULL);
+                        xsyswarn(0, SVCBATCH_MSG(30), xwoption);
                     break;
                 }
             break;
