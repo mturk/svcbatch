@@ -223,8 +223,6 @@ static BYTE         YYES[]        = { 89, 13, 10,  0 };
 static WCHAR        ccwappname[SVCBATCH_NAME_MAX];
 #endif
 static LPCSTR  cnamestamp  = SVCBATCH_RES_NAME " " SVCBATCH_VERSION_TXT;
-static LPCWSTR wnamestamp  = CPP_WIDEN(SVCBATCH_RES_NAME) L" " SVCBATCH_VERSION_WCS;
-static LPCWSTR cwsappname  = CPP_WIDEN(SVCBATCH_APPNAME);
 static LPCWSTR cwsenvname  = SVCBATCH_ENVNAME;
 
 static int     xwoptind    = 1;
@@ -1668,7 +1666,7 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     if (service && service->name)
         svc = service->name;
     else
-        svc = wnamestamp;
+        svc = CPP_WIDEN(SVCBATCH_RES_NAME);
     xsnwprintf(hdr, BBUFSIZ, L"The %s service", svc);
 
     errarg[i++] = hdr;
@@ -5345,8 +5343,6 @@ int wmain(int argc, LPCWSTR *argv)
         p += 2;
         servicemode = FALSE;
         cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
-        wnamestamp  = CPP_WIDEN(SHUTDOWN_APPNAME) L" " SVCBATCH_VERSION_WCS;
-        cwsappname  = CPP_WIDEN(SHUTDOWN_APPNAME);
 #if defined(_DEBUG)
         dbgsvcmode = 2;
         r = dbgfopen();
