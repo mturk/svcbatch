@@ -1657,43 +1657,48 @@ finished:
 static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, LPCWSTR eds, LPCWSTR erp)
 {
     WCHAR   buf[SBUFSIZ];
-    WCHAR   hdr[SVCBATCH_LINE_MAX];
+    WCHAR   hdr[BBUFSIZ];
+    WCHAR   msg[SVCBATCH_LINE_MAX];
     WCHAR   erb[SVCBATCH_LINE_MAX];
+    LPCWSTR svc;
     LPCWSTR errarg[10];
     int     c = 0;
     int     i = 0;
 
-    errarg[i++] = wnamestamp;
-    if (service->name)
-        errarg[i++] = service->name;
+    if (service && service->name)
+        svc = service->name;
+    else
+        svc = wnamestamp;
+    xsnwprintf(hdr, BBUFSIZ, L"The %s service", svc);
 
+    errarg[i++] = hdr;
     if (typ == EVENTLOG_ERROR_TYPE)
-        errarg[i++] = L"service reported the following error:";
-    xwcslcpy(hdr, SVCBATCH_LINE_MAX, CRLFW);
+        errarg[i++] = L"reported the following error:";
+    xwcslcpy(msg, SVCBATCH_LINE_MAX, CRLFW);
     if (err) {
         if (xwcschr(err, L'%')) {
-            xsnwprintf(hdr + 2, SVCBATCH_LINE_MAX - 2, err, eds);
+            xsnwprintf(msg + 2, SVCBATCH_LINE_MAX - 2, err, eds);
         }
         else {
-            xwcslcat(hdr, SVCBATCH_LINE_MAX, err);
+            xwcslcat(msg, SVCBATCH_LINE_MAX, err);
             if (eds) {
-                xwcslcat(hdr, SVCBATCH_LINE_MAX, L": ");
-                xwcslcat(hdr, SVCBATCH_LINE_MAX, eds);
+                xwcslcat(msg, SVCBATCH_LINE_MAX, L": ");
+                xwcslcat(msg, SVCBATCH_LINE_MAX, eds);
             }
         }
     }
     else {
-        xwcslcat(hdr, SVCBATCH_LINE_MAX, eds);
+        xwcslcat(msg, SVCBATCH_LINE_MAX, eds);
         if (erp) {
-            xwcslcat(hdr, SVCBATCH_LINE_MAX, L": ");
-            xwcslcat(hdr, SVCBATCH_LINE_MAX, erp);
+            xwcslcat(msg, SVCBATCH_LINE_MAX, L": ");
+            xwcslcat(msg, SVCBATCH_LINE_MAX, erp);
         }
     }
-    errarg[i++] = hdr;
+    errarg[i++] = msg;
     if (ern == 0) {
         ern = ERROR_INVALID_PARAMETER;
 #if defined(_DEBUG)
-        dbgprintf(fn, line, "%S", hdr + 2);
+        dbgprintf(fn, line, "%S", msg + 2);
 #endif
     }
     else {
@@ -1701,12 +1706,13 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
         xwinapierror(erb + c, SVCBATCH_LINE_MAX - c, ern);
         errarg[i++] = erb;
 #if defined(_DEBUG)
-        dbgprintf(fn, line, "%S, %S", hdr + 2, erb + 2);
+        dbgprintf(fn, line, "%S, %S", msg + 2, erb + 2);
 #endif
     }
     if (typ != EVENTLOG_INFORMATION_TYPE) {
         xsnwprintf(buf, SBUFSIZ,
-                   L"\r\nsvcbatch.c(%.4d, %S)", line, fn);
+                   L"\r\n" SVCBATCH_RES_NAME L" " SVCBATCH_VERSION_WCS \
+                   L" %S %d", fn, line);
         errarg[i++] = buf;
     }
 
