@@ -243,7 +243,7 @@ static const char *notsvcoption[] = {
 };
 
 
-static LPCWSTR cmdoptions  = L"$::abc:d::e:f::gh:k::lm::n:o:pqr:s:tvw:";
+static LPCWSTR cmdoptions  = L"$::abc:d::e:f::gh:k::lm::n:o:pqr:s:vw:";
 #else
 static LPCWSTR cmdoptions  = L"$::bc:d::e:f::gh:k::pw:";
 #endif
@@ -4125,9 +4125,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'q':
                 OPT_SET(SVCBATCH_OPT_QUIET);
             break;
-            case 't':
-                OPT_SET(SVCBATCH_OPT_TRUNCATE);
-            break;
             case 'v':
                 OPT_SET(SVCBATCH_OPT_VERBOSE);
             break;
@@ -4420,7 +4417,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
             return xsyserrno(12, L"r", rotateparam);
         if (outputlog && (rotatebysize || rotatebytime))
             outputlog->maxLogs = 0;
-        svcoptions |= SVCBATCH_OPT_ROTATE;
+        if (rotatebysize || rotatebytime || rotatebysignal)
+            svcoptions |= SVCBATCH_OPT_ROTATE;
     }
     if (svcstopparam) {
         if (IS_SET(SVCBATCH_OPT_NO_STOPSCRIPT)) {
