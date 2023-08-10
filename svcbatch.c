@@ -97,7 +97,6 @@ typedef struct _SVCBATCH_PROCESS {
     DWORD               exitCode;
     DWORD               argc;
     DWORD               optc;
-    DWORD               envc;
     LPWSTR              commandLine;
     LPWSTR              application;
     LPWSTR              script;
@@ -105,7 +104,6 @@ typedef struct _SVCBATCH_PROCESS {
     LPWSTR              name;
     LPWSTR              args[SVCBATCH_MAX_ARGS];
     LPWSTR              opts[SVCBATCH_MAX_ARGS];
-    LPCWSTR             envs[SVCBATCH_MAX_ARGS];
 } SVCBATCH_PROCESS, *LPSVCBATCH_PROCESS;
 
 typedef struct _SVCBATCH_SERVICE {
@@ -234,6 +232,9 @@ static LPCWSTR cmdoptions  = L"$::abc:d::e:f::gh:k::lm::n:o:pqr:s:tvw:";
 #else
 static LPCWSTR cmdoptions  = L"$::bc:d::e:f::gh:k::pw:";
 #endif
+
+static DWORD   setuserenvc = 0;
+static LPCWSTR setuserenvs[SVCBATCH_MAX_ARGS];
 
 #if SVCBATCH_HAVE_SCM
 /**
@@ -909,12 +910,12 @@ static DWORD xsetusrenv(LPCWSTR s)
     LPCWSTR e = NULL;
 
     ASSERT_NULL(s, ERROR_BAD_ENVIRONMENT);
+    v = xwcschr(s + 1, L'=');
+    if ((v == NULL) || (v[1] != L'$'))
+        return ERROR_BAD_ENVIRONMENT;
     n = xwcsdup(s);
-    v = xwcschr(n + 1, L'=');
-    if (v == NULL) {
-        r = ERROR_INVALID_DATA;
-        goto finished;
-    }
+    v = n + (size_t)(v - s);
+    *v++ = WNUL;
     *v++ = WNUL;
     switch (xtolower(*v)) {
         case 'a':
@@ -950,7 +951,6 @@ static DWORD xsetusrenv(LPCWSTR s)
     }
     if (!r && !SetEnvironmentVariableW(n, e))
         r = GetLastError();
-finished:
     xfree(n);
     return r;
 }
@@ -4189,16 +4189,24 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 'e':
-                if (*xwoptarg == L'~') {
-                    if (cmdproc->envc < SVCBATCH_MAX_ARGS)
-                        cmdproc->envs[cmdproc->envc++] = xwoptarg + 1;
-                    else
-                        return xsyserrno(17, L"e~", xwoptarg);
-                }
-                else {
-                    x = xsetenv(xwoptarg);
-                    if (x)
-                        return xsyserror(x, L"SetEnvironment", xwoptarg);
+                {
+                    LPCWSTR p;
+
+                    p = xwcschr(xwoptarg + 1, L'=');
+                    if (p == NULL)
+                        return xsyserrno(12, L"e", xwoptarg);
+                    p++;
+                    if (*p == L'$') {
+                        if (setuserenvc < SVCBATCH_MAX_ARGS)
+                            setuserenvs[setuserenvc++] = xwoptarg;
+                        else
+                            return xsyserrno(17, L"e", xwoptarg);
+                    }
+                    else {
+                        x = xsetenv(xwoptarg);
+                        if (x)
+                            return xsyserror(x, L"SetEnvironment", xwoptarg);
+                    }
                 }
             break;
 #if SVCBATCH_LEAN_AND_MEAN
@@ -4522,8 +4530,8 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xwchreplace(cmdproc->args[i]);
     for (i = 0; i < cmdproc->optc; i++)
         xwchreplace(cmdproc->opts[i]);
-    for (i = 0; i < cmdproc->envc; i++)
-        xsetusrenv(cmdproc->envs[i]);
+    for (i = 0; i < setuserenvc; i++)
+        xsetusrenv(setuserenvs[i]);
 #if SVCBATCH_LEAN_AND_MEAN
     if (statuslog) {
         rv = openlogfile(statuslog, TRUE, NULL);
