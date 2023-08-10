@@ -1159,6 +1159,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
 {
     static LPCWSTR place = zerostring;
     LPCWSTR oli = NULL;
+    int optsw = 0;
     int option;
 
     xwoptarg = NULL;
@@ -1168,9 +1169,9 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             place = zerostring;
             return EOF;
         }
-        place  = nargv[xwoptind];
-        option = *(place++);
-        if (!xisoptswitch(option)) {
+        place = nargv[xwoptind];
+        optsw = *(place++);
+        if (!xisoptswitch(optsw)) {
             place = zerostring;
             /**
              * Argument is not an option
@@ -1188,7 +1189,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             xwoptind++;
             return EOF;
         }
-        if (*place == option) {
+        if (*place == optsw) {
             /**
              * We have '--' or '//'
              * Skip first char and use it as in-place argument
@@ -1212,6 +1213,20 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     }
     /* Does this option need an argument? */
     if (oli[1] == L':') {
+        if (optsw == 0) {
+            /**
+             * The option that requires an
+             * argument is not a standalone option
+             * Treat is as an option that does not
+             * require an argument.
+             */
+            if (*place == WNUL) {
+                xwoptind++;
+                place = zerostring;
+            }
+
+            return oli[0];
+        }
         /**
          * Option-argument is either the rest of this argument
          * or the entire next argument.
@@ -1220,11 +1235,31 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             /* Skip blanks */
             while (xisblank(*place))
                 ++place;
+            /**
+             * Skip in-place delimiter if present
+             * and the option must have in-place argument.
+             * Both /oargument and /o:argument
+             * will set the xwoptarg to the same value
+             */
+            if ((oli[2] == L':') && (*place == L':'))
+                ++place;
         }
-        if (*place)
+        if (*place) {
             xwoptarg = place;
-        else if ((oli[2] != L':') && (nargc > ++xwoptind))
+        }
+        else if (oli[2] == L':') {
+            /**
+             * Option-argument must be the rest or this argument
+             * but its not present
+             */
+            xwoptind++;
+            place = zerostring;
+            return ENOENT;
+        }
+        else if (nargc > ++xwoptind) {
+            /* Option-argument is the entire next argument */
             xwoptarg = nargv[xwoptind];
+        }
         xwoptind++;
         place = zerostring;
         if (IS_EMPTY_WCS(xwoptarg))
@@ -1232,6 +1267,16 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     }
     else {
         /* Don't need argument */
+        if ((optsw == L'/') && (*place == L':')) {
+            /**
+             * Set Option-argument for
+             * stand-alone /O if
+             * followed by ':' character
+             */
+             place++;
+             xwoptarg = place;
+             place    = zerostring;
+        }
         if (*place == WNUL) {
             xwoptind++;
             place = zerostring;
@@ -4160,9 +4205,14 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
 #endif
             case 'f':
-                svcfailmode = xwcstoi(xwoptarg, NULL);
-                if ((svcfailmode < 0) || (svcfailmode > 2))
-                    return xsyserrno(13, L"f", xwoptarg);
+                if (xwoptarg) {
+                    svcfailmode = xwcstoi(xwoptarg, NULL);
+                    if ((svcfailmode < 0) || (svcfailmode > 2))
+                        return xsyserrno(13, L"f", xwoptarg);
+                }
+                else {
+                    DBG_PRINTS("Empty f option");
+                }
             break;
             case 'h':
                 svchomeparam = xwcsdup(skipdotslash(xwoptarg));
