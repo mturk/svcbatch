@@ -370,7 +370,6 @@ static const wchar_t *wcsmessages[] = {
     L"The maximum service name length is 256 characters",                   /* 27 */
     L"Stop the service and call Delete again",                              /* 28 */
     L"The Control code is missing. Use control [service name] <value>",     /* 29 */
-    L"Invalid option",                                                      /* 30 */
 
     NULL
 };
@@ -2163,7 +2162,8 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
                 exit(ERROR_INVALID_LEVEL);
             }
             else {
-                if (svcfailmode == SVCBATCH_FAIL_NONE) {
+                if ((svcfailmode == SVCBATCH_FAIL_NONE) &&
+                    (service->status.dwCurrentState == SERVICE_RUNNING)) {
                     svcsyserror(fn, line, EVENTLOG_INFORMATION_TYPE, 0, NULL,
                                 SVCBATCH_MSG(1), NULL);
                     param = 0;
@@ -4044,8 +4044,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
         switch (opt) {
             case '$':
                 opt = xtolower(*(xwoptarg++));
-                if (*(xwoptarg++) != ':')
-                    opt = 0;
+                if ((*(xwoptarg++) != L':') || (*xwoptarg == WNUL))
+                    return xsyserrno(11, xwoption, NULL);
                 switch (opt) {
                     case 'b':
                         if (xisstrbool(0, xwoptarg))
@@ -4053,7 +4053,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         else if (xisstrbool(1, xwoptarg))
                             OPT_CLR(SVCBATCH_OPT_NO_SCRIPT);
                         else
-                            xsyswarn(0, SVCBATCH_MSG(30), xwoption);
+                            return xsyserrno(12, xwoption, NULL);
                     break;
                     case 'e':
                         if (xisstrbool(0, xwoptarg))
@@ -4062,9 +4062,8 @@ static int parseoptions(int argc, LPCWSTR *argv)
                             OPT_CLR(SVCBATCH_OPT_NOENV);
                         else {
                             if (xwcspbrk(xwoptarg, L" ="))
-                                xsyswarn(0, SVCBATCH_MSG(30), xwoption);
-                            else
-                                cwsenvname = xwoptarg;
+                                return xsyserrno(14, xwoption, NULL);
+                            cwsenvname = xwoptarg;
                         }
                     break;
 #if SVCBATCH_LEAN_AND_MEAN
@@ -4074,7 +4073,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         else if (xisstrbool(1, xwoptarg))
                             stopoption  = 0;
                         else
-                            xsyswarn(0, SVCBATCH_MSG(30), xwoption);
+                            return xsyserrno(12, xwoption, NULL);
                     break;
                     case 's':
                         if (xisstrbool(0, xwoptarg))
@@ -4082,7 +4081,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         else if (xisstrbool(1, xwoptarg))
                             OPT_CLR(SVCBATCH_OPT_NO_STOPSCRIPT);
                         else
-                            xsyswarn(0, SVCBATCH_MSG(30), xwoption);
+                            return xsyserrno(12, xwoption, NULL);
                     break;
                     case 'v':
                         if (xisstrbool(1, xwoptarg))
@@ -4090,11 +4089,11 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         else if (xisstrbool(0, xwoptarg))
                             OPT_CLR(SVCBATCH_OPT_VERBOSE);
                         else
-                            xsyswarn(0, SVCBATCH_MSG(30), xwoption);
+                            return xsyserrno(12, xwoption, NULL);
                     break;
 #endif
                     default:
-                        xsyswarn(0, SVCBATCH_MSG(30), xwoption);
+                        return xsyserrno(22, xwoption, NULL);
                     break;
                 }
             break;
