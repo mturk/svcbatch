@@ -63,9 +63,7 @@ typedef enum {
     SVCBATCH_WORKER_THREAD = 0,
     SVCBATCH_WRPIPE_THREAD,
     SVCBATCH_STOP_THREAD,
-#if SVCBATCH_LEAN_AND_MEAN
     SVCBATCH_ROTATE_THREAD,
-#endif
     SVCBATCH_MAX_THREADS
 } SVCBATCH_THREAD_ID;
 
@@ -117,15 +115,9 @@ typedef struct _SVCBATCH_SERVICE {
     LPWSTR                  home;
     LPWSTR                  uuid;
     LPWSTR                  work;
-#if SVCBATCH_LEAN_AND_MEAN
     WCHAR                   logs[SVCBATCH_PATH_MAX];
-#else
-    LPWSTR                  logs;
-#endif
-
 } SVCBATCH_SERVICE, *LPSVCBATCH_SERVICE;
 
-#if SVCBATCH_LEAN_AND_MEAN
 typedef struct _SVCBATCH_LOG {
     volatile LONG64     size;
     volatile HANDLE     fd;
@@ -159,7 +151,6 @@ typedef struct _SVCBATCH_IPC {
     WCHAR   opts[SVCBATCH_MAX_ARGS][SVCBATCH_NAME_MAX];
 
 } SVCBATCH_IPC, *LPSVCBATCH_IPC;
-#endif
 
 typedef struct _SVCBATCH_NAME_MAP {
     LPCWSTR name;
@@ -175,16 +166,11 @@ static LPSVCBATCH_PROCESS    program     = NULL;
 static LPSVCBATCH_SERVICE    service     = NULL;
 
 static LPSVCBATCH_PROCESS    cmdproc     = NULL;
-#if SVCBATCH_LEAN_AND_MEAN
 static LPSVCBATCH_PROCESS    svcstop     = NULL;
 static LPSVCBATCH_LOG        outputlog   = NULL;
-static LPSVCBATCH_LOG        statuslog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
-#endif
 
 static volatile LONG         killdepth   = 0;
-
-#if SVCBATCH_LEAN_AND_MEAN
 static LONGLONG              counterbase    = CPP_INT64_C(0);
 static LONGLONG              counterfreq    = CPP_INT64_C(0);
 static LONGLONG              rotateinterval = CPP_INT64_C(0);
@@ -194,7 +180,6 @@ static LARGE_INTEGER         rotatetime     = {{ 0, 0 }};
 static BOOL      rotatebysize   = FALSE;
 static BOOL      rotatebytime   = FALSE;
 static BOOL      rotatebysignal = FALSE;
-#endif
 static BOOL      servicemode    = TRUE;
 
 static DWORD     svcoptions     = 0;
@@ -205,12 +190,11 @@ static int       svcfailmode    = SVCBATCH_FAIL_ERROR;
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
-#if SVCBATCH_LEAN_AND_MEAN
 static HANDLE    dologrotate    = NULL;
 static HANDLE    sharedmmap     = NULL;
 static LPWSTR    outdirparam    = NULL;
 static LPWSTR    svclogfname    = NULL;
-#endif
+
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
 static WCHAR        zerostring[]  = {  0,  0,  0,  0 };
@@ -220,7 +204,7 @@ static BYTE         YYES[]        = { 89, 13, 10,  0 };
 #if defined(_DEBUG)
 static WCHAR        ccwappname[SVCBATCH_NAME_MAX];
 #endif
-static LPCSTR  cnamestamp  = SVCBATCH_RES_NAME " " SVCBATCH_VERSION_TXT;
+static LPCSTR  cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static LPCWSTR cwsenvname  = SVCBATCH_ENVNAME;
 
 static int     xwoptind    = 1;
@@ -228,32 +212,11 @@ static int     xwoptswc    = 0;
 static int     xioptarg    = 0;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
-
-static const char *setsvcoption[] = {
-    "On",
-    "Yes",
-    "Enabled",
-    NULL
-};
-
-static const char *notsvcoption[] = {
-    "Off",
-    "No",
-    "Disabled",
-    NULL
-};
-
-
-#if SVCBATCH_LEAN_AND_MEAN
 static LPCWSTR cmdoptions  = L"abc:d::e:f::gh:k::lm::n:o:pqr:s:vw:";
-#else
-static LPCWSTR cmdoptions  = L"bc:d::e:f::gh:k::pw:";
-#endif
 
 static DWORD   setuserenvc = 0;
 static LPCWSTR setuserenvs[SVCBATCH_MAX_ARGS];
 
-#if SVCBATCH_HAVE_SCM
 /**
  * Service Manager types
  *
@@ -335,8 +298,6 @@ static const wchar_t *scmcoptions[] = {
     L"w?wait",
     NULL
 };
-
-#endif
 
 /**
  * Message strings
@@ -1414,8 +1375,6 @@ static LPWSTR xuuidstring(LPWSTR b)
     return b;
 }
 
-#if SVCBATCH_LEAN_AND_MEAN
-
 #define _IsLeapYear(y) ((!(y % 4)) ? (((y % 400) && !(y % 100)) ? 0 : 1) : 0)
 static int getdayofyear(int y, int m, int d)
 {
@@ -1456,49 +1415,6 @@ static LPWSTR xmktimedext(void)
 
     return d;
 }
-
-static int xtimehdr(char *d, int sz)
-{
-    LARGE_INTEGER ct = {{ 0, 0 }};
-    LARGE_INTEGER et = {{ 0, 0 }};
-    DWORD ss, us, mm, hh;
-    int i = 0;
-
-    QueryPerformanceCounter(&ct);
-    et.QuadPart = ct.QuadPart - counterbase;
-
-    /**
-     * Convert to microseconds
-     */
-    et.QuadPart *= CPP_INT64_C(1000000);
-    et.QuadPart /= counterfreq;
-    ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
-
-    us = (DWORD)((et.QuadPart % CPP_INT64_C(1000000)));
-    ss = (DWORD)((ct.QuadPart / MS_IN_SECOND) % CPP_INT64_C(60));
-    mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % CPP_INT64_C(60));
-    hh = (DWORD)((ct.QuadPart / MS_IN_HOUR)   % CPP_INT64_C(24));
-
-    d[i++] = hh / 10 + '0';
-    d[i++] = hh % 10 + '0';
-    d[i++] = ':';
-    d[i++] = mm / 10 + '0';
-    d[i++] = mm % 10 + '0';
-    d[i++] = ':';
-    d[i++] = ss / 10 + '0';
-    d[i++] = ss % 10 + '0';
-    d[i++] = '.';
-    d[i++] = us / 100000 + '0';
-    d[i++] = us % 100000 / 10000 + '0';
-    d[i++] = us % 10000  / 1000  + '0';
-    d[i++] = us % 1000   / 100   + '0';
-    d[i++] = us % 100    / 10    + '0';
-    d[i++] = us % 10 + '0';
-    d[i] = CNUL;
-
-    return i;
-}
-#endif
 
 #if defined(_DEBUG)
 /**
@@ -1725,7 +1641,7 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     if (service && service->name)
         svc = service->name;
     else
-        svc = CPP_WIDEN(SVCBATCH_RES_NAME);
+        svc = CPP_WIDEN(SVCBATCH_NAME);
     xsnwprintf(hdr, BBUFSIZ, L"The %s service", svc);
 
     errarg[i++] = hdr;
@@ -1768,7 +1684,7 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     }
     if (typ == EVENTLOG_ERROR_TYPE) {
         xsnwprintf(buf, SBUFSIZ,
-                   L"\r\n" SVCBATCH_RES_NAME L" " SVCBATCH_VERSION_WCS \
+                   L"\r\n" CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS \
                    L" %S %d", fn, line);
         errarg[i++] = buf;
     }
@@ -2360,216 +2276,6 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
     return 0;
 }
 
-#if SVCBATCH_LEAN_AND_MEAN
-static BOOL logwlines(HANDLE h, int nl, LPCSTR sb, LPCSTR xb)
-{
-    char  wb[SBUFSIZ];
-    DWORD wr;
-    DWORD nw;
-
-    ASSERT_HANDLE(h, FALSE);
-    nw = xtimehdr(wb, SBUFSIZ);
-    if (nl) {
-        WriteFile(h, wb,     nw, &wr, NULL);
-        WriteFile(h, CRLFA,   2, &wr, NULL);
-    }
-    if (sb || xb) {
-        wb[nw++] = ' ';
-        WriteFile(h, wb,     nw, &wr, NULL);
-
-        nw = xstrlen(sb);
-        if (nw)
-            WriteFile(h, sb, nw, &wr, NULL);
-        nw = xstrlen(xb);
-        if (nw)
-            WriteFile(h, xb, nw, &wr, NULL);
-        WriteFile(h, CRLFA,   2, &wr, NULL);
-    }
-    return TRUE;
-}
-
-static BOOL logwrline(HANDLE h, int nl, LPCSTR sb)
-{
-    return logwlines(h, nl, sb, NULL);
-}
-
-static void logprintf(HANDLE h, int nl, LPCSTR format, ...)
-{
-    int     c;
-    char    buf[SVCBATCH_LINE_MAX];
-    va_list ap;
-
-    if (IS_INVALID_HANDLE(h))
-        return;
-    va_start(ap, format);
-    c = xvsnprintf(buf, SVCBATCH_LINE_MAX, format, ap);
-    va_end(ap);
-    if (c > 0)
-        logwrline(h, nl, buf);
-}
-
-static void logwwrite(HANDLE h, int nl, LPCSTR hdr, LPCWSTR wcs)
-{
-    char buf[UBUFSIZ];
-    int  len;
-
-    if (IS_INVALID_HANDLE(h))
-        return;
-    len = xwcslen(wcs);
-    if (len) {
-        int c = UBUFSIZ - 1;
-        int r;
-
-        r = WideCharToMultiByte(CP_UTF8, 0, wcs, len, buf, c, NULL, NULL);
-        if ((r == 0) || (r >= c)) {
-            r = GetLastError();
-            logwlines(h, nl, hdr, r == ERROR_INSUFFICIENT_BUFFER ? "<OVERFLOW>" : "<INVALID>");
-        }
-        else {
-            buf[r] = '\0';
-            logwlines(h, nl, hdr, buf);
-        }
-    }
-    else {
-        logwlines(h, nl, hdr, NULL);
-    }
-}
-
-static void logwrtime(HANDLE h, int nl, LPCSTR hdr)
-{
-    SYSTEMTIME tt;
-
-    if (IS_INVALID_HANDLE(h))
-        return;
-    if (IS_SET(SVCBATCH_OPT_LOCALTIME))
-        GetLocalTime(&tt);
-    else
-        GetSystemTime(&tt);
-    logprintf(h, nl, "%-16s : %.4hu-%.2hu-%.2hu %.2hu:%.2hu:%.2hu.%.3hu",
-              hdr, tt.wYear, tt.wMonth, tt.wDay, tt.wHour,
-              tt.wMinute, tt.wSecond, tt.wMilliseconds);
-}
-
-static void logwinver(HANDLE h)
-{
-    OSVERSIONINFOEXW os;
-    char             nb[SVCBATCH_NAME_MAX] = { 0, 0};
-    char             vb[SVCBATCH_NAME_MAX] = { 0, 0};
-    LPCSTR           pv = NULL;
-    DWORD            sz;
-    DWORD            br = 0;
-    HKEY             hk;
-
-    if (RegOpenKeyExA(HKEY_LOCAL_MACHINE,
-                      "SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion",
-                      0, KEY_READ, &hk) != ERROR_SUCCESS)
-        return;
-
-    /**
-     * C4996: 'GetVersionExW': was declared deprecated
-     */
-    ZeroMemory(&os, sizeof(OSVERSIONINFOEXW));
-    os.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
-    GetVersionExW((LPOSVERSIONINFOW)&os);
-
-    sz = SVCBATCH_NAME_MAX - 1;
-    if (RegGetValueA(hk, NULL, "ProductName",
-                     RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
-                     NULL, nb, &sz) != ERROR_SUCCESS)
-        goto finished;
-    sz = SVCBATCH_NAME_MAX - 1;
-    if (RegGetValueA(hk, NULL, "ReleaseId",
-                     RRF_RT_REG_SZ | RRF_ZEROONFAILURE,
-                     NULL, vb, &sz) == ERROR_SUCCESS)
-        pv = vb;
-    sz = SVCBATCH_NAME_MAX - 1;
-    if (RegGetValueA(hk, NULL, "DisplayVersion",
-                     RRF_RT_REG_SZ,
-                     NULL, vb, &sz) == ERROR_SUCCESS)
-        pv = vb;
-    if (pv == NULL)
-        goto finished;
-    sz = 4;
-    RegGetValueA(hk, NULL, "UBR", RRF_RT_REG_DWORD,
-                 NULL, (PVOID)&br, &sz);
-
-    logprintf(h, 0, "OS Name          : %s", nb);
-    logprintf(h, 0, "OS Version       : %s %lu.%lu.%lu.%lu", vb,
-              os.dwMajorVersion, os.dwMinorVersion,
-              os.dwBuildNumber, br);
-
-finished:
-    CloseHandle(hk);
-}
-
-static LPCSTR xgetoptval(int m, DWORD opt)
-{
-    if (IS_SET(opt))
-        return setsvcoption[m];
-    else
-        return notsvcoption[m];
-}
-
-static void logconfig(HANDLE h)
-{
-    DWORD i;
-
-    logwrline(h, 0, cnamestamp);
-    logwinver(h);
-    logwwrite(h, 1, "Service name     : ", service->name);
-    logwwrite(h, 0, "Service uuid     : ", service->uuid);
-    logwwrite(h, 0, "Script program   : ", cmdproc->application);
-    for (i = 0; i < cmdproc->optc; i++)
-    logwwrite(h, 0, "                   ", cmdproc->opts[i]);
-    if (cmdproc->script) {
-    logwwrite(h, 0, "Script           : ", cmdproc->script);
-    for (i = 0; i < cmdproc->argc; i++)
-    logwwrite(h, 0, "                   ", cmdproc->args[i]);
-    }
-    if (svcstop) {
-    logwwrite(h, 0, "Shutdown         : ", svcstop->script);
-    for (i = 0; i < svcstop->argc; i++)
-    logwwrite(h, 0, "                   ", svcstop->args[i]);
-    }
-    logwwrite(h, 0, "Program name     : ", program->name);
-    logwwrite(h, 0, "Program directory: ", program->directory);
-    logwwrite(h, 0, "Base directory   : ", service->base);
-    logwwrite(h, 0, "Home directory   : ", service->home);
-    logwwrite(h, 0, "Logs directory   : ", service->logs);
-    logwwrite(h, 0, "Work directory   : ", service->work);
-
-    logwrline(h, 1, "Runtime options");
-    logwlines(h, 0, "     Log rotation: ", xgetoptval(2, SVCBATCH_OPT_ROTATE));
-    logwlines(h, 0, "    Truncate Logs: ", xgetoptval(1, SVCBATCH_OPT_TRUNCATE));
-    logwlines(h, 0, "   Use Local Time: ", xgetoptval(1, SVCBATCH_OPT_LOCALTIME));
-    logprintf(h, 0, "     Stop Timeout: %lu sec", stoptimeout / 1000);
-
-    FlushFileBuffers(h);
-}
-
-static void logwrstat(LPSVCBATCH_LOG log, int nl, int wt, LPCSTR hdr)
-{
-    HANDLE h;
-
-    if (log == NULL)
-        return;
-    SVCBATCH_CS_ENTER(log);
-    h = InterlockedExchangePointer(&log->fd, NULL);
-    if (h == NULL)
-        goto finished;
-    if (InterlockedCompareExchange(&log->count, 1, 0) == 0)
-        nl = 1;
-    else if (nl)
-        nl--;
-    if (wt)
-        logwrtime(h, nl, hdr);
-    else
-        logwrline(h, nl, hdr);
-finished:
-    InterlockedExchangePointer(&log->fd, h);
-    SVCBATCH_CS_LEAVE(log);
-}
-
 static BOOL canrotatelogs(LPSVCBATCH_LOG log)
 {
     BOOL rv = FALSE;
@@ -2620,7 +2326,7 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
     return 0;
 }
 
-static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
+static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
 {
     DWORD rc;
     int   i;
@@ -2639,21 +2345,12 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     if (GetFileAttributesExW(log->logFile, GetFileExInfoStandard, &ad)) {
         if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
             DBG_PRINTS("empty log");
-            if (ssh) {
-                logwrline(ssh, 0, "Empty");
-                logwwrite(ssh, 0, "- ", log->logFile);
-            }
             return 0;
         }
         if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
             return xsyserror(GetLastError(), log->logFile, lognn);
         if (ssp)
             xsvcstatus(SERVICE_START_PENDING, 0);
-        if (ssh) {
-            logwrline(ssh, 0, "Moving");
-            logwwrite(ssh, 0, "  ", log->logFile);
-            logwwrite(ssh, 0, "> ", lognn);
-        }
     }
     else {
         rc = GetLastError();
@@ -2677,8 +2374,6 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
                 break;
         }
         n = i;
-        if (ssh)
-            logprintf(ssh, 0, "Rotating %d of %d", n, log->maxLogs);
         /**
          * Rotate previous log files
          */
@@ -2687,18 +2382,12 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
             lognn[x] = L'0' + i;
             if (GetFileAttributesExW(logpn, GetFileExInfoStandard, &ad)) {
                 if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
-                    if (ssh)
-                        logwwrite(ssh, 0, "- ", logpn);
                 }
                 else {
                     if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
                         return xsyserror(GetLastError(), logpn, lognn);
                     if (ssp)
                         xsvcstatus(SERVICE_START_PENDING, 0);
-                    if (ssh) {
-                        logwwrite(ssh, 0, "  ", logpn);
-                        logwwrite(ssh, 0, "> ", lognn);
-                    }
                 }
             }
             else {
@@ -2833,7 +2522,7 @@ static DWORD makelogname(LPWSTR dst, int siz, LPCWSTR src)
     return rc;
 }
 
-static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
+static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
 {
     HANDLE  fh = NULL;
     DWORD   rc;
@@ -2848,8 +2537,6 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
             cd = OPEN_ALWAYS;
             rp = FALSE;
         }
-        if (ssh)
-            logwrtime(ssh, 1, "Log create");
     }
     else {
         if (IS_SET(SVCBATCH_OPT_TRUNCATE))
@@ -2868,7 +2555,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, log->fileExt);
 
     if (rp) {
-        rc = rotateprevlogs(log, ssp, ssh);
+        rc = rotateprevlogs(log, ssp);
         if (rc)
             return rc;
     }
@@ -2879,14 +2566,6 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
     rc = GetLastError();
     if (IS_INVALID_HANDLE(fh))
         return xsyserror(rc, log->logFile, NULL);
-    if (ssh) {
-        if (rc == ERROR_ALREADY_EXISTS)
-            logwwrite(ssh, 0, "x ", log->logFile);
-        else
-            logwwrite(ssh, 0, "+ ", log->logFile);
-        if (ssp)
-            logwrtime(ssh, 0, "Log opened");
-    }
     if ((rc == ERROR_ALREADY_EXISTS) && (cd == OPEN_ALWAYS)) {
         LARGE_INTEGER off = {{ 0, 0 }};
 
@@ -2916,41 +2595,23 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp, HANDLE ssh)
 static DWORD rotatelogs(LPSVCBATCH_LOG log)
 {
     DWORD  rc = 0;
-    LONG   nr = 0;
     HANDLE h  = NULL;
-    HANDLE s  = NULL;
 
     SVCBATCH_CS_ENTER(log);
     InterlockedExchange(&log->state, 1);
 
-    if (statuslog) {
-        SVCBATCH_CS_ENTER(statuslog);
-        s = InterlockedExchangePointer(&statuslog->fd, NULL);
-        logwrline(s, 0, "Rotating");
-    }
     h = InterlockedExchangePointer(&log->fd, NULL);
     if (h == NULL) {
         rc = ERROR_FILE_NOT_FOUND;
         goto finished;
     }
-    nr = InterlockedIncrement(&log->count);
+    InterlockedIncrement(&log->count);
     FlushFileBuffers(h);
-    if (s) {
-        LARGE_INTEGER sz;
-
-        logwwrite(s, 0, "  ", log->logFile);
-        if (GetFileSizeEx(h, &sz))
-        logprintf(s, 0, "  size           : %lld", sz.QuadPart);
-        if (rotatebysize)
-        logprintf(s, 0, "  rotate size    : %lld", rotatesize);
-        logprintf(s, 0, "Log generation   : %lu", nr);
-    }
     if (IS_SET(SVCBATCH_OPT_TRUNCATE)) {
         LARGE_INTEGER ee = {{ 0, 0 }};
 
         if (SetFilePointerEx(h, ee, NULL, FILE_BEGIN)) {
             if (SetEndOfFile(h)) {
-                logwrtime(s, 0, "Log truncated");
                 InterlockedExchangePointer(&log->fd, h);
                 goto finished;
             }
@@ -2961,18 +2622,12 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
     }
     else {
         CloseHandle(h);
-        rc = openlogfile(log, FALSE, s);
+        rc = openlogfile(log, FALSE);
     }
     if (rc)
         setsvcstatusexit(rc);
-    logwrtime(s, 0, "Log rotated");
 
 finished:
-    if (statuslog) {
-        InterlockedExchangePointer(&statuslog->fd, s);
-        InterlockedExchange(&statuslog->count, 0);
-        SVCBATCH_CS_LEAVE(statuslog);
-    }
     InterlockedExchange64(&log->size, 0);
     SVCBATCH_CS_LEAVE(log);
     return rc;
@@ -2981,7 +2636,6 @@ finished:
 static DWORD closelogfile(LPSVCBATCH_LOG log)
 {
     HANDLE h;
-    HANDLE s = NULL;
 
     if (log == NULL)
         return ERROR_FILE_NOT_FOUND;
@@ -2989,29 +2643,11 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
     SVCBATCH_CS_ENTER(log);
     DBG_PRINTF("%d %S", log->state, log->logFile);
     InterlockedExchange(&log->state, 1);
-    if (log != statuslog) {
-        if (statuslog) {
-            SVCBATCH_CS_ENTER(statuslog);
-            s = InterlockedExchangePointer(&statuslog->fd, NULL);
-        }
-    }
 
     h = InterlockedExchangePointer(&log->fd, NULL);
     if (h) {
-        if (log == statuslog)
-            logwrtime(h, 0, "Status closed");
-        if (s) {
-            logwrline(s, 0, "Closing");
-            logwwrite(s, 0, "  ", log->logFile);
-        }
         FlushFileBuffers(h);
         CloseHandle(h);
-        if (s)
-            logwrtime(s, 0, "Log closed");
-    }
-    if (s) {
-        InterlockedExchangePointer(&statuslog->fd, s);
-        SVCBATCH_CS_LEAVE(statuslog);
     }
 
     SVCBATCH_CS_LEAVE(log);
@@ -3253,7 +2889,6 @@ finished:
     DBG_PRINTF("done %lu", rc);
     return rc;
 }
-#endif
 
 static DWORD WINAPI stopthread(void *msg)
 {
@@ -3267,14 +2902,11 @@ static DWORD WINAPI stopthread(void *msg)
     if (msg == NULL)
         xsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
     DBG_PRINTS("started");
-#if SVCBATCH_LEAN_AND_MEAN
     if (outputlog) {
         SVCBATCH_CS_ENTER(outputlog);
         InterlockedExchange(&outputlog->state, 1);
         SVCBATCH_CS_LEAVE(outputlog);
     }
-    if (statuslog && msg)
-        logwrstat(statuslog, 2, 0, msg);
     if (svcstop) {
         ULONGLONG rs;
 
@@ -3290,7 +2922,6 @@ static DWORD WINAPI stopthread(void *msg)
         DBG_PRINTF("waiting %d ms for worker", ri);
         ws = WaitForSingleObject(workerended, ri);
     }
-#endif
     if (ws != WAIT_OBJECT_0) {
         xsvcstatus(SERVICE_STOP_PENDING, 0);
         SetConsoleCtrlHandler(NULL, TRUE);
@@ -3330,7 +2961,6 @@ static void createstopthread(DWORD rv)
         setsvcstatusexit(rv);
 }
 
-#if SVCBATCH_LEAN_AND_MEAN
 static void stopshutdown(DWORD rt)
 {
     DWORD ws;
@@ -3358,18 +2988,13 @@ static void stopshutdown(DWORD rt)
     }
     DBG_PRINTS("done");
 }
-#endif
 
-#if SVCBATCH_LEAN_AND_MEAN
 static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
 {
     DWORD  rc = 0;
     DWORD  wr = 0;
     HANDLE h;
 
-#if defined(_DEBUG) && (_DEBUG > 2)
-    DBG_PRINTF("writing %4lu bytes", len);
-#endif
     SVCBATCH_CS_ENTER(log);
     h = InterlockedExchangePointer(&log->fd, NULL);
     if (h == NULL) {
@@ -3393,14 +3018,12 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
         if (log->size >= rotatesize) {
             if (canrotatelogs(log)) {
                 DBG_PRINTS("rotating by size");
-                logwrstat(statuslog, 0, 1, "Rotate by size");
                 SetEvent(dologrotate);
             }
         }
     }
     return 0;
 }
-#endif
 
 static DWORD WINAPI wrpipethread(void *pipe)
 {
@@ -3428,7 +3051,6 @@ static DWORD WINAPI wrpipethread(void *pipe)
     return rc;
 }
 
-#if SVCBATCH_LEAN_AND_MEAN
 static DWORD WINAPI rotatethread(void *unused)
 {
     HANDLE wh[4];
@@ -3485,7 +3107,6 @@ static DWORD WINAPI rotatethread(void *unused)
             break;
             case WAIT_OBJECT_3:
                 DBG_PRINTS("rotate timer signaled");
-                logwrstat(statuslog, 0, 1, "Rotate by time");
                 if (canrotatelogs(outputlog)) {
                     DBG_PRINTS("rotate by time");
                     rc = rotatelogs(outputlog);
@@ -3493,10 +3114,6 @@ static DWORD WINAPI rotatethread(void *unused)
                 }
                 else {
                     DBG_PRINTS("rotate is busy ... canceling timer");
-                    if (outputlog->size)
-                        logwrstat(statuslog, 0, 0, "Canceling timer  : Rotate busy");
-                    else
-                        logwrstat(statuslog, 0, 0, "Canceling timer  : Log empty");
                 }
                 if (rc == 0) {
                     CancelWaitableTimer(wt);
@@ -3510,12 +3127,10 @@ static DWORD WINAPI rotatethread(void *unused)
                 DBG_PRINTS("rotate ready");
                 SVCBATCH_CS_ENTER(outputlog);
                 InterlockedExchange(&outputlog->state, 0);
-                logwrstat(statuslog, 1, 1, "Rotate ready");
                 if (rotatebysize) {
                     if (outputlog->size >= rotatesize) {
                         InterlockedExchange(&outputlog->state, 1);
                         DBG_PRINTS("rotating by size");
-                        logwrstat(statuslog, 0, 0, "Rotating by size");
                         SetEvent(dologrotate);
                     }
                 }
@@ -3541,7 +3156,6 @@ finished:
     DBG_PRINTS("done");
     return rc > 1 ? rc : 0;
 }
-#endif
 
 static DWORD WINAPI workerthread(void *unused)
 {
@@ -3551,18 +3165,15 @@ static DWORD WINAPI workerthread(void *unused)
     LPHANDLE wp = NULL;
     DWORD    rc = 0;
     DWORD    cf = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
-#if SVCBATCH_LEAN_AND_MEAN
     HANDLE   rd = NULL;
     LPSVCBATCH_PIPE op = NULL;
-#endif
 
     DBG_PRINTS("started");
     xsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_STARTING);
-#if SVCBATCH_LEAN_AND_MEAN
+
     if (outputlog)
         rp = &rd;
-#endif
     if (IS_SET(SVCBATCH_OPT_YYES))
         wp = &wr;
     rc = createiopipes(&cmdproc->sInfo, wp, rp, FILE_FLAG_OVERLAPPED);
@@ -3578,7 +3189,7 @@ static DWORD WINAPI workerthread(void *unused)
     cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->script);
     for (i = 0; i < cmdproc->argc; i++)
         cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
-#if SVCBATCH_LEAN_AND_MEAN
+
     if (outputlog) {
         op = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
         op->pipe = rd;
@@ -3593,7 +3204,6 @@ static DWORD WINAPI workerthread(void *unused)
             goto finished;
         }
     }
-#endif
     xsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     DBG_PRINTF("cmdline %S", cmdproc->commandLine);
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK))
@@ -3627,7 +3237,6 @@ static DWORD WINAPI workerthread(void *unused)
             goto finished;
         }
     }
-#if SVCBATCH_LEAN_AND_MEAN
     if (IS_SET(SVCBATCH_OPT_ROTATE)) {
         if (!xcreatethread(SVCBATCH_ROTATE_THREAD,
                            1, rotatethread, NULL)) {
@@ -3639,7 +3248,6 @@ static DWORD WINAPI workerthread(void *unused)
             goto finished;
         }
     }
-#endif
     ResumeThread(cmdproc->pInfo.hThread);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_RUNNING);
     if (IS_SET(SVCBATCH_OPT_YYES))
@@ -3648,7 +3256,6 @@ static DWORD WINAPI workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     xsvcstatus(SERVICE_RUNNING, 0);
     DBG_PRINTF("running process %lu", cmdproc->pInfo.dwProcessId);
-#if SVCBATCH_LEAN_AND_MEAN
     if (IS_SET(SVCBATCH_OPT_ROTATE))
         ResumeThread(threads[SVCBATCH_ROTATE_THREAD].thread);
     if (outputlog) {
@@ -3712,9 +3319,7 @@ static DWORD WINAPI workerthread(void *unused)
             }
         } while (nw);
     }
-    else
-#endif
-    {
+    else {
         WaitForSingleObject(cmdproc->pInfo.hProcess, INFINITE);
     }
     DBG_PRINTS("stopping");
@@ -3741,13 +3346,11 @@ static DWORD WINAPI workerthread(void *unused)
                cmdproc->exitCode);
 
 finished:
-#if SVCBATCH_LEAN_AND_MEAN
     if (op != NULL) {
         SAFE_CLOSE_HANDLE(op->pipe);
         SAFE_CLOSE_HANDLE(op->o.hEvent);
         free(op);
     }
-#endif
     closeprocess(cmdproc);
 
     DBG_PRINTS("done");
@@ -3799,11 +3402,9 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
         case SERVICE_CONTROL_STOP:
             msg = "Service signaled : SERVICE_CONTROL_STOP";
         break;
-#if SVCBATCH_LEAN_AND_MEAN
         case SVCBATCH_CTRL_ROTATE:
             msg = "Service signaled : SVCBATCH_CTRL_ROTATE";
         break;
-#endif
     }
     switch (ctrl) {
         case SERVICE_CONTROL_PRESHUTDOWN:
@@ -3820,11 +3421,9 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
             SVCBATCH_CS_LEAVE(service);
         break;
-#if SVCBATCH_LEAN_AND_MEAN
         case SVCBATCH_CTRL_BREAK:
             if (IS_SET(SVCBATCH_OPT_SEND_BREAK)) {
                 DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
-                logwrstat(statuslog, 2, 0, "Service signaled : SVCBATCH_CTRL_BREAK");
                 /**
                  * Danger Zone!!!
                  *
@@ -3847,17 +3446,12 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                  * Signal to rotatethread that
                  * user send custom service control
                  */
-                logwrstat(statuslog, 1, 0, msg);
                 if (rb) {
                     DBG_PRINTS("signaling SVCBATCH_CTRL_ROTATE");
                     SetEvent(dologrotate);
                 }
                 else {
                     DBG_PRINTS("rotatelogs is busy");
-                    if (outputlog->size)
-                        logwrstat(statuslog, 0, 1, "Log is busy");
-                    else
-                        logwrstat(statuslog, 0, 1, "Log is empty");
                     return ERROR_SERVICE_CANNOT_ACCEPT_CTRL;
                 }
             }
@@ -3866,7 +3460,6 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
                 return ERROR_INVALID_SERVICE_CONTROL;
             }
         break;
-#endif
         case SERVICE_CONTROL_INTERROGATE:
             DBG_PRINTS("SERVICE_CONTROL_INTERROGATE");
         break;
@@ -3942,12 +3535,10 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(workerended);
     SAFE_CLOSE_HANDLE(svcstopdone);
     SAFE_CLOSE_HANDLE(stopstarted);
-#if SVCBATCH_LEAN_AND_MEAN
     SAFE_CLOSE_HANDLE(dologrotate);
     if (sharedmem)
         UnmapViewOfFile(sharedmem);
     SAFE_CLOSE_HANDLE(sharedmmap);
-#endif
     SVCBATCH_CS_CLOSE(service);
     DBG_PRINTS("done");
 }
@@ -3964,7 +3555,6 @@ static DWORD createevents(void)
                                  EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(stopstarted))
         return GetLastError();
-#if SVCBATCH_LEAN_AND_MEAN
     if (IS_SET(SVCBATCH_OPT_ROTATE)) {
         dologrotate = CreateEventEx(NULL, NULL,
                                      CREATE_EVENT_MANUAL_RESET,
@@ -3972,7 +3562,6 @@ static DWORD createevents(void)
         if (IS_INVALID_HANDLE(dologrotate))
             return GetLastError();
     }
-#endif
     return 0;
 }
 
@@ -4076,11 +3665,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
     LPWSTR   svchomeparam = NULL;
     LPWSTR   svcworkparam = NULL;
     LPWSTR   commandparam = NULL;
-#if SVCBATCH_LEAN_AND_MEAN
     LPWSTR   svcstopparam = NULL;
     LPCWSTR  maxlogsparam = NULL;
     LPCWSTR  rotateparam  = NULL;
-#endif
 
     DBG_PRINTF("started %d", argc);
     serviceargc = argc;
@@ -4132,7 +3719,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'g':
                 OPT_SET(SVCBATCH_OPT_CTRL_BREAK);
             break;
-#if SVCBATCH_LEAN_AND_MEAN
             case 'a':
                 OPT_SET(SVCBATCH_OPT_APPEND);
             break;
@@ -4142,17 +3728,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'q':
                 OPT_SET(SVCBATCH_OPT_QUIET);
             break;
-            case 'v':
-                OPT_SET(SVCBATCH_OPT_VERBOSE);
-            break;
-#endif
             case 'p':
                 preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             /**
              * Options with arguments
              */
-#if SVCBATCH_LEAN_AND_MEAN
             case 'm':
                 maxlogsparam = xwoptarg;
             break;
@@ -4175,7 +3756,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'r':
                 rotateparam  = xwoptarg;
             break;
-#endif
             case 'f':
                 svcfailmode = xwcstoi(xwoptarg, NULL);
                 if ((svcfailmode < 0) || (svcfailmode > 2))
@@ -4259,7 +3839,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     }
                 }
             break;
-#if SVCBATCH_LEAN_AND_MEAN
             case 's':
                 if (xisoptionswitch()) {
                     if (xisstrbool(0, xwoptarg + 1)) {
@@ -4294,7 +3873,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     xwchreplace(svcstop->args[svcstop->argc++]);
                 }
             break;
-#endif
             case ENOENT:
                 return xsyserrno(11, xwoption, NULL);
             break;
@@ -4341,7 +3919,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
     }
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) && IS_SET(SVCBATCH_OPT_SEND_BREAK))
         return xsyserrno(21, L"b and g", NULL);
-#if SVCBATCH_LEAN_AND_MEAN
     if (maxlogsparam) {
         svcmaxlogs = xwcstoi(maxlogsparam, NULL);
         if ((svcmaxlogs < 1) || (svcmaxlogs > SVCBATCH_MAX_LOGS))
@@ -4362,7 +3939,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
         outputlog->maxLogs = svcmaxlogs;
         SVCBATCH_CS_INIT(outputlog);
     }
-#endif
     /**
      * Find the location of SVCBATCH_SERVICE_HOME
      * all relative paths are resolved against it.
@@ -4459,7 +4035,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
         cmdproc->opts[cmdproc->optc++] = xwcsdup(SVCBATCH_DEF_ARGS);
         svcoptions |= SVCBATCH_OPT_YYES;
     }
-#if SVCBATCH_LEAN_AND_MEAN
     if (rotateparam) {
         if (!resolverotate(rotateparam))
             return xsyserrno(12, L"r", rotateparam);
@@ -4485,7 +4060,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
             xfree(svcstopparam);
         }
     }
-#endif
     DBG_PRINTS("done");
     return 0;
 }
@@ -4494,10 +4068,6 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 {
     DWORD  rv = 0;
     DWORD  i;
-#if SVCBATCH_LEAN_AND_MEAN
-    HANDLE sh = NULL;
-    LPSVCBATCH_LOG log = NULL;
-#endif
 
     DBG_PRINTS("started");
     service->status.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
@@ -4533,22 +4103,10 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
-#if SVCBATCH_LEAN_AND_MEAN
-    log = outputlog;
-    if (IS_SET(SVCBATCH_OPT_VERBOSE)) {
-        statuslog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
-
-        statuslog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
-        statuslog->maxLogs = svcmaxlogs;
-        statuslog->fileExt = SBSTATUS_LOGFEXT;
-        SVCBATCH_CS_INIT(statuslog);
-
-        log = statuslog;
-    }
-    if (log) {
+    if (outputlog) {
         if (outdirparam == NULL)
             outdirparam = SVCBATCH_LOGSDIR;
-        rv = createlogsdir(log);
+        rv = createlogsdir(outputlog);
         if (rv) {
             xsvcstatus(SERVICE_STOPPED, rv);
             return;
@@ -4571,9 +4129,6 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
             }
         }
     }
-#else
-    service->logs = service->work;
-#endif
     /**
      * Add additional environment variables
      * They are unique to this service instance
@@ -4592,26 +4147,15 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xwchreplace(cmdproc->opts[i]);
     for (i = 0; i < setuserenvc; i++)
         xsetusrenv(setuserenvs[i]);
-#if SVCBATCH_LEAN_AND_MEAN
-    if (statuslog) {
-        rv = openlogfile(statuslog, TRUE, NULL);
-        if (rv != 0) {
-            xsvcstatus(SERVICE_STOPPED, rv);
-            return;
-        }
-        sh = statuslog->fd;
-        logconfig(sh);
-    }
     if (outputlog) {
         xsvcstatus(SERVICE_START_PENDING, 0);
 
-        rv = openlogfile(outputlog, TRUE, sh);
+        rv = openlogfile(outputlog, TRUE);
         if (rv != 0) {
             xsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
     }
-#endif
     xsvcstatus(SERVICE_START_PENDING, 0);
 
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
@@ -4626,9 +4170,6 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
          * Service ended without stop signal
          */
         DBG_PRINTS("ended without SERVICE_CONTROL_STOP");
-#if SVCBATCH_LEAN_AND_MEAN
-        logwrstat(statuslog, 2, 0, "Service stopped without SERVICE_CONTROL_STOP");
-#endif
     }
     SVCBATCH_CS_LEAVE(service);
     DBG_PRINTS("waiting for stop to finish");
@@ -4637,23 +4178,19 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 
 finished:
     DBG_PRINTS("closing");
-#if SVCBATCH_LEAN_AND_MEAN
     closelogfile(outputlog);
-    closelogfile(statuslog);
-#endif
     threadscleanup();
     xsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");
 }
 
-#if SVCBATCH_LEAN_AND_MEAN
 static DWORD svcstopmain(void)
 {
     DWORD rc;
 
     DBG_PRINTF("%S", service->name);
     if (outputlog) {
-        rc = openlogfile(outputlog, FALSE, NULL);
+        rc = openlogfile(outputlog, FALSE);
         if (rc)
             return rc;
     }
@@ -4680,9 +4217,7 @@ finished:
     DBG_PRINTS("done");
     return service->status.dwServiceSpecificExitCode;
 }
-#endif
 
-#if SVCBATCH_HAVE_SCM
 static int setsvcarguments(SC_HANDLE svc, int argc, LPCWSTR *argv)
 {
     int     e;
@@ -5274,7 +4809,6 @@ finished:
     DBG_PRINTS("done");
     return rv;
 }
-#endif
 
 #if defined(_DEBUG)
 static void __cdecl dbgcleanup(void)
@@ -5335,8 +4869,7 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     WCHAR  bb[SVCBATCH_PATH_MAX];
     LPWSTR dp = NULL;
     DWORD  nn;
- #if SVCBATCH_LEAN_AND_MEAN
-   LARGE_INTEGER i;
+    LARGE_INTEGER i;
 
     /**
      * On systems that run Windows XP or later,
@@ -5346,7 +4879,6 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     counterfreq = i.QuadPart;
     QueryPerformanceCounter(&i);
     counterbase = i.QuadPart;
-#endif
 #if defined (_DEBUG)
     InitializeCriticalSection(&dbglock);
     atexit(dbgcleanup);
@@ -5401,9 +4933,7 @@ static int xwmaininit(int argc, LPCWSTR *argv)
 
 int wmain(int argc, LPCWSTR *argv)
 {
-#if SVCBATCH_LEAN_AND_MEAN
     DWORD   x;
-#endif
     int     r = 0;
     LPCWSTR p = NULL;
 
@@ -5429,7 +4959,6 @@ int wmain(int argc, LPCWSTR *argv)
     r = xwmaininit(argc, argv);
     if (r != 0)
         return r;
-#if SVCBATCH_LEAN_AND_MEAN
     /**
      * Check if running as service or as a child process.
      */
@@ -5485,8 +5014,6 @@ int wmain(int argc, LPCWSTR *argv)
         }
         xwcslcpy(service->logs, SVCBATCH_PATH_MAX, sharedmem->logs);
     }
-#endif
-#if SVCBATCH_HAVE_SCM
     if (servicemode && (argc > 2)) {
         /**
          * Check if this is a Service Manager command
@@ -5511,7 +5038,6 @@ int wmain(int argc, LPCWSTR *argv)
             }
         }
     }
-#endif
 #if defined(_DEBUG)
     if (servicemode) {
         dbgsvcmode = 1;
@@ -5566,11 +5092,9 @@ int wmain(int argc, LPCWSTR *argv)
         if (!StartServiceCtrlDispatcherW(se))
             r = GetLastError();
     }
-#if SVCBATCH_LEAN_AND_MEAN
     else {
         r = svcstopmain();
     }
-#endif
 finished:
 #if defined(_DEBUG)
     DBG_PRINTS("done");

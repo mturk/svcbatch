@@ -65,22 +65,6 @@
 #define SVCBATCH_ISDEV_VERSION  1
 
 
-#if defined(_SVCBATCH_LITE)
-# define SVCBATCH_LEAN_AND_MEAN 0
-# define SVCBATCH_IS_LITE       1
-# define SVCBATCH_RES_NAME      "SvcBatch Lite"
-# if (_SVCBATCH_LITE > 1)
-#  define SVCBATCH_HAVE_SCM     0
-# else
-#  define SVCBATCH_HAVE_SCM     1
-# endif
-#else
-# define SVCBATCH_LEAN_AND_MEAN 1
-# define SVCBATCH_HAVE_SCM      1
-# define SVCBATCH_IS_LITE       0
-# define SVCBATCH_RES_NAME      "SvcBatch"
-#endif
-
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
@@ -88,7 +72,6 @@
 #define SVCBATCH_LOGNAME       L"SvcBatch"
 #define SVCBATCH_LOGFEXT       L".log"
 #define SHUTDOWN_LOGFEXT       L".shutdown.log"
-#define SBSTATUS_LOGFEXT       L".status.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
 #define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"
@@ -134,7 +117,7 @@
 
 /**
  * Default number of the SvcBatch.log.N
- * SvcBatch.shutdown.log.N and SvcBatch.status.log.N files
+ * and SvcBatch.shutdown.log.N files
  */
 #define SVCBATCH_DEF_LOGS       2
 
@@ -288,7 +271,6 @@
 #define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging              */
 #define SVCBATCH_OPT_CTRL_BREAK     0x00000020   /* Send CTRL_BREAK on stop      */
 #define SVCBATCH_OPT_NOENV          0x00000040   /* Do not set private envvars   */
-#define SVCBATCH_OPT_VERBOSE        0x00000100   /* Use SvcBatch.status.log      */
 #define SVCBATCH_OPT_SEND_BREAK     0x00000200   /* Enable sending CTRL_BREAK    */
 #define SVCBATCH_OPT_ROTATE         0x00000400   /* Enable log rotation          */
 

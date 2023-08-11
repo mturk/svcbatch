@@ -23,7 +23,6 @@ rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme"
 rem        mkrelease /d ...   create debug release
 rem        mkrelease /s ...   compile with static msvcrt
 rem        mkrelease /h ...   compile with hybrid crt
-rem        mkrelease /l ...   create (lite) release
 rem
 setlocal
 rem
@@ -32,7 +31,6 @@ set "ReleaseArch=win-x64"
 set "BuildDir=build\rel"
 set "ProjectFiles=%ProjectName%.exe"
 set "DebugPrefix="
-set "LitePrefix="
 set "MakefileArgs="
 rem
 :getOpts
@@ -40,7 +38,6 @@ rem
 if /i "x%~1" == "x/d" goto setDebug
 if /i "x%~1" == "x/h" goto setHybrid
 if /i "x%~1" == "x/s" goto setStatic
-if /i "x%~1" == "x/l" goto setLite
 rem
 goto doneOpts
 rem
@@ -62,11 +59,6 @@ set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=1"
 shift
 goto getOpts
 rem
-:setLite
-set "MakefileArgs=%MakefileArgs% _SVCBATCH_LITE=1"
-set "LitePrefix=lite-"
-shift
-goto getOpts
 rem
 :doneOpts
 rem
