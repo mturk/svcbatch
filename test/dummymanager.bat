@@ -75,7 +75,7 @@ rem set "SERVICE_LOG_FNAME=/n "%SERVICE_NAME%""
 rem
 rem set "SERVICE_LOG_FNAME=/n "%SERVICE_NAME%.@Y-@m-@d.@H@M@S""
 rem
-set "SERVICE_LOG_FNAME=/n@N.%%Y-@m-%%d"
+set "SERVICE_LOG_FNAME=/n@N.@Y-@m-@d"
 rem
 rem Set PATH
 set "SERVICE_ENVIRONMENT=/ePATH=%BUILD_DIR%;%%PATH%% /eADUMMYSVC_HOME=$h"

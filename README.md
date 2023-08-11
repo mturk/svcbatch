@@ -596,14 +596,6 @@ Is the same as
   Instead rotating Svcbatch.log from `1 .. 2` it will rotate
   exiting log files from `1 .. 4.`.
 
-  In case log rotation was enabled by using **/R** parameter,
-  SvcBatch will rename existing`SvcBatch.log` to
-  `SvcBatch.log.dddsssss`, and create a new `SvcBatch.log`.
-
-  The `dddsssss` is the format constructed as tree digit day
-  of the current year (001 .. 366) and number of seconds since
-  midnight (00000 .. 86400), using current local or
-  system time (depending on **/L** option).
 
 * **/N [log name]**
 
@@ -626,15 +618,15 @@ Is the same as
   SvcBatch will at runtime append `.log`, `.shutdown.log`
   or `.status.log` extension to the **log name**.
 
-  If the **/N** argument contains `@` characters, they will be replaced
-  with `%` character at runtime and treated as a format string
+  If the **/N** argument contains `@` characters,
+  it will be treated as a format string
   to our custom `strftime` function.
 
   When using `strftime` filename formatting, be sure the
   log file name format has enough granularity to produce a different
   file name each time the logs are rotated. Otherwise rotation
   will overwrite the same file instead of starting a new one.
-  For example, if logfile was `service.%Y-%m-%d` with log rotation
+  For example, if logfile was `service.@Y-@m-@d` with log rotation
   at `5` megabytes, but `5` megabytes was reached twice in the same day,
   the same log file name would be produced and log rotation would
   overwrite the same file.
@@ -644,19 +636,19 @@ Is the same as
   Here are listed the supported formatting codes:
 
   ```no-highlight
-    %d  Day of month as a decimal number (01 - 31)
-    %F  Equivalent to %Y-%m-%d
-    %H  Hour in 24-hour format (00 - 23)
-    %j  Day of the year as a decimal number (001 - 366)
-    %m  Month as a decimal number (01 - 12)
-    %M  Minute as a decimal number (00 - 59)
-    %N  Service Name
-    %P  Program Name
-    %S  Second as a decimal number (00 - 59)
-    %s  Millisecond as a decimal number (000 - 999)
-    %w  Weekday as a decimal number (0 - 6; Sunday is 0)
-    %y  Year without century, as decimal number (00 - 99)
-    %Y  Year with century, as decimal number
+    @d  Day of month as a decimal number (01 - 31)
+    @F  Equivalent to @Y-@m-@d
+    @H  Hour in 24-hour format (00 - 23)
+    @j  Day of the year as a decimal number (001 - 366)
+    @m  Month as a decimal number (01 - 12)
+    @M  Minute as a decimal number (00 - 59)
+    @N  Service Name
+    @P  Program Name
+    @S  Second as a decimal number (00 - 59)
+    @s  Millisecond as a decimal number (000 - 999)
+    @w  Weekday as a decimal number (0 - 6; Sunday is 0)
+    @y  Year without century, as decimal number (00 - 99)
+    @Y  Year with century, as decimal number
   ```
 
   Make sure that log names contain only valid file name characters.
@@ -741,7 +733,7 @@ Is the same as
   `sc.exe control [service name] 234` command.
 
   In case the **rule** starts with the capital letter `T`,
-  log files will be truncated insteadotated.
+  log files will be truncated instead rotated.
 
   This is useful when a log is processed in real time by a command
   like tail, and there is no need for archived data.
@@ -757,11 +749,11 @@ Is the same as
   value separator. The order is important.
 
   ```no-highlight
-    <S[ignal]>+<T[runcate]>+<Time>+<Size>
+    <@Time><+Size>
   ```
 
   ```no-highlight
-  > svcbatch create ... /R 17:00:00+100K
+  > svcbatch create ... /R @17:00:00+100K
 
   ```
 
@@ -769,7 +761,7 @@ Is the same as
   as minutes between log rotation.
 
   ```no-highlight
-  >svcbatch create ... /R 90+200K
+  >svcbatch create ... /R @90+200K
 
   ```
 
@@ -778,11 +770,11 @@ Is the same as
   it will be rotated as well. In that case internal timer
   will be reset and next rotation will occur after `90` minutes.
 
-  In case **rule** parameter is `0` SvcBatch will rotate
+  In case **rule** parameter is `@0` SvcBatch will rotate
   log files each day at midnight. This is the same as
-  defining `/R 00:00:00`.
+  defining `/R @00:00:00`.
 
-  In case **rule** parameter is `60` SvcBatch will rotate
+  In case **rule** parameter is `@60` SvcBatch will rotate
   log files every full hour.
 
   In case **rule** parameter for rotation based on log file size
@@ -791,26 +783,9 @@ Is the same as
   The **rule** parameter uses the following format:
 
   ```no-highlight
-      <S>[+]<T>[+]<[minutes|hh:mm:ss]>[+]<size[B|K|M|G]>
+      <[@hh:mm:ss|@minutes]><+size[B|K|M|G]>
   ```
 
-  Example with all features enabled is as follows:
-
-
-  ```no-highlight
-  >svcbatch create ... /R S+T+60+200K
-
-  ```
-
-  The upper example will enable rotation by signal. It will
-  truncate existing log files instead generating new ones.
-  It will do that each full hour or when the log file
-  gets larger the 200Kbytes.
-
-
-  On rotation event, existing `SvcBatch.log` will be renamed to
-  `SvcBatch.log.yyjjjhhmmss`, and new `SvcBatch.log` will be crated,
-  unless the log truncation was defined as part or **rule**.
 
 
 * **/S [script][argument]**
@@ -1007,11 +982,6 @@ is to open command prompt and type
 
   >
   ```
-
-The actual version information can be obtained by inspecting
-the top of the service's `SvcBatch.status.log` file. This information
-will be present in the log file, only if **-v** command
-option was defined at service's install.
 
 Make sure to use the correct information when filing
 bug reports.
