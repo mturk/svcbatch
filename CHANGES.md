@@ -11,25 +11,6 @@ For a full list of changes, see the [git commit log][log]
   * In development
 
 
-## v3.0.0
-
-### This is major version upgrade that could cause incompatibility with previous versions
-
-  * Fix return value from service handler when log rotate is disabled or busy
-  * Enable to set options on service start with additional arguments
-  * Add service ImagePathArguments registry value that is added to command options defined in ImagePath
-  * Use svcbatch /? to get the version info
-  * Improve detecting mutually exclusive command options
-
-### New Features
-
-  * Add Service Manager code for creating, configuring and managing SvcBatch services
-  * Add -a command option for appending to log files
-  * Add -d command option for changing default kill depth
-  * Add -f command option for setting the behavior on service failure
-  * Enable to build 'lite' version of SvcBatch without logging and shutdown
-  * Use application name as prefix for private environment variables.
-
 ## v2.1.2
 
   * Drop inconsistent -bb option
