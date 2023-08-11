@@ -266,15 +266,18 @@
  */
 #define SVCBATCH_OPT_YYES           0x00000001   /* Write Y to cmd.exe stdin     */
 #define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time               */
-#define SVCBATCH_OPT_TRUNCATE       0x00000004   /* Truncate  Log files          */
 #define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging              */
-#define SVCBATCH_OPT_CTRL_BREAK     0x00000020   /* Send CTRL_BREAK on stop      */
-#define SVCBATCH_OPT_NOENV          0x00000040   /* Do not set private envvars   */
-#define SVCBATCH_OPT_SEND_BREAK     0x00000200   /* Enable sending CTRL_BREAK    */
-#define SVCBATCH_OPT_ROTATE         0x00000400   /* Enable log rotation          */
+#define SVCBATCH_OPT_STOP_QUIET     0x00000020   /* Disable shutdown logging     */
+#define SVCBATCH_OPT_CTRL_BREAK     0x00000040   /* Send CTRL_BREAK on stop      */
+#define SVCBATCH_OPT_ENV            0x00000080   /* Set private envvars          */
+#define SVCBATCH_OPT_SEND_BREAK     0x00000100   /* Enable sending CTRL_BREAK    */
+#define SVCBATCH_OPT_ROTATE         0x00001000   /* Enable log rotation          */
+#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00002000   /* Rotate by signal             */
+#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00004000   /* Rotate by size               */
+#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00008000   /* Rotate by time               */
 
-#define SVCBATCH_OPT_NO_SCRIPT      0x00001000   /* Do not resolve scriptparam   */
-#define SVCBATCH_OPT_NO_STOPSCRIPT  0x00002000   /* Use service script for stop  */
+#define SVCBATCH_OPT_SCRIPT         0x00001000   /* Resolve scriptparam          */
+#define SVCBATCH_OPT_STOPSCRIPT     0x00002000   /* Resolve svcstopparam         */
 
 #define SVCBATCH_FAIL_ERROR     0   /* Set service error if run endeded without stop    */
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
@@ -294,6 +297,11 @@
 #define IS_NOT(_o)              ((svcoptions & (_o)) != (_o))
 #define OPT_SET(_o)             svcoptions |=  (_o)
 #define OPT_CLR(_o)             svcoptions &= ~(_o)
+#define OPT_MOD(_m, _o)         \
+    if (_m)                     \
+        svcoptions |=  (_o);    \
+    else                        \
+        svcoptions &= ~(_o)
 
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 

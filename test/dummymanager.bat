@@ -60,14 +60,12 @@ rem
 rem
 set "SERVICE_LOG_DIR=/oLogs/%SERVICE_NAME%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
-rem set "ROTATE_RULE=/r 10+100K"
-set "ROTATE_RULE=/rS+5+20K"
+rem set "ROTATE_RULE=/r:@10+100K"
+set "ROTATE_RULE=/r:@5+20K"
 rem Rotate Log files at midnight
-rem set "ROTATE_RULE=/r0"
+rem set "ROTATE_RULE=/r:@0"
 rem Rotate Log files every full hour or when larger then 40000 bytes
-rem set "ROTATE_RULE=/r60+40000B"
-rem Rotate only by signal
-rem set "ROTATE_RULE=/rS"
+rem set "ROTATE_RULE=/r:@60+40000B"
 rem
 rem Set log file names instead default SvcBatch.log and SvcBatch.shutdown.log
 rem Both .log and .shutdown.log extensions are added to the -n parameter
@@ -87,7 +85,7 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     --displayName "A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs:SeShutdownPrivilege ^
-    /pbLa /f:1 /S:OFF /E:ON /h ../../test %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
+    /F:PBLR-s /X:1 /h ../../test %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
     %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
     %SERVICE_BATCH% run %%TEMP%% %%SOME_RANDOM_VARIABLE%%
 rem

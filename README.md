@@ -124,19 +124,6 @@ detailed usage.
   service start application to the batch file's existing arguments
   defined at install time.
 
-  ```no-highlight
-  > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat param1"
-
-  ...
-
-  > sc start myservice param2 param3
-
-  ```
-
-  In that case the `myservice.bat` will receive `param1 param2 param3`
-  as arguments.
-
-
   Since SvcBatch version **3.0.0**, you can use the
   SvcBatch itself to start the service.
 
@@ -149,6 +136,21 @@ detailed usage.
 
   ```
 
+  Or you can use Microsoft `sc` utility
+
+  ```no-highlight
+  > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat param1"
+
+  ...
+
+  > sc start myservice param2 param3
+
+  ```
+
+  When started the `myservice.bat` will receive `param1 param2 param3`
+  as arguments.
+
+
 
 * **Notice**
 
@@ -157,7 +159,7 @@ detailed usage.
   privileges to the service:
 
   ```no-highlight
-  > sc privs myservice SeDebugPrivilege
+  > svcbatch configure myservice --privs=SeDebugPrivilege
 
   ```
 
@@ -196,35 +198,6 @@ look something like the following:
 
 
 ```no-highlight
-[5876:5352:080523/155543.405:SERVICE:wmain(5233)] SvcBatch 3.0.0.0_2.dbg (msc 192930151.0)
-[5876:4284:080523/155543.436:SERVICE:servicemain(4225)] started
-[5876:4284:080523/155543.450:SERVICE:servicemain(4240)] adummysvc
-[5876:4284:080523/155543.452:SERVICE:parseoptions(3854)] started 1
-[5876:4284:080523/155543.468:SERVICE:resolverotate(2941)] rotate each 5 minutes
-[5876:4284:080523/155543.468:SERVICE:resolverotate(2880)] rotate if larger then 20K
-[5876:4284:080523/155543.468:SERVICE:resolverotate(2840)] rotate by signal
-[5876:4284:080523/155543.468:SERVICE:parseoptions(4212)] done
-[5876:4284:080523/155543.468:SERVICE:makelogname(2607)] %N.%Y-%m-%d -> adummysvc.2023-08-05
-
-...
-
-[5876:5880:080523/155550.837:SERVICE:runshutdown(3015)] waiting 10000 ms for shutdown process 4900
-[4900:5744:080523/155550.869:STOPSVC:wmain(5154)] SvcBatch Shutdown 3.0.0.0_2.dbg (msc 192930151.0)
-[4900:5744:080523/155550.869:STOPSVC:wmain(5175)] ppid 5876
-[4900:5744:080523/155550.869:STOPSVC:wmain(5176)] opts 0x0000000b
-
-...
-
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3656)] started
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] workerthread    0      14515ms
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] wrpipethread  109      14500ms
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] stopthread      0       8562ms
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3671)] rotatethread    0       7344ms
-[5876:4284:080523/155559.395:SERVICE:threadscleanup(3676)] done
-[5876:4284:080523/155559.411:SERVICE:servicemain(4366)] done
-[5876:5352:080523/155559.411:SERVICE:wmain(5288)] done
-[5876:5352:080523/155559.411:SERVICE:cconsolecleanup(3707)] done
-[5876:5352:080523/155559.411:SERVICE:objectscleanup(3722)] done
 
 ```
 
@@ -298,7 +271,7 @@ rotation, SvcBatch will not rotate logs.
 
 SvcBatch command line options allow users to customize
 service deployments. Options are defined with **/** as
-command switch. This means that `/b /B` can be used for the same option..
+command switch. This means that `/h /H` can be used for the same option..
 
 After handling switches SvcBatch will use the next argument
 as the batch file to execute.
@@ -307,9 +280,6 @@ Any additional arguments will be passed as arguments to batch file.
 If additional argument contains `@` characters, each `@` character
 will be converted to `%` character at runtime.
 In case you need to pass `@` character use `@@`.
-
-Command line options are defined at service install time, so
-make sure to get familiar with `sc.exe` utility.
 
 If there is no batch file argument, SvcBatch will
 try to use `ServiceName.bat` as batch file. If `ServiceName` contain any of the
@@ -340,7 +310,7 @@ command argument.
 For example:
 
 ```no-highlight
-> svcbatch create ... /M4 "/Ssome argument"...
+> svcbatch create ... "/Ssome argument"...
 
 Is the same as
 
@@ -390,7 +360,7 @@ Is the same as
   **parameters** as arguments to the powershell.
 
 
-* **/D[<:>depth]**
+* **/K[<:>depth]**
 
   **Set the nested process kill depth**
 
@@ -446,9 +416,9 @@ Is the same as
   ```
 
 
-* **/F[<:>mode]**
+* **/X[<:>mode]**
 
-  **Set failure mode**
+  **Set service exit failure mode**
 
   This option determines how the SvcBatch will handle
   service failure in case it enters a `STOP` state
@@ -554,7 +524,7 @@ Is the same as
   to the Windows Event log.
 
 
-* **/K[<:>timeout]**
+* **/T[<:>timeout]**
 
   **Set stop timeout in seconds**
 
@@ -717,7 +687,7 @@ Is the same as
   Any eventual log rotation option will not be processed.
 
 
-* **/R [rule]**
+* **/R:[rule]**
 
   **Rotate logs by size or time interval**
 
@@ -728,18 +698,7 @@ Is the same as
   log files at desired interval, once a day at specific time
   or when log file gets larger then defined size.
 
-  In case the **rule** starts with the capital letter `S`,
-  log rotation will be enabled by using the
-  `sc.exe control [service name] 234` command.
-
-  In case the **rule** starts with the capital letter `T`,
-  log files will be truncated instead rotated.
-
-  This is useful when a log is processed in real time by a command
-  like tail, and there is no need for archived data.
-
-
-  Time and size values can be combined, that allows
+  Time and size values can be combined, which allows
   to rotate logs at specific time or size which ever first.
   For example one can define **rule** so that rotate logs
   is run each day at `17:00:00` hours or if log files gets
@@ -753,7 +712,7 @@ Is the same as
   ```
 
   ```no-highlight
-  > svcbatch create ... /R @17:00:00+100K
+  > svcbatch create ... /R:@17:00:00+100K
 
   ```
 
@@ -761,7 +720,7 @@ Is the same as
   as minutes between log rotation.
 
   ```no-highlight
-  >svcbatch create ... /R @90+200K
+  >svcbatch create ... /R:@90+200K
 
   ```
 
@@ -772,7 +731,7 @@ Is the same as
 
   In case **rule** parameter is `@0` SvcBatch will rotate
   log files each day at midnight. This is the same as
-  defining `/R @00:00:00`.
+  defining `/R@00:00:00`.
 
   In case **rule** parameter is `@60` SvcBatch will rotate
   log files every full hour.

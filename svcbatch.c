@@ -178,13 +178,9 @@ static LONGLONG              rotateinterval = CPP_INT64_C(0);
 static LONGLONG              rotatesize     = CPP_INT64_C(0);
 static LARGE_INTEGER         rotatetime     = {{ 0, 0 }};
 
-static BOOL      rotatebysize   = FALSE;
-static BOOL      rotatebytime   = FALSE;
-static BOOL      rotatebysignal = FALSE;
 static BOOL      servicemode    = TRUE;
 
-static DWORD     svcoptions     = 0;
-static DWORD     stopoption     = 0;
+static DWORD     svcoptions     = SVCBATCH_OPT_ENV | SVCBATCH_OPT_SCRIPT | SVCBATCH_OPT_STOPSCRIPT;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 static int       svcfailmode    = SVCBATCH_FAIL_ERROR;
@@ -212,7 +208,7 @@ static int     xwoptswc    = 0;
 static int     xioptarg    = 0;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
-static LPCWSTR cmdoptions  = L"abc:d::e:f::gh:k::lm::n:o:pqr:s:w:";
+static LPCWSTR cmdoptions  = L"cd:ef:hk:m:nor:st:wx:";
 
 static DWORD   setuserenvc = 0;
 static LPCWSTR setuserenvs[SVCBATCH_MAX_ARGS];
@@ -1120,51 +1116,47 @@ static LPCWSTR xcodemap(SVCBATCH_NAME_MAP const *map, DWORD c)
 
 static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
 {
-    static LPCWSTR place = zerostring;
+    LPCWSTR place;
     LPCWSTR oli = NULL;
     int option;
 
     xioptarg = 0;
     xwoptswc = 0;
     xwoptarg = NULL;
+
+    if (xwoptind >= nargc) {
+        /* No more arguments */
+        return EOF;
+    }
+    xwoption = nargv[xwoptind];
+    place    = xwoption;
+    xwoptswc = *(place++);
+    if (xwoptswc != '/') {
+        /**
+         * Argument is not an option
+         * Use it as in-place argument
+         */
+        xioptarg = 1;
+        xwoptarg = nargv[xwoptind++];
+        return ':';
+    }
     if (*place == WNUL) {
-        if (xwoptind >= nargc) {
-            /* No more arguments */
-            place = zerostring;
-            return EOF;
-        }
-        place    = nargv[xwoptind];
-        xwoptswc = *(place++);
-        if (xwoptswc != '/') {
-            place = zerostring;
-            /**
-             * Argument is not an option
-             * Use it as in-place argument
-             */
-            xwoptarg = nargv[xwoptind++];
-            return ':';
-        }
-        if (*place == WNUL) {
-            /**
-             * We have single '/'
-             * Skip option and end processing
-             */
-            place = zerostring;
-            xwoptind++;
-            return EOF;
-        }
-        if (*place == xwoptswc) {
-            /**
-             * We have '//'
-             * Skip first char and use it as in-place argument
-             */
-            xioptarg = 1;
-            xwoptarg = place;
-            place    = zerostring;
-            xwoptind++;
-            return ':';
-        }
-        xwoption = nargv[xwoptind];
+        /**
+         * We have single '/'
+         * Skip option and end processing
+         */
+        xwoptind++;
+        return EOF;
+    }
+    if (*place == xwoptswc) {
+        /**
+         * We have '//'
+         * Skip first char and use it as in-place argument
+         */
+        xioptarg = 1;
+        xwoptarg = place;
+        xwoptind++;
+        return ':';
     }
     option = *(place++);
     if (option != ':') {
@@ -1173,81 +1165,45 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     }
     if (oli == NULL) {
         xwoptind++;
-        place = zerostring;
         return EINVAL;
     }
-    /* Does this option need an argument? */
-    if (oli[1] == L':') {
-        if (xwoptswc == 0) {
-            /**
-             * The option that requires an
-             * argument is not a standalone option
-             * Treat is as an option that does not
-             * require an argument.
-             */
-            xwoptarg = oli;
-            if (*place == WNUL) {
-                xwoptind++;
-                place = zerostring;
-            }
-            return '?';
-        }
+    /**
+     * Option-argument is either the rest of this argument
+     * or the entire next argument.
+     */
+    if (*place) {
+        /* Skip blanks */
+        while (xisblank(*place))
+            ++place;
         /**
-         * Option-argument is either the rest of this argument
-         * or the entire next argument.
+         * Skip in-place delimiter if present
+         * and the option must have in-place argument.
+         * Both /oargument and /o:argument
+         * will set the xwoptarg to the same value
          */
-        if (*place) {
-            /* Skip blanks */
-            while (xisblank(*place))
-                ++place;
-            /**
-             * Skip in-place delimiter if present
-             * and the option must have in-place argument.
-             * Both /oargument and /o:argument
-             * will set the xwoptarg to the same value
-             */
-            if ((oli[2] == L':') && (*place == L':'))
-                ++place;
-        }
-        if (*place) {
-            xioptarg = 1;
-            xwoptarg = place;
-        }
-        else if (oli[2] == L':') {
-            /**
-             * Option-argument must be the rest or this argument
-             * but its not present
-             */
-            xwoptind++;
-            place = zerostring;
-            return ENOENT;
-        }
-        else if (nargc > ++xwoptind) {
-            /* Option-argument is the entire next argument */
-            xwoptarg = nargv[xwoptind];
-        }
+        if ((oli[1] == L':') && (*place == L':'))
+            ++place;
+    }
+    if (*place) {
+        xioptarg = 1;
+        xwoptarg = place;
+    }
+    else if (oli[1] == L':') {
+        /**
+         * Option-argument must be the rest or this argument
+         * but its not present
+         */
         xwoptind++;
-        place = zerostring;
-        if (IS_EMPTY_WCS(xwoptarg))
-            return ENOENT;
+        return ENOENT;
     }
-    else {
-        /* Don't need argument */
-        if ((xwoptswc == '/') && (*place == L':')) {
-            /**
-             * Set Option-argument for
-             * stand-alone /O if
-             * followed by ':' character
-             */
-             xioptarg = 1;
-             xwoptarg = place;
-             place    = zerostring;
-        }
-        if (*place == WNUL) {
-            xwoptind++;
-            place = zerostring;
-        }
+    else if (nargc > ++xwoptind) {
+        /* Option-argument is the entire next argument */
+        xwoptarg = nargv[xwoptind];
     }
+    xwoptind++;
+    place = zerostring;
+    if (IS_EMPTY_WCS(xwoptarg))
+        return ENOENT;
     return oli[0];
 }
 
@@ -2040,7 +1996,7 @@ static BOOL resolvescript(LPCWSTR bp)
 
     if (cmdproc->script)
         return TRUE;
-    if (IS_SET(SVCBATCH_OPT_NO_SCRIPT)) {
+    if (IS_NOT(SVCBATCH_OPT_SCRIPT)) {
         cmdproc->script = xwcsdup(bp);
         service->base   = service->work;
         return TRUE;
@@ -2300,8 +2256,10 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
 {
     DWORD rc;
     int   i;
+    int   n;
     int   x;
     WCHAR lognn[SVCBATCH_PATH_MAX];
+    WCHAR logpn[SVCBATCH_PATH_MAX];
     WIN32_FILE_ATTRIBUTE_DATA ad;
 
     x = xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->logFile);
@@ -2326,42 +2284,39 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
         else
             return 0;
     }
-    if (log->maxLogs > 0) {
-        int n = log->maxLogs;
-        WCHAR logpn[SVCBATCH_PATH_MAX];
+    n = log->maxLogs;
 
-        wmemcpy(logpn, lognn, x + 1);
-        x--;
-        for (i = 1; i < log->maxLogs; i++) {
-            lognn[x] = L'0' + i;
+    wmemcpy(logpn, lognn, x + 1);
+    x--;
+    for (i = 1; i < log->maxLogs; i++) {
+        lognn[x] = L'0' + i;
 
-            if (!GetFileAttributesExW(lognn, GetFileExInfoStandard, &ad))
-                break;
-            if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0))
-                break;
-        }
-        n = i;
-        /**
-         * Rotate previous log files
-         */
-        for (i = n; i > 0; i--) {
-            logpn[x] = L'0' + i - 1;
-            lognn[x] = L'0' + i;
-            if (GetFileAttributesExW(logpn, GetFileExInfoStandard, &ad)) {
-                if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
-                }
-                else {
-                    if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
-                        return xsyserror(GetLastError(), logpn, lognn);
-                    if (ssp)
-                        xsvcstatus(SERVICE_START_PENDING, 0);
-                }
+        if (!GetFileAttributesExW(lognn, GetFileExInfoStandard, &ad))
+            break;
+        if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0))
+            break;
+    }
+    n = i;
+    /**
+     * Rotate previous log files
+     */
+    for (i = n; i > 0; i--) {
+        logpn[x] = L'0' + i - 1;
+        lognn[x] = L'0' + i;
+        if (GetFileAttributesExW(logpn, GetFileExInfoStandard, &ad)) {
+            if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
             }
             else {
-                rc = GetLastError();
-                if (rc != ERROR_FILE_NOT_FOUND)
-                    return xsyserror(rc, logpn, NULL);
+                if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
+                    return xsyserror(GetLastError(), logpn, lognn);
+                if (ssp)
+                    xsvcstatus(SERVICE_START_PENDING, 0);
             }
+        }
+        else {
+            rc = GetLastError();
+            if (rc != ERROR_FILE_NOT_FOUND)
+                return xsyserror(rc, logpn, NULL);
         }
     }
 
@@ -2495,15 +2450,15 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
     DWORD   rc;
     DWORD   cd = CREATE_ALWAYS;
     WCHAR   nb[SVCBATCH_NAME_MAX];
-    BOOL    rp = TRUE;
     LPCWSTR np = log->logName;
+    int     rp = log->maxLogs;
     int     i;
 
     if (xwcschr(np, L'@')) {
         rc = makelogname(nb, SVCBATCH_NAME_MAX, np);
         if (rc == 0)
             return xsyserror(GetLastError(), np, NULL);
-        rp = FALSE;
+        rp = 0;
         np = nb;
     }
     i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, 0, service->logs);
@@ -2608,7 +2563,7 @@ static void resolvetimeout(int hh, int mm, int ss, int od)
     rotatetime.HighPart = ft.dwHighDateTime;
     rotatetime.LowPart  = ft.dwLowDateTime;
 
-    rotatebytime = TRUE;
+    OPT_SET(SVCBATCH_OPT_ROTATE_BY_TIME);
 }
 
 static BOOL resolverotate(LPCWSTR param)
@@ -2620,8 +2575,6 @@ static BOOL resolverotate(LPCWSTR param)
 
     rotateinterval      = CPP_INT64_C(0);
     rotatetime.QuadPart = CPP_INT64_C(0);
-    rotatebytime        = FALSE;
-    rotatebysize        = FALSE;
 
     if (*rp == L'@') {
         rp++;
@@ -2676,7 +2629,7 @@ static BOOL resolverotate(LPCWSTR param)
                 rotateinterval = mm * ONE_MINUTE * CPP_INT64_C(-1);
                 DBG_PRINTF("rotate each %d minutes", mm);
                 rotatetime.QuadPart = rotateinterval;
-                rotatebytime = TRUE;
+                OPT_SET(SVCBATCH_OPT_ROTATE_BY_TIME);
             }
             rp = ep;
             if (*rp != L'+')
@@ -2718,8 +2671,8 @@ static BOOL resolverotate(LPCWSTR param)
             }
             else {
                 DBG_PRINTF("rotate if larger then %d %C", val, *ep);
-                rotatesize   = siz;
-                rotatebysize = TRUE;
+                rotatesize = siz;
+                OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIZE);
                 return TRUE;
             }
         }
@@ -2747,13 +2700,12 @@ static DWORD runshutdown(void)
     if (sharedmem == NULL)
         return GetLastError();
     ZeroMemory(sharedmem, sizeof(SVCBATCH_IPC));
-    stopoption |= svcoptions;
     sharedmem->processId = program->pInfo.dwProcessId;
-    sharedmem->options   = stopoption & 0x000000FF;
+    sharedmem->options   = svcoptions & 0x000000FF;
     sharedmem->timeout   = stoptimeout;
     sharedmem->killdepth = killdepth;
     sharedmem->maxLogs   = svcmaxlogs;
-    if (((stopoption & SVCBATCH_OPT_QUIET) != SVCBATCH_OPT_QUIET) && (outputlog != NULL))
+    if (IS_SET(SVCBATCH_OPT_STOP_QUIET) && (outputlog != NULL))
         xwcslcpy(sharedmem->logName, SVCBATCH_NAME_MAX, outputlog->logName);
     xwcslcpy(sharedmem->name, SVCBATCH_NAME_MAX, service->name);
     xwcslcpy(sharedmem->home, SVCBATCH_PATH_MAX, service->home);
@@ -2930,7 +2882,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
 #if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("wrote   %4lu bytes", wr);
 #endif
-    if (IS_SET(SVCBATCH_OPT_ROTATE) && rotatebysize) {
+    if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIZE)) {
         if (log->size >= rotatesize) {
             if (canrotatelogs(log)) {
                 DBG_PRINTS("rotating by size");
@@ -2983,7 +2935,7 @@ static DWORD WINAPI rotatethread(void *unused)
     wh[3] = NULL;
 
     InterlockedExchange(&outputlog->state, 1);
-    if (rotatebytime) {
+    if (IS_SET(SVCBATCH_OPT_ROTATE_BY_TIME)) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
             rc = xsyserror(GetLastError(), L"CreateWaitableTimer", NULL);
@@ -3043,7 +2995,7 @@ static DWORD WINAPI rotatethread(void *unused)
                 DBG_PRINTS("rotate ready");
                 SVCBATCH_CS_ENTER(outputlog);
                 InterlockedExchange(&outputlog->state, 0);
-                if (rotatebysize) {
+                if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIZE)) {
                     if (outputlog->size >= rotatesize) {
                         InterlockedExchange(&outputlog->state, 1);
                         DBG_PRINTS("rotating by size");
@@ -3356,13 +3308,12 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
         break;
         case SVCBATCH_CTRL_ROTATE:
-            if (rotatebysignal) {
-                BOOL rb = canrotatelogs(outputlog);
+            if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIG)) {
                 /**
                  * Signal to rotatethread that
                  * user send custom service control
                  */
-                if (rb) {
+                if (canrotatelogs(outputlog)) {
                     DBG_PRINTS("signaling SVCBATCH_CTRL_ROTATE");
                     SetEvent(dologrotate);
                 }
@@ -3618,31 +3569,54 @@ static int parseoptions(int argc, LPCWSTR *argv)
                         return xsyserrno(17, L"script", xwoptarg);
                 }
             break;
-            case 'b':
-                if (xisoptionswitch()) {
+            case 'f':
+                while (*xwoptarg) {
+                    int set = 1;
+                    if (*xwoptarg == L'-') {
+                        set = 0;
+                        xwoptarg++;
+                    }
+                    switch (*xwoptarg) {
+                        case L'B':
+                            OPT_MOD(set, SVCBATCH_OPT_SEND_BREAK);
+                        break;
+                        case L'G':
+                            OPT_MOD(set, SVCBATCH_OPT_CTRL_BREAK);
+                        break;
+                        case L'L':
+                            OPT_MOD(set, SVCBATCH_OPT_LOCALTIME);
+                        break;
+                        case L'Q':
+                            OPT_MOD(set, SVCBATCH_OPT_QUIET);
+                            /* fall through */
+                        case L'q':
+                            OPT_MOD(set, SVCBATCH_OPT_STOP_QUIET);
+                        break;
+                        case L'P':
+                            if (set)
+                                preshutdown = SERVICE_ACCEPT_PRESHUTDOWN;
+                            else
+                                preshutdown = 0;
+                        break;
+                        case L'R':
+                            OPT_MOD(set, SVCBATCH_OPT_ROTATE_BY_SIG);
+                            OPT_MOD(set, SVCBATCH_OPT_ROTATE);
+                        break;
+                        case 'S':
+                            OPT_MOD(set, SVCBATCH_OPT_SCRIPT);
+                        break;
+                        case 's':
+                            OPT_MOD(set, SVCBATCH_OPT_STOPSCRIPT);
+                        break;
+                        case 'U':
+                            OPT_MOD(set, SVCBATCH_OPT_ENV);
+                        break;
+                        default:
+                            xsyserrno(22, xwoption, NULL);
+                        break;
+                    }
                     xwoptarg++;
-                    if (xisstrbool(0, xwoptarg))
-                        OPT_SET(SVCBATCH_OPT_NO_SCRIPT);
-                    else if (xisstrbool(1, xwoptarg))
-                        OPT_SET(SVCBATCH_OPT_NO_SCRIPT);
-                    else
-                        return xsyserrno(12, xwoption, NULL);
                 }
-                else {
-                    OPT_SET(SVCBATCH_OPT_SEND_BREAK);
-                }
-            break;
-            case 'g':
-                OPT_SET(SVCBATCH_OPT_CTRL_BREAK);
-            break;
-            case 'l':
-                OPT_SET(SVCBATCH_OPT_LOCALTIME);
-            break;
-            case 'q':
-                OPT_SET(SVCBATCH_OPT_QUIET);
-            break;
-            case 'p':
-                preshutdown |= SERVICE_ACCEPT_PRESHUTDOWN;
             break;
             /**
              * Options with arguments
@@ -3668,7 +3642,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'r':
                 rotateparam  = xwoptarg;
             break;
-            case 'f':
+            case 'x':
                 svcfailmode = xwcstoi(xwoptarg, NULL);
                 if ((svcfailmode < 0) || (svcfailmode > 2))
                     return xsyserrno(13, L"f", xwoptarg);
@@ -3685,12 +3659,12 @@ static int parseoptions(int argc, LPCWSTR *argv)
                     return xsyserrno(11, L"w", xwoptarg);
                 xfixpathsep(svcworkparam);
             break;
-            case 'd':
+            case 'k':
                 killdepth    = xwcstoi(xwoptarg, NULL);
                 if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
                     return xsyserrno(13, L"d", xwoptarg);
             break;
-            case 'k':
+            case 't':
                 stoptimeout  = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
                     return xsyserrno(13, L"k", xwoptarg);
@@ -3719,16 +3693,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'e':
                 if (xisoptionswitch()) {
                     xwoptarg++;
-                    if (xisstrbool(0, xwoptarg)) {
-                        OPT_SET(SVCBATCH_OPT_NOENV);
-                        DBG_PRINTS("S:OFF");
-                        break;
-                    }
-                    if (xisstrbool(1, xwoptarg)) {
-                        OPT_CLR(SVCBATCH_OPT_NOENV);
-                        DBG_PRINTS("E:ON");
-                        break;
-                    }
                     if (xwcspbrk(xwoptarg, L" ="))
                         return xsyserrno(14, xwoption, NULL);
                     cwsenvname = xwoptarg;
@@ -3752,23 +3716,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 }
             break;
             case 's':
-                if (xisoptionswitch()) {
-                    if (xisstrbool(0, xwoptarg + 1)) {
-                        OPT_SET(SVCBATCH_OPT_NO_STOPSCRIPT);
-                        DBG_PRINTS("S:OFF");
-                        break;
-                    }
-                    if (xisstrbool(1, xwoptarg + 1)) {
-                        OPT_CLR(SVCBATCH_OPT_NO_STOPSCRIPT);
-                        DBG_PRINTS("S:ON");
-                        break;
-                    }
-                    if ((xtolower(xwoptarg[1]) == L'q') && (xwoptarg[2] == WNUL)) {
-                        stopoption |= SVCBATCH_OPT_QUIET;
-                        DBG_PRINTS("S:Q");
-                        break;
-                    }
-                }
                 if (svcstopparam == NULL) {
                     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                     svcstopparam = xwcsdup(skipdotslash(xwoptarg));
@@ -3841,6 +3788,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
          * Discard any log rotate related command options
          * when -q is defined
          */
+        OPT_CLR(SVCBATCH_OPT_ROTATE);
         rotateparam = NULL;
     }
     else {
@@ -3950,13 +3898,10 @@ static int parseoptions(int argc, LPCWSTR *argv)
     if (rotateparam) {
         if (!resolverotate(rotateparam))
             return xsyserrno(12, L"r", rotateparam);
-        if (outputlog && (rotatebysize || rotatebytime))
-            outputlog->maxLogs = 0;
-        if (rotatebysize || rotatebytime || rotatebysignal)
-            svcoptions |= SVCBATCH_OPT_ROTATE;
+        OPT_SET(SVCBATCH_OPT_ROTATE);
     }
     if (svcstopparam) {
-        if (IS_SET(SVCBATCH_OPT_NO_STOPSCRIPT)) {
+        if (IS_NOT(SVCBATCH_OPT_STOPSCRIPT)) {
             svcstop->script = cmdproc->script;
             if (svcstop->argc) {
                 for (i = svcstop->argc; i > 0; i--)
@@ -4045,7 +3990,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
      * Add additional environment variables
      * They are unique to this service instance
      */
-    if (IS_NOT(SVCBATCH_OPT_NOENV)) {
+    if (IS_SET(SVCBATCH_OPT_ENV)) {
         xsetenvvar(cwsenvname, L"_BASE", service->base);
         xsetenvvar(cwsenvname, L"_HOME", service->home);
         xsetenvvar(cwsenvname, L"_LOGS", service->logs);
@@ -4903,7 +4848,10 @@ int wmain(int argc, LPCWSTR *argv)
         svcoptions  = sharedmem->options;
         killdepth   = sharedmem->killdepth;
         svcmaxlogs  = sharedmem->maxLogs;
-
+        if (IS_SET(SVCBATCH_OPT_STOP_QUIET)) {
+            /* Defined in parent process */
+            OPT_SET(SVCBATCH_OPT_QUIET);
+        }
         cmdproc->application = sharedmem->application;
         cmdproc->argc   = sharedmem->argc;
         cmdproc->optc   = sharedmem->optc;
