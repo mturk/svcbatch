@@ -71,7 +71,7 @@
 #define SVCBATCH_ENVNAME       L"SVCBATCH_SERVICE"
 #define SVCBATCH_LOGNAME       L"SvcBatch"
 #define SVCBATCH_LOGFEXT       L".log"
-#define SHUTDOWN_LOGFEXT       L".shutdown.log"
+#define SHUTDOWN_LOGFEXT       L".stop.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
 #define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"

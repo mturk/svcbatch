@@ -3,7 +3,7 @@ rem
 rem ---------------------------------------------------------------
 rem JBoss EAP Service Management Tool
 rem
-rem Usage: servicemgr.bat create/createps/delete/rotate/dump/start/stop
+rem Usage: servicemgr.bat create/createps/delete/rotate/start/stop
 rem
 rem ---------------------------------------------------------------
 rem
@@ -19,7 +19,6 @@ rem
 if /i "x%~1" == "xcreate"   goto doCreate
 if /i "x%~1" == "xcreateps" goto doCreatePs
 if /i "x%~1" == "xdelete"   goto doDelete
-if /i "x%~1" == "xdump"     goto doDumpStacks
 if /i "x%~1" == "xrotate"   goto doRotate
 if /i "x%~1" == "xstart"    goto doStart
 if /i "x%~1" == "xstop"     goto doStop
@@ -31,7 +30,6 @@ echo commands:
 echo   create            Create the service
 echo   createps          Create the service using powershell
 echo   delete            Delete the service
-echo   dump              Dump JVM full thread stack to the log file
 echo   rotate            Rotate log files
 echo   start             Start the service
 echo   stop              Stop the service
@@ -56,12 +54,12 @@ set "SERVICE_BATCH_FILE=%JBOSSEAP_SERVER_MODE%.bat"
 rem
 rem set "SERVICE_BATCH_FILE=winservice.bat"
 rem
-svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
-    /description "%SERVICE_DESCIPTION%" ^
-    /start:automatic /nservice /eNOPAUSE=Y ^
-    /sjboss-cli.bat "/s'--controller=127.0.0.1:9990 --connect --command=:shutdown'" ^
-    /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log %SERVICE_BATCH_FILE% ^
-    %CMD_LINE_ARGS%
+svcbatch create "%SERVICE_NAME%" --display "%SERVICE_DISPLAY%" ^
+    --description "%SERVICE_DESCIPTION%" ^
+    --start:automatic /N:service /E:NOPAUSE=Y ^
+    /S:jboss-cli.bat ^
+    /F:LPR /O ..\%JBOSSEAP_SERVER_MODE%\log %SERVICE_BATCH_FILE% ^
+    %CMD_LINE_ARGS% -- --controller=127.0.0.1:9990 --connect --command=:shutdown
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
@@ -80,13 +78,14 @@ rem
 :donePsArgs
 rem
 rem
-svcbatch create "%SERVICE_NAME%" /display "%SERVICE_DISPLAY%" ^
-    /description "%SERVICE_DESCIPTION%" ^
-    /start:automatic ^
-    /vLpB -rS /o..\%JBOSSEAP_SERVER_MODE%\log /nservice ^
-    /sjboss-cli.ps1 "/s'--controller=127.0.0.1:9990 --connect --command=:shutdown'" ^
-    /cpowershell "/c-NoProfile -ExecutionPolicy Bypass -File" ^
-    %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS%
+svcbatch create "%SERVICE_NAME%" --display "%SERVICE_DISPLAY%" ^
+    --description "%SERVICE_DESCIPTION%" ^
+    --start:automatic ^
+    /F:LR /O ..\%JBOSSEAP_SERVER_MODE%\log /N:service ^
+    /S:jboss-cli.ps1 ^
+    /C:powershell /P "-NoProfile -ExecutionPolicy Bypass -File" ^
+    %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS% ^
+    -- --controller=127.0.0.1:9990 --connect --command=:shutdown
 
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
@@ -95,7 +94,7 @@ rem
 rem Start service
 :doStart
 rem
-svcbatch start "%SERVICE_NAME%" /wait
+svcbatch start "%SERVICE_NAME%" --wait
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -103,7 +102,7 @@ rem
 rem Stop service
 :doStop
 rem
-svcbatch stop "%SERVICE_NAME%" /wait
+svcbatch stop "%SERVICE_NAME%" --wait
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -122,14 +121,6 @@ rem
 svcbatch control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
-rem
-rem
-rem Send CTRL_BREAK_EVENT
-rem Jvm will dump full thread stack to log file
-:doDumpStacks
-rem
-svcbatch control "%SERVICE_NAME%" 233
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
 rem
 rem
