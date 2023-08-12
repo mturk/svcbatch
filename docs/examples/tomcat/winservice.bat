@@ -52,7 +52,6 @@ rem Process the requested command
 rem
 if /i "%SERVICE_CMD%" == "create"  goto doCreate
 if /i "%SERVICE_CMD%" == "delete"  goto doDelete
-if /i "%SERVICE_CMD%" == "dump"    goto doDumpStacks
 if /i "%SERVICE_CMD%" == "rotate"  goto doRotate
 if /i "%SERVICE_CMD%" == "start"   goto doStart
 if /i "%SERVICE_CMD%" == "stop"    goto doStop
@@ -65,7 +64,6 @@ echo Usage: %~nx0 ( commands ... ) [service_name] [arguments ...]
 echo commands:
 echo   create            Create the service
 echo   delete            Delete the service
-echo   dump              Dump JVM full thread stack to the log file
 echo   rotate            Rotate log files
 echo   start             Start the service
 echo   stop              Stop the service
@@ -80,35 +78,21 @@ rem Set batch file to execute
 set "SVCBATCH_FILE=bin\catalina.bat"
 rem
 rem Use the service batch file for shutdown
-set "SHUTDOWN_ARGS=/s?stop"
-rem
-rem Rotate log each day at midnight or if larger then 1 megabyte
-rem set "ROTATE_RULE=-r0 -r1M"
-rem
-rem Enable manual log rotation by using 'service.bat rotate'
-rem set "ROTATE_RULE=%ROTATE_RULE% -rS"
+rem The
+set "SHUTDOWN_ARGS=/s:@stop"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/nservice.@Y-@m-@d"
+set "SERVICE_LOGNAME=/n:service.@Y-@m-@d"
 rem
 rem
 rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
-    /displayName "Apache Tomcat 11.0 %SERVICE_NAME%" ^
-    /description "Apache Tomcat 11.1.x Server - https://tomcat.apache.org/" ^
-    /start:auto ^
-    /bl /h.. %SERVICE_LOGNAME% ^
+    --displayName "Apache Tomcat 11.0 %SERVICE_NAME%" ^
+    --description "Apache Tomcat 11.1.x Server - https://tomcat.apache.org/" ^
+    --start:auto ^
+    /h .. %SERVICE_LOGNAME% ^
     %SHUTDOWN_ARGS% %CMD_LINE_ARGS% %SVCBATCH_FILE% run
 rem
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
-rem
-rem Send CTRL_BREAK_EVENT
-rem The JVM will dump the full thread stack to the log file
-:doDumpStacks
-rem
-rem
-%EXECUTABLE% control "%SERVICE_NAME%" 233
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -124,7 +108,7 @@ rem
 :doStart
 rem
 rem
-%EXECUTABLE% start "%SERVICE_NAME%" /wait %CMD_LINE_ARGS%
+%EXECUTABLE% start "%SERVICE_NAME%" --wait %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -132,7 +116,7 @@ rem
 :doStop
 rem
 rem
-%EXECUTABLE% stop "%SERVICE_NAME%" /wait %CMD_LINE_ARGS%
+%EXECUTABLE% stop "%SERVICE_NAME%" --wait %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem

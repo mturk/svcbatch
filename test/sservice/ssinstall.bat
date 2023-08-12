@@ -19,9 +19,9 @@ setlocal
 rem
 if /i "x%~1" == "xdelete" goto doDelete
 rem
-goto doStressTest
+rem goto doStressTest
 rem
-svcbatch create sservice /lb /rS /c sservice.exe /c "300 some /c options " /c "\"and quoted one\"" /B:OFF "fake script" "script argument"
+svcbatch create sservice /F:LBR /C sservice.exe /P "300 some /c parameters " /P "\"and quoted one\"" "fake script" "script argument"
 rem
 goto End
 rem
@@ -36,7 +36,7 @@ copy /Y sservice.exe work\ > nul
 copy /Y xsleep.exe work\ > nul
 rem
 rem Presume that svcbatch.exe is in this directory
-svcbatch create sservice /lb /w work
+svcbatch create sservice /F:LB /w work
 rem
 goto End
 rem

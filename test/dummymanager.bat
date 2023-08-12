@@ -26,7 +26,6 @@ if /i "x%~1" == "xdelete"   goto doDelete
 if /i "x%~1" == "xremove"   goto doRemove
 if /i "x%~1" == "xstart"    goto doStart
 if /i "x%~1" == "xstop"     goto doStop
-if /i "x%~1" == "xbreak"    goto doBreak
 if /i "x%~1" == "xrotate"   goto doRotate
 rem
 echo %~nx0: Unknown command %~1
@@ -56,7 +55,7 @@ rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=/s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
 set "SERVICE_SHUTDOWN=/s:@shutdown"
-set "SHUTDOWN_ARGS=$(SystemRoot) "\"some argument with spaces"\""
+set "SHUTDOWN_ARGS=-- addtional arguments "\"some argument with spaces"\""
 rem
 rem
 set "SERVICE_LOG_DIR=/O Logs/%SERVICE_NAME%"
@@ -77,8 +76,7 @@ rem
 set "SERVICE_LOG_FNAME=/n:@N.@Y-@m-@d"
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=/e:@PATH=%BUILD_DIR%;$(PATH) /e:ADUMMYSVC_HOME=$_h"
-set "SERVICE_ENVIRONMENT=%SERVICE_ENVIRONMENT% /e:ADUMMYSVC=$__a"
+set "SERVICE_ENVIRONMENT=/e:PATH=%BUILD_DIR%;@PATH@ /e:ADUMMYSVC_HOME=$_H /e:ADUMMYSVC_VER=$_V"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
@@ -87,9 +85,9 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     --displayName "A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs:SeShutdownPrivilege ^
-    /F:PBL1R /h ../../test %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
+    /F:PL1R /h ../../test /W ..\build\dbg %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
     %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% ^
-    %SERVICE_BATCH% run $(TEMP) $$(SOME_RANDOM_VARIABLE) -- %SHUTDOWN_ARGS%
+    %SERVICE_BATCH% run additional arguments %SHUTDOWN_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
@@ -160,18 +158,6 @@ if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Stopped %SERVICE_NAME%
 goto End
 rem
-:doBreak
-rem
-rem
-rem sc control "%SERVICE_NAME%" 233
-rem
-pushd "..\build\dbg"
-set "BUILD_DIR=%cd%"
-popd
-%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 233
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
-rem
 :doRotate
 rem
 rem
@@ -201,8 +187,10 @@ rem
 :doRemove
 rem
 rem
+pushd "..\build\dbg"
 rd /S /Q "Logs" >NUL 2>&1
 echo %~nx0: Removed %SERVICE_NAME%
+popd
 rem
 rem
 :End

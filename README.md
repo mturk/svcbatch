@@ -273,25 +273,6 @@ SvcBatch command line options allow users to customize
 service deployments. Options are defined with **/** as
 command switch. This means that `/h /H` can be used for the same option..
 
-After handling switches SvcBatch will use the next argument
-as the batch file to execute.
-
-Any additional arguments will be passed as arguments to batch file.
-If additional argument contains a **$(FOO)**, it will be
-converted to Windows environment variable format as **%FOO%**.
-This allows to safely store those arguments inside Windows
-registry, making sure they wont be expanded until needed.
-
-In case you need to pass **$(FOO)** as an argument without
-conversion to Windows variable format use **$$(FOO)**.
-At runtime SvcBatch will remove the leading **$** character
-and pass the argument as **$(FOO)** to the scrip file.
-
-If there is no batch file argument, SvcBatch will
-try to use `ServiceName.bat` as batch file. If `ServiceName` contain any of the
-invalid file name characters `/\:;<>?*|"`, the service will fail and error message
-will be reported to Windows Event log.
-
 Command line option values can be either the rest of the
 command option or the entire next argument.
 
@@ -310,6 +291,17 @@ Is the same as
 
 ```
 
+After handling switches SvcBatch will pass remained
+arguments to the script interpreter.
+
+If there is no additional arguments, SvcBatch will
+append `.bat` to the running Service Name.
+In that case, ff `ServiceName` contain any of the
+invalid file name characters `/\:;<>?*|"`,
+the service will fail and error message will be
+reported to Windows Event log.
+
+
 
 * **/F:[features]**
 
@@ -324,15 +316,6 @@ Is the same as
   sign to unset the feature.
 
     * **B**
-
-      **Enable sending CTRL_BREAK_EVENT**
-
-      This option enables our custom service control
-      code to send `CTRL_BREAK_EVENT` to the child processes.
-
-      See [Custom Control Codes](#custom-control-codes) section below for more details
-
-    * **G**
 
       **Generate CTRL_BREAK on service stop**
 
@@ -354,12 +337,6 @@ Is the same as
       not receive `ctrl+c` signal. The `ctrl+break` is the only
       way to interrupt the application.
 
-      **Notice**
-
-      This option is mutually exclusive with `b` command option.
-      If this option is defined together with the mentioned option,
-      the service will fail to start, and write an error message
-      to the Windows Event log.
 
     * **L**
 
@@ -515,17 +492,34 @@ Is the same as
   For example:
 
   ```no-highlight
-  > svcbatch create ... /EMY_VARIABLE=Very /E "MY_LONHG_VARIABLE=Very Fancy" ...
+  > svcbatch create ... /E:NOPAUSE=1 /E:CATALINA_BASE=$_W ...
 
   ```
+
+  This will set the `NOPATH` environment variable to `1',
+  and `CATALINA_BASE` to the value of current working
+  directory.
+
+  If the **value** parameter is **$_W** it will be evaluated
+  at runtime as current work directory. The **$_N** will
+  be set the **value** to the current Service name, etc.
+
 
   The following example will modify `PATH` environment
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... /E \"PATH=@ProgramFiles@\SomeApplication;@PATH@\" ...
+  > svcbatch create ... /E "PATH=@ProgramFiles@\SomeApplication;@PATH@" ...
 
   ```
+
+  In the upper example, each **@** character will be replaced
+  with **%** character, and then evaluated.
+
+  This is much safer then using **%** directly, since it
+  ensures that it will be evaluated at runtime.
+
+
 
   In case the **value** is not specified, the **name** variable
   is deleted from the current process's environment.
@@ -534,7 +528,7 @@ Is the same as
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... /eSOME_VARIABLE ...
+  > svcbatch create ... /e:SOME_VARIABLE ...
 
   ```
 
@@ -803,6 +797,11 @@ Those variable by default have **SVCBATCH_SERVICE** prefix.
 Here is the list of environment variables that
 SvcBatch sets for each instance.
 
+* **SVCBATCH_SERVICE_BASE**
+
+  This variable is set to the directory of the service
+  script file.
+
 * **SVCBATCH_SERVICE_HOME**
 
   This variable is set to the service working directory.
@@ -811,15 +810,14 @@ SvcBatch sets for each instance.
 
   This variable is set to the service's log directory.
 
-  In case the logging is disabled, by using **/Q**
-  command option, and **/V** option was not defined,
+  In case the logging is disabled, by using **/F:Q**
+  command option,
   this variable is set to the **SVCBATCH_SERVICE_HOME** directory.
 
   However, if the **/O** command line option was defined
-  together with **/Q** option, and without **/V** option,
-  the directory specified by the **/O** command option
-  parameter must exist, or the service will fail to start
-  and write error message to the Windows Event Log.
+  together with **/F:Q** option, directory specified by the
+  **/O** command option parameter must exist, or the service
+  will fail to start and write error message to the Windows Event Log.
 
 
 * **SVCBATCH_SERVICE_NAME**
@@ -882,28 +880,6 @@ SvcBatch sets for each instance.
   will disable to export those variables.
 
 
-
-
-## Custom Control Codes
-
-SvcBatch can send `CTRL_BREAK_EVENT` signal to its child processes.
-
-This allows programs like **java.exe** to act upon that signal.
-For example JVM will dump it's full thread stack in the same way
-as if user hit the `CTRL` and `Break` keys in interactive console.
-
-Use `sc.exe control [service name] 233` to send
-`CTRL_BREAK_EVENT` to all child processes.
-Again, as with log rotate, the **233** is our custom control code.
-
-* **Important**
-
-  This option is enabled at service install time with **/B** command
-  switch option.
-
-  Do not send `CTRL_BREAK_EVENT` if the batch file runs a process
-  that does not have a custom `CTRL_BREAK_EVENT` console handler.
-  By default the process will exit and the service will either fail.
 
 
 ## Stop and Shutdown

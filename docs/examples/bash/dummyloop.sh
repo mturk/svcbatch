@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 #
-# sc create adummybash binPath= "\"%cd%\svcbatch.exe\" -vgl /c bash.exe /c \"--norc --noprofile\" -e \"PATH=@SystemDrive@\msys64\usr\bin;@PATH@\" dummyloop.sh"
+# svcbatch create adummybash /C:bash.exe /P "--norc --noprofile" /E "PATH=@SystemDrive@\msys64\usr\bin;@PATH@" @dummyloop.sh
 #
 echo "Running $SVCBATCH_SERVICE_NAME Service"
 echo

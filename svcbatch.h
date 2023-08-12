@@ -83,17 +83,6 @@
 #define SVCBATCH_SVCARGS       L"ImagePathArguments"
 
 /**
- * Character that is replaced with '%'
- * for environment and format arguments
- *
- * Two consecutive characters will be replaces by
- * a single one.
- * The "a@@b@@@c@d" string will and as "a@b@%c%d"
- */
-#define SVCBATCH_REPLACE_CHAR  L'@'
-
-
-/**
  * Default arguments for cmd.exe
  *
  * /D     Disable execution of AutoRun commands from registry
@@ -166,22 +155,8 @@
 
 /**
  * Custom SCM control code that
- * sends CTRL_BREAK_EVENT to the child processes.
- *
- * This option has to be enabled on install
- * by adding /b switch.
- *
- * eg. C:\>sc control SvcBatchServiceName 233
- * will cause java.exe to dump thread stack
- * if running inside batch file.
- *
- * Programs that do not handle CTRL_BREAK_EVENT
- * will cause SvcBatch to fail or hang
- */
-#define SVCBATCH_CTRL_BREAK     233
-/**
- * This signal will rotate log files
- * in the same way as on service startup
+ * will send a signal to rotate the log files
+ * if log rotation is enabled
  *
  * eg. C:\>sc control SvcBatchServiceName 234
  *
@@ -266,18 +241,16 @@
  */
 #define SVCBATCH_OPT_YYES           0x00000001   /* Write Y to cmd.exe stdin     */
 #define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time               */
+#define SVCBATCH_OPT_CTRL_BREAK     0x00000004   /* Send CTRL_BREAK on stop      */
+#define SVCBATCH_OPT_ENV            0x00000008   /* Set private envvars          */
 #define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging              */
 #define SVCBATCH_OPT_STOP_QUIET     0x00000020   /* Disable shutdown logging     */
-#define SVCBATCH_OPT_CTRL_BREAK     0x00000040   /* Send CTRL_BREAK on stop      */
-#define SVCBATCH_OPT_ENV            0x00000080   /* Set private envvars          */
-#define SVCBATCH_OPT_SEND_BREAK     0x00000100   /* Enable sending CTRL_BREAK    */
-#define SVCBATCH_OPT_ROTATE         0x00001000   /* Enable log rotation          */
-#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00002000   /* Rotate by signal             */
-#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00004000   /* Rotate by size               */
-#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00008000   /* Rotate by time               */
 
-#define SVCBATCH_OPT_SCRIPT         0x00001000   /* Resolve scriptparam          */
-#define SVCBATCH_OPT_STOPSCRIPT     0x00002000   /* Resolve svcstopparam         */
+#define SVCBATCH_OPT_ROTATE         0x00010000   /* Enable log rotation          */
+#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00020000   /* Rotate by signal             */
+#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00040000   /* Rotate by size               */
+#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00080000   /* Rotate by time               */
+
 
 #define SVCBATCH_FAIL_ERROR     0   /* Set service error if run endeded without stop    */
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
