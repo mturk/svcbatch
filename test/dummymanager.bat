@@ -50,15 +50,16 @@ set "SERVICE_LOG_FNAME="
 set "SHUTDOWN_ARGS="
 set "ROTATE_RULE="
 set "SERVICE_BATCH=dummyservice.bat"
-rem set "SERVICE_SHUTDOWN=/s%SERVICE_BATCH%"
+rem set "SERVICE_SHUTDOWN=/s:%SERVICE_BATCH%"
 rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=/s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=/sshutdown /S@SystemRoot@ "/s\"some @@argument @@@@@with spaces\"""
+set "SERVICE_SHUTDOWN=/s:@shutdown"
+set "SHUTDOWN_ARGS=$(SystemRoot) "\"some argument with spaces"\""
 rem
 rem
-set "SERVICE_LOG_DIR=/oLogs/%SERVICE_NAME%"
+set "SERVICE_LOG_DIR=/O Logs/%SERVICE_NAME%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/r:@10+100K"
 set "ROTATE_RULE=/r:@5+20K"
@@ -73,10 +74,11 @@ rem set "SERVICE_LOG_FNAME=/n "%SERVICE_NAME%""
 rem
 rem set "SERVICE_LOG_FNAME=/n "%SERVICE_NAME%.@Y-@m-@d.@H@M@S""
 rem
-set "SERVICE_LOG_FNAME=/n@N.@Y-@m-@d"
+set "SERVICE_LOG_FNAME=/n:@N.@Y-@m-@d"
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=/ePATH=%BUILD_DIR%;%%PATH%% /eADUMMYSVC_HOME=$h"
+set "SERVICE_ENVIRONMENT=/e:@PATH=%BUILD_DIR%;$(PATH) /e:ADUMMYSVC_HOME=$_h"
+set "SERVICE_ENVIRONMENT=%SERVICE_ENVIRONMENT% /e:ADUMMYSVC=$__a"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
@@ -85,9 +87,9 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     --displayName "A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs:SeShutdownPrivilege ^
-    /F:PBLR-s /X:1 /h ../../test %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
-    %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
-    %SERVICE_BATCH% run %%TEMP%% %%SOME_RANDOM_VARIABLE%%
+    /F:PBL1R /h ../../test %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
+    %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% ^
+    %SERVICE_BATCH% run $(TEMP) $$(SOME_RANDOM_VARIABLE) -- %SHUTDOWN_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem

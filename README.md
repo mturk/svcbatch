@@ -277,87 +277,210 @@ After handling switches SvcBatch will use the next argument
 as the batch file to execute.
 
 Any additional arguments will be passed as arguments to batch file.
-If additional argument contains `@` characters, each `@` character
-will be converted to `%` character at runtime.
-In case you need to pass `@` character use `@@`.
+If additional argument contains a **$(FOO)**, it will be
+converted to Windows environment variable format as **%FOO%**.
+This allows to safely store those arguments inside Windows
+registry, making sure they wont be expanded until needed.
+
+In case you need to pass **$(FOO)** as an argument without
+conversion to Windows variable format use **$$(FOO)**.
+At runtime SvcBatch will remove the leading **$** character
+and pass the argument as **$(FOO)** to the scrip file.
 
 If there is no batch file argument, SvcBatch will
 try to use `ServiceName.bat` as batch file. If `ServiceName` contain any of the
 invalid file name characters `/\:;<>?*|"`, the service will fail and error message
 will be reported to Windows Event log.
 
-Command line options that do not require argument can
-be combined as one option. For example instead using
-multiple options
+Command line option values can be either the rest of the
+command option or the entire next argument.
 
-```no-highlight
-> svcbatch create ... /B /L /V /a ...
-
-```
-
-You can combine those multiple options using a single
-command option.
-
-```no-highlight
-> svcbatch create ... /bLvA ...
-
-```
-
-Command line options that require argument can use either
-the rest of the command option if present, or next
-command argument.
+In case they are the rest of the command option, the
+character after the option must be **:** character or
+the service will fail to start.
 
 For example:
 
 ```no-highlight
-> svcbatch create ... "/Ssome argument"...
+> svcbatch create ... /O:log\directory ...
 
 Is the same as
 
-> svcbatch create ... /M:4 /S "Some argument" ...
+> svcbatch create ... /O log\directory ...
 
 ```
 
 
+* **/F:[features]**
 
-* **/A*
+  **Set runtime features**
 
-  **Append to the existing log files**
+  This option sets various runtime features.
+  The **features** parameter is a combination of
+  one or more characters, where each character sets
+  the particular feature option.
 
-  When this option is defined SvcBatch will disable any log rotation
-  on startup. Instead it will reuse the existing log file and logging
-  will start at the end of the file.
+  Prefix the feature character with **-** minus
+  sign to unset the feature.
 
-  If the log file does not exist, a new file is created.
+    * **B**
+
+      **Enable sending CTRL_BREAK_EVENT**
+
+      This option enables our custom service control
+      code to send `CTRL_BREAK_EVENT` to the child processes.
+
+      See [Custom Control Codes](#custom-control-codes) section below for more details
+
+    * **G**
+
+      **Generate CTRL_BREAK on service stop**
+
+      This option can be used to send `ctrl+break` instead `ctrl+c`
+      signal when the service is stopping.
+
+      This is useful when the service batch file uses `start /B ...`
+      to launch multiple applications.
+
+      ```batchfile
+      ...
+      start /B some.exe instance1
+      start /B some.exe instance2
+      start /B some.exe instance3
+      ...
+      ```
+
+      When using `start /B application`, the application does
+      not receive `ctrl+c` signal. The `ctrl+break` is the only
+      way to interrupt the application.
+
+      **Notice**
+
+      This option is mutually exclusive with `b` command option.
+      If this option is defined together with the mentioned option,
+      the service will fail to start, and write an error message
+      to the Windows Event log.
+
+    * **L**
+
+      **Use local time**
+
+      This option causes all logging and rotation
+      to use local instead system time.
+
+    * **P**
+
+      **Enable preshutdown service notification**
+
+      When defined, SvcBatch will accept `SERVICE_CONTROL_PRESHUTDOWN` control code.
+      The service control manager waits until the service stops or the specified
+      preshutdown time-out value expires
 
 
+    * **Q**
 
-* **/B**
+      **Disable logging**
 
-  **Enable sending CTRL_BREAK_EVENT**
+      This option disables both logging and log rotation.
 
-  This option enables our custom service control
-  code to send `CTRL_BREAK_EVENT` to the child processes.
-
-  See [Custom Control Codes](#custom-control-codes) section below for more details
+      Use this option when output from `cmd.exe` is not needed or
+      service batch file manages logging on its own.
 
 
-* **/C [shell][parameters]**
+      **Notice**
 
-  **Use alternative shell**
+      Any eventual log rotation option will not be processed.
 
-  This option allows to use alternative **shell** program
+
+    * **q**
+
+      **Disable shutdown logging **
+
+      This option disables logging for stop script.
+
+
+    * **0**
+
+      Flags **[0|1|2]** determine how the SvcBatch will handle
+      service failure in case it enters a `STOP` state
+      without explicit Stop command from the SCM.
+
+      This mode will set the error code when the service
+      fails. The error message will be written to
+      the Windows Event log and service will enter a stop state.
+
+      If the service was in `RUNNING` state the error
+      code will be set to `ERROR_PROCESS_ABORTED`, otherwise
+      the error code will be set to `ERROR_SERVICE_START_HANG`.
+
+      You can use this mode to initialize service recovery if
+      defined.
+
+      ```no-highlight
+
+      > sc failure myService reset= INFINITE actions= restart/10000
+
+      > sc failureflag myService 1
+
+      ```
+
+      The upper example will restart `myService` service after `10`
+      seconds if it enters a stop state without Stop command.
+
+      This is the default mode.
+
+    * **1**
+
+      This mode will not set the error code when the service
+      fails. The information message will be written to
+      the Windows Event log and service will enter a stop state.
+
+    * **2**
+
+      This mode will not report error code to the SCM when
+      the service fails. The error message will be written to
+      the Windows Event log.
+      SvcBatch will call `exit(ERROR_INVALID_LEVEL)` and terminate
+      the current service.
+
+
+  **Notice**
+
+  Feature options are case sensitive, so make sure to use them
+  correctly. For example **Q** will disable logging both for
+  main and stop scripts, while **q** will only disable logging
+  for eventual stop.
+
+
+* **/C [program]**
+
+  **Use alternative program for running scripts**
+
+  This option allows to use alternative **program** program
   instead default **cmd.exe** to run the scripts.
 
   For example:
 
   ```no-highlight
-  > svcbatch create ... /C powershell /C -NoProfile /C \"-ExecutionPolicy Bypass\" /C -File myservice.ps1 ...
+  > svcbatch create ... /C powershell /p "-NoProfile -ExecutionPolicy Bypass -File" myservice.ps1 ...
 
   ```
 
   SvcBatch will execute **powershell.exe** instead **cmd.exe** and pass
   **parameters** as arguments to the powershell.
+
+
+
+
+* **/P [parameter]**
+
+  **Additional parameter for alternative shell**
+
+  This option is used together with **/C** option to
+  pass any additional parameters before script file.
+
+  For example parameter for default **cmd.exe** interpreter
+  is **/D /E:ON /V:OFF /C**.
 
 
 * **/K[<:>depth]**
@@ -416,89 +539,6 @@ Is the same as
   ```
 
 
-* **/X[<:>mode]**
-
-  **Set service exit failure mode**
-
-  This option determines how the SvcBatch will handle
-  service failure in case it enters a `STOP` state
-  without explicit Stop command from the SCM.
-
-  Use **/F:[0|1|2]** to enable desired **mode**.
-
-
-  * **mode 0**
-
-    This mode will set the error code when the service
-    fails. The error message will be written to
-    the Windows Event log and service will enter a stop state.
-
-    If the service was in `RUNNING` state the error
-    code will be set to `ERROR_PROCESS_ABORTED`, otherwise
-    the error code will be set to `ERROR_SERVICE_START_HANG`.
-
-    You can use this mode to initialize service recovery if
-    defined.
-
-    ```no-highlight
-
-    > sc failure myService reset= INFINITE actions= restart/10000
-
-    > sc failureflag myService 1
-
-    ```
-
-    The upper example will restart `myService` service after `10`
-    seconds if it enters a stop state without Stop command.
-
-    This is the default mode.
-
-  * **mode 1**
-
-    This mode will not set the error code when the service
-    fails. The information message will be written to
-    the Windows Event log and service will enter a stop state.
-
-  * **mode 2**
-
-    This mode will not report error code to the SCM when
-    the service fails. The error message will be written to
-    the Windows Event log.
-    SvcBatch will call `exit(ERROR_INVALID_LEVEL)` and terminate
-    the current service.
-
-
-
-* **/G**
-
-  **Generate CTRL_BREAK on service stop**
-
-  This option can be used to send `ctrl+break` instead `ctrl+c`
-  signal when the service is stopping.
-
-  This is useful when the service batch file uses `start /B ...`
-  to launch multiple applications.
-
-  ```batchfile
-  ...
-  start /B some.exe instance1
-  start /B some.exe instance2
-  start /B some.exe instance3
-  ...
-  ```
-
-  When using `start /B application`, the application does
-  not receive `ctrl+c` signal. The `ctrl+break` is the only
-  way to interrupt the application.
-
-  **Notice**
-
-  This option is mutually exclusive with `b` command option.
-  If this option is defined together with the mentioned option,
-  the service will fail to start, and write an error message
-  to the Windows Event log.
-
-
 * **/H [path]**
 
   **Set service home directory**
@@ -543,13 +583,6 @@ Is the same as
   If the operating system is rebooting, this value is used
   as time limit.
 
-
-* **/L**
-
-  **Use local time**
-
-  This option causes all logging and rotation
-  to use local instead system time.
 
 * **/M[<:>number]**
 
@@ -660,33 +693,6 @@ Is the same as
   in that location.
 
 
-* **/P**
-
-  **Enable preshutdown service notification**
-
-  When defined, SvcBatch will accept `SERVICE_CONTROL_PRESHUTDOWN` control code.
-  The service control manager waits until the service stops or the specified
-  preshutdown time-out value expires
-
-
-* **/Q**
-
-  **Disable logging**
-
-  This option disables both logging and log rotation.
-
-  When defined, no log files or directories will be created
-  unless the **/V** option was defined as well.
-
-  Use this option when output from `cmd.exe` is not needed or
-  service batch file manages logging on its own.
-
-
-  **Notice**
-
-  Any eventual log rotation option will not be processed.
-
-
 * **/R:[rule]**
 
   **Rotate logs by size or time interval**
@@ -747,7 +753,7 @@ Is the same as
 
 
 
-* **/S [script][argument]**
+* **/S [script]**
 
   **Execute script file on service stop or shutdown**
 
@@ -759,14 +765,14 @@ Is the same as
   This is particularly useful for services that do not handle
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
-  If multiple **/S** command line option are defined the
-  first one will be used as **script** and rest will
-  be used as additional **argument** send to the **script**.
+  In case the **script** starts with the **@** character,
+  SvcBatch will use the main service script file for shutdown.
+  In that case the rest of the **script** after **@** character,
+  will be passed as the first **argument** to the shutdown script file.
 
-  Add **/S:OFF** as command option to your service to enable
-  SvcBatch to use the main service script file for shutdown.
-  In that case **script** will be passed
-  as the first **argument** to the shutdown script file.
+  If case you need to add additional arguments to the
+  shutdown script add **--** to the service arguments.
+  Arguments after **--** will be passed to the shutdown script.
 
 
 
@@ -796,11 +802,6 @@ Those variable by default have **SVCBATCH_SERVICE** prefix.
 
 Here is the list of environment variables that
 SvcBatch sets for each instance.
-
-* **SVCBATCH_SERVICE_BASE**
-
-  This variable is set to the directory of the service
-  batch file.
 
 * **SVCBATCH_SERVICE_HOME**
 
@@ -872,17 +873,14 @@ SvcBatch sets for each instance.
 * **Notice**
 
   To change the prefix for those variables add
-  the **/E:MYSERVICE** to your service configuration.
+  the **/E:$MYSERVICE** to your service configuration.
 
   This In case the SvcBatch will export **MYSERVICE_NAME**
-  instead **SVCBATCH_SERVICE_NAME**.
+  instead default **SVCBATCH_SERVICE_NAME**.
 
-  Adding **/E:OFF** to the service's configuration
+  Adding **/F:-U** to the service's configuration
   will disable to export those variables.
 
-
-
-  This feature is enable starting with SvcBatch version **3.0.1**.
 
 
 
