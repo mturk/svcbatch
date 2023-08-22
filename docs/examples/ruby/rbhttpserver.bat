@@ -28,8 +28,6 @@ goto End
 :doCreate
 rem
 rem
-sc create %~n0 binPath= "\"%cd%\svcbatch.exe\" %~nx0"
-rem Ensure networking is running
-sc config %~n0 depend= Tcpip/Afd
-
+svcbatch create %~n0 --depend=Tcpip/Afd %~nx0
+rem
 :End

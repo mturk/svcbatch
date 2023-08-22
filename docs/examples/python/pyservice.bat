@@ -27,7 +27,6 @@ goto End
 
 :doCreate
 rem
-sc create %~n0 binPath= "\"%cd%\svcbatch.exe\" %~nx0"
-sc privs %~n0 SeCreateSymbolicLinkPrivilege/SeDebugPrivilege
-
+svcbatch create %~n0 %~nx0
+rem
 :End

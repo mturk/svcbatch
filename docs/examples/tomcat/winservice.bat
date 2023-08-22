@@ -52,6 +52,7 @@ rem Process the requested command
 rem
 if /i "%SERVICE_CMD%" == "create"  goto doCreate
 if /i "%SERVICE_CMD%" == "delete"  goto doDelete
+if /i "%SERVICE_CMD%" == "dump"    goto doThreadDump
 if /i "%SERVICE_CMD%" == "rotate"  goto doRotate
 if /i "%SERVICE_CMD%" == "start"   goto doStart
 if /i "%SERVICE_CMD%" == "stop"    goto doStop
@@ -64,6 +65,7 @@ echo Usage: %~nx0 ( commands ... ) [service_name] [arguments ...]
 echo commands:
 echo   create            Create the service
 echo   delete            Delete the service
+echo   dump              Full JDK Thread Dump
 echo   rotate            Rotate log files
 echo   start             Start the service
 echo   stop              Stop the service
@@ -78,11 +80,12 @@ rem Set batch file to execute
 set "SVCBATCH_FILE=bin\catalina.bat"
 rem
 rem Use the service batch file for shutdown
-rem The
-set "SHUTDOWN_ARGS=/s:@stop"
+set "SHUTDOWN_FILE=-s:@"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/n:service.@Y-@m-@d"
+set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log"
+rem
+rem set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log:service.stop.log:1"
 rem
 rem
 rem
@@ -90,9 +93,17 @@ rem
     --displayName "Apache Tomcat 11.0 %SERVICE_NAME%" ^
     --description "Apache Tomcat 11.1.x Server - https://tomcat.apache.org/" ^
     --start:auto ^
-    /h .. %SERVICE_LOGNAME% ^
-    %SHUTDOWN_ARGS% %CMD_LINE_ARGS% %SVCBATCH_FILE% run
+    -f:LC -h .. %SERVICE_LOGNAME% ^
+    %SHUTDOWN_FILE% %CMD_LINE_ARGS% %SVCBATCH_FILE% run
 rem
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem
+:doThreadDump
+rem
+rem
+%EXECUTABLE% control "%SERVICE_NAME%" 233
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem

@@ -69,9 +69,7 @@
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
 #define SVCBATCH_ENVNAME       L"SVCBATCH_SERVICE"
-#define SVCBATCH_LOGNAME       L"SvcBatch"
-#define SVCBATCH_LOGFEXT       L".log"
-#define SHUTDOWN_LOGFEXT       L".stop.log"
+#define SVCBATCH_LOGNAME       L"SvcBatch.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
 #define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"
@@ -80,7 +78,7 @@
  * Registry value name where SvcBatch store
  * service arguments
  */
-#define SVCBATCH_SVCARGS       L"ImagePathArguments"
+#define SVCBATCH_SVCARGS       L"ImagePathStartParameters"
 
 /**
  * Default arguments for cmd.exe
@@ -153,6 +151,21 @@
  */
 #define SVCBATCH_LINE_MAX     2048
 
+/**
+ * Custom SCM control code that
+ * sends CTRL_BREAK_EVENT to the child processes.
+ *
+ * This option has to be enabled on install
+ * by adding -F:G switch.
+ *
+ * eg. C:\>sc control SvcBatchServiceName 233
+ * will cause java.exe to dump thread stack
+ * if running inside batch file.
+ *
+ * Programs that do not handle CTRL_BREAK_EVENT
+ * will cause SvcBatch to fail or hang
+ */
+#define SVCBATCH_CTRL_BREAK     233
 /**
  * Custom SCM control code that
  * will send a signal to rotate the log files
@@ -244,12 +257,12 @@
 #define SVCBATCH_OPT_CTRL_BREAK     0x00000004   /* Send CTRL_BREAK on stop      */
 #define SVCBATCH_OPT_ENV            0x00000008   /* Set private envvars          */
 #define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging              */
-#define SVCBATCH_OPT_STOP_QUIET     0x00000020   /* Disable shutdown logging     */
 
-#define SVCBATCH_OPT_ROTATE         0x00010000   /* Enable log rotation          */
-#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00020000   /* Rotate by signal             */
-#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00040000   /* Rotate by size               */
-#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00080000   /* Rotate by time               */
+#define SVCBATCH_OPT_GEN_CTRL_BREAK 0x00000100   /* Send CTRL_BREAK control      */
+#define SVCBATCH_OPT_ROTATE         0x00001000   /* Enable log rotation          */
+#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00002000   /* Rotate by signal             */
+#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00004000   /* Rotate by size               */
+#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00008000   /* Rotate by time               */
 
 
 #define SVCBATCH_FAIL_ERROR     0   /* Set service error if run endeded without stop    */
@@ -270,11 +283,6 @@
 #define IS_NOT(_o)              ((svcoptions & (_o)) != (_o))
 #define OPT_SET(_o)             svcoptions |=  (_o)
 #define OPT_CLR(_o)             svcoptions &= ~(_o)
-#define OPT_MOD(_m, _o)         \
-    if (_m)                     \
-        svcoptions |=  (_o);    \
-    else                        \
-        svcoptions &= ~(_o)
 
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 

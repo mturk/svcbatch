@@ -6,15 +6,15 @@ as a Windows service.
 
 ### Prerequisites
 
-Ensure that you have at least jdk version 8 installed, so that
-jvm does not exit on user log off.
+Ensure that you have at least jdk version 8 installed,
+so that jvm does not exit on user log off.
 
 Download the latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
 and put `svcbatch.exe` into your `tomcat/bin` directory.
 
 The SvcBatch executable can be shared between multiple Tomcat instances.
 Put `svcbatch.exe` into the desired directory and modify
-your service create scripts to set the work directory using `/W`
+your service create scripts to set the work directory using `-w`
 command line option that is unique for each different instance.
 
 
@@ -65,11 +65,11 @@ privileges inside your `tomcat/bin` directory
 
 ```no-highlight
 
-> svcbatch create Tomcat /displayName "Apache Tomcat" /b /h.. bin\catalina.bat run"
-  Optionally you can add ...
-> svcbatch config Tomcat /description "Apache Tomcat Service"
+> svcbatch create Tomcat --displayName "Apache Tomcat" -f:B -h .. bin\catalina.bat run"
+  Optionally you can add description ...
+> svcbatch config Tomcat --description "Apache Tomcat Service"
   And ...
-> svcbatch config Tomcat /start=auto
+> svcbatch config Tomcat --start=auto
 
 ```
 
@@ -82,7 +82,7 @@ To manually start the service use:
 
 ```no-highlight
 
-> svcbatch start Tomcat /wait
+> svcbatch start Tomcat [--wait]
   Or ..
 > sc start Tomcat
 
@@ -101,7 +101,7 @@ SvcBatch sends `CONSOLE_CTRL_BREAK` signal which is captured
 by `java.exe` in the same way as clicking CTRL+Break keys in interactive console.
 The output is written to SvcBatch.log file.
 
-This feature is enabled only if `/b` command line switch was
+This feature is enabled only if `-f:B` command line option was
 defined at service's install.
 
 #### Step 4:
@@ -114,7 +114,7 @@ Rotate log files
 
 ```
 
-This feature is enable only if the log rotation is enabled.
+This feature is enabled only if the log rotation is enabled.
 Add `/rS` command option to enable manual log
 
 Read the Log Rotation section for more details.
@@ -126,7 +126,7 @@ Stop the service by entering
 
 ```no-highlight
 
-> svcbatch stop Tomcat
+> svcbatch stop Tomcat [--wait]
 
 ```
 

@@ -65,25 +65,33 @@ install location is different then `C:\Program Files\Python38`
 ### Installation
 
 Service installation and management tasks are done
-by using **SC** Windows utility.
+by using SvcBatch or Windows SC sutility.
 
 
-```cmd
+```no-highlight
+
+> svcbatch create pyservice
+
+... or
+
 > sc create pyservice binPath= ""%CD%\svcbatch.exe" pyservice.bat"
 
 ```
 
-After installation you can use SCM to start or stop the service. To start the service, type
+After installation you can use SCM to start or stop the service.
+To manually start the service using SvcBatch, type:
 
-```cmd
-> sc start pyservice
+```no-highlight
+
+> svcbatch start pyservice [--wait]
 
 ```
 
 To stop the service, type
 
-```cmd
-> sc stop pyservice
+```no-highlight
+
+> svcbatch stop pyservice [--wait]
 
 ```
 

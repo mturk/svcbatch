@@ -7,7 +7,7 @@ service wrapper.
 Put `svcbatch.exe` into that directory and create
 the service by typing
 
-```cmd
+```no-highlight
 
 > rbhttpserver.bat create
 
@@ -41,7 +41,7 @@ SERVICE_NAME: rbhttpserver
 
 Get response from our web server by typing ...
 
-```cmd
+```no-highlight
 
 # curl -v http://localhost:8088
 

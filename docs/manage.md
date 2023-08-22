@@ -16,7 +16,7 @@ create, configure, manage, and delete services.
   - [Stop](#stop)
 - [Command Options](#command-options)
   - [Common options](#common-options)
-  - [Create and config options](#create-and-config-options)
+  - [Create and Config options](#create-and-config-options)
   - [Start options](#start-options)
   - [Stop options](#stop-options)
 
@@ -41,7 +41,7 @@ The following command:
 will create **myService** service presuming
 that the script file is **myService.bat**.
 
-Check [Create and config options](#create-and-config-options) for
+Check [Create and Config options](#create-and-config-options) for
 options that can be used to customize services creation.
 
 ## Config
@@ -207,7 +207,7 @@ service's BinaryPathName.
   printing both status or error messages.
 
 
-## Create and config options
+## Create and Config options
 
 * **--binPath|--bin [path]**
 
@@ -383,11 +383,11 @@ For example:
   ```no-highlight
   > svcbatch create myService
   ...
-  > svcbatch config myService --start=auto /vl /rS ...
+  > svcbatch config myService --start=auto -f:R ...
   ```
 
-Since the `/vl` is not valid control or create option,
-it will used as argument to svcbatch.exe when the
+Since the `-f:R` is not valid control or create option,
+it will be used as argument to svcbatch.exe when the
 service is started, as well as any following argument.
 
 
