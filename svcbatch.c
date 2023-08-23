@@ -1472,6 +1472,48 @@ static int getdayofyear(int y, int m, int d)
     return r;
 }
 
+static int xtimehdr(char *d, int sz)
+{
+    LARGE_INTEGER ct = {{ 0, 0 }};
+    LARGE_INTEGER et = {{ 0, 0 }};
+    DWORD ss, us, mm, hh;
+    int i = 0;
+
+    QueryPerformanceCounter(&ct);
+    et.QuadPart = ct.QuadPart - counterbase;
+
+    /**
+     * Convert to microseconds
+     */
+    et.QuadPart *= CPP_INT64_C(1000000);
+    et.QuadPart /= counterfreq;
+    ct.QuadPart  = et.QuadPart / CPP_INT64_C(1000);
+
+    us = (DWORD)((et.QuadPart % CPP_INT64_C(1000000)));
+    ss = (DWORD)((ct.QuadPart / MS_IN_SECOND) % CPP_INT64_C(60));
+    mm = (DWORD)((ct.QuadPart / MS_IN_MINUTE) % CPP_INT64_C(60));
+    hh = (DWORD)((ct.QuadPart / MS_IN_HOUR)   % CPP_INT64_C(24));
+
+    d[i++] = hh / 10 + '0';
+    d[i++] = hh % 10 + '0';
+    d[i++] = ':';
+    d[i++] = mm / 10 + '0';
+    d[i++] = mm % 10 + '0';
+    d[i++] = ':';
+    d[i++] = ss / 10 + '0';
+    d[i++] = ss % 10 + '0';
+    d[i++] = '.';
+    d[i++] = us / 100000 + '0';
+    d[i++] = us % 100000 / 10000 + '0';
+    d[i++] = us % 10000  / 1000  + '0';
+    d[i++] = us % 1000   / 100   + '0';
+    d[i++] = us % 100    / 10    + '0';
+    d[i++] = us % 10 + '0';
+    d[i] = CNUL;
+
+    return i;
+}
+
 #if defined(_DEBUG)
 /**
  * Runtime debugging functions
@@ -1700,21 +1742,20 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     else
         svc = CPP_WIDEN(SVCBATCH_NAME);
     if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        fprintf(stdout, "Service Name : %S\n", svc);
         if (typ == EVENTLOG_ERROR_TYPE) {
+        fprintf(stdout, "      Report : Error\n");
         fprintf(stdout, "             : FAILED\n");
-        fprintf(stdout, "               %s\n", fn);
-        fprintf(stdout, "        LINE : %d\n", line);
+        fprintf(stdout, "        LINE : %d (%s)\n", line, fn);
         if (ern)
         fprintf(stdout, "       ERROR : %lu (0x%x)\n", ern,  ern);
         }
         else if (typ == EVENTLOG_WARNING_TYPE) {
-        fprintf(stdout, "             : WARNING\n");
-        fprintf(stdout, "               %s\n", fn);
+        fprintf(stdout, "      Report : Warning\n");
+        fprintf(stdout, "             : %lu (0x%x)\n", ern,  ern);
         fprintf(stdout, "        LINE : %d\n", line);
         }
         else {
-        fprintf(stdout, "             : INFO\n");
+        fprintf(stdout, "      Report : Information\n");
         }
     }
     else {
@@ -1765,7 +1806,10 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
             fprintf(stdout, "               %S\n", erb + c);
     }
     if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        fputs("\n\n", stdout);
+        char xb[SBUFSIZ];
+
+        xtimehdr(xb, SBUFSIZ);
+        fprintf(stdout, "        TIME : %s\n\n", xb);
         return ern;
     }
     if (IS_NOT(SVCBATCH_OPT_EVENTLOG))
@@ -2927,10 +2971,13 @@ static DWORD WINAPI stopthread(void *ssp)
         SVCBATCH_CS_LEAVE(outputlog);
     }
     if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        fprintf(stdout, "Service Name : %S\n", service->name);
+        char xb[SBUFSIZ];
+
+        xtimehdr(xb, SBUFSIZ);
         fprintf(stdout, "     Command : Stop\n");
         fprintf(stdout, "             : PENDING\n");
-        fprintf(stdout, "     TIMEOUT : %d ms\n\n", stoptimeout);
+        fprintf(stdout, "               %d ms\n", stoptimeout);
+        fprintf(stdout, "        TIME : %s\n\n", xb);
     }
 
     if (svcstop) {
@@ -3359,11 +3406,10 @@ static DWORD WINAPI workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     xsvcstatus(SERVICE_RUNNING, 0);
     if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        fprintf(stdout, "Service Name : %S\n", service->name);
         fprintf(stdout, "     Command : Run\n");
         fprintf(stdout, "             : RUNNING\n");
         fprintf(stdout, "         PID : %lu\n", cmdproc->pInfo.dwProcessId);
-        fprintf(stdout, "               Press ENTER to stop the service\n\n");
+        fprintf(stdout, "               Press ENTER to stop the service . . .\n\n");
         xcreatethread(SVCBATCH_RDPIPE_THREAD,
                       0, rdpipethread, NULL);
     }
@@ -4544,6 +4590,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     if (cmd == SVCBATCH_SCM_RUN) {
         wtime = 1;
+        fprintf(stdout, "Service Name : %S\n", service->name);
         goto doneargs;
     }
 
@@ -5009,9 +5056,13 @@ finished:
     if (mgr != NULL)
         CloseServiceHandle(mgr);
     if (cmdverbose) {
+        char xb[SBUFSIZ];
+
+        xtimehdr(xb, SBUFSIZ);
         if (rv) {
             wchar_t eb[SVCBATCH_LINE_MAX];
             xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
+            if (cmd != SVCBATCH_SCM_RUN)
             fprintf(stdout, "Service Name : %S\n", service->name);
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "             : FAILED\n");
@@ -5027,16 +5078,18 @@ finished:
             fprintf(stdout, "               %S\n", eb);
             if (ed != NULL)
             fprintf(stdout, "               %S\n", ed);
+            if (cmd == SVCBATCH_SCM_RUN)
+            fprintf(stdout, "        TIME : %s\n", xb);
+
             fputc('\n', stdout);
         }
         else {
+            if (cmd != SVCBATCH_SCM_RUN)
             fprintf(stdout, "Service Name : %S\n", service->name);
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
             if (cmd == SVCBATCH_SCM_RUN) {
             fprintf(stdout, "             : DONE\n");
-            fprintf(stdout, "        TIME : %llu ms\n", GetTickCount64() - wtmstart);
-            }
-            else {
+            } else {
             fprintf(stdout, "             : SUCCESS\n");
             if (wtime)
             fprintf(stdout, "               %llu ms\n", GetTickCount64() - wtmstart);
@@ -5049,6 +5102,8 @@ finished:
             fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
             if (cmd == SVCBATCH_SCM_STOP)
             fprintf(stdout, "    EXITCODE : %lu (0x%lx)\n", ssp->dwServiceSpecificExitCode,                                                            ssp->dwServiceSpecificExitCode);
+            if (cmd == SVCBATCH_SCM_RUN)
+            fprintf(stdout, "        TIME : %s\n", xb);
             fputc('\n', stdout);
         }
     }
