@@ -111,10 +111,8 @@
 /**
  * Maximum number of arguments for service and
  * shutdown batch file.
- * The maximum length of each argument is 255
- * characters.
  */
-#define SVCBATCH_MAX_ARGS      16
+#define SVCBATCH_MAX_ARGS      32
 
 /**
  * Maximum length for the path and
