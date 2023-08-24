@@ -22,6 +22,7 @@ setlocal
 rem
 if "x%SVCBATCH_SERVICE_NAME%" == "x" goto noService
 rem
+if /i "x%~1" == "xstop"     goto doShutdown
 if /i "x%~1" == "xshutdown" goto doShutdown
 rem
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service

@@ -56,7 +56,7 @@ rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Use the service batch file for shutdown
 set "SERVICE_SHUTDOWN=-s:@"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=-- shutdown argument "\"argument with spaces"\""
+rem set "SHUTDOWN_ARGS="-a:stop arguments \"with spaces\"""
 rem
 rem
 set "SERVICE_LOG_DIR=-o Logs/%SERVICE_NAME%"
@@ -85,9 +85,9 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     "--displayName=A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs:SeShutdownPrivilege ^
-    -f:PL1R -h ../../test --Work ..\build\dbg %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
-    %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% ^
-    %SERVICE_BATCH% run --some=option %SHUTDOWN_ARGS%
+    -f:PL0R -h ../../test --Work ..\build\dbg %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
+    %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
+    %SERVICE_BATCH% run --some=option
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem

@@ -308,26 +308,25 @@ Here is the list of all options:
 
   ```no-highlight
     Option  Long option
+    -a
     -b      --base
     -c      --cmd
             --command
     -e      --env
             --export
             --set
-    -f      --features
+    -f
     -h      --home
-    -k      --kill-depth
-    -m      --max
+    -k
+    -m      --maxlogs
     -n      --log
             --logname
     -o      --out
             --logdir
-    -p      --parameters
-            --options
+    -p
     -r      --rotate
-            --rotate-rule
     -s      --stop
-    -t      --timeout
+    -t
     -w      --work
   ```
 
@@ -410,6 +409,7 @@ use `-t=5` or `-r:100K` instead.
 
       This option causes all logging and rotation
       to use local instead system time.
+
 
     * **P**
 
@@ -861,13 +861,33 @@ use `-t=5` or `-r:100K` instead.
 
 
   If case you need to add additional arguments to the
-  shutdown script add **--** to the service arguments.
-  Arguments after **--** will be passed to the shutdown script.
+  shutdown script use **-a** command option.
 
 
   In case the **script** starts with **~** character,
   SvcBatch will use the string following the **~** character
   as script file without checking for its existence.
+
+
+* **-a [argument]**
+
+  **Add argument to the stop script**
+
+  This option is used together with **-s** option and
+  enables to set additional arguments for stop script.
+
+  The **argument** is passed as defined, so ensure
+  that it is properly quoted if it contains
+  space characters.
+
+
+  ```no-highlight
+  > svcbatch create ... -a "--connect --command=:shutdown"
+  ...
+  > svcbatch create ... -a "stop \"hello world\""
+
+  ```
+
 
 
 * **-w [path]**
