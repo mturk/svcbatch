@@ -170,11 +170,9 @@ typedef struct _SVCBATCH_NAME_MAP {
 } SVCBATCH_NAME_MAP, *LPSVCBATCH_NAME_MAP;
 
 static int                   svcmainargc = 0;
-static int                   serviceargc = 0;
 static int                   svcmaxlogs  = SVCBATCH_DEF_LOGS;
 static int                   stopmaxlogs = 0;
 static LPCWSTR              *svcmainargv = NULL;
-static LPCWSTR              *serviceargv = NULL;
 static LPSVCBATCH_PROCESS    program     = NULL;
 static LPSVCBATCH_SERVICE    service     = NULL;
 
@@ -266,6 +264,9 @@ static const wchar_t *scmallowed[] = {
 };
 
 
+static const wchar_t *scmdoptions = L"abcefhkmnoprstw";
+
+
 /**
  * Long options ...
  *
@@ -299,28 +300,6 @@ static const wchar_t *scmcoptions[] = {
     L"u+username",
     L"u+user",
     L"w?wait",
-    NULL
-};
-
-static const wchar_t *svcroptions[] = {
-    L"a+",
-    L"b+base",
-    L"c+cmd",
-    L"c+command",
-    L"e+env",
-    L"e+export",
-    L"e+set",
-    L"f:",
-    L"h+home",
-    L"k:",
-    L"m:maxlogs",
-    L"n+logname",
-    L"o+logdir",
-    L"p+",
-    L"r:rotate",
-    L"s+stop",
-    L"t:",
-    L"w+work",
     NULL
 };
 
@@ -454,20 +433,6 @@ static const wchar_t *wcsmessages[] = {
 };
 
 #define SVCBATCH_MSG(_id) wcsmessages[_id]
-
-static const wchar_t *wuserenvnames[] = {
-   L"_BASE",
-   L"_HOME",
-   L"_LOGS",
-   L"_NAME",
-   L"_UUID",
-   L"_WORK",
-   L"_APP",
-   L"_DIR",
-   L"_VERSION",
-
-    NULL
-};
 
 static int xfatalerr(LPCSTR func, int err)
 {
@@ -620,15 +585,6 @@ static __inline int xisdigit(int ch)
         return 0;
 }
 
-static __inline int xiscaretchar(int c)
-{
-    if ((c == 38) || (c == 42) ||
-        (c == 60) || (c == 62) || (c == 124))
-        return 1;
-    else
-        return 0;
-}
-
 static __inline void xchrreplace(LPWSTR str, int a, int b)
 {
     for (; *str != 0; str++) {
@@ -643,11 +599,6 @@ static __inline void xfixpathsep(LPWSTR str)
         if (*str == L'/')
             *str = L'\\';
     }
-}
-
-static __inline int xisoptswitch(int c)
-{
-    return ((c == 45) || (c == 47));
 }
 
 static __inline LPWSTR xwcschr(LPCWSTR str, int c)
@@ -1232,13 +1183,11 @@ static LPCWSTR xcodemap(SVCBATCH_NAME_MAP const *map, DWORD c)
     return zerostring;
 }
 
-static int xwgetopt(int nargc, LPCWSTR *nargv,
+static int xlongopt(int nargc, LPCWSTR *nargv,
                     LPCWSTR *options, LPCWSTR allowed)
 {
     LPCWSTR *poption;
     int      option;
-    int      optchr = 0;
-    int      optswc = 0;
     int      i = 0;
 
     xwoptarg = NULL;
@@ -1252,22 +1201,14 @@ static int xwgetopt(int nargc, LPCWSTR *nargv,
         return EOF;
     }
     if (xwoption[i] == L'-')
-        optswc = xwoption[i++];
+        i++;
     if (xwoption[i] == WNUL) {
         /* The single '-' or '--' are command delimiters */
         xwoptind++;
         return EOF;
     }
-    if (optswc != L'-') {
-        if (allowed) {
-            /* Short options are disabled */
-            return EOF;
-        }
-        optchr = xtolower(xwoption[i]);
-    }
-    if (!xisalpha(xwoption[i])) {
+    if (!xisalpha(xwoption[i]))
         return EOF;
-    }
     poption = options;
 
     while (*poption) {
@@ -1278,31 +1219,13 @@ static int xwgetopt(int nargc, LPCWSTR *nargv,
         LPCWSTR optstr = xwoption + i;
 
         optsrc = *poption;
-        if (optsrc[2] == WNUL) {
-            if (optswc) {
-                /* Skip --option check for single char options */
-                poption++;
-                continue;
-            }
-        }
         optmod = optsrc[1];
         if (optmod == '.') {
-            if (optchr) {
-                if (optchr == *optsrc)
-                    optopt = zerostring;
-            }
-            else {
-                if (xwcsequals(optstr, optsrc + 2))
-                    optopt = zerostring;
-            }
+            if (xwcsequals(optstr, optsrc + 2))
+                optopt = zerostring;
         }
         else {
-            int endpos;
-
-            if (optchr == *optsrc)
-                endpos = 1;
-            else
-                endpos = xwstartswith(optstr, optsrc + 2);
+            int endpos = xwstartswith(optstr, optsrc + 2);
             if (endpos) {
                 LPCWSTR oo = optstr + endpos;
                 /* Check for --option , --option: or --option= */
@@ -1321,7 +1244,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv,
         }
         /* Found long option */
         option = *optsrc;
-        if ((allowed != NULL) && (xwcschr(allowed, option) == NULL)) {
+        if ((allowed == NULL) || (xwcschr(allowed, option) == NULL)) {
             /**
              * The --option is not enabled for the
              * current command.
@@ -1367,10 +1290,67 @@ static int xwgetopt(int nargc, LPCWSTR *nargv,
         return option;
     }
     /* Option not found */
-    if (allowed)
+    return EOF;
+}
+
+static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
+{
+    LPCWSTR  optpos;
+    LPCWSTR  optarg;
+    int      option;
+    int      optsep = 0;
+    int      i = 0;
+
+    xwoptarg = NULL;
+    if (xwoptind >= nargc)
         return EOF;
-    else
+    xwoption = nargv[xwoptind];
+    if (xwoption[i++] != L'-')
+        return EOF;
+    if (xwoption[i] == WNUL) {
+        /* The single '-' is command delimiter */
+        if (*xwoption == L'-')
+            xwoptind++;
+        return EOF;
+    }
+    if (!xisalpha(xwoption[i]))
+        return EOF;
+
+    option = xtolower(xwoption[i++]);
+    optpos = xwcschr(opts, option);
+
+    if (optpos == NULL) {
         return EINVAL;
+    }
+    optsep = xwoption[i];
+    if ((optsep == L':') || (optsep == L'=')) {
+        optarg = xwoption + i + 1;
+        while (xisblank(*optarg))
+            ++optarg;
+        if (*optarg == WNUL) {
+            /* Missing argument */
+            return ENOENT;
+        }
+        else {
+            xwoptarg = optarg;
+            xwoptind++;
+            return option;
+        }
+    }
+    if (optsep) {
+        /* Extra data */
+        return EINVAL;
+    }
+    optarg = zerostring;
+    if (nargc > xwoptind)
+        optarg = nargv[++xwoptind];
+    while (xisblank(*optarg))
+        optarg++;
+    if (*optarg == WNUL)
+        return ENOENT;
+    xwoptind++;
+    xwoptarg = optarg;
+    return option;
 }
 
 static LPWSTR xuuidstring(LPWSTR b)
@@ -3513,7 +3493,8 @@ static DWORD createevents(void)
     return 0;
 }
 
-static LPWSTR *mergearguments(LPWSTR msz, int *argc)
+static LPWSTR *mergearguments(LPWSTR msz, int *argc,
+                              int serviceargc, LPCWSTR *serviceargv)
 {
     int      i;
     int      x = 0;
@@ -3584,7 +3565,7 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
     return argv;
 }
 
-static DWORD getsvcarguments(int *argc, LPWSTR **argv)
+static DWORD getsvcarguments(int *argc, LPWSTR **argv, int sargc, LPCWSTR *sargv)
 {
     DWORD   t;
     DWORD   c;
@@ -3611,7 +3592,7 @@ static DWORD getsvcarguments(int *argc, LPWSTR **argv)
 finished:
     if (k != NULL)
         RegCloseKey(k);
-    *argv = mergearguments((LPWSTR)b, argc);
+    *argv = mergearguments((LPWSTR)b, argc, sargc, sargv);
     return ERROR_SUCCESS;
 }
 
@@ -3667,16 +3648,13 @@ static int parseoptions(int argc, LPCWSTR *argv)
     LPCWSTR  rotateparam  = NULL;
 
     DBG_PRINTF("started %d", argc);
-    serviceargc = argc;
-    serviceargv = argv;
-    x = getsvcarguments(&rargc, &rargv);
+    x = getsvcarguments(&rargc, &rargv, argc, argv);
     if (x != ERROR_SUCCESS)
         return xsyserror(x, SVCBATCH_SVCARGS, NULL);
     argc = rargc;
     argv = (LPCWSTR *)rargv;
 
-    xwoptind = 1;
-    while ((opt = xwgetopt(argc, argv, svcroptions, NULL)) != EOF) {
+    while ((opt = xwgetopt(argc, argv, scmdoptions)) != EOF) {
         switch (opt) {
             case 'f':
                 cp = xwoptarg;
@@ -4338,7 +4316,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
-    while ((opt = xwgetopt(argc, argv, scmcoptions, scmallowed[cmd])) != EOF) {
+    while ((opt = xlongopt(argc, argv, scmcoptions, scmallowed[cmd])) != EOF) {
         switch (opt) {
             case 'q':
                 cmdverbose  = 0;

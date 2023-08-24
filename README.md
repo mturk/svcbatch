@@ -272,7 +272,7 @@ rotation, SvcBatch will not rotate logs.
 SvcBatch command line options allow users to customize
 service deployments. Options are case insensitive and
 defined with **-** or **--** as command switch.
-This means that `-h, -H, --Home or --home`
+This means that `-h or -H` and `--Wait or --wait`
 can be used interchangeably.
 
 Command line option values can be either the rest of the
@@ -304,49 +304,10 @@ the service will fail and error message will be
 reported to Windows Event log.
 
 
-Here is the list of all options:
-
-  ```no-highlight
-    Option  Long option
-    -a
-    -b      --base
-    -c      --cmd
-            --command
-    -e      --env
-            --export
-            --set
-    -f
-    -h      --home
-    -k
-    -m      --maxlogs
-    -n      --log
-            --logname
-    -o      --out
-            --logdir
-    -p
-    -r      --rotate
-    -s      --stop
-    -t
-    -w      --work
-  ```
-
-Command options `f, k, m, r and t` must have their
-value as part of the command option, separated by
-`:` or `=` character.
-
-The format for those options is:
-
-  ```no-highlight
-      <option><:|=><value>
-  ```
-
-For example `-t 5` or `-r 100K` are not valid options,
-and will cause the service to fail. Make sure to
-use `-t=5` or `-r:100K` instead.
 
 
 
-* **-f:[features]**
+* **-f [features]**
 
   **Set runtime features**
 
@@ -538,7 +499,7 @@ use `-t=5` or `-r:100K` instead.
   is **/D /E:ON /V:OFF /C**.
 
 
-* **-k[<:>depth]**
+* **-k [depth]**
 
   **Set the nested process kill depth**
 
@@ -636,7 +597,7 @@ use `-t=5` or `-r:100K` instead.
   to the Windows Event log.
 
 
-* **-t[<:>timeout]**
+* **-t [timeout]**
 
   **Set stop timeout in seconds**
 
@@ -656,7 +617,7 @@ use `-t=5` or `-r:100K` instead.
   as time limit.
 
 
-* **-m[<:>number]**
+* **-m [number]**
 
   **Set maximum number of log files**
 
@@ -783,7 +744,7 @@ use `-t=5` or `-r:100K` instead.
   in that location.
 
 
-* **-r:[rule]**
+* **-r [rule]**
 
   **Rotate logs by size or time interval**
 
