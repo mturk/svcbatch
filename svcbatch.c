@@ -68,7 +68,6 @@ typedef enum {
     SVCBATCH_WRPIPE_THREAD,
     SVCBATCH_STOP_THREAD,
     SVCBATCH_ROTATE_THREAD,
-    SVCBATCH_RDPIPE_THREAD,
     SVCBATCH_MAX_THREADS
 } SVCBATCH_THREAD_ID;
 
@@ -231,7 +230,6 @@ typedef enum {
     SVCBATCH_SCM_CONTROL,
     SVCBATCH_SCM_DELETE,
     SVCBATCH_SCM_HELP,
-    SVCBATCH_SCM_RUN,
     SVCBATCH_SCM_START,
     SVCBATCH_SCM_STOP,
     SVCBATCH_SCM_VERSION
@@ -249,7 +247,6 @@ static const wchar_t *scmcommands[] = {
     L"Control",                 /* SVCBATCH_SCM_CONTROL     */
     L"Delete",                  /* SVCBATCH_SCM_DELETE      */
     L"Help",                    /* SVCBATCH_SCM_HELP        */
-    L"Run",                     /* SVCBATCH_SCM_RUN         */
     L"Start",                   /* SVCBATCH_SCM_START       */
     L"Stop",                    /* SVCBATCH_SCM_STOP        */
     L"Version",                 /* SVCBATCH_SCM_VERSION     */
@@ -262,7 +259,6 @@ static const wchar_t *scmallowed[] = {
     L"q",                  /* SVCBATCH_SCM_CONTROL     */
     L"q",                  /* SVCBATCH_SCM_DELETE      */
     L"x",                  /* SVCBATCH_SCM_HELP        */
-    L"x",                  /* SVCBATCH_SCM_RUN         */
     L"qw",                 /* SVCBATCH_SCM_START       */
     L"qw",                 /* SVCBATCH_SCM_STOP        */
     L"x",                  /* SVCBATCH_SCM_VERSION     */
@@ -346,7 +342,6 @@ static const char *xgenerichelp =
     "\n      Delete.....Deletes a service."                                                     \
     "\n      Help.......Print this screen and exit."                                            \
     "\n                 Use Help [command] for command help."                                   \
-    "\n      Run........Run a service in console mode."                                         \
     "\n      Start......Starts a service."                                                      \
     "\n      Stop.......Sends a STOP request to a service."                                     \
     "\n      Version....Print version information."                                             \
@@ -398,10 +393,6 @@ static const char *xcommandhelp[] = {
     /* Help */
     "\nDescription:\n  Display command help."                                                   \
     "\nUsage:\n  " SVCBATCH_NAME " help <command>\n"                                            \
-    "\n",
-    /* Run */
-    "\nDescription:\n  Starts a service in console mode."                                       \
-    "\nUsage:\n  " SVCBATCH_NAME " run [service name] <arguments ...>\n"                        \
     "\n",
     /* Start */
     "\nDescription:\n  Starts a service running."                                               \
@@ -1420,31 +1411,9 @@ static int getdayofyear(int y, int m, int d)
     return r;
 }
 
-static int xtimestring(char *d, int sz)
-{
-    SYSTEMTIME tm;
-    int i = 0;
-
-    GetLocalTime(&tm);
-
-    d[i++] = tm.wHour / 10 + '0';
-    d[i++] = tm.wHour % 10 + '0';
-    d[i++] = ':';
-    d[i++] = tm.wMinute / 10 + '0';
-    d[i++] = tm.wMinute % 10 + '0';
-    d[i++] = ':';
-    d[i++] = tm.wSecond  / 10 + '0';
-    d[i++] = tm.wSecond  % 10 + '0';
-    d[i++] = '.';
-    d[i++] = tm.wMilliseconds / 100 + '0';
-    d[i++] = tm.wMilliseconds % 100 / 10 + '0';
-    d[i++] = tm.wMilliseconds % 10 + '0';
-
-    d[i++] = CNUL;
-    return i;
-}
 
 #if defined(_DEBUG)
+
 /**
  * Runtime debugging functions
  */
@@ -1454,7 +1423,6 @@ static const char *threadnames[] = {
     "wrpipethread",
     "stopthread  ",
     "rotatethread",
-    "rdpipethread",
     NULL
 };
 
@@ -1668,41 +1636,16 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     int     n;
     int   siz = SVCBATCH_LINE_MAX;
 
-#if !defined(_DEBUG)
-    if (IS_NOT(SVCBATCH_OPT_CONSOLE) && IS_NOT(SVCBATCH_OPT_EVENTLOG)) {
-        /* Nothing to do */
-        return ern ? ern : ERROR_INVALID_PARAMETER;
-    }
-#endif
     if (service && service->name)
         svc = service->name;
     else
         svc = CPP_WIDEN(SVCBATCH_NAME);
-    if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        if (typ == EVENTLOG_ERROR_TYPE) {
-        fprintf(stdout, "      Report : Error\n");
-        fprintf(stdout, "             : FAILED\n");
-        fprintf(stdout, "        LINE : %d (%s)\n", line, fn);
-        if (ern)
-        fprintf(stdout, "       ERROR : %lu (0x%x)\n", ern,  ern);
-        }
-        else if (typ == EVENTLOG_WARNING_TYPE) {
-        fprintf(stdout, "      Report : Warning\n");
-        fprintf(stdout, "             : %lu (0x%x)\n", ern,  ern);
-        fprintf(stdout, "        LINE : %d\n", line);
-        }
-        else {
-        fprintf(stdout, "      Report : Information\n");
-        }
-    }
-    else {
-        c = xsnwprintf(buf, BBUFSIZ, L"The %s service", svc);
-        msg[i++] = buf;
-        if (typ == EVENTLOG_ERROR_TYPE)
-            msg[i++] = L"reported the following error:";
-        buf[c++] = WNUL;
-        buf[c++] = WNUL;
-    }
+    c = xsnwprintf(buf, BBUFSIZ, L"The %s service", svc);
+    msg[i++] = buf;
+    if (typ == EVENTLOG_ERROR_TYPE)
+        msg[i++] = L"reported the following error:";
+    buf[c++] = WNUL;
+    buf[c++] = WNUL;
     msg[i++] = buf + c;
     buf[c++] = L'\r';
     buf[c++] = L'\n';
@@ -1733,8 +1676,6 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     buf[c++] = WNUL;
     siz = SVCBATCH_LINE_MAX - c;
 
-    if (IS_SET(SVCBATCH_OPT_CONSOLE))
-        fprintf(stdout, "               %S\n", dsc);
     if (ern == 0) {
         ern = ERROR_INVALID_PARAMETER;
 #if defined(_DEBUG)
@@ -1753,22 +1694,11 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
 #if defined(_DEBUG)
         dbgprintf(fn, line, "%S, %S", dsc, erb);
 #endif
-        if (IS_SET(SVCBATCH_OPT_CONSOLE))
-            fprintf(stdout, "               %S\n", erb + n);
         c += n;
         buf[c++] = WNUL;
         buf[c++] = WNUL;
         siz = SVCBATCH_LINE_MAX - c;
     }
-    if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        char xb[TBUFSIZ];
-
-        xtimestring(xb, TBUFSIZ);
-        fprintf(stdout, "        TIME : %s\n\n", xb);
-        return ern;
-    }
-    if (IS_NOT(SVCBATCH_OPT_EVENTLOG))
-        return ern;
     if (typ == EVENTLOG_ERROR_TYPE) {
         erb = buf + c;
         xsnwprintf(erb, siz,
@@ -2185,13 +2115,8 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
             if (svcfailmode == SVCBATCH_FAIL_EXIT) {
                 svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, 0, NULL,
                             SVCBATCH_MSG(1), NULL);
-                if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-                    param = ERROR_INVALID_LEVEL;
-                }
-                else {
-                    SVCBATCH_CS_LEAVE(service);
-                    exit(ERROR_INVALID_LEVEL);
-                }
+                SVCBATCH_CS_LEAVE(service);
+                exit(ERROR_INVALID_LEVEL);
             }
             else {
                 if ((svcfailmode == SVCBATCH_FAIL_NONE) &&
@@ -2225,11 +2150,9 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
     }
     service->status.dwCurrentState = status;
     InterlockedExchange(&service->state, status);
-    if (IS_NOT(SVCBATCH_OPT_CONSOLE)) {
-        if (!SetServiceStatus(service->handle, &service->status)) {
-            xsyserror(GetLastError(), L"SetServiceStatus", NULL);
-            InterlockedExchange(&service->state, SERVICE_STOPPED);
-        }
+    if (!SetServiceStatus(service->handle, &service->status)) {
+        xsyserror(GetLastError(), L"SetServiceStatus", NULL);
+        InterlockedExchange(&service->state, SERVICE_STOPPED);
     }
 finished:
     SVCBATCH_CS_LEAVE(service);
@@ -2835,6 +2758,8 @@ static DWORD addshmemdata(LPWSTR d, LPDWORD x, LPCWSTR s)
 
     if (IS_EMPTY_WCS(s))
         return 0;
+    if (i >= SVCBATCH_DATA_LEN)
+        return 0;
     *x = xwcsncat(d, SVCBATCH_DATA_LEN, i, s) + 1;
     return i;
 }
@@ -2880,7 +2805,8 @@ static DWORD runshutdown(void)
         sharedmem->args[i] = addshmemdata(sharedmem->data, &x, svcstop->args[i]);
     for (i = 0; i < cmdproc->optc; i++)
         sharedmem->opts[i] = addshmemdata(sharedmem->data, &x, cmdproc->opts[i]);
-
+    if (x >= SVCBATCH_DATA_LEN)
+        return ERROR_INSUFFICIENT_BUFFER;
     DBG_PRINTF("shared memory size %lu", DSIZEOF(SVCBATCH_IPC));
     rc = createiopipes(&svcstop->sInfo, NULL, NULL, 0);
     if (rc != 0) {
@@ -2940,16 +2866,6 @@ static DWORD WINAPI stopthread(void *ssp)
         InterlockedExchange(&outputlog->state, 1);
         SVCBATCH_CS_LEAVE(outputlog);
     }
-    if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        char xb[TBUFSIZ];
-
-        xtimestring(xb, TBUFSIZ);
-        fprintf(stdout, "     Command : Stop\n");
-        fprintf(stdout, "             : PENDING\n");
-        fprintf(stdout, "     TIMEOUT : %d ms\n", stoptimeout);
-        fprintf(stdout, "        TIME : %s\n\n", xb);
-    }
-
     if (svcstop) {
         ULONGLONG rs;
 
@@ -3096,78 +3012,6 @@ static DWORD WINAPI wrpipethread(void *pipe)
     return rc;
 }
 
-static DWORD WINAPI rdpipethread(void *unused)
-{
-    DWORD rc = 0;
-    DWORD cm = ENABLE_PROCESSED_INPUT | ENABLE_LINE_INPUT | ENABLE_ECHO_INPUT;
-    DWORD rd;
-    BYTE  rb[8];
-    DBG_PRINTS("started");
-
-    GetConsoleMode(program->sInfo.hStdInput, &cm);
-    SetConsoleMode(program->sInfo.hStdInput, 0);
-
-    while (rc == 0) {
-        if (ReadFile(program->sInfo.hStdInput,
-                     rb, 8, &rd, NULL) && (rd != 0)) {
-            if (rb[0] == '\r') {
-                SVCBATCH_CS_ENTER(service);
-                if (service->state == SERVICE_RUNNING) {
-                    xsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
-                    xcreatethread(SVCBATCH_STOP_THREAD, 0, stopthread,
-                                  INVALID_HANDLE_VALUE);
-                }
-                SVCBATCH_CS_LEAVE(service);
-                break;
-            }
-            else {
-                int ch = xtolower(rb[0]);
-                if (ch == 'r') {
-                    if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIG)) {
-                        /**
-                         * Signal to rotatethread that
-                         * user send custom service control
-                         */
-                        if (canrotatelogs(outputlog)) {
-                            xsysinfo(NULL, L"Signaling log rotate");
-                            SetEvent(dologrotate);
-                        }
-                        else {
-                            xsyswarn(ERROR_SERVICE_CANNOT_ACCEPT_CTRL,
-                                     L"RotateLogs is busy", NULL);
-                        }
-                    }
-                    else {
-                        xsyswarn(ERROR_INVALID_SERVICE_CONTROL,
-                                 L"Log rotation is disabled", NULL);
-                    }
-                }
-#if defined(_DEBUG)
-                else {
-                    DBG_PRINTF("unknown key: %d", ch);
-                }
-#endif
-            }
-        }
-        else {
-            rc = GetLastError();
-        }
-    }
-    SetConsoleMode(program->sInfo.hStdInput, cm);
-#if defined(_DEBUG)
-    if (rc) {
-        if (rc == ERROR_BROKEN_PIPE)
-            DBG_PRINTS("pipe closed");
-        else if (rc == ERROR_OPERATION_ABORTED)
-            DBG_PRINTS("aborted");
-        else
-            DBG_PRINTF("error %lu", rc);
-    }
-    DBG_PRINTS("done");
-#endif
-    return rc;
-}
-
 static DWORD WINAPI rotatethread(void *unused)
 {
     HANDLE wh[4];
@@ -3241,9 +3085,6 @@ static DWORD WINAPI rotatethread(void *unused)
             break;
             case WAIT_TIMEOUT:
                 DBG_PRINTS("rotate ready");
-                if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-                    xsysinfo(NULL, L"Rotate ready");
-                }
                 SVCBATCH_CS_ENTER(outputlog);
                 InterlockedExchange(&outputlog->state, 0);
                 if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIZE)) {
@@ -3367,17 +3208,6 @@ static DWORD WINAPI workerthread(void *unused)
             goto finished;
         }
     }
-    if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        if (!xcreatethread(SVCBATCH_RDPIPE_THREAD,
-                           1, rdpipethread, NULL)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            xsyserror(rc, L"ReadThread", NULL);
-            TerminateProcess(cmdproc->pInfo.hProcess, rc);
-            cmdproc->exitCode = rc;
-            goto finished;
-        }
-    }
     ResumeThread(cmdproc->pInfo.hThread);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_RUNNING);
     if (IS_SET(SVCBATCH_OPT_YYES))
@@ -3386,13 +3216,6 @@ static DWORD WINAPI workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     xsvcstatus(SERVICE_RUNNING, 0);
     DBG_PRINTF("running process %lu", cmdproc->pInfo.dwProcessId);
-    if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        ResumeThread(threads[SVCBATCH_RDPIPE_THREAD].thread);
-        fprintf(stdout, "     Command : Run\n");
-        fprintf(stdout, "             : RUNNING\n");
-        fprintf(stdout, "         PID : %lu\n", cmdproc->pInfo.dwProcessId);
-        fprintf(stdout, "               Press ENTER to stop the service . . .\n\n");
-    }
     if (IS_SET(SVCBATCH_OPT_ROTATE))
         ResumeThread(threads[SVCBATCH_ROTATE_THREAD].thread);
     if (outputlog) {
@@ -3465,12 +3288,6 @@ static DWORD WINAPI workerthread(void *unused)
         if (WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
             DBG_PRINTS("wrpipethread is still active ... calling CancelSynchronousIo");
             CancelSynchronousIo(threads[SVCBATCH_WRPIPE_THREAD].thread);
-        }
-    }
-    if (IS_SET(SVCBATCH_OPT_CONSOLE)) {
-        if (WaitForSingleObject(threads[SVCBATCH_RDPIPE_THREAD].thread, 100)) {
-            DBG_PRINTS("rdpipethread is still active ... calling CancelSynchronousIo");
-            CancelSynchronousIo(threads[SVCBATCH_RDPIPE_THREAD].thread);
         }
     }
     if (!GetExitCodeProcess(cmdproc->pInfo.hProcess, &rc))
@@ -3699,7 +3516,6 @@ static DWORD createevents(void)
 static LPWSTR *mergearguments(LPWSTR msz, int *argc)
 {
     int      i;
-    int      o;
     int      x = 0;
     int      c = 0;
     LPWSTR   p;
@@ -3715,7 +3531,8 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
     c   += serviceargc;
     argv = xwaalloc(c);
 
-    argv[x++] = (LPWSTR)*(serviceargv++);
+    argv[x++] = (LPWSTR)*serviceargv;
+    serviceargv++;
     serviceargc--;
     /**
      * Add option arguments in the following order
@@ -3723,19 +3540,27 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
      * ImagePathArguments
      * Service Start options
      */
-    for (i = 0, o = 0; i < serviceargc; i++) {
-        p = (LPWSTR)serviceargv[i];
-        if ((p[0] == L'-') && isalpha(p[1]) &&
-           ((p[2] == L':') || (p[2] == L'=')) && (p[3] != WNUL)) {
-           argv[x++] = p;
-           o++;
-        }
-        else {
-            break;
+    if (serviceargc) {
+        p = (LPWSTR)*serviceargv;
+        if ((p[0] == L'[') && (p[1] == WNUL)) {
+            /**
+             * Add start options between [ ... ]
+             * as command options
+             */
+            for (i = 1; i < serviceargc; i++) {
+                p = (LPWSTR)serviceargv[i];
+                if ((p[0] == L']') && (p[1] == WNUL)) {
+                    i++;
+                    break;
+                }
+                else {
+                    argv[x++] = p;
+                }
+            }
+            serviceargv += i;
+            serviceargc -= i;
         }
     }
-    serviceargv += o;
-    serviceargc -= o;
     if (svcmainargc > 0) {
         for (i = 0; i < svcmainargc; i++)
             argv[x++] = (LPWSTR)svcmainargv[i];
@@ -3750,9 +3575,9 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
     for (i = 0; i < serviceargc; i++)
         argv[x++] = (LPWSTR)serviceargv[i];
 
-    *argc = c;
+    *argc = x;
 #if defined(_DEBUG) && (_DEBUG > 1)
-    for (i = 0; i < c; i++) {
+    for (i = 0; i < x; i++) {
         DBG_PRINTF("[%.2d] '%S'", i, argv[i]);
     }
 #endif
@@ -4228,12 +4053,10 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xsyserror(ERROR_INVALID_PARAMETER, L"InvalidServiceName", NULL);
         exit(1);
     }
-    if (IS_NOT(SVCBATCH_OPT_CONSOLE)) {
-        service->handle = RegisterServiceCtrlHandlerExW(service->name, servicehandler, NULL);
-        if (IS_INVALID_HANDLE(service->handle)) {
-            xsyserror(GetLastError(), L"RegisterServiceCtrlHandlerEx", service->name);
-            exit(1);
-        }
+    service->handle = RegisterServiceCtrlHandlerExW(service->name, servicehandler, NULL);
+    if (IS_INVALID_HANDLE(service->handle)) {
+        xsyserror(GetLastError(), L"RegisterServiceCtrlHandlerEx", service->name);
+        exit(1);
     }
     DBG_PRINTF("%S", service->name);
     xsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
@@ -4471,7 +4294,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     PSERVICE_CONTROL_STATUS_REASON_PARAMSW ssr;
     LPSERVICE_STATUS_PROCESS ssp;
     WCHAR     cb[SVCBATCH_PATH_MAX];
-    char      sb[TBUFSIZ];
     DWORD     bneed;
     int       i;
     int       x;
@@ -4516,13 +4338,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
-    if (cmd == SVCBATCH_SCM_RUN) {
-        wtime = 1;
-        xtimestring(sb, TBUFSIZ);
-        fprintf(stdout, "Service Name : %S\n", service->name);
-        goto doneargs;
-    }
-
     while ((opt = xwgetopt(argc, argv, scmcoptions, scmallowed[cmd])) != EOF) {
         switch (opt) {
             case 'q':
@@ -4618,7 +4433,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     argv += xwoptind;
     if (wtime)
         wtimeout = wtime * ONE_SECOND;
-doneargs:
     if (xwcspbrk(service->name, L"/\\")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
@@ -4691,38 +4505,6 @@ doneargs:
             rv = GetLastError();
             ec = __LINE__;
         }
-        goto finished;
-    }
-    if (cmd == SVCBATCH_SCM_RUN) {
-        if (!QueryServiceStatusEx(svc,
-                                  SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
-                                  SZ_STATUS_PROCESS_INFO, &bneed)) {
-            rv = GetLastError();
-            ec = __LINE__;
-            goto finished;
-        }
-        if (ssp->dwCurrentState != SERVICE_STOPPED) {
-            rv = ERROR_SERVICE_ALREADY_RUNNING;
-            ec = __LINE__;
-            goto finished;
-        }
-#if defined(_DEBUG)
-        dbgsvcmode  = 1;
-        dbgfopen();
-#endif
-        servicemode = 1;
-        svcmainargc = 0;
-        OPT_SET(SVCBATCH_OPT_CONSOLE);
-
-        SetConsoleCtrlHandler(NULL, FALSE);
-        SetConsoleCtrlHandler(consolehandler, TRUE);
-
-        servicemain(argc, argv);
-        rv = service->status.dwServiceSpecificExitCode;
-        ec = __LINE__;
-#if defined(_DEBUG)
-        dbgsvcmode = 3;
-#endif
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_START) {
@@ -4988,7 +4770,6 @@ finished:
         if (rv) {
             wchar_t eb[SVCBATCH_LINE_MAX];
             xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
-            if (cmd != SVCBATCH_SCM_RUN)
             fprintf(stdout, "Service Name : %S\n", service->name);
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "             : FAILED\n");
@@ -5004,22 +4785,14 @@ finished:
             fprintf(stdout, "               %S\n", eb);
             if (ed != NULL)
             fprintf(stdout, "               %S\n", ed);
-            if (cmd == SVCBATCH_SCM_RUN) {
-            fprintf(stdout, "     STARTED : %s\n", sb);
-            }
             fputc('\n', stdout);
         }
         else {
-            if (cmd != SVCBATCH_SCM_RUN)
             fprintf(stdout, "Service Name : %S\n", service->name);
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
-            if (cmd == SVCBATCH_SCM_RUN) {
-            fprintf(stdout, "             : DONE\n");
-            } else {
             fprintf(stdout, "             : SUCCESS\n");
             if (wtime)
             fprintf(stdout, "               %llu ms\n", GetTickCount64() - wtmstart);
-            }
             if (cmd == SVCBATCH_SCM_CONTROL)
             fprintf(stdout, "               %S\n", argv[0]);
             if (cmd == SVCBATCH_SCM_CREATE)
@@ -5027,10 +4800,7 @@ finished:
             if (cmd == SVCBATCH_SCM_START)
             fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
             if (cmd == SVCBATCH_SCM_STOP)
-            fprintf(stdout, "    EXITCODE : %lu (0x%lx)\n", ssp->dwServiceSpecificExitCode,                                                            ssp->dwServiceSpecificExitCode);
-            if (cmd == SVCBATCH_SCM_RUN) {
-            fprintf(stdout, "     STARTED : %s\n", sb);
-            }
+            fprintf(stdout, "    EXITCODE : %lu (0x%lx)\n", ssp->dwServiceSpecificExitCode, ssp->dwServiceSpecificExitCode);
             fputc('\n', stdout);
         }
     }
@@ -5257,7 +5027,6 @@ int wmain(int argc, LPCWSTR *argv)
         dbgsvcmode  = 1;
         dbgfopen();
 #endif
-        OPT_SET(SVCBATCH_OPT_EVENTLOG);
         SetConsoleCtrlHandler(NULL, FALSE);
         SetConsoleCtrlHandler(consolehandler, TRUE);
 
