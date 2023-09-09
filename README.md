@@ -320,7 +320,7 @@ reported to Windows Event log.
   listed in any order.
 
   ```no-highlight
-      <B><C><L><P><Q><U><0|1|2>
+      <B><C><L><P><Q><R><U><0|1|2>
   ```
 
     * **B**
@@ -394,6 +394,16 @@ reported to Windows Event log.
       **Notice**
 
       Any eventual log rotation option will not be processed.
+
+
+    * **R**
+
+      **Enable log rotation by signal**
+
+      When defined, SvcBatch will enable on demand log rotation.
+
+      See [Custom Control Codes](#custom-control-codes)
+      section below for more details
 
 
     * **U**

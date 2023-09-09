@@ -65,7 +65,7 @@ static const char *dbgsvcmodes[] = {
 
 typedef enum {
     SVCBATCH_WORKER_THREAD = 0,
-    SVCBATCH_WRPIPE_THREAD,
+    SVCBATCH_WRITE_THREAD,
     SVCBATCH_STOP_THREAD,
     SVCBATCH_ROTATE_THREAD,
     SVCBATCH_MAX_THREADS
@@ -96,6 +96,7 @@ typedef struct _SVCBATCH_PROCESS {
     volatile LONG       state;
     PROCESS_INFORMATION pInfo;
     STARTUPINFOW        sInfo;
+    DWORD               ppid;
     DWORD               exitCode;
     DWORD               argc;
     DWORD               optc;
@@ -140,7 +141,7 @@ typedef struct _SVCBATCH_LOG {
  */
 #define SVCBATCH_DATA_LEN    32608
 typedef struct _SVCBATCH_IPC {
-    DWORD   processId;
+    DWORD   ppid;
     DWORD   options;
     DWORD   timeout;
     DWORD   killdepth;
@@ -153,6 +154,7 @@ typedef struct _SVCBATCH_IPC {
     DWORD   base;
     DWORD   home;
     DWORD   work;
+
     DWORD   logn;
     DWORD   logs;
 
@@ -583,6 +585,14 @@ static __inline int xisalpha(int ch)
 static __inline int xisdigit(int ch)
 {
     if ((ch > 47) && (ch < 58))
+        return 1;
+    else
+        return 0;
+}
+
+static __inline int xiswcschar(LPCWSTR s, WCHAR c)
+{
+    if ((s[0] == c) && (s[1] == WNUL))
         return 1;
     else
         return 0;
@@ -1313,7 +1323,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     xwoption = nargv[xwoptind];
     if (xwoptarr) {
         if (xwoptend) {
-            if ((xwoption[0] == L']') && (xwoption[1] == WNUL)) {
+            if (xiswcschar(xwoption, L']')) {
                 xwoptind++;
                 return ']';
             }
@@ -1324,7 +1334,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             }
         }
         else {
-            if ((xwoption[0] == L'[') && (xwoption[1] == WNUL)) {
+            if (xiswcschar(xwoption, L'[')) {
                 xwoptind++;
                 return '[';
             }
@@ -1425,7 +1435,7 @@ static int getdayofyear(int y, int m, int d)
 
 static const char *threadnames[] = {
     "workerthread",
-    "wrpipethread",
+    "writethread ",
     "stopthread  ",
     "rotatethread",
     NULL
@@ -2796,7 +2806,7 @@ static DWORD runshutdown(void)
                                               0, 0, DSIZEOF(SVCBATCH_IPC));
     if (sharedmem == NULL)
         return GetLastError();
-    sharedmem->processId = program->pInfo.dwProcessId;
+    sharedmem->ppid      = program->pInfo.dwProcessId;
     sharedmem->options   = svcoptions & 0x000000FF;
     sharedmem->timeout   = stoptimeout;
     sharedmem->killdepth = killdepth;
@@ -2997,7 +3007,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     return 0;
 }
 
-static DWORD WINAPI wrpipethread(void *pipe)
+static DWORD WINAPI writethread(void *pipe)
 {
     DWORD rc = 0;
     DWORD wr;
@@ -3147,7 +3157,7 @@ static DWORD WINAPI workerthread(void *unused)
 
     if (outputlog)
         rp = &rd;
-    if (IS_SET(SVCBATCH_OPT_YYES))
+    if (IS_SET(SVCBATCH_OPT_WRITE))
         wp = &wr;
     rc = createiopipes(&cmdproc->sInfo, wp, rp, FILE_FLAG_OVERLAPPED);
     if (rc != 0) {
@@ -3199,9 +3209,9 @@ static DWORD WINAPI workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cmdproc->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(cmdproc->sInfo.hStdError);
 
-    if (IS_SET(SVCBATCH_OPT_YYES)) {
-        if (!xcreatethread(SVCBATCH_WRPIPE_THREAD,
-                           1, wrpipethread, wr)) {
+    if (IS_SET(SVCBATCH_OPT_WRITE)) {
+        if (!xcreatethread(SVCBATCH_WRITE_THREAD,
+                           1, writethread, wr)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
             xsyserror(rc, L"WriteThread", NULL);
@@ -3223,8 +3233,8 @@ static DWORD WINAPI workerthread(void *unused)
     }
     ResumeThread(cmdproc->pInfo.hThread);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_RUNNING);
-    if (IS_SET(SVCBATCH_OPT_YYES))
-        ResumeThread(threads[SVCBATCH_WRPIPE_THREAD].thread);
+    if (IS_SET(SVCBATCH_OPT_WRITE))
+        ResumeThread(threads[SVCBATCH_WRITE_THREAD].thread);
 
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     xsvcstatus(SERVICE_RUNNING, 0);
@@ -3297,10 +3307,10 @@ static DWORD WINAPI workerthread(void *unused)
     }
     DBG_PRINTS("stopping");
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_STOPPING);
-    if (IS_SET(SVCBATCH_OPT_YYES)) {
-        if (WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
-            DBG_PRINTS("wrpipethread is still active ... calling CancelSynchronousIo");
-            CancelSynchronousIo(threads[SVCBATCH_WRPIPE_THREAD].thread);
+    if (IS_SET(SVCBATCH_OPT_WRITE)) {
+        if (WaitForSingleObject(threads[SVCBATCH_WRITE_THREAD].thread, SVCBATCH_STOP_STEP)) {
+            DBG_PRINTS("writethread is still active ... calling CancelSynchronousIo");
+            CancelSynchronousIo(threads[SVCBATCH_WRITE_THREAD].thread);
         }
     }
     if (!GetExitCodeProcess(cmdproc->pInfo.hProcess, &rc))
@@ -3556,14 +3566,14 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc,
      */
     if (serviceargc) {
         p = (LPWSTR)*serviceargv;
-        if ((p[0] == L'(') && (p[1] == WNUL)) {
+        if (xiswcschar(p, L'(')) {
             /**
              * Add start options between ( ... )
              * as command options
              */
             for (i = 1; i < serviceargc; i++) {
                 p = (LPWSTR)serviceargv[i];
-                if ((p[0] == L')') && (p[1] == WNUL)) {
+                if (xiswcschar(p, L')')) {
                     i++;
                     break;
                 }
@@ -3734,7 +3744,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
                             OPT_CLR(SVCBATCH_OPT_ENV);
                         break;
                         case L'Y':
-                            OPT_SET(SVCBATCH_OPT_YYES);
+                            OPT_SET(SVCBATCH_OPT_WRITE);
                         break;
                         case L'0':
                             svcfailmode = SVCBATCH_FAIL_ERROR;
@@ -3756,10 +3766,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
              * Options with arguments
              */
             case 'n':
+                if (xwcspbrk(xwoptarg, L"\\:;<>?*|\""))
+                    return xsyserrno(14, L"n", xwoptarg);
                 if (svclogfname == NULL) {
-                    if (xwcspbrk(xwoptarg, L"\\:;<>?*|\""))
-                        return xsyserrno(14, L"n", xwoptarg);
-                    stoplogname = NULL;
                     svclogfname = xwcsdup(xwoptarg);
                     wp = xwcschr(svclogfname, L'/');
                     if (wp != NULL) {
@@ -3770,23 +3779,23 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
             case 'c':
                 xwoptarr = 'C';
-                if ((xwoptarg[0] == L'[') && (xwoptarg[1] == WNUL))
+                if (xiswcschar(xwoptarg, L'['))
                     xwoptend = 1;
-                else
+                else if (commandparam == NULL)
                     commandparam = xwoptarg;
             break;
             case 's':
                 if (svcstop == NULL)
                     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                 xwoptarr = 'S';
-                if ((xwoptarg[0] == L'[') && (xwoptarg[1] == WNUL))
+                if (xiswcschar(xwoptarg, L'['))
                     xwoptend = 1;
-                else
+                else if (svcstopparam == NULL)
                     svcstopparam = xwoptarg;
             break;
             case 'r':
                 if (rotateparam == NULL)
-                    rotateparam  = xwoptarg;
+                    rotateparam = xwoptarg;
             break;
             case 'b':
                 if (svcbaseparam == NULL) {
@@ -4019,7 +4028,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
          */
         wp = xexpandenvstr(skipdotslash(commandparam));
         if (wp == NULL)
-            return xsyserror(ERROR_FILE_NOT_FOUND, commandparam, NULL);
+            return xsyserror(ERROR_FILE_NOT_FOUND,  commandparam, NULL);
+        if (xwcschr(wp, L'%'))
+            return xsyserror(ERROR_BAD_ENVIRONMENT, commandparam, NULL);
         SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
         if (isrelativepath(wp))
             cmdproc->application = xsearchexe(wp);
@@ -4039,7 +4050,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
             return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
         xfree(wp);
         cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS;
-        OPT_SET(SVCBATCH_OPT_YYES);
+        OPT_SET(SVCBATCH_OPT_WRITE);
     }
     if (rotateparam) {
         if (!resolverotate(rotateparam))
@@ -4203,7 +4214,7 @@ static DWORD svcstopmain(void)
     SVCBATCH_CS_INIT(service);
     atexit(objectscleanup);
 
-    DBG_PRINTF("%S 0x%08X", service->name, svcoptions);
+    DBG_PRINTF("%S (%lu) 0x%08X", service->name, cmdproc->ppid, svcoptions);
     if (outputlog) {
         rc = openlogfile(outputlog, FALSE);
         if (rc)
@@ -5109,8 +5120,9 @@ int wmain(int argc, LPCWSTR *argv)
             goto finished;
         }
         dp = sharedmem->data;
-        stoptimeout   = sharedmem->timeout;
+        cmdproc->ppid = sharedmem->ppid;
         svcoptions    = sharedmem->options;
+        stoptimeout   = sharedmem->timeout;
         killdepth     = sharedmem->killdepth;
         svcmaxlogs    = sharedmem->maxlogs;
 
