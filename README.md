@@ -892,7 +892,7 @@ SvcBatch sets for each instance.
 
   In case the logging is disabled, by using **-f:Q**
   command option,
-  this variable is set to the **SVCBATCH_SERVICE_HOME** directory.
+  this variable is set to the **SVCBATCH_SERVICE_WORK** directory.
 
   However, if the **-o** command line option was defined
   together with **-f:Q** option, directory specified by the
@@ -922,8 +922,8 @@ SvcBatch sets for each instance.
   The first four digits are current process id, and remaining digits
   are randomly generated at service startup.
 
-  `SVCBATCH_SERVICE_UUID` can be used inside batch file
-  when unique identifier is needed.
+  The **SVCBATCH_SERVICE_UUID** environment variable can be used
+  inside batch file when unique identifier is needed.
 
   ```batchfile
   rem
@@ -940,12 +940,14 @@ SvcBatch sets for each instance.
 * **SVCBATCH_SERVICE_WORK**
 
   This variable is set to the service working directory.
-  Currently this variable is the same as **SVCBATCH_SERVICE_HOME**,
-  but in future versions, it will have the option to be configured
-  separately.
 
-  Currently this variable points to the path defined by **-w**
-  command option, and it remain as such.
+  The working directory is set to **SVCBATCH_SERVICE_HOME**
+  directory, unless the **-w** command option was configured.
+
+  This variable is set as current directory for the
+  shell process launched from SvcBatch, and as base directory
+  for **SVCBATCH_SERVICE_LOGS** in case the **-o** parameter
+  was defined as relative path.
 
 
 * **Notice**
