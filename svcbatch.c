@@ -433,6 +433,7 @@ static const wchar_t *wcsmessages[] = {
     L"The maximum service name length is 256 characters",                   /* 27 */
     L"Stop the service and call Delete again",                              /* 28 */
     L"The Control code is missing. Use control [service name] <value>",     /* 29 */
+    L"Multiple wait options defined",                                       /* 30 */
 
     NULL
 };
@@ -4357,6 +4358,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       ec = 0;
     int       ep = 0;
     int       cmdverbose  = 1;
+    int       wtimeset    = 0;
     int       wtime       = SVCBATCH_SCM_WAIT_DEF;
     ULONGLONG wtmstart    = 0;
     ULONGLONG wtimeout    = 0;
@@ -4456,9 +4458,10 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     username = xwoptarg;
             break;
             case 'w':
+                wtimeset++;
                 if (xwoptarg) {
                     wtime = xwcstoi(xwoptarg, NULL);
-                    if ((wtime < 0) || (wtime > SVCBATCH_STOP_TMAX)) {
+                    if ((wtime < 1) || (wtime > SVCBATCH_STOP_TMAX)) {
                         rv = ERROR_INVALID_PARAMETER;
                         ec = __LINE__;
                         ed = xwoptarg;
@@ -4466,11 +4469,12 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     }
                 }
                 else {
-                    /* Use default wait time */
-                    wtime = SVCBATCH_SCM_WAIT_DEF;
+                    /* Use maximum  wait time */
+                    wtime = SVCBATCH_STOP_TMAX;
                 }
             break;
             case 'W':
+                wtimeset++;
                 wtime = 0;
             break;
             case ENOENT:
@@ -4486,6 +4490,12 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 goto finished;
             break;
         }
+    }
+    if (wtimeset > 1) {
+        rv = ERROR_BAD_ARGUMENTS;
+        ec = __LINE__;
+        ed = SVCBATCH_MSG(30);
+        goto finished;
     }
     argc -= xwoptind;
     argv += xwoptind;

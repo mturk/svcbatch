@@ -129,7 +129,7 @@ shift
 goto setStartArgs
 :doneStartArgs
 rem
-%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" --wait %START_CMD_ARGS%
+%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" --wait:10 %START_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Started %SERVICE_NAME%
 goto End
@@ -153,7 +153,7 @@ shift
 goto setStopArgs
 :doneStopArgs
 rem
-%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" --wait=30 %STOP_CMD_ARGS%
+%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" --wait %STOP_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Stopped %SERVICE_NAME%
 goto End

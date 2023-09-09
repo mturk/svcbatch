@@ -398,26 +398,28 @@ service is started, as well as any following argument.
   If the service is not running, SvcBatch will wait
   up to **seconds** for service to start.
 
-  The **seconds** is optional parameter. If not
-  provided as part of **--wait** option, default
-  value of `30` seconds will be used.
+  The **seconds** is optional parameter with value
+  between `1` and `180`. If not
+  provided as part of **--wait** option, the maximum
+  value of `180` seconds will be used.
 
 * **--no-wait**
 
   **Do not wait for service to start**
 
   By default SvcBatch will wait up to `30` seconds for
-  service to start.
+  service to start unless the **--wait** option is defined.
 
   Use this option to return without waiting for
   service to enter the running state.
+
 
 * **arguments ...**
 
   **Optional arguments for service start**
 
   If defined **arguments** will be passed to
-  service on startup.
+  the service on startup.
 
   ```no-highlight
   > svcbatch start myService --wait arg1 arg2 ...
@@ -434,16 +436,17 @@ service is started, as well as any following argument.
   If the service is running, SvcBatch will wait
   up to **seconds** for service to stop.
 
-  The **seconds** is optional parameter. If not
-  provided as part of **--wait** option, default
-  value of `30` seconds will be used.
+  The **seconds** is optional parameter with value
+  between `1` and `180`. If not
+  provided as part of **--wait** option, the maximum
+  value of `180` seconds will be used.
 
 * **--no-wait**
 
   **Do not wait for service to stop**
 
   By default SvcBatch will wait up to `30` seconds for
-  service to stop.
+  service to stop unless the **--wait** option is defined.
 
   Use this option to return without waiting for
   service to enter the stopped state.
