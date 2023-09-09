@@ -891,14 +891,8 @@ SvcBatch sets for each instance.
   This variable is set to the service's log directory.
 
   In case the logging is disabled, by using **-f:Q**
-  command option,
-  this variable is set to the **SVCBATCH_SERVICE_WORK** directory.
-
-  However, if the **-o** command line option was defined
-  together with **-f:Q** option, directory specified by the
-  **-o** command option parameter must exist, or the service
-  will fail to start and write error message to the Windows Event Log.
-
+  command option, this variable is set to the **SVCBATCH_SERVICE_WORK**
+  directory.
 
 * **SVCBATCH_SERVICE_NAME**
 

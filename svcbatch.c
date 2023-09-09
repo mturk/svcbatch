@@ -426,8 +426,8 @@ static const wchar_t *wcsmessages[] = {
     L"The %s features are mutually exclusive",                              /* 21 */
     L"Unknown %s command option",                                           /* 22 */
     L"Service name",                                                        /* 23 */
-    L"Log directory",                                                       /* 24 */
-    L"Failing over to SVCBATCH_SERVICE_WORK",                               /* 25 */
+    NULL,                                                                   /* 24 */
+    NULL,                                                                   /* 25 */
     L"The (/) and (\\) are not valid service name characters",              /* 26 */
     L"The maximum service name length is 256 characters",                   /* 27 */
     L"Stop the service and call Delete again",                              /* 28 */
@@ -3908,9 +3908,11 @@ static int parseoptions(int argc, LPCWSTR *argv)
          * Discard any log rotate related command options
          * when -q is defined
          */
-        svcoptions &= 0x00000FFF;
+        svcoptions &= 0x000000FF;
         rotateparam = NULL;
         stoplogname = NULL;
+        svclogfname = NULL;
+        outdirparam = NULL;
         stopmaxlogs = 0;
         svcmaxlogs  = 0;
     }
@@ -4109,21 +4111,10 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         }
     }
     else {
-        if (outdirparam == NULL) {
-#if defined(_DEBUG)
-            xsyswarn(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(24), NULL);
-            xsysinfo(NULL, SVCBATCH_MSG(25));
-#endif
-            xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
-        }
-        else {
-            LPWSTR op = xgetfinalpath(outdirparam, 1, service->logs, SVCBATCH_PATH_MAX);
-            if (op == NULL) {
-                rv = xsyserror(GetLastError(), L"GetFinalPath", outdirparam);
-                xsvcstatus(SERVICE_STOPPED, rv);
-                return;
-            }
-        }
+        /**
+         * Use work directory as logs directory
+         */
+        xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
     }
     /**
      * Add additional environment variables
