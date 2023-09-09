@@ -150,6 +150,11 @@
 #define SVCBATCH_LINE_MAX     2048
 
 /**
+ * Maximum value for a numeric variable
+ */
+#define SVCBATCH_INT_MAX  10000000
+
+/**
  * Custom SCM control code that
  * sends CTRL_BREAK_EVENT to the child processes.
  *
@@ -236,8 +241,6 @@
 #define TBUFSIZ                 32
 #define SBUFSIZ                128
 #define BBUFSIZ                512
-#define UBUFSIZ               8192
-#define EBUFSIZ              32768
 
 /**
  * Process state

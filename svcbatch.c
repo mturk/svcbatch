@@ -175,9 +175,9 @@ static int                   svcmainargc = 0;
 static int                   svcmaxlogs  = SVCBATCH_DEF_LOGS;
 static int                   stopmaxlogs = 0;
 static LPCWSTR              *svcmainargv = NULL;
-static LPSVCBATCH_PROCESS    program     = NULL;
-static LPSVCBATCH_SERVICE    service     = NULL;
 
+static LPSVCBATCH_SERVICE    service     = NULL;
+static LPSVCBATCH_PROCESS    program     = NULL;
 static LPSVCBATCH_PROCESS    cmdproc     = NULL;
 static LPSVCBATCH_PROCESS    svcstop     = NULL;
 static LPSVCBATCH_LOG        outputlog   = NULL;
@@ -198,7 +198,7 @@ static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
 static HANDLE    dologrotate    = NULL;
 static HANDLE    sharedmmap     = NULL;
-static LPWSTR    outdirparam    = NULL;
+static LPCWSTR   outdirparam    = NULL;
 static LPCWSTR   stoplogname    = NULL;
 
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
@@ -598,12 +598,16 @@ static __inline int xiswcschar(LPCWSTR s, WCHAR c)
         return 0;
 }
 
-static __inline void xchrreplace(LPWSTR str, int a, int b)
+static __inline int xchrreplace(LPWSTR str, int a, int b)
 {
+    int c = 0;
     for (; *str != 0; str++) {
-        if (*str == a)
+        if (*str == a) {
             *str = b;
+            c++;
+        }
     }
+    return c;
 }
 
 static __inline void xfixpathsep(LPWSTR str)
@@ -699,15 +703,17 @@ static LPWSTR xargvtomsz(int argc, LPCWSTR *argv, int *sz)
 }
 
 /**
- * Simple atoi with range between 0 and INT_MAX.
+ * Simple atoi with range between 0 and SVCBATCH_INT_MAX.
  * Leading white space characters are ignored.
  * Returns negative value on error.
  */
 static int xwcstoi(LPCWSTR sp, LPWSTR *ep)
 {
-    INT64 rv = CPP_INT64_C(0);
-    int   dc = 0;
+    int rv = 0;
+    int dc = 0;
 
+    if (ep != NULL)
+        *ep = zerostring;
     ASSERT_WSTR(sp, -1);
     while(xisblank(*sp))
         sp++;
@@ -720,7 +726,7 @@ static int xwcstoi(LPCWSTR sp, LPWSTR *ep)
             rv *= 10;
             rv += dv;
         }
-        if (rv > INT_MAX) {
+        if (rv > SVCBATCH_INT_MAX) {
             SetLastError(ERROR_INVALID_DATA);
             return -1;
         }
@@ -733,7 +739,7 @@ static int xwcstoi(LPCWSTR sp, LPWSTR *ep)
     }
     if (ep != NULL)
         *ep = (LPWSTR)sp;
-    return (int)rv;
+    return rv;
 }
 
 
@@ -952,8 +958,7 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
     src = xwcsdup(str);
     ASSERT_WSTR(src, NULL);
 
-    xchrreplace(src, L'@', L'%');
-    if (xwcschr(src, L'%') == NULL)
+    if (xchrreplace(src, L'@', L'%') == 0)
         return src;
     while (buf == NULL) {
         buf = xwmalloc(bsz);
@@ -970,6 +975,11 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
         }
     }
     xfree(src);
+    if (xwcschr(buf, L'%')) {
+        xfree(buf);
+        SetLastError(ERROR_BAD_ENVIRONMENT);
+        return NULL;
+    }
     return buf;
 }
 
@@ -3815,10 +3825,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
             break;
             case 'o':
                 if (outdirparam == NULL) {
-                    outdirparam  = xwcsdup(skipdotslash(xwoptarg));
+                    outdirparam  = skipdotslash(xwoptarg);
                     if (outdirparam == NULL)
                         return xsyserrno(11, L"o", xwoptarg);
-                    xfixpathsep(outdirparam);
                 }
             break;
             case 'w':
@@ -4028,9 +4037,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
          */
         wp = xexpandenvstr(skipdotslash(commandparam));
         if (wp == NULL)
-            return xsyserror(ERROR_FILE_NOT_FOUND,  commandparam, NULL);
-        if (xwcschr(wp, L'%'))
-            return xsyserror(ERROR_BAD_ENVIRONMENT, commandparam, NULL);
+            return xsyserror(GetLastError(), commandparam, NULL);
         SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
         if (isrelativepath(wp))
             cmdproc->application = xsearchexe(wp);
@@ -4058,7 +4065,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
         OPT_SET(SVCBATCH_OPT_ROTATE);
     }
     if (svcstopparam) {
-        if ((svcstopparam[0] == L'@') && (svcstopparam[1] == WNUL)) {
+        if (xiswcschar(svcstopparam, L'@')) {
             svcstop->script = cmdproc->script;
             if (svcstop->argc == 0)
                 svcstop->args[svcstop->argc++] = L"stop";
