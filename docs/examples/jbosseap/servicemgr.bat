@@ -56,11 +56,11 @@ rem set "SERVICE_BATCH_FILE=winservice.bat"
 rem
 svcbatch create "%SERVICE_NAME%" --display "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
-    --start:automatic - ^
-    -N:service.log -E:NOPAUSE=Y ^
-    -S:jboss-cli.bat ^
-    -F:LPR -O ..\%JBOSSEAP_SERVER_MODE%\log %SERVICE_BATCH_FILE% ^
-    %CMD_LINE_ARGS% - --controller=127.0.0.1:9990 --connect --command=:shutdown
+    --start:automatic ^
+    -n:service.log -e:NOPAUSE=Y ^
+    -s:jboss-cli.bat [  --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    -f:LPR -o ..\%JBOSSEAP_SERVER_MODE%\log %SERVICE_BATCH_FILE% ^
+    %CMD_LINE_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
@@ -81,13 +81,11 @@ rem
 rem
 svcbatch create "%SERVICE_NAME%" --display "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
-    --start:automatic -- ^
-    -F:LPR -O ..\%JBOSSEAP_SERVER_MODE%\log ^
-    -N:service.log ^
-    -S:jboss-cli.ps1 ^
-    -C:powershell -P "-NoProfile -ExecutionPolicy Bypass -File" ^
-    %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS% ^
-    -- --controller=127.0.0.1:9990 --connect --command=:shutdown
+    --start:auto ^
+    -f:LPR -o ..\%JBOSSEAP_SERVER_MODE%\log -n:service.log ^
+    -s:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    -c:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
+    %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS%
 
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
@@ -106,7 +104,7 @@ goto setStartArgs
 rem
 :doneStartArgs
 rem
-svcbatch start "%SERVICE_NAME%" --wait
+svcbatch start "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -114,7 +112,7 @@ rem
 rem Stop service
 :doStop
 rem
-svcbatch stop "%SERVICE_NAME%" --wait
+svcbatch stop "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem

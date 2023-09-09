@@ -61,7 +61,7 @@ rem
 echo Unknown command "%SERVICE_CMD%"
 :displayUsage
 echo.
-echo Usage: %~nx0 command [service_name][arguments ...]
+echo Usage: %~nx0 command [service_name] [arguments ...]
 echo commands:
 echo   create            Create the service
 echo   delete            Delete the service
@@ -85,7 +85,7 @@ rem
 rem Set the log name
 set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log"
 rem
-rem set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log:service.stop.log:1"
+rem set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log/service.stop.log -m:.1"
 rem
 rem
 rem
@@ -119,7 +119,7 @@ rem
 :doStart
 rem
 rem
-%EXECUTABLE% start "%SERVICE_NAME%" --wait -- %CMD_LINE_ARGS%
+%EXECUTABLE% start "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -127,7 +127,7 @@ rem
 :doStop
 rem
 rem
-%EXECUTABLE% stop "%SERVICE_NAME%" --wait -- %CMD_LINE_ARGS%
+%EXECUTABLE% stop "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem

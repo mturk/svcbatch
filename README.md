@@ -478,25 +478,23 @@ reported to Windows Event log.
   For example:
 
   ```no-highlight
-  > svcbatch create ... -c:powershell -p "-NoProfile -ExecutionPolicy Bypass -File" myservice.ps1 ...
+  > svcbatch create ... -c:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] myservice.ps1 ...
 
   ```
 
   SvcBatch will execute **powershell.exe** instead **cmd.exe** and pass
-  **parameters** as arguments to the powershell.
+  **[ parameters ]** as arguments to the powershell.
 
+  Additional parameters for alternative shell must be enclosed
+  inside square brackets before script file and its arguments.
 
+  Parameters for default **cmd.exe** interpreter
+  are **/D /E:ON /V:OFF /C**.
 
+  ```no-highlight
+  > svcbatch create ... -c:cmd.exe [ /D /E:ON /V:OFF /C ] myservice.bat ...
 
-* **-p [parameter]**
-
-  **Additional parameter for alternative shell**
-
-  This option is used together with **-p** option to
-  pass any additional parameters before script file.
-
-  For example parameter for default **cmd.exe** interpreter
-  is **/D /E:ON /V:OFF /C**.
+  ```
 
 
 * **-k [depth]**
@@ -617,7 +615,7 @@ reported to Windows Event log.
   as time limit.
 
 
-* **-m [number]**
+* **-m [number][<.>max stop logs]**
 
   **Set maximum number of log files**
 
@@ -632,8 +630,22 @@ reported to Windows Event log.
   Instead rotating Svcbatch.log from `1 .. 2` it will rotate
   exiting log files from `1 .. 4.`.
 
+  Default maximum number of stop log files is `0` (zero),
+  which means that no log rotation will be performed for stop
+  script logging. To enable log rotation for stop logging, add
+  the dot character to the end of **number**,
+  followed by **max stop logs** number.
 
-* **-n [log name][<:>stop log name[<:>max logs]]**
+  ```no-highlight
+  > svcbatch create ... -m:4.2 -n myService.log/myService.stop.log
+
+  ```
+
+  This will rotate service log files from `1 .. 4.`,
+  and stop log files from `1 .. 2`.
+
+
+* **-n [log name][</>stop log name]**
 
   **Set log file name**
 
@@ -700,28 +712,13 @@ reported to Windows Event log.
   characters the function will fail.
 
   To enable stop logging for scripts defined by **-s** option,
-  add colon `:` character to the end of **log name**, followed
+  add forward slash `/` character to the end of **log name**, followed
   by **stop log name**.
 
   ```no-highlight
-  > svcbatch create ... -n myService.log:myService.stop.log ...
+  > svcbatch create ... -n myService.log/myService.stop.log ...
 
   ```
-
-  Default maximum number of stop log files is `0` (zero),
-  which means that no log rotation will be performed for stop
-  script logging. To enable log rotation for stop logging, add
-  the colon character to the end of **stop log name**,
-  followed by **max logs** number.
-
-  ```no-highlight
-  > svcbatch create ... -m:4 -n myService.log:myService.stop.log:2
-
-  ```
-
-  This will rotate service log files from `1 .. 4.`,
-  and stop log files from `1 .. 2`.
-
 
 
 * **-o [path]**
@@ -821,31 +818,23 @@ reported to Windows Event log.
   add pass **stop** string as the argument to that script file.
 
 
-  If case you need to add additional arguments to the
-  shutdown script use **-a** command option.
-
-
-  In case the **script** starts with **~** character,
-  SvcBatch will use the string following the **~** character
+  In case the **script** starts with **./** string,
+  SvcBatch will use the string following the **./**
   as script file without checking for its existence.
 
 
-* **-a [argument]**
+  To set additional arguments for stop script
+  enclose them inside square brackets `[ ... ]`.
 
-  **Add argument to the stop script**
-
-  This option is used together with **-s** option and
-  enables to set additional arguments for stop script.
-
-  The **argument** is passed as defined, so ensure
+  The arguments are passed as defined, so ensure
   that it is properly quoted if it contains
   space characters.
 
 
   ```no-highlight
-  > svcbatch create ... -a "--connect --command=:shutdown"
+  > svcbatch create ... -s:stop.bat [ --connect --command=:shutdown ] ...
   ...
-  > svcbatch create ... -a "stop \"hello world\""
+  > svcbatch create ... -s:@ [ stop "hello world" ] ...
 
   ```
 

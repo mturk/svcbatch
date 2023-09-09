@@ -188,11 +188,8 @@ Command options arguments can be part or the command option
 separated by either `:` or `=` character. This means that
 `--start:auto`, `--start=auto` or `--start auto` are the same.
 
-However arguments for options like `--binpath`, `--description` and
-`--displayname` must be declared as separate command line argument.
-
 Some command options have alternate names. For example
-either `--desc` or `--description` can be used to set the
+either `--bin` or `--binPath` can be used to set the
 service's BinaryPathName.
 
 
@@ -405,6 +402,16 @@ service is started, as well as any following argument.
   provided as part of **--wait** option, default
   value of `30` seconds will be used.
 
+* **--no-wait**
+
+  **Do not wait for service to start**
+
+  By default SvcBatch will wait up to `30` seconds for
+  service to start.
+
+  Use this option to return without waiting for
+  service to enter the running state.
+
 * **arguments ...**
 
   **Optional arguments for service start**
@@ -430,6 +437,17 @@ service is started, as well as any following argument.
   The **seconds** is optional parameter. If not
   provided as part of **--wait** option, default
   value of `30` seconds will be used.
+
+* **--no-wait**
+
+  **Do not wait for service to stop**
+
+  By default SvcBatch will wait up to `30` seconds for
+  service to stop.
+
+  Use this option to return without waiting for
+  service to enter the stopped state.
+
 
 * **reason**
 

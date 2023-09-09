@@ -65,7 +65,7 @@ privileges inside your `tomcat/bin` directory
 
 ```no-highlight
 
-> svcbatch create Tomcat --displayName "Apache Tomcat" -f:B -h .. bin\catalina.bat run"
+> svcbatch create Tomcat --displayName "Apache Tomcat" -f:CR -h .. bin\catalina.bat run"
   Optionally you can add description ...
 > svcbatch config Tomcat --description "Apache Tomcat Service"
   And ...
@@ -82,11 +82,12 @@ To manually start the service use:
 
 ```no-highlight
 
-> svcbatch start Tomcat [--wait]
+> svcbatch start Tomcat [--no-wait]
   Or ..
 > sc start Tomcat
 
 ```
+
 
 #### Step 3:
 
@@ -94,15 +95,17 @@ Get the full java thread dump
 
 ```no-highlight
 
-> sc control Tomcat 233
+> svcbatch control Tomcat 233
 
 ```
+
 SvcBatch sends `CONSOLE_CTRL_BREAK` signal which is captured
 by `java.exe` in the same way as clicking CTRL+Break keys in interactive console.
 The output is written to SvcBatch.log file.
 
-This feature is enabled only if `-f:B` command line option was
+This feature is enabled only if `-f:C` command line option was
 defined at service's install.
+
 
 #### Step 4:
 
@@ -115,7 +118,7 @@ Rotate log files
 ```
 
 This feature is enabled only if the log rotation is enabled.
-Add `/rS` command option to enable manual log
+Add `-f:R` command option to enable manual log rotation.
 
 Read the Log Rotation section for more details.
 
@@ -126,9 +129,10 @@ Stop the service by entering
 
 ```no-highlight
 
-> svcbatch stop Tomcat [--wait]
+> svcbatch stop Tomcat [--no-wait]
 
 ```
+
 
 #### Step 6:
 

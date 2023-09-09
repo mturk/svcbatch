@@ -10,7 +10,7 @@ actual Python script.
 
 Install or download your favorite Python distribution
 and `svcbatch.exe` binary release (or build it from the source code)
-The example depends on Python3 functionallity, but the code can be modified.
+The example depends on Python3 functionality, but the code can be modified.
 
 ### Application
 
@@ -83,7 +83,7 @@ To manually start the service using SvcBatch, type:
 
 ```no-highlight
 
-> svcbatch start pyservice [--wait]
+> svcbatch start pyservice
 
 ```
 
@@ -91,7 +91,7 @@ To stop the service, type
 
 ```no-highlight
 
-> svcbatch stop pyservice [--wait]
+> svcbatch stop pyservice
 
 ```
 
