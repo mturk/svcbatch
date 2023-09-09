@@ -82,7 +82,7 @@ To manually start the service use:
 
 ```no-highlight
 
-> svcbatch start Tomcat [--no-wait]
+> svcbatch start Tomcat
   Or ..
 > sc start Tomcat
 
@@ -129,7 +129,7 @@ Stop the service by entering
 
 ```no-highlight
 
-> svcbatch stop Tomcat [--no-wait]
+> svcbatch stop Tomcat
 
 ```
 

@@ -261,8 +261,8 @@ static const wchar_t *scmallowed[] = {
     L"q",                  /* SVCBATCH_SCM_CONTROL     */
     L"q",                  /* SVCBATCH_SCM_DELETE      */
     L"x",                  /* SVCBATCH_SCM_HELP        */
-    L".qwW",               /* SVCBATCH_SCM_START       */
-    L".qwW",               /* SVCBATCH_SCM_STOP        */
+    L".qw",                /* SVCBATCH_SCM_START       */
+    L".qw",                /* SVCBATCH_SCM_STOP        */
     L"x",                  /* SVCBATCH_SCM_VERSION     */
     NULL
 };
@@ -304,7 +304,6 @@ static const wchar_t *scmcoptions[] = {
     L"u+username",
     L"u+user",
     L"w?wait",
-    L"W.no-wait",
     NULL
 };
 
@@ -433,7 +432,6 @@ static const wchar_t *wcsmessages[] = {
     L"The maximum service name length is 256 characters",                   /* 27 */
     L"Stop the service and call Delete again",                              /* 28 */
     L"The Control code is missing. Use control [service name] <value>",     /* 29 */
-    L"Multiple wait options defined",                                       /* 30 */
 
     NULL
 };
@@ -4358,7 +4356,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       ec = 0;
     int       ep = 0;
     int       cmdverbose  = 1;
-    int       wtimeset    = 0;
     int       wtime       = SVCBATCH_SCM_WAIT_DEF;
     ULONGLONG wtmstart    = 0;
     ULONGLONG wtimeout    = 0;
@@ -4389,24 +4386,16 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     ssr = (PSERVICE_CONTROL_STATUS_REASON_PARAMSW)xmcalloc(sizeof(SERVICE_CONTROL_STATUS_REASON_PARAMSW));
     ssp = &ssr->ServiceStatus;
     service->name = argv[0];
+    wtmstart      = GetTickCount64();
     DBG_PRINTF("%S %S", scmcommands[cmd], service->name);
-    wtmstart = GetTickCount64();
     if (cmd == SVCBATCH_SCM_CREATE) {
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
     while ((opt = xlongopt(argc, argv, scmcoptions, scmallowed[cmd])) != EOF) {
         switch (opt) {
-            case 'q':
-                cmdverbose  = 0;
-            break;
             case 'b':
-                if (binarypath != NULL) {
-                    rv = ERROR_ALREADY_ASSIGNED;
-                    ec = __LINE__;
-                    ed = xwoptarg;
-                    goto finished;
-                }
+                xfree(binarypath);
                 pp = xexpandenvstr(skipdotslash(xwoptarg));
                 if (pp == NULL) {
                     rv = GetLastError();
@@ -4439,6 +4428,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case 'P':
                 privileges  = xwoptarg;
             break;
+            case 'q':
+                cmdverbose  = 0;
+            break;
             case 's':
                 starttype = xnamemap(xwoptarg, starttypemap, SERVICE_NO_CHANGE);
                 if (starttype == SERVICE_NO_CHANGE) {
@@ -4458,10 +4450,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     username = xwoptarg;
             break;
             case 'w':
-                wtimeset++;
                 if (xwoptarg) {
                     wtime = xwcstoi(xwoptarg, NULL);
-                    if ((wtime < 1) || (wtime > SVCBATCH_STOP_TMAX)) {
+                    if ((wtime < 0) || (wtime > SVCBATCH_STOP_TMAX)) {
                         rv = ERROR_INVALID_PARAMETER;
                         ec = __LINE__;
                         ed = xwoptarg;
@@ -4472,10 +4463,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     /* Use maximum  wait time */
                     wtime = SVCBATCH_STOP_TMAX;
                 }
-            break;
-            case 'W':
-                wtimeset++;
-                wtime = 0;
             break;
             case ENOENT:
                 rv = ERROR_BAD_LENGTH;
@@ -4490,12 +4477,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 goto finished;
             break;
         }
-    }
-    if (wtimeset > 1) {
-        rv = ERROR_BAD_ARGUMENTS;
-        ec = __LINE__;
-        ed = SVCBATCH_MSG(30);
-        goto finished;
     }
     argc -= xwoptind;
     argv += xwoptind;
@@ -4867,7 +4848,7 @@ finished:
             fprintf(stdout, "     STARTUP : %S (%lu)\n", xcodemap(starttypemap, starttype), starttype);
             if (cmd == SVCBATCH_SCM_START && wtime)
             fprintf(stdout, "         PID : %lu\n",  ssp->dwProcessId);
-            if (cmd == SVCBATCH_SCM_STOP)
+            if (cmd == SVCBATCH_SCM_STOP  && wtime)
             fprintf(stdout, "    EXITCODE : %lu (0x%lx)\n", ssp->dwServiceSpecificExitCode, ssp->dwServiceSpecificExitCode);
             fputc('\n', stdout);
         }

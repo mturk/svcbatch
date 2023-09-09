@@ -133,7 +133,7 @@ Starts a service.
 The following command:
 
   ```no-highlight
-  > svcbatch start myService --wait
+  > svcbatch start myService
     Service Name : myService
          Command : Start
                  : SUCCESS
@@ -151,7 +151,7 @@ Sends a STOP request to a service.
 The following command:
 
   ```no-highlight
-  > svcbatch stop myService --wait
+  > svcbatch stop myService
     Service Name : myService
          Command : Stop
                  : SUCCESS
@@ -399,18 +399,11 @@ service is started, as well as any following argument.
   up to **seconds** for service to start.
 
   The **seconds** is optional parameter with value
-  between `1` and `180`. If not
-  provided as part of **--wait** option, the maximum
+  between `0` and `180`. If not provided as part of
+  the **--wait** option, the maximum
   value of `180` seconds will be used.
 
-* **--no-wait**
-
-  **Do not wait for service to start**
-
-  By default SvcBatch will wait up to `30` seconds for
-  service to start unless the **--wait** option is defined.
-
-  Use this option to return without waiting for
+  Use **--wait:0** option to return without waiting for
   service to enter the running state.
 
 
@@ -437,18 +430,10 @@ service is started, as well as any following argument.
   up to **seconds** for service to stop.
 
   The **seconds** is optional parameter with value
-  between `1` and `180`. If not
-  provided as part of **--wait** option, the maximum
-  value of `180` seconds will be used.
+  between `0` and `180`. If not provided as part of
+  the **--wait** option, the maximum value of `180` seconds will be used.
 
-* **--no-wait**
-
-  **Do not wait for service to stop**
-
-  By default SvcBatch will wait up to `30` seconds for
-  service to stop unless the **--wait** option is defined.
-
-  Use this option to return without waiting for
+  Use **--wait:0** option to return without waiting for
   service to enter the stopped state.
 
 
