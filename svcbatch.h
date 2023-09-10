@@ -112,7 +112,7 @@
  * Maximum number of arguments for service and
  * shutdown batch file.
  */
-#define SVCBATCH_MAX_ARGS      32
+#define SVCBATCH_MAX_ARGS       32
 
 /**
  * Maximum length for the path and
@@ -121,7 +121,7 @@
  * in length, we set the limit to more
  * realistic number.
  */
-#define SVCBATCH_PATH_MAX     4096
+#define SVCBATCH_PATH_MAX       8192
 
 /**
  * Maximum length for the object names.
@@ -130,7 +130,7 @@
  * to MAX_PATH (260 characters), we limit that
  * to _MAX_FNAME (256) characters
  */
-#define SVCBATCH_NAME_MAX      256
+#define SVCBATCH_NAME_MAX       256
 
 /**
  * Maximum length for the UUID based object names.
@@ -141,18 +141,18 @@
 /**
  * Size of the pipe read buffer in bytes.
  */
-#define SVCBATCH_PIPE_LEN    16384
+#define SVCBATCH_PIPE_LEN       16384
 
 /**
  * Maximum number of characters in one line
  * written to the file or event log
  */
-#define SVCBATCH_LINE_MAX     2048
+#define SVCBATCH_LINE_MAX       2048
 
 /**
  * Maximum value for a numeric variable
  */
-#define SVCBATCH_INT_MAX  10000000
+#define SVCBATCH_INT_MAX        10000000
 
 /**
  * Custom SCM control code that

@@ -139,7 +139,7 @@ typedef struct _SVCBATCH_LOG {
  * Adjust this number so that SVCBATCH_IPC
  * structure aligns to 64K
  */
-#define SVCBATCH_DATA_LEN    32608
+#define SVCBATCH_DATA_LEN   32608
 typedef struct _SVCBATCH_IPC {
     DWORD   ppid;
     DWORD   options;
@@ -205,7 +205,6 @@ static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
 static WCHAR        zerostring[]  = {  0,  0,  0,  0 };
 static WCHAR        CRLFW[]       = { 13, 10,  0,  0 };
-static CHAR         CRLFA[]       = { 13, 10, 13, 10 };
 static BYTE         YYES[]        = { 89, 13, 10,  0 };
 #if defined(_DEBUG)
 static WCHAR        ccwappname[SVCBATCH_NAME_MAX];
@@ -597,21 +596,21 @@ static __inline int xiswcschar(LPCWSTR s, WCHAR c)
         return 0;
 }
 
-static __inline int xchrreplace(LPWSTR str, int a, int b)
+static __inline int xchrreplace(LPWSTR str, WCHAR a, WCHAR b)
 {
     int c = 0;
-    for (; *str != 0; str++) {
-        if (*str == a) {
-            *str = b;
+    for (; *str != WNUL; str++) {
+        if (*str == a)
+            *str =  b;
+        if (*str == b)
             c++;
-        }
     }
     return c;
 }
 
 static __inline void xfixpathsep(LPWSTR str)
 {
-    for (; *str != 0; str++) {
+    for (; *str != WNUL; str++) {
         if (*str == L'/')
             *str = L'\\';
     }
@@ -957,7 +956,7 @@ static LPWSTR xexpandenvstr(LPCWSTR str)
     src = xwcsdup(str);
     ASSERT_WSTR(src, NULL);
 
-    if (xchrreplace(src, L'@', L'%') == 0)
+    if (xchrreplace(src, L'@', L'%') < 2)
         return src;
     while (buf == NULL) {
         buf = xwmalloc(bsz);
@@ -1133,7 +1132,7 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
     }
     l1 = xwcslen(s1);
     nn = l1 + l2 + 2;
-    e  = (LPWSTR )xrealloc(s1, nn * sizeof(WCHAR));
+    e  = (LPWSTR)xrealloc(s1, nn * sizeof(WCHAR));
     d  = e;
 
     if(l1) {
@@ -1360,8 +1359,8 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     }
     if (!xisalpha(xwoption[i]))
         return EOF;
-    option   = xtolower(xwoption[i++]);
-    optpos   = xwcschr(opts, option);
+    option = xtolower(xwoption[i++]);
+    optpos = xwcschr(opts, option);
 
     if (optpos == NULL)
         return EINVAL;
@@ -3629,6 +3628,8 @@ static BOOL resolvescript(LPCWSTR bp)
 {
     if (cmdproc->script)
         return TRUE;
+    if (xwcsequals(bp, L"NUL"))
+        return TRUE;
     if (xisdotslash(bp)) {
         cmdproc->script = xwcsdup(bp + 2);
         return TRUE;
@@ -4227,7 +4228,6 @@ static int setsvcarguments(SC_HANDLE svc, int argc, LPCWSTR *argv)
                       0, KEY_QUERY_VALUE | KEY_READ | KEY_WRITE, &k);
     if (s != ERROR_SUCCESS)
         goto finished;
-    e = __LINE__;
     s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
                      RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
     if (s == ERROR_SUCCESS) {
@@ -4239,9 +4239,14 @@ static int setsvcarguments(SC_HANDLE svc, int argc, LPCWSTR *argv)
             goto finished;
         c = c - 2;
     }
+    e = __LINE__;
     w = xargvtomsz(argc, argv, &n);
+    if (w == NULL) {
+        s = GetLastError();
+        goto finished;
+    }
     if (b) {
-        b = xrealloc(b, c + n);
+        b = (LPBYTE)xrealloc(b, c + n);
         memcpy(b + c, w, n);
         n = n + c;
         xfree(w);
@@ -4381,6 +4386,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case 'd':
                 description = xwoptarg;
             break;
+            case 'n':
+                displayname = xwoptarg;
+            break;
             case 'p':
                 password    = xwoptarg;
             break;
@@ -4391,16 +4399,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                 cmdverbose  = 0;
             break;
             case 's':
-                starttype = xnamemap(xwoptarg, starttypemap, SERVICE_NO_CHANGE);
+                starttype   = xnamemap(xwoptarg, starttypemap, SERVICE_NO_CHANGE);
                 if (starttype == SERVICE_NO_CHANGE) {
                     rv = ERROR_INVALID_PARAMETER;
                     ec = __LINE__;
                     ed = xwoptarg;
                     goto finished;
                 }
-            break;
-            case 'n':
-                displayname = xwoptarg;
             break;
             case 'u':
                 if ((xwoptarg[0] > 47) && (xwoptarg[0] < 51) && (xwoptarg[1] == WNUL))
