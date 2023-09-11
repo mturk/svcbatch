@@ -862,14 +862,18 @@ reported to Windows Event log.
   This is particularly useful for services that do not handle
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
+  In case the **script** starts with **:** character,
+  SvcBatch will use the string following the **:**
+  as script file without checking for its existence.
+
   In case the **script** equals to **@**,
   SvcBatch will use the main service script file for shutdown,
   add pass **stop** string as the argument to that script file.
 
-
-  In case the **script** starts with **:** character,
-  SvcBatch will use the string following the **:**
-  as script file without checking for its existence.
+  In case the **script** starts with **!** character,
+  SvcBatch will use the string following the **!**
+  as application that will be executed instead default
+  script interpreter.
 
 
   To set additional arguments for stop script

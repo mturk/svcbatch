@@ -3890,7 +3890,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             scriptparam = xwcsconcat(service->name, L".bat");
     }
     else {
-        scriptparam = xwcsdup(wargv[0]);
+        scriptparam = xwcsdup(skipdotslash(wargv[0]));
+        if (scriptparam == NULL)
+            return xsyserrno(19, L"script file", wargv[0]);
         for (i = 1; i < wargc; i++) {
             /**
              * Add arguments for script file
@@ -4041,11 +4043,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         OPT_SET(SVCBATCH_OPT_ROTATE);
     }
     if (svcstopparam) {
-        if ((svcstopparam[0] == L'@') && (svcstopparam[1] != WNUL)) {
+        if (*svcstopparam == L'!') {
             /**
              * Use different stop application
              */
-            wp = xexpandenvstr(svcstopparam + 1);
+            svcstopparam++;
+            wp = xexpandenvstr(svcstopparam);
             if (wp == NULL)
                 return xsyserror(GetLastError(), svcstopparam, NULL);
             SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
@@ -4069,7 +4072,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (*svcstopparam == L':')
                     svcstop->script = xwcsdup(svcstopparam + 1);
                 else
-                    svcstop->script = xgetfinalpath(0, svcstopparam);
+                    svcstop->script = xgetfinalpath(0, skipdotslash(svcstopparam));
                 if (svcstop->script == NULL)
                     return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
             }
