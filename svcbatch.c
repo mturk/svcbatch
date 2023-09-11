@@ -2836,7 +2836,7 @@ static DWORD runshutdown(void)
     sharedmem->killdepth = killdepth;
     sharedmem->maxlogs   = stopmaxlogs;
 
-    sharedmem->application = addshmemdata(sharedmem->data, &x, svcstop->application);
+    sharedmem->application = addshmemdata(sharedmem->data, &x, cmdproc->application);
     sharedmem->script      = addshmemdata(sharedmem->data, &x, svcstop->script);
     sharedmem->name = addshmemdata(sharedmem->data, &x, service->name);
     sharedmem->uuid = addshmemdata(sharedmem->data, &x, service->uuid);
@@ -2847,10 +2847,10 @@ static DWORD runshutdown(void)
     sharedmem->logs = addshmemdata(sharedmem->data, &x, service->logs);
 
     sharedmem->argc      = svcstop->argc;
-    sharedmem->optc      = svcstop->optc;
+    sharedmem->optc      = cmdproc->optc;
     for (i = 0; i < svcstop->argc; i++)
         sharedmem->args[i] = addshmemdata(sharedmem->data, &x, svcstop->args[i]);
-    for (i = 0; i < svcstop->optc; i++)
+    for (i = 0; i < cmdproc->optc; i++)
         sharedmem->opts[i] = addshmemdata(sharedmem->data, &x, cmdproc->opts[i]);
     if (x >= SVCBATCH_DATA_LEN)
         return ERROR_INSUFFICIENT_BUFFER;
@@ -2861,13 +2861,14 @@ static DWORD runshutdown(void)
         return rc;
     }
 
-    svcstop->commandLine = xappendarg(1, NULL, program->application);
+    svcstop->application = program->application;
+    svcstop->commandLine = xappendarg(1, NULL, svcstop->application);
     svcstop->commandLine = xappendarg(0, svcstop->commandLine, rb);
     DBG_PRINTF("cmdline %S", svcstop->commandLine);
 
     svcstop->sInfo.dwFlags     = STARTF_USESHOWWINDOW;
     svcstop->sInfo.wShowWindow = SW_HIDE;
-    if (!CreateProcessW(program->application,
+    if (!CreateProcessW(svcstop->application,
                         svcstop->commandLine,
                         NULL, NULL, TRUE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
@@ -2875,7 +2876,7 @@ static DWORD runshutdown(void)
                         &svcstop->sInfo,
                         &svcstop->pInfo)) {
         rc = GetLastError();
-        xsyserror(rc, L"CreateProcess", program->application);
+        xsyserror(rc, L"CreateProcess", svcstop->application);
         goto finished;
     }
     SAFE_CLOSE_HANDLE(svcstop->pInfo.hThread);
@@ -2888,6 +2889,54 @@ static DWORD runshutdown(void)
     if (rc == WAIT_OBJECT_0)
         GetExitCodeProcess(svcstop->pInfo.hProcess, &rc);
 
+finished:
+    svcstop->exitCode = rc;
+    closeprocess(svcstop);
+    DBG_PRINTF("done %lu", rc);
+    return rc;
+}
+
+static DWORD cmdshutdown(void)
+{
+    DWORD i;
+    DWORD rc;
+
+    DBG_PRINTS("started");
+    rc = createiopipes(&svcstop->sInfo, NULL, NULL, 0);
+    if (rc != 0) {
+        DBG_PRINTF("createiopipes failed with %lu", rc);
+        return rc;
+    }
+
+    svcstop->commandLine = xappendarg(1, NULL, svcstop->application);
+    for (i = 0; i < svcstop->argc; i++)
+        svcstop->commandLine = xappendarg(1, svcstop->commandLine, svcstop->args[i]);
+    DBG_PRINTF("cmdline %S", svcstop->commandLine);
+
+    svcstop->sInfo.dwFlags     = STARTF_USESHOWWINDOW;
+    svcstop->sInfo.wShowWindow = SW_HIDE;
+    if (!CreateProcessW(svcstop->application,
+                        svcstop->commandLine,
+                        NULL, NULL, TRUE,
+                        CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
+                        NULL, NULL,
+                        &svcstop->sInfo,
+                        &svcstop->pInfo)) {
+        rc = GetLastError();
+        xsyserror(rc, L"CreateProcess", svcstop->application);
+        goto finished;
+    }
+    SAFE_CLOSE_HANDLE(svcstop->pInfo.hThread);
+    SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdInput);
+    SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdError);
+
+    DBG_PRINTF("waiting %lu ms for shutdown process %lu",
+               stoptimeout, svcstop->pInfo.dwProcessId);
+    rc = WaitForSingleObject(svcstop->pInfo.hProcess, stoptimeout);
+    if (rc == WAIT_OBJECT_0)
+        GetExitCodeProcess(svcstop->pInfo.hProcess, &rc);
+    else
+        killprocess(svcstop, rc);
 finished:
     svcstop->exitCode = rc;
     closeprocess(svcstop);
@@ -2917,7 +2966,10 @@ static DWORD WINAPI stopthread(void *ssp)
 
         DBG_PRINTS("creating shutdown process");
         rs = GetTickCount64();
-        rc = runshutdown();
+        if (svcstop->application)
+            rc = cmdshutdown();
+        else
+            rc = runshutdown();
         ri = (int)(GetTickCount64() - rs);
         DBG_PRINTF("shutdown finished in %d ms", ri);
         xsvcstatus(SERVICE_STOP_PENDING, 0);
@@ -4061,8 +4113,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             xfree(wp);
         }
         else {
-            svcstop->application = cmdproc->application;
-            svcstop->optc        = cmdproc->optc;
             if (xiswcschar(svcstopparam, L'@')) {
                 svcstop->script = cmdproc->script;
                 if (svcstop->argc == 0)
