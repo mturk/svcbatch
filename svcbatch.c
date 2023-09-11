@@ -2372,20 +2372,11 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
     WCHAR logpn[SVCBATCH_PATH_MAX];
     WIN32_FILE_ATTRIBUTE_DATA ad;
 
-    x = xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->logFile);
-    x = xwcsncat(lognn, SVCBATCH_PATH_MAX, x, L".0");
-    if (x >= SVCBATCH_PATH_MAX)
-        return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
-
     if (GetFileAttributesExW(log->logFile, GetFileExInfoStandard, &ad)) {
         if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
             DBG_PRINTF("empty log %S", log->logFile);
             return 0;
         }
-        if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
-            return xsyserror(GetLastError(), log->logFile, lognn);
-        if (ssp)
-            xsvcstatus(SERVICE_START_PENDING, 0);
     }
     else {
         rc = GetLastError();
@@ -2394,8 +2385,17 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
         else
             return 0;
     }
-    n = srvcmaxlogs;
+    x = xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->logFile);
+    x = xwcsncat(lognn, SVCBATCH_PATH_MAX, x, L".0");
+    if (x >= SVCBATCH_PATH_MAX)
+        return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
 
+    if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
+        return xsyserror(GetLastError(), log->logFile, lognn);
+    if (ssp)
+        xsvcstatus(SERVICE_START_PENDING, 0);
+
+    n = srvcmaxlogs;
     wmemcpy(logpn, lognn, x + 1);
     x--;
     for (i = 1; i < srvcmaxlogs; i++) {
@@ -2836,7 +2836,7 @@ static DWORD runshutdown(void)
     sharedmem->killdepth = killdepth;
     sharedmem->maxlogs   = stopmaxlogs;
 
-    sharedmem->application = addshmemdata(sharedmem->data, &x, cmdproc->application);
+    sharedmem->application = addshmemdata(sharedmem->data, &x, svcstop->application);
     sharedmem->script      = addshmemdata(sharedmem->data, &x, svcstop->script);
     sharedmem->name = addshmemdata(sharedmem->data, &x, service->name);
     sharedmem->uuid = addshmemdata(sharedmem->data, &x, service->uuid);
@@ -2847,10 +2847,10 @@ static DWORD runshutdown(void)
     sharedmem->logs = addshmemdata(sharedmem->data, &x, service->logs);
 
     sharedmem->argc      = svcstop->argc;
-    sharedmem->optc      = cmdproc->optc;
+    sharedmem->optc      = svcstop->optc;
     for (i = 0; i < svcstop->argc; i++)
         sharedmem->args[i] = addshmemdata(sharedmem->data, &x, svcstop->args[i]);
-    for (i = 0; i < cmdproc->optc; i++)
+    for (i = 0; i < svcstop->optc; i++)
         sharedmem->opts[i] = addshmemdata(sharedmem->data, &x, cmdproc->opts[i]);
     if (x >= SVCBATCH_DATA_LEN)
         return ERROR_INSUFFICIENT_BUFFER;
@@ -2861,14 +2861,13 @@ static DWORD runshutdown(void)
         return rc;
     }
 
-    svcstop->application = program->application;
-    svcstop->commandLine = xappendarg(1, NULL, svcstop->application);
+    svcstop->commandLine = xappendarg(1, NULL, program->application);
     svcstop->commandLine = xappendarg(0, svcstop->commandLine, rb);
     DBG_PRINTF("cmdline %S", svcstop->commandLine);
 
     svcstop->sInfo.dwFlags     = STARTF_USESHOWWINDOW;
     svcstop->sInfo.wShowWindow = SW_HIDE;
-    if (!CreateProcessW(svcstop->application,
+    if (!CreateProcessW(program->application,
                         svcstop->commandLine,
                         NULL, NULL, TRUE,
                         CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
@@ -2876,7 +2875,7 @@ static DWORD runshutdown(void)
                         &svcstop->sInfo,
                         &svcstop->pInfo)) {
         rc = GetLastError();
-        xsyserror(rc, L"CreateProcess", svcstop->application);
+        xsyserror(rc, L"CreateProcess", program->application);
         goto finished;
     }
     SAFE_CLOSE_HANDLE(svcstop->pInfo.hThread);
@@ -3412,7 +3411,7 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             SVCBATCH_CS_LEAVE(service);
         break;
         case SVCBATCH_CTRL_BREAK:
-            if (IS_SET(SVCBATCH_OPT_GEN_CTRL_BREAK)) {
+            if (IS_SET(SVCBATCH_OPT_HAS_CTRL_BREAK)) {
                 DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
                 /**
                  * Danger Zone!!!
@@ -3717,7 +3716,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                             OPT_SET(SVCBATCH_OPT_CTRL_BREAK);
                         break;
                         case L'C':
-                            OPT_SET(SVCBATCH_OPT_GEN_CTRL_BREAK);
+                            OPT_SET(SVCBATCH_OPT_HAS_CTRL_BREAK);
                         break;
                         case L'L':
                             OPT_SET(SVCBATCH_OPT_LOCALTIME);
@@ -3877,7 +3876,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         }
     }
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) &&
-        IS_SET(SVCBATCH_OPT_GEN_CTRL_BREAK)) {
+        IS_SET(SVCBATCH_OPT_HAS_CTRL_BREAK)) {
         return xsyserrno(21, L"B and C", xwoptarg);
     }
     wargc -= xwoptind;
@@ -4042,20 +4041,40 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         OPT_SET(SVCBATCH_OPT_ROTATE);
     }
     if (svcstopparam) {
-        if (xiswcschar(svcstopparam, L'@')) {
-            svcstop->script = cmdproc->script;
-            if (svcstop->argc == 0)
-                svcstop->args[svcstop->argc++] = L"stop";
+        if ((svcstopparam[0] == L'@') && (svcstopparam[1] != WNUL)) {
+            /**
+             * Use different stop application
+             */
+            wp = xexpandenvstr(svcstopparam + 1);
+            if (wp == NULL)
+                return xsyserror(GetLastError(), svcstopparam, NULL);
+            SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
+            if (isrelativepath(wp))
+                svcstop->application = xsearchexe(wp);
+            else
+                svcstop->application = xgetfinalpath(0, wp);
+            if (svcstop->application == NULL)
+                return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
+            xfree(wp);
         }
         else {
-            if (*svcstopparam == L':')
-                svcstop->script = xwcsdup(svcstopparam + 1);
-            else
-                svcstop->script = xgetfinalpath(0, svcstopparam);
-            if (svcstop->script == NULL)
-                return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
+            svcstop->application = cmdproc->application;
+            svcstop->optc        = cmdproc->optc;
+            if (xiswcschar(svcstopparam, L'@')) {
+                svcstop->script = cmdproc->script;
+                if (svcstop->argc == 0)
+                    svcstop->args[svcstop->argc++] = L"stop";
+            }
+            else {
+                if (*svcstopparam == L':')
+                    svcstop->script = xwcsdup(svcstopparam + 1);
+                else
+                    svcstop->script = xgetfinalpath(0, svcstopparam);
+                if (svcstop->script == NULL)
+                    return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
+            }
         }
-        if ((stopmaxlogs > 0) && (stoplogname == NULL))
+        if ((stopmaxlogs > 0) && (svclogfname == NULL))
             stoplogname = SVCBATCH_LOGSTOP;
     }
     else {
