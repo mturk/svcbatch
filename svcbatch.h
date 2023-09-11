@@ -70,6 +70,7 @@
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
 #define SVCBATCH_ENVNAME       L"SVCBATCH_SERVICE"
 #define SVCBATCH_LOGNAME       L"SvcBatch.log"
+#define SVCBATCH_LOGSTOP       L"SvcBatch.stop.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
 #define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"
@@ -253,7 +254,7 @@
 /**
  * Runtime options
  */
-#define SVCBATCH_OPT_WRITE          0x00000001   /* Write Y to child stdin      */
+#define SVCBATCH_OPT_WRPIPE         0x00000001   /* Write to child stdin        */
 #define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time              */
 #define SVCBATCH_OPT_CTRL_BREAK     0x00000004   /* Send CTRL_BREAK on stop     */
 #define SVCBATCH_OPT_ENV            0x00000008   /* Set private envvars         */

@@ -132,7 +132,7 @@ detailed usage.
 
   ...
 
-  > svcbatch start myservice --wait param2 param3
+  > svcbatch start myservice param2 param3
 
   ```
 
@@ -271,7 +271,8 @@ rotation, SvcBatch will not rotate logs.
 
 SvcBatch command line options allow users to customize
 service deployments. Options are case insensitive and
-defined with **-** or **--** as command switch.
+defined with **-** as command switch when running in
+service mode, or with **--** for SvcBatch service management.
 This means that `-h or -H` and `--Wait or --wait`
 can be used interchangeably.
 
@@ -285,11 +286,11 @@ or the service will fail to start.
 For example:
 
 ```no-highlight
-> svcbatch create ... -O:log\directory ...
+> svcbatch create ... -o:log\directory ...
 
 Is the same as
 
-> svcbatch create ... -O log\directory ...
+> svcbatch create ... -o log\directory ...
 
 ```
 
@@ -320,7 +321,7 @@ reported to Windows Event log.
   listed in any order.
 
   ```no-highlight
-      <B><C><L><P><Q><R><U><0|1|2>
+      <B><C><L><P><Q><R><U><Y><0|1|2>
   ```
 
     * **B**
@@ -415,6 +416,16 @@ reported to Windows Event log.
 
       Check [Private Environment Variables](#private-environment-variables)
       section, for the list of exported variables.
+
+    * **Y**
+
+      **Write Y to child console**
+
+      If set this option will write Y character to script interpreter's
+      console standard input.
+
+      This option is enabled by default when **cmd.exe** is used,
+      and handles `Terminate batch job (Y/N)?` prompt.
 
 
     * **0**
@@ -530,7 +541,7 @@ reported to Windows Event log.
 
 * **-e [name<=value>]**
 
-  **Sets or deletes environment variable**
+  **Sets environment variable**
 
   This option allows to set the contents of the specified
   environment variable. The content of the **name** environment
@@ -539,7 +550,7 @@ reported to Windows Event log.
   For example:
 
   ```no-highlight
-  > svcbatch create ... -E:NOPAUSE=Y -e:CATALINA_BASE=$_W ...
+  > svcbatch create ... -E:NOPAUSE=Y -e:CATALINA_BASE=@_W ...
 
   ```
 
@@ -547,9 +558,26 @@ reported to Windows Event log.
   and `CATALINA_BASE` to the value of current working
   directory.
 
-  If the **value** parameter is **$_W** it will be evaluated
-  at runtime as current work directory. The **$_N** will
-  be set the **value** to the current Service name, etc.
+  If the **value** parameter starts with **@_**, followed
+  by the single character it will be evaluated to the
+  corresponding runtime value.
+  The **@_W** will be evaluated to the current working directory,
+  **@_N** will set the **value** to the current Service name, etc.
+
+
+  The supported **@_x** options are:
+
+  ```no-highlight
+
+    B   Base directory
+    H   Home directory
+    L   Logs directory
+    N   Service Name
+    U   Service UUID
+    V   SvcBatch version
+    W   Work directory
+
+  ```
 
 
   The following example will modify `PATH` environment
@@ -566,16 +594,27 @@ reported to Windows Event log.
   This is much safer then using **%** directly, since it
   ensures that it will be evaluated at runtime.
 
+  Each **@@** character pair will be replaced by the
+  single **@** character. This allows to use **@** characters
+  as part of **value** without replacing them to **%**.
+
+  ```no-highlight
+  > svcbatch create ... -e "SOME_VARIABLE=RUN@@1" ...
+
+  ```
+  In the upper example, SvcBatch will set `SOME_VARIABLE`
+  environment variable to the value `RUN@1`.
 
 
-  In case the **value** is not specified, the **name** variable
-  is deleted from the current process's environment.
+
+  In case the **value** is empty, the **name** variable
+  will be deleted from the current process's environment.
 
   The following example will delete `SOME_VARIABLE` environment
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... -e:SOME_VARIABLE ...
+  > svcbatch create ... -e:SOME_VARIABLE= ...
 
   ```
 
@@ -828,17 +867,13 @@ reported to Windows Event log.
   add pass **stop** string as the argument to that script file.
 
 
-  In case the **script** starts with **./** string,
-  SvcBatch will use the string following the **./**
+  In case the **script** starts with **:** character,
+  SvcBatch will use the string following the **:**
   as script file without checking for its existence.
 
 
   To set additional arguments for stop script
   enclose them inside square brackets `[ ... ]`.
-
-  The arguments are passed as defined, so ensure
-  that it is properly quoted if it contains
-  space characters.
 
 
   ```no-highlight
@@ -947,13 +982,13 @@ SvcBatch sets for each instance.
 * **Notice**
 
   To change the prefix for those variables add
-  the **-E:$MYSERVICE** to your service configuration.
+  the **-e:MYSERVICE** to your service configuration.
 
-  This In case the SvcBatch will export **MYSERVICE_NAME**
-  instead default **SVCBATCH_SERVICE_NAME**.
+  In this case the SvcBatch will export **MYSERVICE_NAME**
+  instead default **SVCBATCH_SERVICE_NAME**, etc.
 
   Adding **-f:U** to the service's configuration
-  will disable to export those variables.
+  will disable export of those variables.
 
 
 ## Custom Control Codes

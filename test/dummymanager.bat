@@ -56,7 +56,7 @@ rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Use the service batch file for shutdown
 set "SERVICE_SHUTDOWN=-s:@"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=[ stop arguments "\"with spaces\"" ]"
+set "SHUTDOWN_ARGS=[ stop arguments "with spaces" ]"
 rem
 rem
 set "SERVICE_LOG_DIR=-o Logs/%SERVICE_NAME%"
@@ -73,10 +73,12 @@ rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.log""
 rem
 rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log""
 rem
-set "SERVICE_LOG_FNAME=-n:@N.@Y-@m-@d.log/@N.stop.log -m:.1"
+set "SERVICE_LOG_FNAME=-n:@N.@Y-@m-@d.log/@N.stop.log"
+rem
+rem set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% -m:.1"
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=-e:PATH=%BUILD_DIR%;@PATH@ -e:ADUMMYSVC_HOME=$_H -e:ADUMMYSVC_VER=$_V"
+set "SERVICE_ENVIRONMENT=-e:PATH=%BUILD_DIR%;@PATH@ -e:ADUMMYSVC_HOME=@_H -e:ADUMMYSVC_VER=@_V"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
@@ -87,7 +89,7 @@ rem
     --depend=Tcpip/Afd --privs:SeShutdownPrivilege ^
     -f:PL0R -h ../../test -w ..\build\dbg %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
     %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
-    %SERVICE_BATCH% run --some=option
+    %SERVICE_BATCH% run "some option"
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
