@@ -2541,7 +2541,7 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *vc)
                     i = xwcslcpy(d, n, program->name);
                 break;
                 default:
-                    SetLastError(ERROR_BAD_FORMAT);
+                    SetLastError(ERROR_INVALID_PARAMETER);
                    *dst = WNUL;
                     return 0;
                 break;
@@ -3559,12 +3559,11 @@ static DWORD createevents(void)
     return 0;
 }
 
-static LPWSTR *mergearguments(LPWSTR msz, int *argc,
-                              int serviceargc, LPCWSTR *serviceargv)
+static LPWSTR *mergearguments(LPWSTR msz, int *argc)
 {
     int      i;
     int      x = 0;
-    int      c = 0;
+    int      c = 1;
     LPWSTR   p;
     LPWSTR  *argv;
 
@@ -3575,10 +3574,9 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc,
         }
     }
     c   += svcmainargc;
-    c   += serviceargc;
     argv = xwaalloc(c);
 
-    argv[x++] = (LPWSTR)serviceargv[0];
+    argv[x++] = (LPWSTR)service->name;
     /**
      * Add option arguments in the following order
      * ImagePath
@@ -3596,9 +3594,6 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc,
                 p++;
         }
     }
-    for (i = 1; i < serviceargc; i++)
-        argv[x++] = (LPWSTR)serviceargv[i];
-
     *argc = x;
 #if defined(_DEBUG) && (_DEBUG > 1)
     for (i = 0; i < x; i++) {
@@ -3608,7 +3603,7 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc,
     return argv;
 }
 
-static DWORD getsvcarguments(int *argc, LPWSTR **argv, int sargc, LPCWSTR *sargv)
+static DWORD getsvcarguments(int *argc, LPWSTR **argv)
 {
     DWORD   t;
     DWORD   c;
@@ -3635,7 +3630,7 @@ static DWORD getsvcarguments(int *argc, LPWSTR **argv, int sargc, LPCWSTR *sargv
 finished:
     if (k != NULL)
         RegCloseKey(k);
-    *argv = mergearguments((LPWSTR)b, argc, sargc, sargv);
+    *argv = mergearguments((LPWSTR)b, argc);
     return ERROR_SUCCESS;
 }
 
@@ -3644,7 +3639,7 @@ static BOOL resolvescript(LPCWSTR bp)
     if (cmdproc->script)
         return TRUE;
     if (IS_EMPTY_WCS(bp))
-        return FALSE;
+        return TRUE;
     if (*bp == L':') {
         cmdproc->script = xwcsdup(bp + 1);
         return TRUE;
@@ -3667,33 +3662,31 @@ static BOOL resolvescript(LPCWSTR bp)
     return TRUE;
 }
 
-static int parseoptions(int argc, LPCWSTR *argv)
+static int parseoptions(int sargc, LPWSTR *sargv)
 {
     DWORD    x;
     int      i;
     int      opt;
-    int      rargc;
-    LPWSTR  *rargv;
+    int      wargc;
+    LPWSTR  *wargv;
 
     LPCWSTR  cp;
     LPWSTR   wp;
     LPWSTR   scriptparam  = NULL;
-    LPWSTR   svcbaseparam = NULL;
-    LPWSTR   svchomeparam = NULL;
-    LPWSTR   svcworkparam = NULL;
     LPWSTR   svclogfname  = NULL;
+    LPCWSTR  svcbaseparam = NULL;
+    LPCWSTR  svchomeparam = NULL;
+    LPCWSTR  svcworkparam = NULL;
     LPCWSTR  svcstopparam = NULL;
     LPCWSTR  commandparam = NULL;
     LPCWSTR  rotateparam  = NULL;
 
-    DBG_PRINTF("started %d", argc);
-    x = getsvcarguments(&rargc, &rargv, argc, argv);
+    DBG_PRINTS("started");
+    x = getsvcarguments(&wargc, &wargv);
     if (x != ERROR_SUCCESS)
         return xsyserror(x, SVCBATCH_SVCARGS, NULL);
-    argc = rargc;
-    argv = (LPCWSTR *)rargv;
 
-    while ((opt = xwgetopt(argc, argv, scmdoptions)) != EOF) {
+    while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
         switch (opt) {
             case '[':
                 xwoptend = 1;
@@ -3780,7 +3773,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
                 if (commandparam)
                     return xsyserrno(10, L"c", xwoptarg);
                 xwoptarr     = 'C';
-                commandparam = xwoptarg;
+                commandparam = skipdotslash(xwoptarg);
+                if (commandparam == NULL)
+                    return xsyserrno(11, L"c", xwoptarg);
             break;
             case 's':
                 if (svcstopparam)
@@ -3798,18 +3793,16 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'b':
                 if (svcbaseparam)
                     return xsyserrno(10, L"b", xwoptarg);
-                svcbaseparam = xwcsdup(skipdotslash(xwoptarg));
+                svcbaseparam = skipdotslash(xwoptarg);
                 if (svcbaseparam == NULL)
                     return xsyserrno(11, L"b", xwoptarg);
-                xfixpathsep(svcbaseparam);
             break;
             case 'h':
                 if (svchomeparam)
                     return xsyserrno(10, L"h", xwoptarg);
-                svchomeparam = xwcsdup(skipdotslash(xwoptarg));
+                svchomeparam = skipdotslash(xwoptarg);
                 if (svchomeparam == NULL)
                     return xsyserrno(11, L"h", xwoptarg);
-                xfixpathsep(svchomeparam);
             break;
             case 'o':
                 if (outdirparam)
@@ -3821,10 +3814,9 @@ static int parseoptions(int argc, LPCWSTR *argv)
             case 'w':
                 if (svcworkparam)
                     return xsyserrno(10, L"w", xwoptarg);
-                svcworkparam = xwcsdup(skipdotslash(xwoptarg));
+                svcworkparam = skipdotslash(xwoptarg);
                 if (svcworkparam == NULL)
                     return xsyserrno(11, L"w", xwoptarg);
-                xfixpathsep(svcworkparam);
             break;
             case 'k':
                 killdepth = xwcstoi(xwoptarg, NULL);
@@ -3888,29 +3880,36 @@ static int parseoptions(int argc, LPCWSTR *argv)
         IS_SET(SVCBATCH_OPT_GEN_CTRL_BREAK)) {
         return xsyserrno(21, L"B and C", xwoptarg);
     }
-    argc -= xwoptind;
-    argv += xwoptind;
+    wargc -= xwoptind;
+    wargv += xwoptind;
 
-    if (argc == 0) {
+    if (wargc == 0) {
         /**
          * No script file defined.
          */
-        if (commandparam)
-            scriptparam = xwcsconcat(L":", service->name);
-        else
+        if (commandparam == NULL)
             scriptparam = xwcsconcat(service->name, L".bat");
     }
     else {
-        scriptparam = xwcsdup(argv[0]);
-        for (i = 1; i < argc; i++) {
+        scriptparam = xwcsdup(wargv[0]);
+        for (i = 1; i < wargc; i++) {
             /**
              * Add arguments for script file
              */
             if (cmdproc->argc < SVCBATCH_MAX_ARGS)
-                cmdproc->args[cmdproc->argc++] = argv[i];
+                cmdproc->args[cmdproc->argc++] = wargv[i];
             else
-                return xsyserrno(17, L"script",  argv[i]);
+                return xsyserrno(17, L"script",  wargv[i]);
         }
+    }
+    for (i = 1; i < sargc; i++) {
+        if (cmdproc->argc < SVCBATCH_MAX_ARGS)
+            cmdproc->args[cmdproc->argc++] = sargv[i];
+        else
+            return xsyserrno(17, L"script",  sargv[i]);
+#if defined(_DEBUG) && (_DEBUG > 1)
+        DBG_PRINTF("[%.2d] '%S'", wargc + xwoptind + i - 1, sargv[i]);
+#endif
     }
     if (IS_SET(SVCBATCH_OPT_QUIET)) {
         /**
@@ -4013,7 +4012,7 @@ static int parseoptions(int argc, LPCWSTR *argv)
          *
          * This is the system default value.
          */
-        wp = xexpandenvstr(skipdotslash(commandparam));
+        wp = xexpandenvstr(commandparam);
         if (wp == NULL)
             return xsyserror(GetLastError(), commandparam, NULL);
         SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
@@ -4062,9 +4061,6 @@ static int parseoptions(int argc, LPCWSTR *argv)
     else {
         SAFE_MEM_FREE(svcstop);
     }
-    xfree(svcbaseparam);
-    xfree(svchomeparam);
-    xfree(svcworkparam);
     xfree(scriptparam);
     DBG_PRINTS("done");
     return 0;
@@ -4101,7 +4097,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
-    rv = parseoptions(argc, (LPCWSTR *)argv);
+    rv = parseoptions(argc, argv);
     if (rv) {
         xsvcstatus(SERVICE_STOPPED, rv);
         return;
@@ -5137,6 +5133,12 @@ int wmain(int argc, LPCWSTR *argv)
             xscmhelp(NULL);
             r = ERROR_INVALID_PARAMETER;
         }
+    }
+    else {
+#if defined(_DEBUG)
+            DBG_PRINTS("error");
+#endif
+        r = ERROR_BAD_FORMAT;
     }
 
 finished:
