@@ -59,7 +59,7 @@ rem Set arguments for shutdown bat file
 set "SHUTDOWN_ARGS=[ stop arguments "with spaces" ]"
 rem
 rem
-set "SERVICE_LOG_DIR=-o Logs/%SERVICE_NAME%"
+set "SERVICE_LOG_DIR=-o Logs\%SERVICE_NAME%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=-r:@10+100K"
 set "ROTATE_RULE=-r:@5+20K"
@@ -87,7 +87,7 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     "--displayName=A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs:SeShutdownPrivilege ^
-    -f:PL0R -h ../../test -w ..\build\dbg %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
+    -f:PL0R -h ..\..\test -w ..\build\dbg %SERVICE_ENVIRONMENT% %SERVICE_LOG_DIR% ^
     %SERVICE_LOG_FNAME% %ROTATE_RULE% %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
     %SERVICE_BATCH% run "some option"
 rem
