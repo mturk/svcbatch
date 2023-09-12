@@ -1,34 +1,138 @@
 @echo off
 rem
-rem --------------------------------------------------
-rem JBoss EAP Service script
+rem ---------------------------------------------------------------
+rem JBoss EAP Service Management Tool
 rem
-rem This script is executed by SvcBatch
+rem Usage: winservice.bat create/createps/delete/rotate/start/stop
 rem
-rem --------------------------------------------------
+rem ---------------------------------------------------------------
 rem
 setlocal
 rem
-rem Set JAVA_HOME and JRE_HOME to your JDK installation
+rem Change to actual JBoss EAP version
+set "SERVICE_NAME=jbosseap74"
+set "SERVICE_DISPLAY=JBoss EAP 7.4.4 Service"
+set "SERVICE_DESCIPTION=JBoss EAP continuous delivery - Version 7.4.4"
+set "JBOSSEAP_SERVER_MODE=standalone"
 rem
-set "JAVA_HOME=%JDK_8_HOME%"
-set "JRE_HOME=%JRE_8_HOME%"
 rem
-echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
+if /i "x%~1" == "xcreate"   goto doCreate
+if /i "x%~1" == "xcreateps" goto doCreatePs
+if /i "x%~1" == "xdelete"   goto doDelete
+if /i "x%~1" == "xrotate"   goto doRotate
+if /i "x%~1" == "xstart"    goto doStart
+if /i "x%~1" == "xstop"     goto doStop
+rem
+echo Unknown command '%~1'
 echo.
+echo Usage: %~nx0 ( commands ... ) [service_name]
+echo commands:
+echo   create            Create the service
+echo   createps          Create the service using powershell
+echo   delete            Delete the service
+echo   rotate            Rotate log files
+echo   start             Start the service
+echo   stop              Stop the service
 rem
-rem echo %~nx0: System Information
-rem echo.
-rem Display machine specific properties and configuration
-rem systeminfo
-rem chcp
-rem echo.
-rem echo %~nx0: Environment Variables
-rem echo.
-rem Display environment variables
-rem set
-rem echo.
-rem echo.
-rem Run JBoss EAP
-call standalone.bat %*
+exit /B 1
 rem
+rem
+rem Create service
+:doCreate
+rem
+shift
+set CMD_LINE_ARGS=
+:setArgs
+if "x%~1" == "x" goto doneArgs
+set "CMD_LINE_ARGS=%CMD_LINE_ARGS% %~1"
+shift
+goto setArgs
+rem
+:doneArgs
+rem
+set "SERVICE_BATCH_FILE=%JBOSSEAP_SERVER_MODE%.bat"
+rem
+rem set "SERVICE_BATCH_FILE=eapservice.bat"
+rem
+svcbatch create "%SERVICE_NAME%" --display "%SERVICE_DISPLAY%" ^
+    --description "%SERVICE_DESCIPTION%" ^
+    --start:automatic ^
+    -n:service.log -e:NOPAUSE=Y ^
+    -s:jboss-cli.bat [  --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    -f:LPR -o ..\%JBOSSEAP_SERVER_MODE%\log %SERVICE_BATCH_FILE% ^
+    %CMD_LINE_ARGS%
+rem
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem Run service using powershell
+:doCreatePs
+rem
+shift
+set CMD_LINE_ARGS=
+:setPsArgs
+if "x%~1" == "x" goto donePsArgs
+set "CMD_LINE_ARGS=%CMD_LINE_ARGS% %~1"
+shift
+goto setPsArgs
+rem
+:donePsArgs
+rem
+rem
+svcbatch create "%SERVICE_NAME%" --display "%SERVICE_DISPLAY%" ^
+    --description "%SERVICE_DESCIPTION%" ^
+    --start:auto ^
+    -f:LPR -o ..\%JBOSSEAP_SERVER_MODE%\log -n:service.log ^
+    -s:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    -c:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
+    %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS%
+
+rem
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem Start service
+:doStart
+rem
+shift
+set CMD_LINE_ARGS=
+:setStartArgs
+if "x%~1" == "x" goto doneStartArgs
+set "CMD_LINE_ARGS=%CMD_LINE_ARGS% %~1"
+shift
+goto setStartArgs
+rem
+:doneStartArgs
+rem
+svcbatch start "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem
+rem Stop service
+:doStop
+rem
+svcbatch stop "%SERVICE_NAME%"
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem
+rem Delete service
+:doDelete
+rem
+svcbatch delete "%SERVICE_NAME%"
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem
+rem Rotate SvcBatch logs
+:doRotate
+rem
+svcbatch control "%SERVICE_NAME%" 234
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem
+rem
+:End
+exit /B 0
