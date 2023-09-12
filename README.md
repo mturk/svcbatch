@@ -411,7 +411,7 @@ reported to Windows Event log.
 
       **Unset private environment variables**
 
-      If set this option will disable export of
+      If set this option will disable export of all
       private environment variables to the script program.
 
       Check [Private Environment Variables](#private-environment-variables)
@@ -541,7 +541,7 @@ reported to Windows Event log.
 
 * **-e [name<=value>]**
 
-  **Sets environment variable**
+  **Sets or deletes environment variable**
 
   This option allows to set the contents of the specified
   environment variable. The content of the **name** environment
@@ -614,7 +614,7 @@ reported to Windows Event log.
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... -e:SOME_VARIABLE= ...
+  > svcbatch create ... -e:SOME_VARIABLE ...
 
   ```
 
@@ -788,6 +788,35 @@ reported to Windows Event log.
   This directory has to be unique for each service instance. Otherwise the
   service will fail if another service already opened SvacBatch.log
   in that location.
+
+
+
+* **-p [prefix]**
+
+  **Set prefix for private environment variables**
+
+  This option allows to change default prefix for the
+  private runtime environment variables.
+
+  Check [Private Environment Variables](#private-environment-variables)
+  section, for the list of exported variables.
+
+  To change default **SVCBATCH_SERVICE** prefix, add
+  **-p:prefix** to your service configuration.
+
+
+  The following example will cause SvcBatch to
+  export **MYSERVICE_NAME** instead default **SVCBATCH_SERVICE_NAME**, etc.
+
+  ```no-highlight
+  > svcbatch create ... -p:MYSERVICE ...
+
+  ```
+
+
+  If **-f:U** was added to the service's configuration
+  this option will have no meaning.
+
 
 
 * **-r [rule]**
@@ -981,18 +1010,6 @@ SvcBatch sets for each instance.
   shell process launched from SvcBatch, and as base directory
   for **SVCBATCH_SERVICE_LOGS** in case the **-o** parameter
   was defined as relative path.
-
-
-* **Notice**
-
-  To change the prefix for those variables add
-  the **-e:MYSERVICE** to your service configuration.
-
-  In this case the SvcBatch will export **MYSERVICE_NAME**
-  instead default **SVCBATCH_SERVICE_NAME**, etc.
-
-  Adding **-f:U** to the service's configuration
-  will disable export of those variables.
 
 
 ## Custom Control Codes

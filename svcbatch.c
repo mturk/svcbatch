@@ -266,7 +266,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"bcefhkmnorstw";
+static const wchar_t *scmdoptions = L"bcefhkmnoprstw";
 
 
 /**
@@ -3854,6 +3854,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     return xsyserrno(10, L"w", xwoptarg);
                 svcworkparam = skipdotslash(xwoptarg);
             break;
+            case 'p':
+                if (!xisvalidvarname(xwoptarg))
+                    return xsyserrno(14, L"p", xwoptarg);
+                uenvprefix = xwoptarg;
+            break;
             case 'k':
                 killdepth = xwcstoi(xwoptarg, NULL);
                 if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
@@ -3885,9 +3890,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 pp = xwcsdup(xwoptarg);
                 wp = xwcschr(pp, L'=');
                 if (wp == NULL) {
-                    if (!xisvalidvarname(xwoptarg))
-                        return xsyserrno(14, L"e", xwoptarg);
-                    uenvprefix = xwoptarg;
+                    if (!SetEnvironmentVariableW(xwoptarg, NULL))
+                        return xsyserror(GetLastError(), L"SetEnvironment", xwoptarg);
                     xfree(pp);
                 }
                 else {
