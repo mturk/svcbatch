@@ -2,34 +2,64 @@
 rem
 rem ---------------------------------------------------------------
 rem JBoss EAP Service Management Tool
-rem
-rem Usage: winservice.bat create/createps/delete/rotate/start/stop
-rem
 rem ---------------------------------------------------------------
 rem
-setlocal
 rem
+rem
+set "EXECUTABLE=svcbatch.exe"
+rem
+rem Set default service name
 rem Change to actual JBoss EAP version
-set "SERVICE_NAME=jbosseap74"
+set "DEFAULT_SERVICE_NAME=JBossEAP74"
+set "SERVICE_NAME=%DEFAULT_SERVICE_NAME%"
+rem
 set "SERVICE_DISPLAY=JBoss EAP 7.4.4 Service"
 set "SERVICE_DESCIPTION=JBoss EAP continuous delivery - Version 7.4.4"
-set "JBOSSEAP_SERVER_MODE=standalone"
+rem
+set "DEFAULT_SERVER_MODE=standalone"
+set "SERVER_MODE=%DEFAULT_SERVER_MODE%"
+rem
+rem Parse the Arguments
+rem
+if "x%~1x" == "xx" goto displayUsage
+rem
+set "SERVICE_CMD=%~1"
+shift
+rem
+set CMD_LINE_ARGS=
+rem Process additional command arguments
+if "x%~1x" == "xx" goto doneSetArgs
+rem Set service name
+set "SERVICE_NAME=%~1"
+shift
+rem
+:setArgs
+if "x%~1x" == "xx" goto doneSetArgs
+set "CMD_LINE_ARGS=%CMD_LINE_ARGS% "%~1""
+shift
+goto setArgs
+:doneSetArgs
+rem
+rem Process the requested command
+rem
+if /i "%SERVICE_CMD%" == "create"   goto doCreate
+if /i "%SERVICE_CMD%" == "createps" goto doCreatePs
+if /i "%SERVICE_CMD%" == "delete"   goto doDelete
+if /i "%SERVICE_CMD%" == "dump"     goto doThreadDump
+if /i "%SERVICE_CMD%" == "rotate"   goto doRotate
+if /i "%SERVICE_CMD%" == "start"    goto doStart
+if /i "%SERVICE_CMD%" == "stop"     goto doStop
 rem
 rem
-if /i "x%~1" == "xcreate"   goto doCreate
-if /i "x%~1" == "xcreateps" goto doCreatePs
-if /i "x%~1" == "xdelete"   goto doDelete
-if /i "x%~1" == "xrotate"   goto doRotate
-if /i "x%~1" == "xstart"    goto doStart
-if /i "x%~1" == "xstop"     goto doStop
-rem
-echo Unknown command '%~1'
+echo Unknown command "%SERVICE_CMD%"
+:displayUsage
 echo.
-echo Usage: %~nx0 ( commands ... ) [service_name]
+echo Usage: %~nx0 command [service_name] [arguments ...]
 echo commands:
 echo   create            Create the service
 echo   createps          Create the service using powershell
 echo   delete            Delete the service
+echo   dump              Signal to create Full JDK Thread Dump
 echo   rotate            Rotate log files
 echo   start             Start the service
 echo   stop              Stop the service
@@ -37,100 +67,91 @@ rem
 exit /B 1
 rem
 rem
+rem
 rem Create service
 :doCreate
 rem
-shift
-set CMD_LINE_ARGS=
-:setArgs
-if "x%~1" == "x" goto doneArgs
-set "CMD_LINE_ARGS=%CMD_LINE_ARGS% %~1"
-shift
-goto setArgs
 rem
-:doneArgs
+rem Set the log name
+set "SERVICE_LOGNAME=-n:service.log"
 rem
-set "SERVICE_BATCH_FILE=%JBOSSEAP_SERVER_MODE%.bat"
+rem set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log/service.stop.log -m:.1"
 rem
-rem set "SERVICE_BATCH_FILE=eapservice.bat"
 rem
-svcbatch create "%SERVICE_NAME%" --display "%SERVICE_DISPLAY%" ^
+rem
+%EXECUTABLE% create "%SERVICE_NAME%" ^
+    --display "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
     --start:automatic ^
-    -n:service.log -e:NOPAUSE=Y ^
-    -s:jboss-cli.bat [  --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
-    -f:LPR -o ..\%JBOSSEAP_SERVER_MODE%\log %SERVICE_BATCH_FILE% ^
-    %CMD_LINE_ARGS%
+    -f:PCR -e:NOPAUSE=Y ^
+    -o:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
+    -s:jboss-cli.bat [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    %CMD_LINE_ARGS% %SERVER_MODE%.bat
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
+rem
 rem Run service using powershell
 :doCreatePs
 rem
-shift
-set CMD_LINE_ARGS=
-:setPsArgs
-if "x%~1" == "x" goto donePsArgs
-set "CMD_LINE_ARGS=%CMD_LINE_ARGS% %~1"
-shift
-goto setPsArgs
 rem
-:donePsArgs
+rem Set the log name
+set "SERVICE_LOGNAME=-n:service.log"
 rem
+rem set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log/service.stop.log -m:.1"
 rem
-svcbatch create "%SERVICE_NAME%" --display "%SERVICE_DISPLAY%" ^
+%EXECUTABLE% create "%SERVICE_NAME%" ^
+    --display "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
     --start:auto ^
-    -f:LPR -o ..\%JBOSSEAP_SERVER_MODE%\log -n:service.log ^
-    -s:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    -f:PCR ^
+    -o:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
     -c:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
-    %JBOSSEAP_SERVER_MODE%.ps1 %CMD_LINE_ARGS%
+    -s:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+     %CMD_LINE_ARGS% %SERVER_MODE%.ps1
 
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
-rem Start service
-:doStart
+:doThreadDump
 rem
-shift
-set CMD_LINE_ARGS=
-:setStartArgs
-if "x%~1" == "x" goto doneStartArgs
-set "CMD_LINE_ARGS=%CMD_LINE_ARGS% %~1"
-shift
-goto setStartArgs
 rem
-:doneStartArgs
-rem
-svcbatch start "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
+%EXECUTABLE% control "%SERVICE_NAME%" 233
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
 rem
-rem Stop service
-:doStop
-rem
-svcbatch stop "%SERVICE_NAME%"
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
-rem
-rem
-rem Delete service
-:doDelete
-rem
-svcbatch delete "%SERVICE_NAME%"
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
-rem
-rem
-rem Rotate SvcBatch logs
 :doRotate
 rem
-svcbatch control "%SERVICE_NAME%" 234
+rem
+%EXECUTABLE% control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
+rem
+rem
+:doStart
+rem
+rem
+%EXECUTABLE% start "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem
+:doStop
+rem
+rem
+%EXECUTABLE% stop "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+goto End
+rem
+rem
+:doDelete
+rem
+rem
+%EXECUTABLE% delete "%SERVICE_NAME%"
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
 rem
 rem

@@ -25,22 +25,26 @@ Put [winservice](jbosseap/winservice.bat) and
 eventually [eapservice](jbosseap/eapservice.bat)
 batch files into your `jboss-eap-x.x/bin` directory.
 
+The [eapservice](jbosseap/eapervice.bat) is an example
+that can be used as a service wrapper calling the actual
+batch file (eg. standalone.bat or domain.bat).
+
+
 The [winservice](jbosseap/winservice.bat) is a batch file
 used to manage the services.
 
 Before executing [winservice](jbosseap/winservice.bat) edit `winservice.bat` and modify
-`SERVICE_NAME`, `SERVICE_DISPLAY`, `SERVICE_DESCIPTION` and `JBOSSEAP_SERVER_MODE` variables
+`SERVICE_NAME`, `SERVICE_DISPLAY`, `SERVICE_DESCIPTION` and `SERVER_MODE` variables
 to match the exact version you are using.
 
 ```no-highlight
 
 > winservice.bat create
 
-Service Name : jbosseap74
+Service Name : JBossEAP74
      Command : Create
              : SUCCESS
      STARTUP : Automatic (2)
-
 
 ```
 
@@ -49,9 +53,25 @@ That's it! Now, just type ...
 ```no-highlight
 
 > winservice.bat start
-  or ...
-> sc start jbosseap74
-  or ...
-> net start jbosseap74
+
+Service Name : JBossEAP74
+     Command : Start
+             : SUCCESS
+               1046 ms
+         PID : 4492
+
+```
+
+To manually stop the service type ..
+
+
+```no-highlight
+
+> winservice.bat stop
+Service Name : JBossEAP74
+     Command : Stop
+             : SUCCESS
+               4032 ms
+    EXITCODE : 0 (0x0)
 
 ```

@@ -3,16 +3,16 @@ rem
 rem --------------------------------------------------
 rem JBoss EAP Service script
 rem
-rem This script is executed by SvcBatch
+rem This script can be executed by SvcBatch
+rem instead default %SERVER_MODE%.bat file
 rem
 rem --------------------------------------------------
 rem
-setlocal
 rem
 rem Set JAVA_HOME and JRE_HOME to your JDK installation
 rem
-set "JAVA_HOME=%JDK_8_HOME%"
-set "JRE_HOME=%JRE_8_HOME%"
+rem set "JAVA_HOME=%JDK_11_HOME%"
+rem set "JRE_HOME=%JRE_11_HOME%"
 rem
 echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
 echo.
@@ -29,6 +29,7 @@ rem Display environment variables
 rem set
 rem echo.
 rem echo.
-rem Run JBoss EAP
+rem
+rem Run JBoss EAP in Standalone mode
 call standalone.bat %*
 rem

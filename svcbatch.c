@@ -4533,6 +4533,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     argc -= xwoptind;
     argv += xwoptind;
+    if ((cmd != SVCBATCH_SCM_START) && (cmd != SVCBATCH_SCM_STOP))
+        wtime = 0;
     if (wtime)
         wtimeout = wtime * ONE_SECOND;
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
