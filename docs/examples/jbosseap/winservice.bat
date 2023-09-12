@@ -7,17 +7,18 @@ rem
 rem
 rem
 set "EXECUTABLE=svcbatch.exe"
+set "WINSERVICE=%~nx0"
 rem
-rem Set default service name
-rem Change to actual JBoss EAP version
+rem Set default service name and server mode
+rem Change those variables to actual JBoss EAP version
 set "DEFAULT_SERVICE_NAME=JBossEAP74"
 set "SERVICE_NAME=%DEFAULT_SERVICE_NAME%"
 rem
-set "SERVICE_DISPLAY=JBoss EAP 7.4.4 Service"
-set "SERVICE_DESCIPTION=JBoss EAP continuous delivery - Version 7.4.4"
-rem
 set "DEFAULT_SERVER_MODE=standalone"
 set "SERVER_MODE=%DEFAULT_SERVER_MODE%"
+rem
+set "SERVICE_DISPLAY=JBoss EAP 7.4.11 Service"
+set "SERVICE_DESCIPTION=JBoss EAP continuous delivery - Version 7.4.11"
 rem
 rem Parse the Arguments
 rem
@@ -31,6 +32,14 @@ rem Process additional command arguments
 if "x%~1x" == "xx" goto doneSetArgs
 rem Set service name
 set "SERVICE_NAME=%~1"
+shift
+rem
+if /i "%SERVICE_CMD%" == "start" goto doneSetArgs
+if /i "%SERVICE_CMD%" == "stop"  goto doneSetArgs
+rem
+if "x%~1x" == "xx" goto doneSetArgs
+rem Set server mode
+set "SERVER_MODE=%~1"
 shift
 rem
 :setArgs
@@ -54,12 +63,12 @@ rem
 echo Unknown command "%SERVICE_CMD%"
 :displayUsage
 echo.
-echo Usage: %~nx0 command [service_name] [arguments ...]
+echo Usage: %WINSERVICE% command [service_name] [server_mode] [arguments ...]
 echo commands:
 echo   create            Create the service
 echo   createps          Create the service using powershell
 echo   delete            Delete the service
-echo   dump              Signal to create Full JDK Thread Dump
+echo   dump              Create Full JDK Thread Dump
 echo   rotate            Rotate log files
 echo   start             Start the service
 echo   stop              Stop the service
@@ -86,7 +95,7 @@ rem
     -f:PCR -e:NOPAUSE=Y ^
     -o:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
     -s:jboss-cli.bat [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
-    %CMD_LINE_ARGS% %SERVER_MODE%.bat
+    %SERVER_MODE%.bat %CMD_LINE_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
@@ -109,7 +118,7 @@ rem
     -o:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
     -c:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
     -s:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
-     %CMD_LINE_ARGS% %SERVER_MODE%.ps1
+    %SERVER_MODE%.ps1 %CMD_LINE_ARGS%
 
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%

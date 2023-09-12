@@ -31,11 +31,28 @@ batch file (eg. standalone.bat or domain.bat).
 
 
 The [winservice](jbosseap/winservice.bat) is a batch file
-used to manage the services.
+that can be used to manage the services.
 
-Before executing [winservice](jbosseap/winservice.bat) edit `winservice.bat` and modify
-`SERVICE_NAME`, `SERVICE_DISPLAY`, `SERVICE_DESCIPTION` and `SERVER_MODE` variables
-to match the exact version you are using.
+```no-highlight
+
+Usage: winservice.bat command [service_name] [server_mode] [arguments ...]
+commands:
+  create            Create the service
+  createps          Create the service using powershell
+  delete            Delete the service
+  dump              Create Full JDK Thread Dump
+  rotate            Rotate log files
+  start             Start the service
+  stop              Stop the service
+
+```
+
+Before executing [winservice](jbosseap/winservice.bat) edit `winservice.bat`
+and modify `DEFAULT_SERVICE_NAME` `SERVICE_DISPLAY`, `SERVICE_DESCIPTION`
+and `DEFAULT_SERVER_MODE` variables to match the exact version you are using.
+
+
+To create a service type ...
 
 ```no-highlight
 
