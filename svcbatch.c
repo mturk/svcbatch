@@ -23,13 +23,10 @@
 #include <wchar.h>
 #include <time.h>
 #include <errno.h>
-#if defined(_DEBUG)
-#include <crtdbg.h>
-#endif
 #include "svcbatch.h"
 
-#if defined(_DEBUG)
-#pragma comment(lib, "user32")
+#if defined (_DEBUG)
+#include <crtdbg.h>
 
 static void     dbgprintf(LPCSTR, int, LPCSTR, ...);
 static void     dbgprints(LPCSTR, int, LPCSTR);
@@ -4961,32 +4958,6 @@ static DWORD dbgfopen(void)
 
 #endif
 
-#if defined(_DEBUG)
-static BOOL runningasservice(void)
-{
-    BOOL    rv = FALSE;
-    HWINSTA ws = GetProcessWindowStation();
-
-    if (IS_VALID_HANDLE(ws)) {
-        DWORD len;
-        WCHAR name[SVCBATCH_NAME_MAX];
-
-        if (GetUserObjectInformationW(ws, UOI_NAME, name,
-                                      SVCBATCH_NAME_MAX, &len)) {
-            if (xwstartswith(name, L"Service-")) {
-                USEROBJECTFLAGS uf;
-                if (GetUserObjectInformationW(ws, UOI_FLAGS, &uf,
-                                              DSIZEOF(uf), &len)) {
-                    if (uf.dwFlags != WSF_VISIBLE)
-                        rv = TRUE;
-                }
-            }
-        }
-    }
-    return rv;
-}
-#endif
-
 static int xwmaininit(int argc, LPCWSTR *argv)
 {
     WCHAR  bb[SVCBATCH_PATH_MAX];
@@ -5060,8 +5031,10 @@ int wmain(int argc, LPCWSTR *argv)
 {
     DWORD   x;
     int     r = 0;
-    LPCWSTR p = NULL;
+    LPCWSTR p = zerostring;
     HANDLE  h = NULL;
+    SERVICE_TABLE_ENTRYW se[2];
+
 #if defined(_DEBUG)
 # if defined(_MSC_VER) && (_MSC_VER < 1900)
     /* Not supported */
@@ -5077,61 +5050,27 @@ int wmain(int argc, LPCWSTR *argv)
     r = xwmaininit(argc, argv);
     if (r != 0)
         return r;
-    /**
-     * If started without console
-     * presume we are started from SCM
-     *
-     * Create invisible console and
-     * start to run as service
-     */
-    h = GetStdHandle(STD_INPUT_HANDLE);
-    if (IS_INVALID_HANDLE(h)) {
-        if (AllocConsole()) {
-            /**
-             * AllocConsole should create new set of
-             * standard i/o handles
-             */
-            atexit(consolecleanup);
-            h = GetStdHandle(STD_INPUT_HANDLE);
-            ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
-        }
-        else {
-            r = GetLastError();
+    if (argc > 1)
+        p = argv[1];
+    if (xisalpha(*p)) {
+        /**
+         * Check if this is a Service Manager command
+         */
+        int cmd = xscmcommand(p);
+        if (cmd >= 0) {
+            argc  -= 2;
+            argv  += 2;
+#if defined(_DEBUG)
+            dbgsvcmode = 3;
+            DBG_PRINTS("started");
+#endif
+            r = xscmexecute(cmd, argc, argv);
             goto finished;
         }
-#if defined(_DEBUG)
-        if (runningasservice())
-#endif
-        servicemode = 1;
-    }
-    program->sInfo.hStdInput  = h;
-    program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
-    program->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
-    if (servicemode) {
-        SERVICE_TABLE_ENTRYW se[2];
-
-#if defined(_DEBUG)
-        dbgsvcmode  = 1;
-        dbgfopen();
-#endif
-        SetConsoleCtrlHandler(NULL, FALSE);
-        SetConsoleCtrlHandler(consolehandler, TRUE);
-
-        svcmainargc = argc - 1;
-        svcmainargv = argv + 1;
-        se[0].lpServiceName = zerostring;
-        se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
-        se[1].lpServiceName = NULL;
-        se[1].lpServiceProc = NULL;
-        if (!StartServiceCtrlDispatcherW(se))
-            r = GetLastError();
-        goto finished;
     }
     /**
      * Check if running as child stop process.
      */
-    if (argc > 1)
-        p = argv[1];
     if (xwstartswith(p, SVCBATCH_MMAPPFX)) {
         LPWSTR dp;
         p += 2;
@@ -5186,34 +5125,49 @@ int wmain(int argc, LPCWSTR *argv)
         for (x = 0; x < cmdproc->optc; x++)
             cmdproc->opts[x] = dp + sharedmem->opts[x];
         r = svcstopmain();
+        goto finished;
     }
-    if (argc > 1) {
-        /**
-         * Check if this is a Service Manager command
-         */
-        int cmd = xscmcommand(argv[1]);
-        if (cmd >= 0) {
-            argc  -= 2;
-            argv  += 2;
-#if defined(_DEBUG)
-            dbgsvcmode = 3;
-            DBG_PRINTS("started");
-#endif
-            r = xscmexecute(cmd, argc, argv);
+    servicemode = 1;
+    /**
+     * Presume we are started from SCM
+     *
+     * Create invisible console and
+     * start to run as service
+     */
+    h = GetStdHandle(STD_INPUT_HANDLE);
+    if (IS_INVALID_HANDLE(h)) {
+        if (AllocConsole()) {
+            /**
+             * AllocConsole should create new set of
+             * standard i/o handles
+             */
+            atexit(consolecleanup);
+            h = GetStdHandle(STD_INPUT_HANDLE);
+            ASSERT_HANDLE(h, ERROR_DEV_NOT_EXIST);
         }
         else {
-            fprintf(stdout,
-                    "\nError:\n  Unknown command: %S\n", argv[1]);
-            xscmhelp(NULL);
-            r = ERROR_INVALID_PARAMETER;
+            r = GetLastError();
+            goto finished;
         }
     }
-    else {
+    program->sInfo.hStdInput  = h;
+    program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    program->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
 #if defined(_DEBUG)
-            DBG_PRINTS("error");
+    dbgsvcmode  = 1;
+    dbgfopen();
 #endif
-        r = ERROR_BAD_FORMAT;
-    }
+    SetConsoleCtrlHandler(NULL, FALSE);
+    SetConsoleCtrlHandler(consolehandler, TRUE);
+
+    svcmainargc = argc - 1;
+    svcmainargv = argv + 1;
+    se[0].lpServiceName = zerostring;
+    se[0].lpServiceProc = (LPSERVICE_MAIN_FUNCTION)servicemain;
+    se[1].lpServiceName = NULL;
+    se[1].lpServiceProc = NULL;
+    if (!StartServiceCtrlDispatcherW(se))
+        r = GetLastError();
 
 finished:
 #if defined(_DEBUG)
