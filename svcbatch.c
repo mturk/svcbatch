@@ -312,7 +312,7 @@ static const SVCBATCH_NAME_MAP starttypemap[] = {
 };
 
 static const char *xgenerichelp =
-    "\nUsage:\n  " SVCBATCH_NAME " [command] [service name] <option1> < option2>...\n"          \
+    "\nUsage:\n  " SVCBATCH_NAME " [command] [service name] <option1> <option2>...\n"           \
     "\n    Commands:"                                                                           \
     "\n      Create.....Creates a service."                                                     \
     "\n      Config.....Changes the configuration of a service."                                \
@@ -4422,7 +4422,11 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     if (cmd == SVCBATCH_SCM_HELP)
         return xscmhelp(argv[0]);
-
+    if (IS_EMPTY_WCS(argv[0])) {
+        fprintf(stdout, "\nError:\n  Missing service name");
+        xscmhelp(NULL);
+        return ERROR_INVALID_PARAMETER;
+    }
     ssr = (PSERVICE_CONTROL_STATUS_REASON_PARAMSW)xmcalloc(sizeof(SERVICE_CONTROL_STATUS_REASON_PARAMSW));
     ssp = &ssr->ServiceStatus;
     service->name = argv[0];
