@@ -367,7 +367,7 @@ separated by either `:` or `=` character. This means that
   ```
 
 
-When the create or control command encounters the unknown option,
+When the create or config command encounters the unknown option,
 SvcBatch will stop option processing and save this and
 any additional argument inside Windows Registry. Those
 arguments will be used as command line arguments for the
@@ -381,7 +381,7 @@ For example:
   > svcbatch config myService --start=auto -f:R ...
   ```
 
-Since the `-f:R` is not valid control or create option,
+Since the `-f:R` is not valid config or create option,
 it will be used as argument to svcbatch.exe when the
 service is started, as well as any following argument.
 

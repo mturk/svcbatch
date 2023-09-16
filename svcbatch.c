@@ -1221,7 +1221,6 @@ static int xlongopt(int nargc, LPCWSTR *nargv,
 {
     LPCWSTR *poption;
     int      option;
-    int      i = 0;
 
     xwoptarg = NULL;
     if (xwoptind >= nargc) {
@@ -1229,19 +1228,21 @@ static int xlongopt(int nargc, LPCWSTR *nargv,
         return EOF;
     }
     xwoption = nargv[xwoptind];
-    if (xwoption[i++] != L'-') {
-        /* Not an -option */
+    if (xwoption[0] != L'-') {
+        /* Not an option */
         return EOF;
     }
-    if (xwoption[i] == L'-')
-        i++;
-    if (xwoption[i] == WNUL) {
-        /* The single '-' or '--' are command delimiters */
+    if (xwoption[1] != L'-') {
+        /* The single '-'  is command delimiter */
+        if (xwoption[1] == WNUL)
+            xwoptind++;
+        return EOF;
+    }
+    if (xwoption[2] == WNUL) {
+        /* The single '--' is command delimiter */
         xwoptind++;
         return EOF;
     }
-    if (!xisalpha(xwoption[i]))
-        return EOF;
     poption = options;
 
     while (*poption) {
@@ -1249,7 +1250,7 @@ static int xlongopt(int nargc, LPCWSTR *nargv,
         int optsep = 0;
         LPCWSTR optsrc;
         LPCWSTR optopt = NULL;
-        LPCWSTR optstr = xwoption + i;
+        LPCWSTR optstr = xwoption + 2;
 
         optsrc = *poption;
         optmod = optsrc[1];
@@ -1369,11 +1370,8 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         xwoptind++;
         return EOF;
     }
-    if (!xisalpha(xwoption[i]))
-        return EOF;
     option = xtolower(xwoption[i++]);
     optpos = xwcschr(opts, option);
-
     if (optpos == NULL)
         return EINVAL;
 
@@ -4283,46 +4281,25 @@ static int setsvcarguments(SC_HANDLE svc, int argc, LPCWSTR *argv)
 {
     int     e;
     int     n;
-    DWORD   t;
-    DWORD   c;
     HKEY    k = NULL;
     HKEY    a = NULL;
     LPBYTE  b = NULL;
     LSTATUS s;
-    LPWSTR  w;
 
     if ((svc == NULL) || (argc == 0))
         return 0;
     e = __LINE__;
     s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, SYSTEM_SVC_SUBKEY,
                       0, KEY_QUERY_VALUE | KEY_READ | KEY_WRITE, &k);
-    if (s != ERROR_SUCCESS)
-        goto finished;
-    s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
-                     RRF_RT_REG_MULTI_SZ, &t, NULL, &c);
-    if (s == ERROR_SUCCESS) {
-        b = (LPBYTE)xmmalloc(c);
-        e = __LINE__;
-        s = RegGetValueW(k, service->name, SVCBATCH_SVCARGS,
-                         RRF_RT_REG_MULTI_SZ, &t, b, &c);
-        if (s != ERROR_SUCCESS)
-            goto finished;
-        c = c - 2;
+    if (s != ERROR_SUCCESS) {
+        SetLastError(s);
+        return e + 1;;
     }
     e = __LINE__;
-    w = xargvtomsz(argc, argv, &n);
-    if (w == NULL) {
+    b = (LPBYTE)xargvtomsz(argc, argv, &n);
+    if (b == NULL) {
         s = GetLastError();
         goto finished;
-    }
-    if (b) {
-        b = (LPBYTE)xrealloc(b, c + n);
-        memcpy(b + c, w, n);
-        n = n + c;
-        xfree(w);
-    }
-    else {
-        b = (LPBYTE)w;
     }
     e = __LINE__;
     s = RegOpenKeyExW(k, service->name,
@@ -4333,8 +4310,10 @@ static int setsvcarguments(SC_HANDLE svc, int argc, LPCWSTR *argv)
     s = RegSetValueExW(a, SVCBATCH_SVCARGS, 0, REG_MULTI_SZ, b, n);
 finished:
     xfree(b);
-    RegCloseKey(a);
-    RegCloseKey(k);
+    if (a)
+        RegCloseKey(a);
+    if (k)
+        RegCloseKey(k);
     if (s != ERROR_SUCCESS) {
         SetLastError(s);
         return e + 1;
