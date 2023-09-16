@@ -1992,6 +1992,14 @@ static LPCWSTR skipdotslash(LPCWSTR s)
     return s;
 }
 
+static BOOL isdotslash(LPCWSTR p)
+{
+    if ((p != NULL) && (p[0] == L'.') && ((p[1] == L'\\') || (p[1] == L'/')))
+        return TRUE;
+    else
+        return FALSE;
+}
+
 static BOOL isabsolutepath(LPCWSTR p)
 {
     if ((p != NULL) && (*p != WNUL)) {
@@ -2051,6 +2059,7 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
     DWORD  len;
     DWORD  atr = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
 
+    DBG_PRINTF("%d %S", isdir, path);
     len = GetFullPathNameW(path, SVCBATCH_PATH_MAX, buf, NULL);
     if ((len == 0) || (len >= SVCBATCH_PATH_MAX))
         return NULL;
@@ -2065,6 +2074,7 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
         return NULL;
 
     fixshortpath(buf, len);
+    DBG_PRINTF("%d %S", isdir, buf);
     return xwcsdup(buf);
 }
 
@@ -2092,12 +2102,11 @@ static LPWSTR xsearchexe(LPCWSTR name)
     DWORD  len;
     HANDLE fh;
 
-    DBG_PRINTF("searching for %S", name);
+    DBG_PRINTF("search %S", name);
     len = SearchPathW(NULL, name, L".exe", SVCBATCH_PATH_MAX, buf, NULL);
     if ((len == 0) || (len >= SVCBATCH_PATH_MAX))
         return NULL;
 
-    DBG_PRINTF("found %S", buf);
     fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (IS_INVALID_HANDLE(fh))
@@ -2108,6 +2117,7 @@ static LPWSTR xsearchexe(LPCWSTR name)
         return NULL;
 
     fixshortpath(buf, len);
+    DBG_PRINTF("found %S", buf);
     return xwcsdup(buf);
 }
 
@@ -3678,8 +3688,8 @@ static BOOL resolvescript(LPCWSTR bp)
         return TRUE;
     if (IS_EMPTY_WCS(bp))
         return TRUE;
-    if (*bp == L':') {
-        cmdproc->script = xwcsdup(bp + 1);
+    if (isdotslash(bp)) {
+        cmdproc->script = xwcsdup(bp + 2);
         return TRUE;
     }
     cmdproc->script = xgetfinalpath(0, bp);
@@ -3819,9 +3829,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             case 's':
                 if (svcstopparam)
                     return xsyserrno(10, L"s", xwoptarg);
-                svcstopparam = skipdotslash(xwoptarg);
-                if (svcstopparam == NULL)
-                    return xsyserrno(11, L"s", xwoptarg);
+                svcstopparam = xwoptarg;
                 xwoptarr     = 'S';
                 if (svcstop == NULL)
                     svcstop  = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
@@ -3937,9 +3945,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             scriptparam = xwcsconcat(service->name, L".bat");
     }
     else {
-        scriptparam = xwcsdup(skipdotslash(wargv[0]));
-        if (scriptparam == NULL)
-            return xsyserrno(19, L"script file", wargv[0]);
+        scriptparam = xwcsdup(wargv[0]);
         for (i = 1; i < wargc; i++) {
             /**
              * Add arguments for script file
@@ -4101,7 +4107,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 /**
                  * Use different stop application
                  */
-                wp = xexpandenvstr(svcstopparam);
+                wp = xexpandenvstr(skipdotslash(svcstopparam));
                 if (wp == NULL)
                     return xsyserror(GetLastError(), svcstopparam, NULL);
                 SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
@@ -4115,10 +4121,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             }
         }
         else {
-            if (*svcstopparam == L':')
-                svcstop->script = xwcsdup(svcstopparam + 1);
+            if (isdotslash(svcstopparam))
+                svcstop->script = xwcsdup(svcstopparam + 2);
             else
-                svcstop->script = xgetfinalpath(0, skipdotslash(svcstopparam));
+                svcstop->script = xgetfinalpath(0, svcstopparam);
             if (svcstop->script == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         }
