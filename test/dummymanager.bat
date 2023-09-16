@@ -78,7 +78,7 @@ rem
 rem set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% -m:.1"
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=-e:PATH=%BUILD_DIR%;@__H@;@PATH@ -e:ADUMMYSVC_HOME=@_H -e:ADUMMYSVC_VER=@_v"
+set "SERVICE_ENVIRONMENT=-e:PATH=@_D$@;@_H$@;@PATH@ -e:ADUMMYSVC_HOME=@_H$ -e:ADUMMYSVC_VER=@_v$"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line

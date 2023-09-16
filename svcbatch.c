@@ -115,6 +115,7 @@ typedef struct _SVCBATCH_SERVICE {
     LPCWSTR                 name;
     LPWSTR                  base;
     LPWSTR                  home;
+    LPWSTR                  temp;
     LPWSTR                  uuid;
     LPWSTR                  work;
     WCHAR                   logs[SVCBATCH_PATH_MAX];
@@ -1072,11 +1073,17 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
         case L'N':
             v = service->name;
         break;
+        case L'T':
+            v = service->temp;
+        break;
         case L'U':
             v = service->uuid;
         break;
         case L'W':
             v = service->work;
+        break;
+        case L'D':
+            v = program->directory;
         break;
         case L'P':
             v = program->name;
@@ -3912,7 +3919,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 else {
                     *(wp++) = WNUL;
                     if ((wp[0] == L'@') && (wp[1] == L'_') &&
-                        xwcschr(L"BHLNPUVW", xtoupper(wp[2])) && (wp[3] == WNUL)) {
+                        xwcschr(L"BDHLNPTUVW", xtoupper(wp[2])) &&
+                        (wp[3] == L'$') && (wp[4] == WNUL)) {
                         if (!xisvalidvarname(pp))
                             return xsyserrno(14, L"e", pp);
                         if (setuserenvc < SVCBATCH_MAX_ARGS) {
@@ -4072,8 +4080,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
     if (service->base == NULL)
         service->base = service->work;
-    SetEnvironmentVariableW(L"__H", service->home);
-    SetEnvironmentVariableW(L"__W", service->work);
+    SetEnvironmentVariableW(L"_D$", program->directory);
+    SetEnvironmentVariableW(L"_H$", service->home);
+    SetEnvironmentVariableW(L"_W$", service->work);
     for (x = 0; x < setmainenvc; x++) {
         i = xsetenvvar(setmainenvn[x], setmainenvv[x]);
         if (i)
@@ -4156,8 +4165,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     else {
         SAFE_MEM_FREE(svcstop);
     }
-    SetEnvironmentVariableW(L"__H", NULL);
-    SetEnvironmentVariableW(L"__W", NULL);
+    SetEnvironmentVariableW(L"_D$", NULL);
+    SetEnvironmentVariableW(L"_H$", NULL);
+    SetEnvironmentVariableW(L"_W$", NULL);
     xfree(scriptparam);
     DBG_PRINTS("done");
     return 0;
@@ -4229,6 +4239,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xsetsvcenv(uenvprefix, L"_HOME", service->home);
         xsetsvcenv(uenvprefix, L"_LOGS", service->logs);
         xsetsvcenv(uenvprefix, L"_NAME", service->name);
+        xsetsvcenv(uenvprefix, L"_TEMP", service->temp);
         xsetsvcenv(uenvprefix, L"_UUID", service->uuid);
         xsetsvcenv(uenvprefix, L"_WORK", service->work);
     }
@@ -4953,14 +4964,12 @@ static void __cdecl dbgcleanup(void)
 
 static DWORD dbgfopen(void)
 {
-    HANDLE  h;
-    DWORD   dn;
-    DWORD   rc;
-    wchar_t db[BBUFSIZ];
+    HANDLE h;
+    DWORD  rc;
+    WCHAR  db[BBUFSIZ];
 
-    dn = GetTempPathW(MAX_PATH, db);
-    if ((dn == 0) || (dn >= MAX_PATH))
-        return ERROR_INSUFFICIENT_BUFFER;
+    xwcslcpy(db, BBUFSIZ, service->temp);
+    xwcslcat(db, BBUFSIZ, L"\\");
     xwcslcat(db, BBUFSIZ, program->name);
     xwcslcat(db, BBUFSIZ, DBG_FILE_NAME);
     h = CreateFileW(db, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
@@ -5038,6 +5047,12 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     ASSERT_WSTR(program->name,        ERROR_BAD_PATHNAME);
 
     xwcslower(program->name);
+    nn = GetTempPathW(MAX_PATH, bb);
+    if ((nn == 0) || (nn >= MAX_PATH))
+        return ERROR_INSUFFICIENT_BUFFER;
+    bb[--nn] = WNUL;
+    service->temp = xwcsdup(bb);
+
     return 0;
 }
 

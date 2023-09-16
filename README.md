@@ -550,7 +550,7 @@ reported to Windows Event log.
   For example:
 
   ```no-highlight
-  > svcbatch create ... -E:NOPAUSE=Y -e:CATALINA_BASE=@_W ...
+  > svcbatch create ... -E:NOPAUSE=Y -e:CATALINA_BASE=@_W$ ...
 
   ```
 
@@ -559,21 +559,23 @@ reported to Windows Event log.
   directory.
 
   If the **value** parameter starts with **@_**, followed
-  by the single character it will be evaluated to the
+  by the single character and **$** it will be evaluated to the
   corresponding runtime value.
-  The **@_W** will be evaluated to the current working directory,
-  **@_N** will set the **value** to the current Service name, etc.
+  The **@_W$** will be evaluated to the current working directory,
+  **@_N$** will set the **value** to the current Service name, etc.
 
 
-  The supported **@_x** options are:
+  The supported **@_x$** options are:
 
   ```no-highlight
 
     B   Base directory
+    D   Program directory
     H   Home directory
     L   Logs directory
     N   Service Name
     P   Program Name
+    T   Temp directory
     U   Service UUID
     V   SvcBatch version
     W   Work directory
@@ -585,7 +587,7 @@ reported to Windows Event log.
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... -e "PATH=@ProgramFiles@\SomeApplication;@__H@;@PATH@" ...
+  > svcbatch create ... -e "PATH=@ProgramFiles@\SomeApplication;@_H$@;@PATH@" ...
 
   ```
 
@@ -599,8 +601,8 @@ reported to Windows Event log.
   single **@** character. This allows to use **@** characters
   as part of **value** without replacing them to **%**.
 
-  The `@__H@` variable will be evaluated to current home
-  directory, and `@__W@` to current work directory.
+  The `@_H$@` variable will be evaluated to current home
+  directory, and `@_W$@` to current work directory.
 
 
   ```no-highlight
@@ -986,6 +988,12 @@ SvcBatch sets for each instance.
   echo Running service %SVCBATCH_SERVICE_NAME%
 
   ```
+
+* **SVCBATCH_SERVICE_TEMP**
+
+  This variable is set to the temp directory
+  of the account that was used to start the service.
+
 
 * **SVCBATCH_SERVICE_UUID**
 
