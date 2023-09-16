@@ -1024,9 +1024,8 @@ SvcBatch sets for each instance.
   * The path specified by the USERPROFILE environment variable.
   * The Windows directory.
 
-  Note that the function does not verify that the path exists,
-  nor does it test to see if the current process has any kind
-  of access rights to the path.
+  SvcBatch verifies that the path exists, and tests to see if the
+  current process has read and write access rights to the path.
 
 
 * **SVCBATCH_SERVICE_UUID**

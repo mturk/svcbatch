@@ -2074,13 +2074,14 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
     WCHAR  buf[SVCBATCH_PATH_MAX];
     DWORD  len;
     DWORD  atr = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
+    DWORD  acc = GENERIC_READ;
 
-    DBG_PRINTF("%d %S", isdir, path);
     len = GetFullPathNameW(path, SVCBATCH_PATH_MAX, buf, NULL);
     if ((len == 0) || (len >= SVCBATCH_PATH_MAX))
         return NULL;
-
-    fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
+    if (isdir > 1)
+        acc |= GENERIC_WRITE;
+    fh = CreateFileW(buf, acc, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, atr, NULL);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
@@ -2090,7 +2091,6 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
         return NULL;
 
     fixshortpath(buf, len);
-    DBG_PRINTF("%d %S", isdir, buf);
     return xwcsdup(buf);
 }
 
@@ -4106,7 +4106,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         service->work = service->home;
     }
     else {
-        service->work = xgetfinalpath(1, svcworkparam);
+        service->work = xgetfinalpath(2, svcworkparam);
         if (IS_EMPTY_WCS(service->work))
             return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
     }
@@ -5100,14 +5100,16 @@ static int gettempdir(void)
     nn = GetTempPathW(MAX_PATH, bb);
     if (nn == 0)
         return 1;
-    if (nn >= MAX_PATH) {
+    if (nn > MAX_PATH) {
         SetLastError(ERROR_INSUFFICIENT_BUFFER);
         return 1;
     }
     bb[--nn] = WNUL;
-    service->temp = xwcsdup(bb);
-
-    return 0;
+    service->temp = xgetfinalpath(2, bb);
+    if (service->temp == NULL)
+        return 1;
+    else
+        return 0;
 }
 
 /**
