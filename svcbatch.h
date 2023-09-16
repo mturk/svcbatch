@@ -261,6 +261,7 @@
 #define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging             */
 
 #define SVCBATCH_OPT_HAS_CTRL_BREAK 0x00000100   /* Enable CTRL_BREAK control   */
+#define SVCBATCH_OPT_STOP_FILE      0x00000200   /* Create uuid file on stop    */
 #define SVCBATCH_OPT_ROTATE         0x00001000   /* Enable log rotation         */
 #define SVCBATCH_OPT_ROTATE_BY_SIG  0x00002000   /* Rotate by signal            */
 #define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00004000   /* Rotate by size              */

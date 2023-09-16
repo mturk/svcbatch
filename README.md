@@ -365,6 +365,27 @@ reported to Windows Event log.
       to the Windows Event log.
 
 
+    * **F**
+
+      **Create stop file**
+
+      This option will create a file inside service logs
+      directory on service stop.
+
+      The created temporary file name is **ss-%SVCBATCH_SERVICE_UUID%**,
+      and can be used by service script or application to signal
+      that service should stop.
+
+      Service should monitor if that file exists on regular intervals,
+      and if the file is present, service should exit.
+
+      **Notice**
+
+      This option is mutually exclusive with **-s** command option.
+      If this feature is defined together with the mentioned option,
+      the service will fail to start, and write an error message
+      to the Windows Event log.
+
     * **L**
 
       **Use local time**

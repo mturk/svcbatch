@@ -189,6 +189,7 @@ static DWORD     svcoptions     = SVCBATCH_OPT_ENV;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 static int       svcfailmode    = SVCBATCH_FAIL_ERROR;
+static HANDLE    svcstopfile    = NULL;
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
@@ -422,7 +423,7 @@ static const wchar_t *wcsmessages[] = {
     L"The %s command was not initialized",                                  /* 18 */
     L"The %s is invalid",                                                   /* 19 */
     L"The %s contains invalid filename characters",                         /* 20 */
-    L"The %s features are mutually exclusive",                              /* 21 */
+    L"The %s are mutually exclusive",                                       /* 21 */
     L"Unknown command option",                                              /* 22 */
     L"The /\\:;<>?*|\" are not valid service name characters",              /* 23 */
     L"The maximum service name length is 256 characters",                   /* 24 */
@@ -2987,6 +2988,42 @@ static DWORD WINAPI stopthread(void *ssp)
         if (rc == 0) {
             DBG_PRINTF("waiting %d ms for worker", ri);
             ws = WaitForSingleObject(workerended, ri);
+            if (ws != WAIT_OBJECT_0) {
+                ri = (int)(GetTickCount64() - rs);
+                ri = stoptimeout - ri;
+                if (ri < SVCBATCH_STOP_SYNC)
+                    ri = SVCBATCH_STOP_SYNC;
+            }
+        }
+    }
+    if (IS_SET(SVCBATCH_OPT_STOP_FILE)) {
+        WCHAR nb[SVCBATCH_PATH_MAX];
+
+        DBG_PRINTS("creating shutdown file");
+        xwcslcpy(nb, SVCBATCH_PATH_MAX, service->logs);
+        xwcslcat(nb, SVCBATCH_PATH_MAX, L"\\ss-");
+        xwcslcat(nb, SVCBATCH_PATH_MAX, service->uuid);
+
+        DBG_PRINTF("stop file %S", nb);
+        svcstopfile = CreateFileW(nb, GENERIC_READ | GENERIC_WRITE,
+                                  FILE_SHARE_READ, NULL, CREATE_NEW,
+                                  FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE,
+                                  NULL);
+        if (svcstopfile != INVALID_HANDLE_VALUE) {
+            ULONGLONG rs;
+            DWORD     wr;
+
+            WriteFile(svcstopfile, YYES, 1, &wr, NULL);
+            FlushFileBuffers(svcstopfile);
+            DBG_PRINTF("waiting %d ms for worker", ri);
+            rs = GetTickCount64();
+            ws = WaitForSingleObject(workerended, ri);
+            if (ws != WAIT_OBJECT_0) {
+                ri = (int)(GetTickCount64() - rs);
+                ri = stoptimeout - ri;
+                if (ri < SVCBATCH_STOP_SYNC)
+                    ri = SVCBATCH_STOP_SYNC;
+            }
         }
     }
     if (ws != WAIT_OBJECT_0) {
@@ -3586,6 +3623,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(svcstopdone);
     SAFE_CLOSE_HANDLE(stopstarted);
     SAFE_CLOSE_HANDLE(dologrotate);
+    SAFE_CLOSE_HANDLE(svcstopfile);
     if (sharedmem)
         UnmapViewOfFile(sharedmem);
     SAFE_CLOSE_HANDLE(sharedmmap);
@@ -3781,6 +3819,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'C':
                             OPT_SET(SVCBATCH_OPT_HAS_CTRL_BREAK);
                         break;
+                        case L'F':
+                            OPT_SET(SVCBATCH_OPT_STOP_FILE);
+                        break;
                         case L'L':
                             OPT_SET(SVCBATCH_OPT_LOCALTIME);
                         break;
@@ -3950,7 +3991,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) &&
         IS_SET(SVCBATCH_OPT_HAS_CTRL_BREAK)) {
-        return xsyserrno(21, L"B and C", xwoptarg);
+        return xsyserrno(21, L"features B and C", xwoptarg);
+    }
+    if (IS_SET(SVCBATCH_OPT_STOP_FILE) && (svcstop != NULL)) {
+        return xsyserrno(21, L"feature F and option s", xwoptarg);
     }
     wargc -= xwoptind;
     wargv += xwoptind;
