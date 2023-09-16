@@ -285,19 +285,14 @@ static const wchar_t *scmdoptions = L"bcefhkmnoprstw";
 
 static const wchar_t *scmcoptions[] = {
     L"b+binpath",
-    L"b+bin",
     L"d+description",
-    L"d+desc",
     L"D+depend",
     L"n+displayname",
-    L"n+display",
     L"p+password",
-    L"P+privileges",
     L"P+privs",
     L"q.quiet",
     L"s+start",
     L"u+username",
-    L"u+user",
     L"w?wait",
     NULL
 };
@@ -419,7 +414,7 @@ static const wchar_t *wcsmessages[] = {
     L"The %s is invalid",                                                   /* 19 */
     L"The %s contains invalid filename characters",                         /* 20 */
     L"The %s features are mutually exclusive",                              /* 21 */
-    L"Unknown %s command option",                                           /* 22 */
+    L"Unknown command option",                                              /* 22 */
     L"The /\\:;<>?*|\" are not valid service name characters",              /* 23 */
     L"The maximum service name length is 256 characters",                   /* 24 */
     L"Stop the service and call Delete again",                              /* 25 */
@@ -1331,7 +1326,7 @@ static int xlongopt(int nargc, LPCWSTR *nargv,
         return option;
     }
     /* Option not found */
-    return EOF;
+    return EINVAL;
 }
 
 static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
@@ -4394,12 +4389,12 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       rv = 0;
     int       ec = 0;
     int       ep = 0;
-    int       we = 1;
     int       cmdverbose  = 1;
     int       wtime       = SVCBATCH_SCM_WAIT_DEF;
     ULONGLONG wtmstart    = 0;
     ULONGLONG wtimeout    = 0;
     LPCWSTR   ed          = NULL;
+    LPCWSTR   ex          = NULL;
     LPWSTR    pp          = NULL;
     LPWSTR    sdepends    = NULL;
     LPWSTR    binarypath  = NULL;
@@ -4435,15 +4430,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     if (xwcspbrk(service->name, L"/\\:;<>?*|\"")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
-        ed = SVCBATCH_MSG(23);
-        we = 0;
+        ex = SVCBATCH_MSG(23);
         goto finished;
     }
     if (xwcslen(service->name) > SVCBATCH_NAME_MAX) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
-        ed = SVCBATCH_MSG(24);
-        we = 0;
+        ex = SVCBATCH_MSG(24);
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_CREATE) {
@@ -4525,6 +4518,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case ENOENT:
                 rv = ERROR_BAD_LENGTH;
                 ec = __LINE__;
+                ed = xwoption;
+                goto finished;
+            break;
+            case EINVAL:
+                rv = ERROR_INVALID_PARAMETER;
+                ec = __LINE__;
+                ex = SVCBATCH_MSG(22);
                 ed = xwoption;
                 goto finished;
             break;
@@ -4770,8 +4770,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (argc == 0) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
-            ed = SVCBATCH_MSG(26);
-            we = 0;
+            ex = SVCBATCH_MSG(26);
             goto finished;
         }
         if (!QueryServiceStatusEx(svc,
@@ -4867,8 +4866,10 @@ finished:
 
         if (rv) {
             wchar_t eb[SVCBATCH_LINE_MAX];
-            if (we)
+            if (ex == NULL) {
             xwinapierror(eb, SVCBATCH_LINE_MAX, rv);
+            ex = eb;
+            }
             fprintf(stdout, "Service Name : %S\n", service->name);
             fprintf(stdout, "     Command : %S\n", scmcommands[cmd]);
             fprintf(stdout, "             : FAILED\n");
@@ -4881,8 +4882,7 @@ finished:
             fprintf(stdout, "        LINE : %d\n", ec);
             }
             fprintf(stdout, "       ERROR : %d (0x%x)\n", rv,  rv);
-            if (we)
-            fprintf(stdout, "               %S\n", eb);
+            fprintf(stdout, "               %S\n", ex);
             if (ed != NULL)
             fprintf(stdout, "               %S\n", ed);
             fputc('\n', stdout);

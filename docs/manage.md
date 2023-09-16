@@ -182,15 +182,13 @@ interval, SvcBatch will report something similar to:
 # Command options
 
 SvcBatch management command line options are case insensitive.
-This means that `--bin, --Bin or ---BIN` can be used for the same option.
+This means that `--binPath, --BinPath or --BINPATH` can be used
+for the same option.
 
 Command options arguments can be part or the command option
 separated by either `:` or `=` character. This means that
 `--start:auto`, `--start=auto` or `--start auto` are the same.
 
-Some command options have alternate names. For example
-either `--bin` or `--binPath` can be used to set the
-service's BinaryPathName.
 
 
 ## Common options
@@ -206,7 +204,7 @@ service's BinaryPathName.
 
 ## Create and Config options
 
-* **--binPath|--bin [path]**
+* **--binPath [path]**
 
   **Set service binary path**
 
@@ -222,7 +220,7 @@ service's BinaryPathName.
   then the svcbatch.exe used for creating a service.
 
   ```no-highlight
-  > svcbatch create myService --bin "@ProgramFiles@\SvcBatch\svcbatch.exe" ...
+  > svcbatch create myService --binpath "@ProgramFiles@\SvcBatch\svcbatch.exe" ...
   >
   ```
 
@@ -242,14 +240,14 @@ service's BinaryPathName.
   to be properly quoted.
 
 
-* **--description|--desc [description]**
+* **--description [description]**
 
   **Sets the description string for a service**
 
   This option sets the description string for a service.
 
   ```no-highlight
-  > svcbatch config myService --desc "This is My Service"
+  > svcbatch config myService --description "This is My Service"
   >
   ```
 
@@ -269,7 +267,7 @@ service's BinaryPathName.
   The myService will depend on `Tcpip` and `Afd` services.
 
 
-* **--displayname|--display [name]**
+* **--displayname [name]**
 
   **Sets the service display name**
 
@@ -280,7 +278,7 @@ service's BinaryPathName.
   >
   ```
 
-* **--username|--user [name]**
+* **--username [name]**
 
   **Sets the service account name**
 
@@ -293,16 +291,16 @@ service's BinaryPathName.
   The **name** parameter can be either the full
   account name or:
 
-  * **--user=0**
+  * **--username=0**
 
-    This option is the same as **--user .\LocalSystem**
+    This option is the same as **--username .\LocalSystem**
 
-  * **--user=1**
+  * **--username=1**
 
-    This option is the same as **--user "NT AUTHORITY\LocalService"**
+    This option is the same as **--username "NT AUTHORITY\LocalService"**
 
-  * **--user:2**
-    This option is the same as **--user "NT AUTHORITY\NetworkService"**
+  * **--username:2**
+    This option is the same as **--username "NT AUTHORITY\NetworkService"**
 
 
 * **--password [password]**
@@ -310,13 +308,13 @@ service's BinaryPathName.
   **Sets the password for the service account name**
 
   This option sets the **password** to the account name
-  specified by the **--user [name]** parameter.
+  specified by the **--username [name]** parameter.
   Do not specify this option if the account has no password
   or if the service runs in the LocalService, NetworkService,
   or LocalSystem account.
 
 
-* **--privileges|--privs [privileges]**
+* **--privs [privileges]**
 
   **Changes the required privileges setting of a service**
 

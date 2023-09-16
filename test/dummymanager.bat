@@ -103,7 +103,8 @@ rem
 rem
 rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" --quiet ^
-    --display "A Dummy Service" --desc "One dummy SvcBatch service example" ^
+    --displayName "A Dummy Service" ^
+    --description "One dummy SvcBatch service example" ^
     --username=1 ^
     -h "%TEST_DIR%" %SERVICE_BATCH% run
 rem

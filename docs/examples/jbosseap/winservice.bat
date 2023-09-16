@@ -89,7 +89,7 @@ rem
 rem
 rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
-    --display "%SERVICE_DISPLAY%" ^
+    --displayName "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
     --start:automatic ^
     -f:PCR -e:NOPAUSE=Y ^
@@ -111,7 +111,7 @@ rem
 rem set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log/service.stop.log -m:.1"
 rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
-    --display "%SERVICE_DISPLAY%" ^
+    --displayName "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
     --start:auto ^
     -f:PCR ^
