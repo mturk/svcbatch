@@ -585,7 +585,7 @@ reported to Windows Event log.
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... -e "PATH=@ProgramFiles@\SomeApplication;@PATH@" ...
+  > svcbatch create ... -e "PATH=@ProgramFiles@\SomeApplication;@__H@;@PATH@" ...
 
   ```
 
@@ -598,6 +598,10 @@ reported to Windows Event log.
   Each **@@** character pair will be replaced by the
   single **@** character. This allows to use **@** characters
   as part of **value** without replacing them to **%**.
+
+  The `@__H@` variable will be evaluated to current home
+  directory, and `@__W@` to current work directory.
+
 
   ```no-highlight
   > svcbatch create ... -e "SOME_VARIABLE=RUN@@1" ...

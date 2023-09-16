@@ -217,6 +217,10 @@ static DWORD   setuserenvc = 0;
 static LPWSTR  setuserenvn[SVCBATCH_MAX_ARGS];
 static WCHAR   setuserenvv[SVCBATCH_MAX_ARGS];
 
+static DWORD   setmainenvc = 0;
+static LPWSTR  setmainenvn[SVCBATCH_MAX_ARGS];
+static LPWSTR  setmainenvv[SVCBATCH_MAX_ARGS];
+
 /**
  * Service Manager types
  *
@@ -3908,12 +3912,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 else {
                     *(wp++) = WNUL;
                     if ((wp[0] == L'@') && (wp[1] == L'_') &&
-                        xwcschr(L"BHLNPUVW", wp[2]) && (wp[3] == WNUL)) {
+                        xwcschr(L"BHLNPUVW", xtoupper(wp[2])) && (wp[3] == WNUL)) {
                         if (!xisvalidvarname(pp))
                             return xsyserrno(14, L"e", pp);
                         if (setuserenvc < SVCBATCH_MAX_ARGS) {
                             setuserenvn[setuserenvc] = pp;
-                            setuserenvv[setuserenvc] = wp[2];
+                            setuserenvv[setuserenvc] = xtoupper(wp[2]);
                             setuserenvc++;
                         }
                         else {
@@ -3921,10 +3925,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         }
                     }
                     else {
-                        x = xsetenvvar(pp, wp);
-                        if (x)
-                            return xsyserror(x, L"SetEnvironment", xwoptarg);
-                        xfree(pp);
+                        if (setmainenvc < SVCBATCH_MAX_ARGS) {
+                            setmainenvn[setuserenvc] = pp;
+                            setmainenvv[setuserenvc] = wp;
+                            setmainenvc++;
+                        }
+                        else {
+                            return xsyserrno(17, L"e", xwoptarg);
+                        }
                     }
                 }
             break;
@@ -4064,6 +4072,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
     if (service->base == NULL)
         service->base = service->work;
+    SetEnvironmentVariableW(L"__H", service->home);
+    SetEnvironmentVariableW(L"__W", service->work);
+    for (x = 0; x < setmainenvc; x++) {
+        i = xsetenvvar(setmainenvn[x], setmainenvv[x]);
+        if (i)
+            return xsyserror(i, setmainenvn[x], setmainenvv[x]);
+        xfree(setmainenvn[x]);
+    }
     if (commandparam) {
         /**
          * Search the current working folder,
@@ -4140,6 +4156,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     else {
         SAFE_MEM_FREE(svcstop);
     }
+    SetEnvironmentVariableW(L"__H", NULL);
+    SetEnvironmentVariableW(L"__W", NULL);
     xfree(scriptparam);
     DBG_PRINTS("done");
     return 0;
@@ -4766,7 +4784,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_CONTROL) {
-        DWORD sctrl = 0;
+        int cc = 0;
         if (argc == 0) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
@@ -4786,22 +4804,22 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ed = SVCBATCH_MSG(2);
             goto finished;
         }
-        sctrl = xnamemap(argv[0], scontrolmap, 0);
-        if (sctrl) {
-            en    = sctrl;
-            ed    = scontrolmap[sctrl - SVCBATCH_CTRL_BREAK].name;
+        cc = xnamemap(argv[0], scontrolmap, 0);
+        if (cc) {
+            en = cc;
+            ed = scontrolmap[cc - SVCBATCH_CTRL_BREAK].name;
         }
         else {
-            sctrl = xwcstoi(argv[0], NULL);
-            ed    = argv[0];
+            cc = xwcstoi(argv[0], NULL);
+            ed = argv[0];
         }
 
-        if ((sctrl < 128) || (sctrl > 255)) {
+        if ((cc < 128) || (cc > 255)) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
             goto finished;
         }
-        if (!ControlServiceExW(svc, sctrl,
+        if (!ControlServiceExW(svc, cc,
                                SERVICE_CONTROL_STATUS_REASON_INFO, (LPBYTE)ssr)) {
             rv = GetLastError();
             ec = __LINE__;
