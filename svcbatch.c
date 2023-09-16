@@ -306,6 +306,12 @@ static const SVCBATCH_NAME_MAP starttypemap[] = {
     { NULL,         0                       }
 };
 
+static const SVCBATCH_NAME_MAP scontrolmap[] = {
+    { L"Break",     SVCBATCH_CTRL_BREAK     },
+    { L"Rotate",    SVCBATCH_CTRL_ROTATE    },
+    { NULL,         0                       }
+};
+
 static const char *xgenerichelp =
     "\nUsage:\n  " SVCBATCH_NAME " [command] [service name] <option1> <option2>...\n"           \
     "\n    Commands:"                                                                           \
@@ -3582,23 +3588,23 @@ static void __cdecl objectscleanup(void)
 
 static DWORD createevents(void)
 {
-    workerended = CreateEventEx(NULL, NULL,
-                                CREATE_EVENT_MANUAL_RESET,
-                                EVENT_MODIFY_STATE | SYNCHRONIZE);
+    workerended = CreateEventExW(NULL, NULL,
+                                 CREATE_EVENT_MANUAL_RESET,
+                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(workerended))
         return GetLastError();
-    svcstopdone = CreateEventEx(NULL, NULL,
+    svcstopdone = CreateEventExW(NULL, NULL,
                                  CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
                                  EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(svcstopdone))
         return GetLastError();
-    stopstarted = CreateEventEx(NULL, NULL,
+    stopstarted = CreateEventExW(NULL, NULL,
                                  CREATE_EVENT_MANUAL_RESET,
                                  EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(stopstarted))
         return GetLastError();
     if (IS_SET(SVCBATCH_OPT_ROTATE)) {
-        dologrotate = CreateEventEx(NULL, NULL,
+        dologrotate = CreateEventExW(NULL, NULL,
                                      CREATE_EVENT_MANUAL_RESET,
                                      EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (IS_INVALID_HANDLE(dologrotate))
@@ -4381,6 +4387,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       rv = 0;
     int       ec = 0;
     int       ep = 0;
+    int       en = 0;
     int       cmdverbose  = 1;
     int       wtime       = 0;
     ULONGLONG wtmstart    = 0;
@@ -4759,7 +4766,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_CONTROL) {
-        DWORD sctrl;
+        DWORD sctrl = 0;
         if (argc == 0) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
@@ -4779,18 +4786,25 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ed = SVCBATCH_MSG(2);
             goto finished;
         }
-        sctrl = xwcstoi(argv[0], NULL);
+        sctrl = xnamemap(argv[0], scontrolmap, 0);
+        if (sctrl) {
+            en    = sctrl;
+            ed    = scontrolmap[sctrl - SVCBATCH_CTRL_BREAK].name;
+        }
+        else {
+            sctrl = xwcstoi(argv[0], NULL);
+            ed    = argv[0];
+        }
+
         if ((sctrl < 128) || (sctrl > 255)) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
-            ed = argv[0];
             goto finished;
         }
         if (!ControlServiceExW(svc, sctrl,
                                SERVICE_CONTROL_STATUS_REASON_INFO, (LPBYTE)ssr)) {
             rv = GetLastError();
             ec = __LINE__;
-            ed = argv[0];
         }
         goto finished;
     }
@@ -4876,8 +4890,12 @@ finished:
             }
             fprintf(stdout, "       ERROR : %d (0x%x)\n", rv,  rv);
             fprintf(stdout, "               %S\n", ex);
-            if (ed != NULL)
-            fprintf(stdout, "               %S\n", ed);
+            if (ed != NULL) {
+            fprintf(stdout, "               %S", ed);
+            if (en)
+            fprintf(stdout, " (%d)", en);
+            fputc('\n', stdout);
+            }
             fputc('\n', stdout);
         }
         else {

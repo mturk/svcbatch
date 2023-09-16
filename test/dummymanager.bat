@@ -169,7 +169,7 @@ rem
 pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
-%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 234
+%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" rotate
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
