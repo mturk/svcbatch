@@ -1068,6 +1068,9 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
         case L'W':
             v = service->work;
         break;
+        case L'P':
+            v = program->name;
+        break;
         case L'V':
             v = SVCBATCH_VERSION_VER;
         break;
@@ -2859,6 +2862,7 @@ static DWORD runshutdown(void)
         xsyserror(rc, L"CreateProcess", svcstop->application);
         goto finished;
     }
+    InterlockedExchange(&svcstop->state, SVCBATCH_PROCESS_RUNNING);
     SAFE_CLOSE_HANDLE(svcstop->pInfo.hThread);
     SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdError);
@@ -2906,6 +2910,7 @@ static DWORD cmdshutdown(void)
         xsyserror(rc, L"CreateProcess", svcstop->application);
         goto finished;
     }
+    InterlockedExchange(&svcstop->state, SVCBATCH_PROCESS_RUNNING);
     SAFE_CLOSE_HANDLE(svcstop->pInfo.hThread);
     SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdError);
@@ -2951,13 +2956,15 @@ static DWORD WINAPI stopthread(void *ssp)
         else
             rc = runshutdown();
         ri = (int)(GetTickCount64() - rs);
-        DBG_PRINTF("shutdown finished in %d ms", ri);
+        DBG_PRINTF("shutdown finished with %lu in %d ms", rc, ri);
         xsvcstatus(SERVICE_STOP_PENDING, 0);
         ri = stoptimeout - ri;
         if (ri < SVCBATCH_STOP_SYNC)
             ri = SVCBATCH_STOP_SYNC;
-        DBG_PRINTF("waiting %d ms for worker", ri);
-        ws = WaitForSingleObject(workerended, ri);
+        if (rc == 0) {
+            DBG_PRINTF("waiting %d ms for worker", ri);
+            ws = WaitForSingleObject(workerended, ri);
+        }
     }
     if (ws != WAIT_OBJECT_0) {
         xsvcstatus(SERVICE_STOP_PENDING, 0);
@@ -3887,7 +3894,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 else {
                     *(wp++) = WNUL;
                     if ((wp[0] == L'@') && (wp[1] == L'_') &&
-                        xwcschr(L"BHLNUVW", wp[2]) && (wp[3] == WNUL)) {
+                        xwcschr(L"BHLNPUVW", wp[2]) && (wp[3] == WNUL)) {
                         if (!xisvalidvarname(pp))
                             return xsyserrno(14, L"e", pp);
                         if (setuserenvc < SVCBATCH_MAX_ARGS) {
@@ -4083,37 +4090,37 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         OPT_SET(SVCBATCH_OPT_ROTATE);
     }
     if (svcstopparam) {
-        if (*svcstopparam == L'!') {
-            /**
-             * Use different stop application
-             */
+        if (*svcstopparam == L'@') {
             svcstopparam++;
-            wp = xexpandenvstr(svcstopparam);
-            if (wp == NULL)
-                return xsyserror(GetLastError(), svcstopparam, NULL);
-            SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
-            if (isrelativepath(wp))
-                svcstop->application = xsearchexe(wp);
-            else
-                svcstop->application = xgetfinalpath(0, wp);
-            if (svcstop->application == NULL)
-                return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
-            xfree(wp);
-        }
-        else {
-            if (xiswcschar(svcstopparam, L'@')) {
+            if (*svcstopparam == WNUL) {
                 svcstop->script = cmdproc->script;
                 if (svcstop->argc == 0)
                     svcstop->args[svcstop->argc++] = L"stop";
             }
             else {
-                if (*svcstopparam == L':')
-                    svcstop->script = xwcsdup(svcstopparam + 1);
+                /**
+                 * Use different stop application
+                 */
+                wp = xexpandenvstr(svcstopparam);
+                if (wp == NULL)
+                    return xsyserror(GetLastError(), svcstopparam, NULL);
+                SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
+                if (isrelativepath(wp))
+                    svcstop->application = xsearchexe(wp);
                 else
-                    svcstop->script = xgetfinalpath(0, skipdotslash(svcstopparam));
-                if (svcstop->script == NULL)
-                    return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
+                    svcstop->application = xgetfinalpath(0, wp);
+                if (svcstop->application == NULL)
+                    return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
+                xfree(wp);
             }
+        }
+        else {
+            if (*svcstopparam == L':')
+                svcstop->script = xwcsdup(svcstopparam + 1);
+            else
+                svcstop->script = xgetfinalpath(0, skipdotslash(svcstopparam));
+            if (svcstop->script == NULL)
+                return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         }
         if ((stopmaxlogs > 0) && (svclogfname == NULL))
             stoplogname = SVCBATCH_LOGSTOP;
@@ -4369,7 +4376,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       ec = 0;
     int       ep = 0;
     int       cmdverbose  = 1;
-    int       wtime       = SVCBATCH_SCM_WAIT_DEF;
+    int       wtime       = 0;
     ULONGLONG wtmstart    = 0;
     ULONGLONG wtimeout    = 0;
     LPCWSTR   ed          = NULL;
@@ -4422,6 +4429,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         starttype   = SERVICE_DEMAND_START;
         servicetype = SERVICE_WIN32_OWN_PROCESS;
     }
+    if ((cmd == SVCBATCH_SCM_START) || (cmd == SVCBATCH_SCM_STOP))
+        wtime = SVCBATCH_SCM_WAIT_DEF;
+
     while ((opt = xlongopt(argc, argv, scmcoptions, scmallowed[cmd])) != EOF) {
         switch (opt) {
             case 'b':
@@ -4517,8 +4527,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     argc -= xwoptind;
     argv += xwoptind;
-    if ((cmd != SVCBATCH_SCM_START) && (cmd != SVCBATCH_SCM_STOP))
-        wtime = 0;
     if (wtime)
         wtimeout = wtime * ONE_SECOND;
     mgr = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
@@ -5015,7 +5023,7 @@ int wmain(int argc, LPCWSTR *argv)
     DWORD   x;
     int     r = 0;
     LPCWSTR p = zerostring;
-    HANDLE  h = NULL;
+    HANDLE  h;
     SERVICE_TABLE_ENTRYW se[2];
 
 #if defined(_DEBUG)
@@ -5111,6 +5119,10 @@ int wmain(int argc, LPCWSTR *argv)
         goto finished;
     }
     servicemode = 1;
+#if defined(_DEBUG)
+    dbgsvcmode  = 1;
+    dbgfopen();
+#endif
     /**
      * Presume we are started from SCM
      *
@@ -5136,10 +5148,7 @@ int wmain(int argc, LPCWSTR *argv)
     program->sInfo.hStdInput  = h;
     program->sInfo.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     program->sInfo.hStdError  = GetStdHandle(STD_ERROR_HANDLE);
-#if defined(_DEBUG)
-    dbgsvcmode  = 1;
-    dbgfopen();
-#endif
+
     SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
 
