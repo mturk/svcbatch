@@ -4270,7 +4270,10 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         /**
          * Use work directory as logs directory
          */
-        xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
+        if (service->home == service->work)
+            xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->temp);
+        else
+            xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
     }
     /**
      * Add additional environment variables
@@ -5094,10 +5097,10 @@ static int xwmaininit(int argc, LPCWSTR *argv)
 
 static int gettempdir(void)
 {
-    WCHAR  bb[MAX_PATH];
+    WCHAR  bb[BBUFSIZ];
     DWORD  nn;
 
-    nn = GetTempPathW(MAX_PATH, bb);
+    nn = GetTempPathW(BBUFSIZ, bb);
     if (nn == 0)
         return 1;
     if (nn > MAX_PATH) {

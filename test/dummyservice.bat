@@ -68,7 +68,7 @@ rem ping -n 3 127.0.0.1 >NUL
 xsleep.exe 2
 rem
 rem Check if shutdown batch signaled to stop the service
-if exist "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" (
+if exist "%SVCBATCH_SERVICE_LOGS%\ss-%SVCBATCH_SERVICE_UUID%" (
     goto doCleanup
 )
 rem Increment counter
@@ -168,9 +168,9 @@ xsleep.exe 2
 rem Simple IPC mechanism to signal the service
 rem to stop by creating unique file
 echo.
-echo %~nx0: [%TIME%] Creating shutdown-%SVCBATCH_SERVICE_UUID%
+echo %~nx0: [%TIME%] Creating ss-%SVCBATCH_SERVICE_UUID%
 echo.
-echo Y> "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%"
+echo Y> "%SVCBATCH_SERVICE_LOGS%\ss-%SVCBATCH_SERVICE_UUID%"
 rem
 :doShutdownWork
 rem ping -n 6 127.0.0.1 >NUL
