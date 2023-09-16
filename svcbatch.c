@@ -137,7 +137,7 @@ typedef struct _SVCBATCH_LOG {
  * Adjust this number so that SVCBATCH_IPC
  * structure aligns to 64K
  */
-#define SVCBATCH_DATA_LEN   32608
+#define SVCBATCH_DATA_LEN   32612
 typedef struct _SVCBATCH_IPC {
     DWORD   ppid;
     DWORD   options;
@@ -148,10 +148,8 @@ typedef struct _SVCBATCH_IPC {
     DWORD   application;
     DWORD   script;
     DWORD   name;
-    DWORD   uuid;
-    DWORD   base;
-    DWORD   home;
     DWORD   work;
+    DWORD   temp;
 
     DWORD   logn;
     DWORD   logs;
@@ -2849,10 +2847,8 @@ static DWORD runshutdown(void)
     sharedmem->application = addshmemdata(sharedmem->data, &x, cmdproc->application);
     sharedmem->script      = addshmemdata(sharedmem->data, &x, svcstop->script);
     sharedmem->name = addshmemdata(sharedmem->data, &x, service->name);
-    sharedmem->uuid = addshmemdata(sharedmem->data, &x, service->uuid);
-    sharedmem->base = addshmemdata(sharedmem->data, &x, service->base);
-    sharedmem->home = addshmemdata(sharedmem->data, &x, service->home);
     sharedmem->work = addshmemdata(sharedmem->data, &x, service->work);
+    sharedmem->temp = addshmemdata(sharedmem->data, &x, service->temp);
     sharedmem->logn = addshmemdata(sharedmem->data, &x, stoplogname);
     sharedmem->logs = addshmemdata(sharedmem->data, &x, service->logs);
 
@@ -4080,6 +4076,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
     if (service->base == NULL)
         service->base = service->work;
+    SetEnvironmentVariableW(L"_B$", service->base);
     SetEnvironmentVariableW(L"_D$", program->directory);
     SetEnvironmentVariableW(L"_H$", service->home);
     SetEnvironmentVariableW(L"_W$", service->work);
@@ -4165,6 +4162,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     else {
         SAFE_MEM_FREE(svcstop);
     }
+    SetEnvironmentVariableW(L"_B$", NULL);
     SetEnvironmentVariableW(L"_D$", NULL);
     SetEnvironmentVariableW(L"_H$", NULL);
     SetEnvironmentVariableW(L"_W$", NULL);
@@ -5047,9 +5045,21 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     ASSERT_WSTR(program->name,        ERROR_BAD_PATHNAME);
 
     xwcslower(program->name);
+    return 0;
+}
+
+static int gettempdir(void)
+{
+    WCHAR  bb[MAX_PATH];
+    DWORD  nn;
+
     nn = GetTempPathW(MAX_PATH, bb);
-    if ((nn == 0) || (nn >= MAX_PATH))
-        return ERROR_INSUFFICIENT_BUFFER;
+    if (nn == 0)
+        return 1;
+    if (nn >= MAX_PATH) {
+        SetLastError(ERROR_INSUFFICIENT_BUFFER);
+        return 1;
+    }
     bb[--nn] = WNUL;
     service->temp = xwcsdup(bb);
 
@@ -5125,8 +5135,6 @@ int wmain(int argc, LPCWSTR *argv)
         cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
 #if defined(_DEBUG)
         dbgsvcmode = 2;
-        dbgfopen();
-        DBG_PRINTS(cnamestamp);
 #endif
         sharedmmap  = OpenFileMappingW(FILE_MAP_READ, FALSE, p);
         if (sharedmmap == NULL) {
@@ -5152,10 +5160,8 @@ int wmain(int argc, LPCWSTR *argv)
         cmdproc->application = dp + sharedmem->application;
         cmdproc->script      = dp + sharedmem->script;
         service->name = dp + sharedmem->name;
-        service->uuid = dp + sharedmem->uuid;
-        service->base = dp + sharedmem->base;
-        service->home = dp + sharedmem->home;
         service->work = dp + sharedmem->work;
+        service->temp = dp + sharedmem->temp;
         if (sharedmem->logn && IS_NOT(SVCBATCH_OPT_QUIET)) {
             outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
             outputlog->logName = dp + sharedmem->logn;
@@ -5172,10 +5178,18 @@ int wmain(int argc, LPCWSTR *argv)
             cmdproc->args[x] = dp + sharedmem->args[x];
         for (x = 0; x < cmdproc->optc; x++)
             cmdproc->opts[x] = dp + sharedmem->opts[x];
+#if defined(_DEBUG)
+        dbgfopen();
+        DBG_PRINTS(cnamestamp);
+#endif
         r = svcstopmain();
         goto finished;
     }
     servicemode = 1;
+    if (gettempdir()) {
+        r = GetLastError();
+        goto finished;
+    }
 #if defined(_DEBUG)
     dbgsvcmode  = 1;
     dbgfopen();

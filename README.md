@@ -994,6 +994,19 @@ SvcBatch sets for each instance.
   This variable is set to the temp directory
   of the account that was used to start the service.
 
+  SvcBatch uses GetTempPath function that  checks for
+  the existence of environment variables in the following
+  order and uses the first path found:
+
+  * The path specified by the TMP environment variable.
+  * The path specified by the TEMP environment variable.
+  * The path specified by the USERPROFILE environment variable.
+  * The Windows directory.
+
+  Note that the function does not verify that the path exists,
+  nor does it test to see if the current process has any kind
+  of access rights to the path.
+
 
 * **SVCBATCH_SERVICE_UUID**
 
