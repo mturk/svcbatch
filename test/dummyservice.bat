@@ -125,13 +125,13 @@ goto End
 rem
 :doCleanup
 rem
-del /F /Q "%SVCBATCH_SERVICE_LOGS%\shutdown-%SVCBATCH_SERVICE_UUID%" 2>NUL
+del /F /Q "%SVCBATCH_SERVICE_LOGS%\ss-%SVCBATCH_SERVICE_UUID%" 2>NUL
 if %_qc% geq 15 (
     xsleep.exe 2
     goto End
 )
 echo.
-echo %~nx0: [%TIME%] Found shutdown-%SVCBATCH_SERVICE_UUID%
+echo %~nx0: [%TIME%] Found ss-%SVCBATCH_SERVICE_UUID%
 echo %~nx0: [%TIME%] Simulating cleanup
 rem ping -n 3 127.0.0.1 >NUL
 xsleep.exe 2

@@ -1901,6 +1901,7 @@ static DWORD xmdparent(LPWSTR path)
     if (s == NULL)
         return ERROR_BAD_PATHNAME;
     *s = WNUL;
+    DBG_PRINTF("%S", path);
     if (!CreateDirectoryW(path, NULL))
         rc = GetLastError();
     if (rc == ERROR_PATH_NOT_FOUND) {
@@ -1940,6 +1941,7 @@ static DWORD xcreatedir(LPCWSTR path)
              */
             if (!CreateDirectoryW(path, NULL))
                 rc = GetLastError();
+            DBG_PRINTF("%lu %S", rc, path);
         }
     }
     if (rc == ERROR_ALREADY_EXISTS)
@@ -2036,20 +2038,33 @@ static BOOL isrelativepath(LPCWSTR p)
     return FALSE;
 }
 
-static DWORD fixshortpath(LPWSTR buf, DWORD len)
+static DWORD xfixmaxpath(LPWSTR buf, DWORD len)
 {
-    if ((len > 5) && (len < SVCBATCH_NAME_MAX)) {
-        /**
-         * Strip leading \\?\ for short paths
-         * but not \\?\UNC\* paths
-         */
-        if ((buf[0] == L'\\') &&
-            (buf[1] == L'\\') &&
-            (buf[2] == L'?')  &&
-            (buf[3] == L'\\') &&
-            (buf[5] == L':')) {
-            wmemmove(buf, buf + 4, len - 3);
-            len -= 4;
+    if (len > 5) {
+        if (len < MAX_PATH) {
+            /**
+             * Strip leading \\?\ for short paths
+             * but not \\?\UNC\* paths
+             */
+            if ((buf[0] == L'\\') &&
+                (buf[1] == L'\\') &&
+                (buf[2] == L'?')  &&
+                (buf[3] == L'\\') &&
+                (buf[5] == L':')) {
+                wmemmove(buf, buf + 4, len - 3);
+                len -= 4;
+            }
+        }
+        else {
+            /**
+             * Prepend \\?\ to long paths
+             * but not if already starts with \
+             */
+            if (buf[0] != L'\\') {
+                wmemmove(buf + 4, buf, len + 1);
+                wmemcpy(buf, L"\\\\?\\", 4);
+                len += 4;
+            }
         }
     }
     return len;
@@ -2064,7 +2079,7 @@ static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     if ((len == 0) || (len >= siz))
         return NULL;
     xfixpathsep(dst);
-    fixshortpath(dst, len);
+    xfixmaxpath(dst, len);
     return dst;
 }
 
@@ -2075,9 +2090,10 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
     DWORD  len;
     DWORD  atr = isdir ? FILE_FLAG_BACKUP_SEMANTICS : FILE_ATTRIBUTE_NORMAL;
     DWORD  acc = GENERIC_READ;
+    DWORD  siz = SVCBATCH_PATH_MAX - 4;
 
-    len = GetFullPathNameW(path, SVCBATCH_PATH_MAX, buf, NULL);
-    if ((len == 0) || (len >= SVCBATCH_PATH_MAX))
+    len = GetFullPathNameW(path, siz, buf, NULL);
+    if ((len == 0) || (len >= siz))
         return NULL;
     if (isdir > 1)
         acc |= GENERIC_WRITE;
@@ -2085,12 +2101,12 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
                      OPEN_EXISTING, atr, NULL);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
-    len = GetFinalPathNameByHandleW(fh, buf, SVCBATCH_PATH_MAX, VOLUME_NAME_DOS);
+    len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
     CloseHandle(fh);
-    if ((len == 0) || (len >= SVCBATCH_PATH_MAX))
+    if ((len == 0) || (len >= siz))
         return NULL;
 
-    fixshortpath(buf, len);
+    xfixmaxpath(buf, len);
     return xwcsdup(buf);
 }
 
@@ -2108,7 +2124,7 @@ static LPWSTR xgetdirpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     if ((len == 0) || (len >= siz))
         return NULL;
 
-    fixshortpath(dst, len);
+    xfixmaxpath(dst, len);
     return dst;
 }
 
@@ -2116,23 +2132,24 @@ static LPWSTR xsearchexe(LPCWSTR name)
 {
     WCHAR  buf[SVCBATCH_PATH_MAX];
     DWORD  len;
+    DWORD  siz = SVCBATCH_PATH_MAX - 4;
     HANDLE fh;
 
     DBG_PRINTF("search %S", name);
-    len = SearchPathW(NULL, name, L".exe", SVCBATCH_PATH_MAX, buf, NULL);
-    if ((len == 0) || (len >= SVCBATCH_PATH_MAX))
+    len = SearchPathW(NULL, name, L".exe", siz, buf, NULL);
+    if ((len == 0) || (len >= siz))
         return NULL;
 
     fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
-    len = GetFinalPathNameByHandleW(fh, buf, SVCBATCH_PATH_MAX, VOLUME_NAME_DOS);
+    len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
     CloseHandle(fh);
-    if ((len == 0) || (len >= SVCBATCH_PATH_MAX))
+    if ((len == 0) || (len >= siz))
         return NULL;
 
-    fixshortpath(buf, len);
+    xfixmaxpath(buf, len);
     DBG_PRINTF("found %S", buf);
     return xwcsdup(buf);
 }
@@ -2338,35 +2355,47 @@ static BOOL canrotatelogs(LPSVCBATCH_LOG log)
 
 static DWORD createlogsdir(LPSVCBATCH_LOG log)
 {
+    WCHAR  b[SVCBATCH_PATH_MAX];
     LPWSTR p;
-    WCHAR dp[SVCBATCH_PATH_MAX];
+    LPWSTR d;
 
+    d = b;
     if (isrelativepath(outdirparam)) {
         int i;
-        i = xwcsncat(dp, SVCBATCH_PATH_MAX, 0, service->work);
-        i = xwcsncat(dp, SVCBATCH_PATH_MAX, i, L"\\");
-        i = xwcsncat(dp, SVCBATCH_PATH_MAX, i, outdirparam);
+
+        p = d + 4;
+        i = xwcsncat(p, SVCBATCH_PATH_MAX - 4, 0, service->work);
+        i = xwcsncat(p, SVCBATCH_PATH_MAX - 4, i, L"\\");
+        i = xwcsncat(p, SVCBATCH_PATH_MAX - 4, i, outdirparam);
+        if (i >= (SVCBATCH_PATH_MAX - 4)) {
+            xsyserror(0, L"GetPath", outdirparam);
+            return ERROR_BAD_PATHNAME;
+        }
+        if (i >= MAX_PATH)
+            wmemcpy(d, L"\\\\?\\", 4);
+        else
+            d = p;
     }
     else {
-        p = xgetfullpath(outdirparam, dp, SVCBATCH_PATH_MAX);
+        p = xgetfullpath(outdirparam, d, SVCBATCH_PATH_MAX - 4);
         if (p == NULL) {
             xsyserror(0, L"GetFullPath", outdirparam);
             return ERROR_BAD_PATHNAME;
         }
     }
-    p = xgetdirpath(dp, service->logs, SVCBATCH_PATH_MAX);
+    p = xgetdirpath(d, service->logs, SVCBATCH_PATH_MAX - 4);
     if (p == NULL) {
         DWORD rc = GetLastError();
 
         if (rc > ERROR_PATH_NOT_FOUND)
-            return xsyserror(rc, L"GetDirPath", dp);
+            return xsyserror(rc, L"GetDirPath", d);
 
-        rc = xcreatedir(dp);
+        rc = xcreatedir(d);
         if (rc != 0)
-            return xsyserror(rc, L"CreateDirectory", dp);
-        p = xgetdirpath(dp, service->logs, SVCBATCH_PATH_MAX);
+            return xsyserror(rc, L"CreateDirectory", d);
+        p = xgetdirpath(d, service->logs, SVCBATCH_PATH_MAX - 4);
         if (p == NULL)
-            return xsyserror(GetLastError(), L"GetDirPath", dp);
+            return xsyserror(GetLastError(), L"GetDirPath", d);
     }
     return 0;
 }
@@ -2394,11 +2423,11 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
         else
             return 0;
     }
-    x = xwcslcpy(lognn, SVCBATCH_PATH_MAX, log->logFile);
-    x = xwcsncat(lognn, SVCBATCH_PATH_MAX, x, L".0");
-    if (x >= SVCBATCH_PATH_MAX)
+    x = xwcslcpy(lognn, SVCBATCH_PATH_MAX - 4, log->logFile);
+    x = xwcsncat(lognn, SVCBATCH_PATH_MAX - 4, x, L".0");
+    if (x >= (SVCBATCH_PATH_MAX - 4))
         return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
-
+    xfixmaxpath(lognn, x);
     if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
         return xsyserror(GetLastError(), log->logFile, lognn);
     if (ssp)
@@ -2588,10 +2617,10 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
         DBG_PRINTF("%d %S -> %S", rp, np, nb);
         np = nb;
     }
-    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, 0, service->logs);
-    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, L"\\");
-    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX, i, np);
-
+    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX - 4, 0, service->logs);
+    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX - 4, i, L"\\");
+    i = xwcsncat(log->logFile, SVCBATCH_PATH_MAX - 4, i, np);
+    xfixmaxpath(log->logFile, i);
     if (rp) {
         rc = rotateprevlogs(log, ssp);
         if (rc)
@@ -5067,12 +5096,12 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     program->sInfo.cb          = DSIZEOF(STARTUPINFOW);
     GetStartupInfoW(&program->sInfo);
 
-    nn = GetModuleFileNameW(NULL, bb, SVCBATCH_PATH_MAX);
+    nn = GetModuleFileNameW(NULL, bb, SVCBATCH_PATH_MAX - 4);
     if (nn == 0)
         return GetLastError();
-    if (nn >= SVCBATCH_PATH_MAX)
+    if (nn >= (SVCBATCH_PATH_MAX - 4))
         return ERROR_INSUFFICIENT_BUFFER;
-    nn = fixshortpath(bb, nn);
+    nn = xfixmaxpath(bb, nn);
     program->application = xwcsdup(bb);
     while (--nn > 4) {
         if ((dp == NULL) && (bb[nn] == L'.')) {
