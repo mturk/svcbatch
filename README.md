@@ -968,6 +968,42 @@ reported to Windows Event log.
   be resolved relative to the **-h** directory.
 
 
+* **-x [prefix]**
+
+  **Set posix path prefix**
+
+  This option enables to set the prefix for private
+  environment values for posix shells.
+
+  If set the path values of the private environment
+  variables will be converted to posix format and
+  prepend by the **prefix**.
+
+  Use the **-x:/** for mingw/msys or **-x:/cygroot/** for cygwin
+  shells set by **-c** command option.
+
+  For example if the **SVCBATCH_SERVICE_TEMP** variable is set
+  to the **C:\\Temp**
+
+  ```no-highlight
+
+  > svcbatch create ... -x:/ -c:bash.exe ...
+  ...
+
+  ```
+
+  The bash.exe process will have the **SVCBATCH_SERVICE_TEMP**
+  variable set to the **/c/Temp**
+
+
+
+
+  **Notice**
+
+  Use this option only if running scripts using posix shell.
+  Otherwise the exported private environment variables will
+  be unusable.
+
 
 ## Private Environment Variables
 
@@ -1015,7 +1051,7 @@ SvcBatch sets for each instance.
   This variable is set to the temp directory
   of the account that was used to start the service.
 
-  SvcBatch uses GetTempPath function that  checks for
+  SvcBatch uses GetTempPath function that checks for
   the existence of environment variables in the following
   order and uses the first path found:
 
@@ -1027,6 +1063,8 @@ SvcBatch sets for each instance.
   SvcBatch verifies that the path exists, and tests to see if the
   current process has read and write access rights to the path.
 
+  Service will fail to start in case the temp directory does
+  not exist or if it misses read and write access rights.
 
 * **SVCBATCH_SERVICE_UUID**
 

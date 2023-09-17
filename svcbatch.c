@@ -206,6 +206,7 @@ static BYTE         YYES[]        = { 89, 13, 10,  0 };
 
 static LPCSTR  cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static LPCWSTR uenvprefix  = SVCBATCH_ENVNAME;
+static LPCWSTR xenvprefix  = NULL;
 
 static int     xwoptend    = 0;
 static int     xwoptarr    = 0;
@@ -267,7 +268,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"bcefhkmnoprstw";
+static const wchar_t *scmdoptions = L"bcefhkmnoprstwx";
 
 
 /**
@@ -602,11 +603,19 @@ static __inline void xchrreplace(LPWSTR str, WCHAR a, WCHAR b)
     }
 }
 
-static __inline void xfixpathsep(LPWSTR str)
+static __inline void xwinpathsep(LPWSTR str)
 {
     for (; *str != WNUL; str++) {
         if (*str == L'/')
             *str = L'\\';
+    }
+}
+
+static __inline void xunxpathsep(LPWSTR str)
+{
+    for (; *str != WNUL; str++) {
+        if (*str == L'\\')
+            *str = L'/';
     }
 }
 
@@ -1102,8 +1111,10 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
 
 static DWORD xsetsvcenv(LPCWSTR p, LPCWSTR n, LPCWSTR v)
 {
-    int   i;
-    WCHAR b[SVCBATCH_NAME_MAX];
+    DWORD  r = 0;
+    int    i;
+    WCHAR  b[SVCBATCH_NAME_MAX];
+    WCHAR  d[SVCBATCH_PATH_MAX];
 
     ASSERT_NULL(n, ERROR_BAD_ENVIRONMENT);
 
@@ -1111,10 +1122,33 @@ static DWORD xsetsvcenv(LPCWSTR p, LPCWSTR n, LPCWSTR v)
     i = xwcsncat(b, SVCBATCH_NAME_MAX, i, n);
     if (i >= SVCBATCH_NAME_MAX)
         return ERROR_INVALID_PARAMETER;
+    if (xenvprefix) {
+        i = xwcsncat(d, SVCBATCH_PATH_MAX, 0, xenvprefix);
+        /**
+         * Strip leading \\?\ for short paths
+         * but not \\?\UNC\* paths
+         */
+        if ((v[0] == L'\\') &&
+            (v[1] == L'\\') &&
+            (v[2] == L'?' ) &&
+            (v[3] == L'\\') &&
+            (v[5] == L':')) {
+            d[i] = xtolower(v[4]);
+            i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 6);
+            xunxpathsep(d);
+            v = d;
+        }
+        if (xisalpha(v[0]) &&
+            (v[1] == L':')) {
+            d[i] = xtolower(v[0]);
+            i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 2);
+            xunxpathsep(d);
+            v = d;
+        }
+    }
     if (!SetEnvironmentVariableW(b, v))
-        return GetLastError();
-    else
-        return 0;
+        r = GetLastError();
+    return r;
 }
 
 static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
@@ -1932,7 +1966,7 @@ static DWORD xcreatedir(LPCWSTR path)
          * One or more intermediate directories do not exist
          */
         xwcslcpy(pp, SVCBATCH_PATH_MAX, path);
-        xfixpathsep(pp);
+        xwinpathsep(pp);
         rc = xmdparent(pp);
         if (rc == 0) {
             /**
@@ -2078,7 +2112,7 @@ static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     len = GetFullPathNameW(path, siz, dst, NULL);
     if ((len == 0) || (len >= siz))
         return NULL;
-    xfixpathsep(dst);
+    xwinpathsep(dst);
     xfixmaxpath(dst, len);
     return dst;
 }
@@ -3942,6 +3976,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     return xsyserrno(10, L"w", xwoptarg);
                 svcworkparam = skipdotslash(xwoptarg);
             break;
+            case 'x':
+                if (xenvprefix)
+                    return xsyserrno(10, L"x", xwoptarg);
+                xenvprefix = xwoptarg;
+            break;
             case 'p':
                 if (!xisvalidvarname(xwoptarg))
                     return xsyserrno(14, L"p", xwoptarg);
@@ -4022,9 +4061,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         IS_SET(SVCBATCH_OPT_HAS_CTRL_BREAK)) {
         return xsyserrno(21, L"features B and C", xwoptarg);
     }
-    if (IS_SET(SVCBATCH_OPT_STOP_FILE) && (svcstop != NULL)) {
+    if (IS_SET(SVCBATCH_OPT_STOP_FILE) && (svcstop != NULL))
         return xsyserrno(21, L"feature F and option s", xwoptarg);
-    }
+
     wargc -= xwoptind;
     wargv += xwoptind;
 
