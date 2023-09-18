@@ -79,7 +79,7 @@ rotation is not ready the following will be displayed:
                    234
   ```
 
-In case the service was not installed with `/b` command option,
+In case the service was not installed with `-f:C` command option,
 the `233` custom control code will be disabled. Trying
 to send this control code to the service will result in:
 

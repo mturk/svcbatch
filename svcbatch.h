@@ -74,12 +74,13 @@
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
 #define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"
+#define SVCBATCH_STOPPFX       L"Local\\ss-"
 
 /**
  * Registry value name where SvcBatch store
  * service arguments
  */
-#define SVCBATCH_SVCARGS       L"ImagePathStartParameters"
+#define SVCBATCH_SVCARGS       L"ImagePathArguments"
 
 /**
  * Default arguments for cmd.exe
@@ -262,6 +263,7 @@
 
 #define SVCBATCH_OPT_HAS_CTRL_BREAK 0x00000100   /* Enable CTRL_BREAK control   */
 #define SVCBATCH_OPT_STOP_FILE      0x00000200   /* Create uuid file on stop    */
+#define SVCBATCH_OPT_STOP_SIGNAL    0x00000400   /* Create uuid stop event      */
 #define SVCBATCH_OPT_ROTATE         0x00001000   /* Enable log rotation         */
 #define SVCBATCH_OPT_ROTATE_BY_SIG  0x00002000   /* Rotate by signal            */
 #define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00004000   /* Rotate by size              */

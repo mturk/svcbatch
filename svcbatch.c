@@ -190,6 +190,7 @@ static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 static int       svcfailmode    = SVCBATCH_FAIL_ERROR;
 static HANDLE    svcstopfile    = NULL;
+static HANDLE    svcstopssig    = NULL;
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
@@ -268,7 +269,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"bcefhkmnoprstwx";
+static const wchar_t *scmdoptions = L"bcefhkmnorstw";
 
 
 /**
@@ -308,12 +309,6 @@ static const SVCBATCH_NAME_MAP starttypemap[] = {
     { L"Manual",    SERVICE_DEMAND_START    },
     { L"Demand",    SERVICE_DEMAND_START    },
     { L"Disabled",  SERVICE_DISABLED        },
-    { NULL,         0                       }
-};
-
-static const SVCBATCH_NAME_MAP scontrolmap[] = {
-    { L"Break",     SVCBATCH_CTRL_BREAK     },
-    { L"Rotate",    SVCBATCH_CTRL_ROTATE    },
     { NULL,         0                       }
 };
 
@@ -1066,6 +1061,8 @@ static DWORD xsetenvvar(LPCWSTR n, LPWSTR v)
 
 static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
 {
+    int     i;
+    WCHAR   d[SVCBATCH_PATH_MAX];
     LPCWSTR v = NULL;
 
     switch (e) {
@@ -1090,6 +1087,9 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
         case L'W':
             v = service->work;
         break;
+        case L'A':
+            v = program->application;
+        break;
         case L'D':
             v = program->directory;
         break;
@@ -1103,6 +1103,30 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
             return ERROR_INVALID_DATA;
         break;
     }
+    if (xenvprefix) {
+        i = xwcsncat(d, SVCBATCH_PATH_MAX, 0, xenvprefix);
+        /**
+         * Strip leading \\?\ for short paths
+         * but not \\?\UNC\* paths
+         */
+        if ((v[0] == L'\\') &&
+            (v[1] == L'\\') &&
+            (v[2] == L'?' ) &&
+            (v[3] == L'\\') &&
+            (v[5] == L':')) {
+            d[i] = xtolower(v[4]);
+            i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 6);
+            xunxpathsep(d + 2);
+            v = d;
+        }
+        else if (xisalpha(v[0]) &&
+                (v[1] == L':')) {
+            d[i] = xtolower(v[0]);
+            i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 2);
+            xunxpathsep(d + 2);
+            v = d;
+        }
+    }
     if (!SetEnvironmentVariableW(n, v))
         return GetLastError();
     else
@@ -1111,7 +1135,6 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
 
 static DWORD xsetsvcenv(LPCWSTR p, LPCWSTR n, LPCWSTR v)
 {
-    DWORD  r = 0;
     int    i;
     WCHAR  b[SVCBATCH_NAME_MAX];
     WCHAR  d[SVCBATCH_PATH_MAX];
@@ -1135,20 +1158,21 @@ static DWORD xsetsvcenv(LPCWSTR p, LPCWSTR n, LPCWSTR v)
             (v[5] == L':')) {
             d[i] = xtolower(v[4]);
             i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 6);
-            xunxpathsep(d);
+            xunxpathsep(d + 2);
             v = d;
         }
-        if (xisalpha(v[0]) &&
-            (v[1] == L':')) {
+        else if (xisalpha(v[0]) &&
+                (v[1] == L':')) {
             d[i] = xtolower(v[0]);
             i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 2);
-            xunxpathsep(d);
+            xunxpathsep(d + 2);
             v = d;
         }
     }
     if (!SetEnvironmentVariableW(b, v))
-        r = GetLastError();
-    return r;
+        return GetLastError();
+    else
+        return 0;
 }
 
 static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
@@ -1935,7 +1959,6 @@ static DWORD xmdparent(LPWSTR path)
     if (s == NULL)
         return ERROR_BAD_PATHNAME;
     *s = WNUL;
-    DBG_PRINTF("%S", path);
     if (!CreateDirectoryW(path, NULL))
         rc = GetLastError();
     if (rc == ERROR_PATH_NOT_FOUND) {
@@ -1975,7 +1998,6 @@ static DWORD xcreatedir(LPCWSTR path)
              */
             if (!CreateDirectoryW(path, NULL))
                 rc = GetLastError();
-            DBG_PRINTF("%lu %S", rc, path);
         }
     }
     if (rc == ERROR_ALREADY_EXISTS)
@@ -2129,6 +2151,7 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
     len = GetFullPathNameW(path, siz, buf, NULL);
     if ((len == 0) || (len >= siz))
         return NULL;
+    xfixmaxpath(buf, len);
     if (isdir > 1)
         acc |= GENERIC_WRITE;
     fh = CreateFileW(buf, acc, FILE_SHARE_READ, NULL,
@@ -2391,45 +2414,40 @@ static DWORD createlogsdir(LPSVCBATCH_LOG log)
 {
     WCHAR  b[SVCBATCH_PATH_MAX];
     LPWSTR p;
-    LPWSTR d;
+    int    n = SVCBATCH_PATH_MAX - 4;
 
-    d = b;
     if (isrelativepath(outdirparam)) {
         int i;
 
-        p = d + 4;
-        i = xwcsncat(p, SVCBATCH_PATH_MAX - 4, 0, service->work);
-        i = xwcsncat(p, SVCBATCH_PATH_MAX - 4, i, L"\\");
-        i = xwcsncat(p, SVCBATCH_PATH_MAX - 4, i, outdirparam);
-        if (i >= (SVCBATCH_PATH_MAX - 4)) {
+        i = xwcsncat(b, n, 0, service->work);
+        b[i++] = L'\\';
+        i = xwcsncat(b, n, i, outdirparam);
+        if (i >= n) {
             xsyserror(0, L"GetPath", outdirparam);
             return ERROR_BAD_PATHNAME;
         }
-        if (i >= MAX_PATH)
-            wmemcpy(d, L"\\\\?\\", 4);
-        else
-            d = p;
+        xfixmaxpath(b, i);
     }
     else {
-        p = xgetfullpath(outdirparam, d, SVCBATCH_PATH_MAX - 4);
+        p = xgetfullpath(outdirparam, b, n);
         if (p == NULL) {
             xsyserror(0, L"GetFullPath", outdirparam);
             return ERROR_BAD_PATHNAME;
         }
     }
-    p = xgetdirpath(d, service->logs, SVCBATCH_PATH_MAX - 4);
+    p = xgetdirpath(b, service->logs, n);
     if (p == NULL) {
         DWORD rc = GetLastError();
 
         if (rc > ERROR_PATH_NOT_FOUND)
-            return xsyserror(rc, L"GetDirPath", d);
+            return xsyserror(rc, L"GetDirPath", b);
 
-        rc = xcreatedir(d);
+        rc = xcreatedir(b);
         if (rc != 0)
-            return xsyserror(rc, L"CreateDirectory", d);
-        p = xgetdirpath(d, service->logs, SVCBATCH_PATH_MAX - 4);
+            return xsyserror(rc, L"CreateDirectory", b);
+        p = xgetdirpath(b, service->logs, n);
         if (p == NULL)
-            return xsyserror(GetLastError(), L"GetDirPath", d);
+            return xsyserror(GetLastError(), L"GetDirPath", b);
     }
     return 0;
 }
@@ -3021,6 +3039,7 @@ static DWORD WINAPI stopthread(void *ssp)
     DWORD rc = 0;
     DWORD ws = WAIT_OBJECT_1;
     int   ri = stoptimeout;
+    ULONGLONG rs;
 
     ResetEvent(svcstopdone);
     SetEvent(stopstarted);
@@ -3034,8 +3053,6 @@ static DWORD WINAPI stopthread(void *ssp)
         SVCBATCH_CS_LEAVE(outputlog);
     }
     if (svcstop) {
-        ULONGLONG rs;
-
         DBG_PRINTS("creating shutdown process");
         rs = GetTickCount64();
         if (svcstop->application)
@@ -3060,20 +3077,20 @@ static DWORD WINAPI stopthread(void *ssp)
         }
     }
     if (IS_SET(SVCBATCH_OPT_STOP_FILE)) {
+        int   i;
         WCHAR nb[SVCBATCH_PATH_MAX];
 
         DBG_PRINTS("creating shutdown file");
-        xwcslcpy(nb, SVCBATCH_PATH_MAX, service->logs);
-        xwcslcat(nb, SVCBATCH_PATH_MAX, L"\\ss-");
-        xwcslcat(nb, SVCBATCH_PATH_MAX, service->uuid);
-
+        i = xwcsncat(nb, SVCBATCH_PATH_MAX - 4, 0, service->logs);
+        i = xwcsncat(nb, SVCBATCH_PATH_MAX - 4, i, L"\\ss-");
+        i = xwcsncat(nb, SVCBATCH_PATH_MAX - 4, i, service->uuid);
+        xfixmaxpath(nb, i);
         DBG_PRINTF("stop file %S", nb);
         svcstopfile = CreateFileW(nb, GENERIC_READ | GENERIC_WRITE,
                                   FILE_SHARE_READ, NULL, CREATE_NEW,
                                   FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE,
                                   NULL);
         if (svcstopfile != INVALID_HANDLE_VALUE) {
-            ULONGLONG rs;
             DWORD     wr;
 
             WriteFile(svcstopfile, YYES, 1, &wr, NULL);
@@ -3087,6 +3104,20 @@ static DWORD WINAPI stopthread(void *ssp)
                 if (ri < SVCBATCH_STOP_SYNC)
                     ri = SVCBATCH_STOP_SYNC;
             }
+        }
+    }
+    if (IS_SET(SVCBATCH_OPT_STOP_SIGNAL)) {
+        DBG_PRINTS("setting stop signal");
+
+        SetEvent(svcstopssig);
+        DBG_PRINTF("waiting %d ms for worker", ri);
+        rs = GetTickCount64();
+        ws = WaitForSingleObject(workerended, ri);
+        if (ws != WAIT_OBJECT_0) {
+            ri = (int)(GetTickCount64() - rs);
+            ri = stoptimeout - ri;
+            if (ri < SVCBATCH_STOP_SYNC)
+                ri = SVCBATCH_STOP_SYNC;
         }
     }
     if (ws != WAIT_OBJECT_0) {
@@ -3687,6 +3718,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(stopstarted);
     SAFE_CLOSE_HANDLE(dologrotate);
     SAFE_CLOSE_HANDLE(svcstopfile);
+    SAFE_CLOSE_HANDLE(svcstopssig);
     if (sharedmem)
         UnmapViewOfFile(sharedmem);
     SAFE_CLOSE_HANDLE(sharedmmap);
@@ -3716,6 +3748,17 @@ static DWORD createevents(void)
                                      CREATE_EVENT_MANUAL_RESET,
                                      EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (IS_INVALID_HANDLE(dologrotate))
+            return GetLastError();
+    }
+    if (IS_SET(SVCBATCH_OPT_STOP_SIGNAL)) {
+        WCHAR n[SVCBATCH_NAME_MAX];
+
+        xwcslcpy(n, SVCBATCH_NAME_MAX, SVCBATCH_STOPPFX);
+        xwcslcat(n, SVCBATCH_NAME_MAX, service->uuid);
+        svcstopssig = CreateEventExW(NULL, n,
+                                     CREATE_EVENT_MANUAL_RESET,
+                                     EVENT_MODIFY_STATE | SYNCHRONIZE);
+        if (IS_INVALID_HANDLE(svcstopssig))
             return GetLastError();
     }
     return 0;
@@ -3802,6 +3845,10 @@ static BOOL resolvescript(LPCWSTR bp)
         return TRUE;
     if (IS_EMPTY_WCS(bp))
         return TRUE;
+    if (*bp == L':') {
+        cmdproc->script = xwcsdup(bp + 1);
+        return TRUE;
+    }
     if (isdotslash(bp)) {
         cmdproc->script = xwcsdup(bp + 2);
         return TRUE;
@@ -3882,6 +3929,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'C':
                             OPT_SET(SVCBATCH_OPT_HAS_CTRL_BREAK);
                         break;
+                        case L'E':
+                            OPT_SET(SVCBATCH_OPT_STOP_SIGNAL);
+                        break;
                         case L'F':
                             OPT_SET(SVCBATCH_OPT_STOP_FILE);
                         break;
@@ -3928,11 +3978,17 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     return xsyserrno(10, L"n", xwoptarg);
                 if (xwcspbrk(xwoptarg, L"\\:;<>?*|\""))
                     return xsyserrno(20, L"n", xwoptarg);
-                svclogfname = xwcsdup(xwoptarg);
-                wp = xwcschr(svclogfname, L'/');
-                if (wp != NULL) {
-                    *(wp++) = WNUL;
-                    stoplogname = wp;
+                if (*xwoptarg == L'/') {
+                    /* Set only stop log name */
+                    stoplogname = xwoptarg + 1;
+                }
+                else {
+                    svclogfname = xwcsdup(xwoptarg);
+                    wp = xwcschr(svclogfname, L'/');
+                    if (wp != NULL) {
+                        *(wp++) = WNUL;
+                        stoplogname = wp;
+                    }
                 }
             break;
             case 'c':
@@ -3976,16 +4032,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     return xsyserrno(10, L"w", xwoptarg);
                 svcworkparam = skipdotslash(xwoptarg);
             break;
-            case 'x':
-                if (xenvprefix)
-                    return xsyserrno(10, L"x", xwoptarg);
-                xenvprefix = xwoptarg;
-            break;
-            case 'p':
-                if (!xisvalidvarname(xwoptarg))
-                    return xsyserrno(14, L"p", xwoptarg);
-                uenvprefix = xwoptarg;
-            break;
             case 'k':
                 killdepth = xwcstoi(xwoptarg, NULL);
                 if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
@@ -4014,6 +4060,18 @@ static int parseoptions(int sargc, LPWSTR *sargv)
              * multiple times
              */
             case 'e':
+                if (*xwoptarg == L'/') {
+                    if (xenvprefix)
+                        return xsyserrno(10, L"e", xwoptarg);
+                    xenvprefix = xwoptarg + 1;
+                    break;
+                }
+                if (*xwoptarg == L'=') {
+                    if (!xisvalidvarname(xwoptarg + 1))
+                        return xsyserrno(14, L"e", xwoptarg);
+                    uenvprefix = xwoptarg + 1;
+                    break;
+                }
                 pp = xwcsdup(xwoptarg);
                 wp = xwcschr(pp, L'=');
                 if (wp == NULL) {
@@ -4023,8 +4081,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 }
                 else {
                     *(wp++) = WNUL;
-                    if ((wp[0] == L'@') && (wp[1] == L'_') &&
-                        xwcschr(L"BDHLNPTUVW", xtoupper(wp[2])) &&
+                    if ((wp[0] == L'$') && (wp[1] == L'_') &&
+                        xwcschr(L"ABDHLNPTUVW", xtoupper(wp[2])) &&
                         (wp[3] == L'$') && (wp[4] == WNUL)) {
                         if (!xisvalidvarname(pp))
                             return xsyserrno(14, L"e", pp);
@@ -4061,8 +4119,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         IS_SET(SVCBATCH_OPT_HAS_CTRL_BREAK)) {
         return xsyserrno(21, L"features B and C", xwoptarg);
     }
-    if (IS_SET(SVCBATCH_OPT_STOP_FILE) && (svcstop != NULL))
+    if (IS_SET(SVCBATCH_OPT_STOP_FILE) &&
+        IS_SET(SVCBATCH_OPT_STOP_SIGNAL)) {
+        return xsyserrno(21, L"features E and F", xwoptarg);
+    }
+    if (IS_SET(SVCBATCH_OPT_STOP_FILE)   && svcstopparam)
         return xsyserrno(21, L"feature F and option s", xwoptarg);
+    if (IS_SET(SVCBATCH_OPT_STOP_SIGNAL) && svcstopparam)
+        return xsyserrno(21, L"feature E and option s", xwoptarg);
 
     wargc -= xwoptind;
     wargv += xwoptind;
@@ -4178,6 +4242,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (IS_EMPTY_WCS(service->work))
             return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
     }
+    if (service->temp == NULL)
+        service->temp = service->work;
     if (isrelativepath(svcbaseparam)) {
         xfree(service->base);
         service->base = xgetfinalpath(1, svcbaseparam);
@@ -4188,9 +4254,13 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
     if (service->base == NULL)
         service->base = service->work;
+    /**
+     * Set temporary environment variables
+     */
     SetEnvironmentVariableW(L"_B$", service->base);
     SetEnvironmentVariableW(L"_D$", program->directory);
     SetEnvironmentVariableW(L"_H$", service->home);
+    SetEnvironmentVariableW(L"_P$", program->name);
     SetEnvironmentVariableW(L"_W$", service->work);
     for (x = 0; x < setmainenvc; x++) {
         i = xsetenvvar(setmainenvn[x], setmainenvv[x]);
@@ -4229,6 +4299,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         xfree(wp);
         cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS;
         OPT_SET(SVCBATCH_OPT_WRPIPE);
+        xenvprefix = NULL;
     }
     if (rotateparam) {
         if (!resolverotate(rotateparam))
@@ -4236,32 +4307,31 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         OPT_SET(SVCBATCH_OPT_ROTATE);
     }
     if (svcstopparam) {
-        if (*svcstopparam == L'@') {
-            svcstopparam++;
-            if (*svcstopparam == WNUL) {
-                svcstop->script = cmdproc->script;
-                if (svcstop->argc == 0)
-                    svcstop->args[svcstop->argc++] = L"stop";
-            }
-            else {
-                /**
-                 * Use different stop application
-                 */
-                wp = xexpandenvstr(skipdotslash(svcstopparam));
-                if (wp == NULL)
-                    return xsyserror(GetLastError(), svcstopparam, NULL);
-                SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
-                if (isrelativepath(wp))
-                    svcstop->application = xsearchexe(wp);
-                else
-                    svcstop->application = xgetfinalpath(0, wp);
-                if (svcstop->application == NULL)
-                    return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
-                xfree(wp);
-            }
+        if (xiswcschar(svcstopparam, L'@')) {
+            svcstop->script = cmdproc->script;
+            if (svcstop->argc == 0)
+                svcstop->args[svcstop->argc++] = L"stop";
+        }
+        else if (*svcstopparam == L'$') {
+            /**
+             * Use different stop application
+             */
+            wp = xexpandenvstr(skipdotslash(svcstopparam));
+            if (wp == NULL)
+                return xsyserror(GetLastError(), svcstopparam, NULL);
+            SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
+            if (isrelativepath(wp))
+                svcstop->application = xsearchexe(wp);
+            else
+                svcstop->application = xgetfinalpath(0, wp);
+            if (svcstop->application == NULL)
+                return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
+            xfree(wp);
         }
         else {
-            if (isdotslash(svcstopparam))
+            if (*svcstopparam == ':')
+                svcstop->script = xwcsdup(svcstopparam + 1);
+            else if (isdotslash(svcstopparam))
                 svcstop->script = xwcsdup(svcstopparam + 2);
             else
                 svcstop->script = xgetfinalpath(0, svcstopparam);
@@ -4274,9 +4344,16 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     else {
         SAFE_MEM_FREE(svcstop);
     }
+    if (outdirparam) {
+        wp = xexpandenvstr(outdirparam);
+        if (wp == NULL)
+            return xsyserror(GetLastError(), outdirparam, NULL);
+        outdirparam = wp;
+    }
     SetEnvironmentVariableW(L"_B$", NULL);
     SetEnvironmentVariableW(L"_D$", NULL);
     SetEnvironmentVariableW(L"_H$", NULL);
+    SetEnvironmentVariableW(L"_P$", NULL);
     SetEnvironmentVariableW(L"_W$", NULL);
     xfree(scriptparam);
     DBG_PRINTS("done");
@@ -4336,12 +4413,10 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     }
     else {
         /**
-         * Use work directory as logs directory
+         * Use temp directory as logs directory
+         * for quiet mode.
          */
-        if (service->home == service->work)
-            xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->temp);
-        else
-            xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->work);
+        xwcslcpy(service->logs, SVCBATCH_PATH_MAX, service->temp);
     }
     /**
      * Add additional environment variables
@@ -4928,15 +5003,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             ed = SVCBATCH_MSG(2);
             goto finished;
         }
-        cc = xnamemap(argv[0], scontrolmap, 0);
-        if (cc) {
-            en = cc;
-            ed = scontrolmap[cc - SVCBATCH_CTRL_BREAK].name;
-        }
-        else {
-            cc = xwcstoi(argv[0], NULL);
-            ed = argv[0];
-        }
+        cc = xwcstoi(argv[0], NULL);
+        ed = argv[0];
 
         if ((cc < 128) || (cc > 255)) {
             rv = ERROR_INVALID_PARAMETER;
@@ -5081,6 +5149,8 @@ static DWORD dbgfopen(void)
     DWORD  rc;
     WCHAR  db[BBUFSIZ];
 
+    if (IS_EMPTY_WCS(service->temp))
+        return ERROR_PATH_NOT_FOUND;
     xwcslcpy(db, BBUFSIZ, service->temp);
     xwcslcat(db, BBUFSIZ, L"\\");
     xwcslcat(db, BBUFSIZ, program->name);
@@ -5163,24 +5233,20 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     return 0;
 }
 
-static int gettempdir(void)
+static LPWSTR gettempdir(void)
 {
     WCHAR  bb[BBUFSIZ];
     DWORD  nn;
 
     nn = GetTempPathW(BBUFSIZ, bb);
     if (nn == 0)
-        return 1;
+        return NULL;
     if (nn > MAX_PATH) {
         SetLastError(ERROR_INSUFFICIENT_BUFFER);
-        return 1;
+        return NULL;
     }
     bb[--nn] = WNUL;
-    service->temp = xgetfinalpath(2, bb);
-    if (service->temp == NULL)
-        return 1;
-    else
-        return 0;
+    return xgetfinalpath(2, bb);
 }
 
 /**
@@ -5302,11 +5368,8 @@ int wmain(int argc, LPCWSTR *argv)
         r = svcstopmain();
         goto finished;
     }
-    servicemode = 1;
-    if (gettempdir()) {
-        r = GetLastError();
-        goto finished;
-    }
+    servicemode   = 1;
+    service->temp = gettempdir();
 #if defined(_DEBUG)
     dbgsvcmode  = 1;
     dbgfopen();

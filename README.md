@@ -10,7 +10,7 @@ for a specialized service wrapper.
 
 SvcBatch was designed to be simple to use and lightweight, with a small
 memory footprint. Its only dependency is win32 API, and only has
-around 3K lines of **C** code. There are no configuration
+around 5K lines of **C** code. There are no configuration
 files or installation requirements, so it can be easily distributed
 alongside any application that requires Windows service functionality.
 
@@ -117,11 +117,11 @@ detailed usage.
 
 * **Starting services**
 
-  To manually start the service use either `sc` or Microsoft
-  Services GUI application.
+  To manually start the service use either `svcbatch`, `sc`
+  or Microsoft Services GUI application.
 
   SvcBatch will append any additional arguments from the
-  service start application to the batch file's existing arguments
+  service start application to the script file's existing arguments
   defined at install time.
 
   Since SvcBatch version **3.0.0**, you can use the
@@ -365,6 +365,30 @@ reported to Windows Event log.
       to the Windows Event log.
 
 
+    * **E**
+
+      **Create stop event**
+
+      This option will create a named Windows event object
+      with name is **Local\ss-%SVCBATCH_SERVICE_UUID%**.
+
+      On service stop, SvcBatch will set that event and
+      wait for service script to finish.
+
+      The service application should use `OpenEvent` Windows
+      API, to open and wait for that event.
+
+      When that event enters the signaled state, service should exit.
+
+      **Notice**
+
+      This option is mutually exclusive with **F** feature
+      and **-s** command option.
+      If this feature is defined together with the mentioned option,
+      the service will fail to start, and write an error message
+      to the Windows Event log.
+
+
     * **F**
 
       **Create stop file**
@@ -381,7 +405,8 @@ reported to Windows Event log.
 
       **Notice**
 
-      This option is mutually exclusive with **-s** command option.
+      This option is mutually exclusive with **E** feature
+      and **-s** command option.
       If this feature is defined together with the mentioned option,
       the service will fail to start, and write an error message
       to the Windows Event log.
@@ -510,7 +535,7 @@ reported to Windows Event log.
   be resolved relative to the **-h** directory.
 
 
-* **-c [program]**
+* **-c [program][<[> parameters <]>]**
 
   **Use alternative program for running scripts**
 
@@ -527,7 +552,7 @@ reported to Windows Event log.
   SvcBatch will execute **powershell.exe** instead **cmd.exe** and pass
   **[ parameters ]** as arguments to the powershell.
 
-  Additional parameters for alternative shell must be enclosed
+  Additional **parameters** for alternative shell must be enclosed
   inside square brackets before script file and its arguments.
 
   Parameters for default **cmd.exe** interpreter
@@ -537,6 +562,15 @@ reported to Windows Event log.
   > svcbatch create ... -c:cmd.exe [ /D /E:ON /V:OFF /C ] myservice.bat ...
 
   ```
+
+  If the **program** parameter contains any **@** or **%** characters,
+  SvcBatch will evaluate all environment strings in the **program** parameter
+  and use it as application name.
+
+  In case the **program** parameter is not an absolute path,
+  SvcBatch will search the current environment for the **program[.exe]**
+  application.
+
 
 
 * **-k [depth]**
@@ -571,7 +605,7 @@ reported to Windows Event log.
   For example:
 
   ```no-highlight
-  > svcbatch create ... -E:NOPAUSE=Y -e:CATALINA_BASE=@_W$ ...
+  > svcbatch create ... -E:NOPAUSE=Y -e:CATALINA_BASE=$_W$ ...
 
   ```
 
@@ -579,17 +613,18 @@ reported to Windows Event log.
   and `CATALINA_BASE` to the value of current working
   directory.
 
-  If the **value** parameter starts with **@_**, followed
+  If the **value** parameter starts with **$_**, followed
   by the single character and **$** it will be evaluated to the
   corresponding runtime value.
-  The **@_W$** will be evaluated to the current working directory,
-  **@_N$** will set the **value** to the current Service name, etc.
+  The **$_W$** will be evaluated to the current working directory,
+  **$_N$** will set the **value** to the current Service name, etc.
 
 
-  The supported **@_x$** options are:
+  The supported **$_x$** options are:
 
   ```no-highlight
 
+    A   Program application
     B   Base directory
     D   Program directory
     H   Home directory
@@ -645,6 +680,61 @@ reported to Windows Event log.
   > svcbatch create ... -e:SOME_VARIABLE ...
 
   ```
+
+  In case the **name** starts with **=** character,
+  the reminder of the **name** will be used to set
+  the prefix for private environment variables.
+
+  Check [Private Environment Variables](#private-environment-variables)
+  section, for the list of exported variables.
+
+  To change default **SVCBATCH_SERVICE** prefix, add
+  **-e:=prefix** to your service configuration.
+
+
+  The following example will cause SvcBatch to
+  export **MYSERVICE_NAME** instead default **SVCBATCH_SERVICE_NAME**, etc.
+
+  ```no-highlight
+  > svcbatch create ... -e:=MYSERVICE ...
+
+  ```
+
+  If **-f:U** was added to the service's configuration
+  this option will have no meaning.
+
+
+  In case the **name** starts with **/** character,
+  the **name** will be used to set the prefix for
+  private environment variables values for posix shells.
+
+  If set the path values of the private environment
+  variables will be converted to posix format and
+  prepend by the **name**.
+
+  Use the **-e:/** for mingw/msys or **-e:/cygroot/** for cygwin
+  shells set by **-c** command option.
+
+  For example if the **SVCBATCH_SERVICE_TEMP** variable is set
+  to the **C:\\Temp**
+
+  ```no-highlight
+
+  > svcbatch create ... -e:/ -c:bash.exe ...
+  ...
+
+  ```
+
+  The bash.exe process will have the **SVCBATCH_SERVICE_TEMP**
+  variable set to the **/c/Temp**
+
+  **Notice**
+
+  Use this option only if running scripts using posix shell.
+  Otherwise the exported private environment variables will
+  be unusable.
+
+
 
 
 * **-h [path]**
@@ -817,34 +907,9 @@ reported to Windows Event log.
   service will fail if another service already opened SvacBatch.log
   in that location.
 
-
-
-* **-p [prefix]**
-
-  **Set prefix for private environment variables**
-
-  This option allows to change default prefix for the
-  private runtime environment variables.
-
-  Check [Private Environment Variables](#private-environment-variables)
-  section, for the list of exported variables.
-
-  To change default **SVCBATCH_SERVICE** prefix, add
-  **-p:prefix** to your service configuration.
-
-
-  The following example will cause SvcBatch to
-  export **MYSERVICE_NAME** instead default **SVCBATCH_SERVICE_NAME**, etc.
-
-  ```no-highlight
-  > svcbatch create ... -p:MYSERVICE ...
-
-  ```
-
-
-  If **-f:U** was added to the service's configuration
-  this option will have no meaning.
-
+  If the **path** parameter contains any **@** or **%** characters,
+  SvcBatch will evaluate all environment strings in the **path**, and
+  set output directory to that value.
 
 
 * **-r [rule]**
@@ -907,7 +972,7 @@ reported to Windows Event log.
 
 
 
-* **-s [script]**
+* **-s [script][<[> arguments <]>]**
 
   **Execute script file on service stop or shutdown**
 
@@ -919,6 +984,10 @@ reported to Windows Event log.
   This is particularly useful for services that do not handle
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
+  In case the **script** starts with **:** character,
+  SvcBatch will use the string following the **:**
+  as script file without checking for its existence.
+
   In case the **script** starts with **./** or **.\\**,
   SvcBatch will use the string following the **./**
   as script file without checking for its existence.
@@ -928,13 +997,13 @@ reported to Windows Event log.
   add pass **stop** string as the argument to that script file,
   unless additional argument(s) were not defined.
 
-  In case the **script** starts with **@** character,
-  SvcBatch will use the string following the **@**
+  In case the **script** starts with **$** character,
+  SvcBatch will use the string following the **$**
   as application that will be executed instead default
   script interpreter.
 
 
-  To set additional arguments for stop script
+  To set additional **arguments** for stop script
   enclose them inside square brackets `[ ... ]`.
 
 
@@ -945,7 +1014,7 @@ reported to Windows Event log.
   ...
   > svcbatch create ... -s:@ [ used instead default stop ] ...
   ...
-  > svcbatch create ... -s:@shutdown.exe [ param1 param2 ] ...
+  > svcbatch create ... -s:$shutdown.exe [ param1 param2 ] ...
 
   ```
 
@@ -960,49 +1029,17 @@ reported to Windows Event log.
   is set to this path.
 
   If not specified, the working directory is set
-  to the home directory defined using **-w** option.
-
+  to the home directory defined using **-h** option.
   Check **-h** command option for more details.
 
   If the **path** is not the absolute path, it will
   be resolved relative to the **-h** directory.
 
 
-* **-x [prefix]**
-
-  **Set posix path prefix**
-
-  This option enables to set the prefix for private
-  environment values for posix shells.
-
-  If set the path values of the private environment
-  variables will be converted to posix format and
-  prepend by the **prefix**.
-
-  Use the **-x:/** for mingw/msys or **-x:/cygroot/** for cygwin
-  shells set by **-c** command option.
-
-  For example if the **SVCBATCH_SERVICE_TEMP** variable is set
-  to the **C:\\Temp**
-
-  ```no-highlight
-
-  > svcbatch create ... -x:/ -c:bash.exe ...
-  ...
-
-  ```
-
-  The bash.exe process will have the **SVCBATCH_SERVICE_TEMP**
-  variable set to the **/c/Temp**
-
-
-
-
   **Notice**
 
-  Use this option only if running scripts using posix shell.
-  Otherwise the exported private environment variables will
-  be unusable.
+  If defined, the working directory must exist and have
+  read and write access rights for the current process.
 
 
 ## Private Environment Variables
@@ -1014,22 +1051,26 @@ Those variable by default have **SVCBATCH_SERVICE** prefix.
 Here is the list of environment variables that
 SvcBatch sets for each instance.
 
+
 * **SVCBATCH_SERVICE_BASE**
 
   This variable is set to the directory of the service
   script file.
 
+
 * **SVCBATCH_SERVICE_HOME**
 
   This variable is set to the service home directory.
 
+
 * **SVCBATCH_SERVICE_LOGS**
 
-  This variable is set to the service's log directory.
+  This variable is set to the service's output directory.
 
   In case the logging is disabled, by using **-f:Q**
-  command option, this variable is set to the **SVCBATCH_SERVICE_WORK**
+  command option, this variable is set to the **SVCBATCH_SERVICE_TEMP**
   directory.
+
 
 * **SVCBATCH_SERVICE_NAME**
 
@@ -1063,8 +1104,10 @@ SvcBatch sets for each instance.
   SvcBatch verifies that the path exists, and tests to see if the
   current process has read and write access rights to the path.
 
-  Service will fail to start in case the temp directory does
-  not exist or if it misses read and write access rights.
+  In case the temp directory does not exist or if it misses the
+  read and write access rights it will be set to the service
+  work directory.
+
 
 * **SVCBATCH_SERVICE_UUID**
 
@@ -1099,6 +1142,7 @@ SvcBatch sets for each instance.
   shell process launched from SvcBatch, and as base directory
   for **SVCBATCH_SERVICE_LOGS** in case the **-o** parameter
   was defined as relative path.
+
 
 
 ## Custom Control Codes
@@ -1141,6 +1185,7 @@ If batch file or any of downstream processes do not exit within that timeout,
 SvcBatch will give another 20 seconds for all processes to exit.
 After that timeout it will simply kill each descendant process
 that originated from svcbatch.exe.
+
 
 ## Version Information
 

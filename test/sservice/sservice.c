@@ -20,6 +20,7 @@
 #include <io.h>
 #include <fcntl.h>
 
+#define WAIT_OBJECT_1  (WAIT_OBJECT_0 + 1)
 static HANDLE stopsig = NULL;
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
@@ -56,22 +57,26 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
     int i;
-    int e = 0;
-    int r = 0;
-    DWORD pid;
-    int secs = 600;
+    int e     = 0;
+    int r     = 0;
+    int secs  = 300;
+    DWORD  id;
+    DWORD  wn = 0;
+    HANDLE wh[2];
+    const wchar_t *uuid;
+
 
     _setmode(_fileno(stdout),_O_BINARY);
     setvbuf(stdout, (char*)NULL, _IONBF, 0);
-    pid = GetCurrentProcessId();
+    id = GetCurrentProcessId();
 
     stopsig = CreateEvent(NULL, TRUE, FALSE, NULL);
     if (stopsig == NULL) {
         r = GetLastError();
-        fprintf(stderr, "\n\n[%.4lu] CreateEvent failed\n", pid);
+        fprintf(stderr, "\n\n[%.4lu] CreateEvent failed\n", id);
         return r;
     }
-    fprintf(stdout, "\n[%.4lu] Program '%S' started\n", pid, wargv[0]);
+    fprintf(stdout, "\n[%.4lu] Program '%S' started\n", id, wargv[0]);
     if (argc > 1) {
         secs = _wtoi(wargv[1]);
         if (secs > 1800)
@@ -81,9 +86,8 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             fprintf(stdout, "[%.2d] %S\n", i, wargv[i]);
         }
     }
-    if (secs < 180)
-        secs = 180;
-    secs /= 2;
+    if (secs < 60)
+        secs = 60;
     fprintf(stdout, "\nEnvironment\n\n");
     while (wenv[e] != NULL) {
         fprintf(stdout, "[%.2d] %S\n", e + 1, wenv[e]);
@@ -91,26 +95,45 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
-    fprintf(stdout, "\n\n[%.4lu] Program running for %d seconds\n\n", pid, secs * 2);
+    wh[wn++] = stopsig;
+    uuid = _wgetenv(L"SVCBATCH_SERVICE_UUID");
+    if (uuid) {
+        wchar_t sn[256];
+
+        wcscpy(sn, L"Local\\ss-");
+        wcscat(sn, uuid);
+        wh[1] = OpenEventW(SYNCHRONIZE, FALSE, sn);
+        if (wh[1]) {
+            wn++;
+            fprintf(stdout, "\nStop event %S\n", sn);
+        }
+    }
+    fprintf(stdout, "\n\n[%.4lu] Program running for %d seconds\n\n", id, secs);
     i = 1;
     for(;;) {
-        DWORD ws = WaitForSingleObject(stopsig, 2000);
+        DWORD ws = WaitForMultipleObjects(wn, wh, FALSE, 1000);
 
         if (ws == WAIT_OBJECT_0) {
-            fprintf(stdout, "\n\n[%.4lu] Stop signaled\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] Stop signaled\n", id);
             fflush(stdout);
             Sleep(2000);
             break;
         }
-        fprintf(stdout, "[%.4d] ... running\n", i * 2);
+        else if (ws == WAIT_OBJECT_1) {
+            fprintf(stdout, "\n\n[%.4lu] Stop Event signaled\n", id);
+            fflush(stdout);
+            Sleep(500);
+            break;
+        }
+        fprintf(stdout, "[%.4d] ... running\n", i);
         i++;
         if (i > secs) {
-            fprintf(stderr, "\n\n[%.4d] Timeout reached\n", pid);
+            fprintf(stderr, "\n\n[%.4d] Timeout reached\n", id);
             r = ERROR_PROCESS_ABORTED;
             break;
         }
     }
-    fprintf(stdout, "\n\n[%.4lu] Program done\n", pid);
+    fprintf(stdout, "\n\n[%.4lu] Program done\n", id);
     _flushall();
     CloseHandle(stopsig);
     return r;
