@@ -4351,9 +4351,6 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
     service->status.dwServiceType  = SERVICE_WIN32_OWN_PROCESS;
     service->status.dwCurrentState = SERVICE_START_PENDING;
 
-    SVCBATCH_CS_INIT(service);
-    atexit(objectscleanup);
-
     if (argc > 0)
         service->name = argv[0];
     if (IS_EMPTY_WCS(service->name)) {
@@ -4430,9 +4427,6 @@ static DWORD svcstopmain(void)
                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(workerended))
         return GetLastError();
-    SVCBATCH_CS_INIT(service);
-    atexit(objectscleanup);
-
     DBG_PRINTF("%S (%lu) 0x%08X", service->name, cmdproc->ppid, svcoptions);
     if (outputlog) {
         rc = openlogfile(outputlog, FALSE);
@@ -5262,6 +5256,8 @@ int wmain(int argc, LPCWSTR *argv)
             goto finished;
         }
     }
+    SVCBATCH_CS_INIT(service);
+    atexit(objectscleanup);
     /**
      * Check if running as child stop process.
      */
