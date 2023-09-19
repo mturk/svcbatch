@@ -36,7 +36,7 @@ while :
 do
     echo "[`date +%H:%M:%S`] ... running"
     sleep 2
-    if [ -f "$SVCBATCH_SERVICE_LOGS/ss-$SVCBATCH_SERVICE_UUID" ]
+    if [ -f "logs/ss-$SVCBATCH_SERVICE_UUID" ]
     then
         echo
         echo "[`date +%H:%M:%S`] Stop file detected"

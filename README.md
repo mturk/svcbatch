@@ -705,37 +705,7 @@ reported to Windows Event log.
   this option will have no meaning.
 
 
-  In case the **name** starts with **/** character,
-  the **name** will be used to set the prefix for
-  private environment variables values for posix shells.
-
-  If set the path values of the private environment
-  variables will be converted to posix format and
-  prepend by the **name**.
-
-  Use the **-e:/** for mingw/msys or **-e:/cygroot/** for cygwin
-  shells set by **-c** command option.
-
-  For example if the **SVCBATCH_SERVICE_TEMP** variable is set
-  to the **C:\\Temp**
-
-  ```no-highlight
-
-  > svcbatch create ... -e:/ -c:bash.exe ...
-  ...
-
-  ```
-
-  The bash.exe process will have the **SVCBATCH_SERVICE_TEMP**
-  variable set to the **/c/Temp**
-
   **Notice**
-
-  Use this option only if running scripts using posix shell.
-  Otherwise the exported private environment variables will
-  be unusable.
-
-
 
   SvcBatch will evaluate **-e** command options in order they
   are defined in service configuration.

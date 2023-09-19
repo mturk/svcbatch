@@ -205,7 +205,6 @@ static BYTE         YYES[]        = { 89, 13, 10,  0 };
 
 static LPCSTR  cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 static LPCWSTR uenvprefix  = SVCBATCH_ENVNAME;
-static LPCWSTR xenvprefix  = NULL;
 
 static int     xwoptend    = 0;
 static int     xwoptarr    = 0;
@@ -844,43 +843,6 @@ static LPCWSTR xntowcs(DWORD n)
 }
 
 
-/**
- * Appends src to string dst of size siz where
- * siz is the full size of dst.
- * At most siz-1 characters will be copied.
- *
- * Always NUL terminates (unless siz == 0).
- * Returns siz if wcslen(initial dst) + wcslen(src),
- * is larger then siz.
- *
- */
-static int xwcslcat(LPWSTR dst, int siz, LPCWSTR src)
-{
-    LPCWSTR s = src;
-    LPWSTR  d = dst;
-    int     n = siz;
-    int     c;
-
-    ASSERT_NULL(dst, 0);
-    ASSERT_SIZE(siz, 2, 0);
-
-    while ((n-- != 0) && (*d != WNUL))
-        d++;
-    c = (int)(d - dst);
-    if (IS_EMPTY_WCS(src))
-        return c;
-    n = siz - c;
-    if (n < 2)
-        return siz;
-    while ((n-- != 1) && (*s != WNUL))
-        *d++ = *s++;
-
-    *d = WNUL;
-    if (*s != WNUL)
-        d++;
-    return (int)(d - dst);
-}
-
 static int xwcsncat(LPWSTR dst, int siz, int pos, LPCWSTR src)
 {
     LPCWSTR s = src;
@@ -889,11 +851,9 @@ static int xwcsncat(LPWSTR dst, int siz, int pos, LPCWSTR src)
     int     c;
 
     ASSERT_NULL(dst, 0);
-    ASSERT_SIZE(siz, 2, 0);
+    ASSERT_WSTR(src, pos);
 
     c = (int)(d - dst);
-    if (IS_EMPTY_WCS(src))
-        return c;
     n = siz - c;
     if (n < 2)
         return siz;
@@ -1114,10 +1074,7 @@ static DWORD xsetenvvar(LPCWSTR n, LPWSTR v)
 
 static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
 {
-    int     i;
-    WCHAR   d[SVCBATCH_PATH_MAX];
     LPCWSTR v = NULL;
-    LPCWSTR p = xenvprefix;
 
     switch (e) {
         case L'B':
@@ -1143,51 +1100,22 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
         break;
         case L'N':
             v = service->name;
-            p = NULL;
         break;
         case L'P':
             v = program->name;
-            p = NULL;
         break;
         case L'U':
             v = service->uuid;
-            p = NULL;
         break;
         case L'I':
             v = xntowcs(program->pInfo.dwProcessId);
-            p = NULL;
         break;
         case L'V':
             v = SVCBATCH_VERSION_VER;
-            p = NULL;
         break;
         default:
             return ERROR_INVALID_DATA;
         break;
-    }
-    if (p != NULL) {
-        i = xwcsncat(d, SVCBATCH_PATH_MAX, 0, p);
-        /**
-         * Strip leading \\?\ for short paths
-         * but not \\?\UNC\* paths
-         */
-        if ((v[0] == L'\\') &&
-            (v[1] == L'\\') &&
-            (v[2] == L'?' ) &&
-            (v[3] == L'\\') &&
-            (v[5] == L':')) {
-            d[i] = xtolower(v[4]);
-            i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 6);
-            xunxpathsep(d + 2);
-            v = d;
-        }
-        else if (xisalpha(v[0]) &&
-                (v[1] == L':')) {
-            d[i] = xtolower(v[0]);
-            i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 2);
-            xunxpathsep(d + 2);
-            v = d;
-        }
     }
     if (!SetEnvironmentVariableW(n, v))
         return GetLastError();
@@ -1199,38 +1127,11 @@ static DWORD xsetsvcenv(LPCWSTR p, LPCWSTR n, LPCWSTR v)
 {
     int    i;
     WCHAR  b[SVCBATCH_NAME_MAX];
-    WCHAR  d[SVCBATCH_PATH_MAX];
-
-    ASSERT_NULL(n, ERROR_BAD_ENVIRONMENT);
 
     i = xwcsncat(b, SVCBATCH_NAME_MAX, 0, p);
     i = xwcsncat(b, SVCBATCH_NAME_MAX, i, n);
-    if (i >= SVCBATCH_NAME_MAX)
+    if ((i == 0) || (i >= SVCBATCH_NAME_MAX))
         return ERROR_INVALID_PARAMETER;
-    if (xenvprefix) {
-        i = xwcslcpy(d, SVCBATCH_PATH_MAX, xenvprefix);
-        /**
-         * Strip leading \\?\ for short paths
-         * but not \\?\UNC\* paths
-         */
-        if ((v[0] == L'\\') &&
-            (v[1] == L'\\') &&
-            (v[2] == L'?' ) &&
-            (v[3] == L'\\') &&
-            (v[5] == L':')) {
-            d[i++] = xtolower(v[4]);
-            i = xwcsncat(d, SVCBATCH_PATH_MAX, i, v + 6);
-            xunxpathsep(d + 2);
-            v = d;
-        }
-        else if (xisalpha(v[0]) &&
-                (v[1] == L':')) {
-            d[i++] = xtolower(v[0]);
-            i = xwcsncat(d, SVCBATCH_PATH_MAX, i, v + 2);
-            xunxpathsep(d + 2);
-            v = d;
-        }
-    }
     if (!SetEnvironmentVariableW(b, v))
         return GetLastError();
     else
@@ -3808,10 +3709,11 @@ static DWORD createevents(void)
             return GetLastError();
     }
     if (IS_SET(SVCBATCH_OPT_STOP_SIGNAL)) {
+        int   i;
         WCHAR n[SVCBATCH_NAME_MAX];
 
-        xwcslcpy(n, SVCBATCH_NAME_MAX, SVCBATCH_STOPPFX);
-        xwcslcat(n, SVCBATCH_NAME_MAX, service->uuid);
+        i = xwcslcpy(n, SVCBATCH_NAME_MAX, SVCBATCH_STOPPFX);
+        i = xwcsncat(n, SVCBATCH_NAME_MAX, i, service->uuid);
         svcstopssig = CreateEventExW(NULL, n,
                                      CREATE_EVENT_MANUAL_RESET,
                                      EVENT_MODIFY_STATE | SYNCHRONIZE);
@@ -4126,12 +4028,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
              * multiple times
              */
             case 'e':
-                if (*xwoptarg == L'/') {
-                    if (xenvprefix)
-                        return xsyserrno(10, L"e", xwoptarg);
-                    xenvprefix = xwoptarg;
-                    break;
-                }
                 if (*xwoptarg == L'=') {
                     if (!xisvalidvarname(xwoptarg + 1))
                         return xsyserrno(14, L"e", xwoptarg);
@@ -4397,7 +4293,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         xfree(wp);
         cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS;
         OPT_SET(SVCBATCH_OPT_WRPIPE);
-        xenvprefix = NULL;
     }
     if (rotateparam) {
         if (!resolverotate(rotateparam))
