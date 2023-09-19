@@ -137,7 +137,7 @@ typedef struct _SVCBATCH_LOG {
  * Adjust this number so that SVCBATCH_IPC
  * structure aligns to 64K
  */
-#define SVCBATCH_DATA_LEN   32612
+#define SVCBATCH_DATA_LEN   32614
 typedef struct _SVCBATCH_IPC {
     DWORD   ppid;
     DWORD   options;
@@ -148,7 +148,6 @@ typedef struct _SVCBATCH_IPC {
     DWORD   application;
     DWORD   script;
     DWORD   name;
-    DWORD   temp;
     DWORD   work;
     DWORD   logs;
     DWORD   logn;
@@ -2889,7 +2888,6 @@ static DWORD runshutdown(void)
     sharedmem->application = addshmemdata(sharedmem->data, &x, cmdproc->application);
     sharedmem->script      = addshmemdata(sharedmem->data, &x, svcstop->script);
     sharedmem->name = addshmemdata(sharedmem->data, &x, service->name);
-    sharedmem->temp = addshmemdata(sharedmem->data, &x, service->temp);
     sharedmem->work = addshmemdata(sharedmem->data, &x, service->work);
     sharedmem->logs = addshmemdata(sharedmem->data, &x, service->logs);
     sharedmem->logn = addshmemdata(sharedmem->data, &x, stoplogname);
@@ -5267,6 +5265,9 @@ int wmain(int argc, LPCWSTR *argv)
         cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
 #if defined(_DEBUG)
         dbgsvcmode = 2;
+        service->temp = gettempdir();
+        dbgfopen();
+        DBG_PRINTS(cnamestamp);
 #endif
         sharedmmap  = OpenFileMappingW(FILE_MAP_READ, FALSE, p);
         if (sharedmmap == NULL) {
@@ -5292,7 +5293,6 @@ int wmain(int argc, LPCWSTR *argv)
         cmdproc->application = dp + sharedmem->application;
         cmdproc->script      = dp + sharedmem->script;
         service->name = dp + sharedmem->name;
-        service->temp = dp + sharedmem->temp;
         service->work = dp + sharedmem->work;
         service->logs = dp + sharedmem->logs;
         if (sharedmem->logn && IS_NOT(SVCBATCH_OPT_QUIET)) {
@@ -5310,10 +5310,7 @@ int wmain(int argc, LPCWSTR *argv)
             cmdproc->args[x] = dp + sharedmem->args[x];
         for (x = 0; x < cmdproc->optc; x++)
             cmdproc->opts[x] = dp + sharedmem->opts[x];
-#if defined(_DEBUG)
-        dbgfopen();
-        DBG_PRINTS(cnamestamp);
-#endif
+
         r = svcstopmain();
         goto finished;
     }
