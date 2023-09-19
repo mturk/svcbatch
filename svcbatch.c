@@ -847,6 +847,7 @@ static int xwcslcat(LPWSTR dst, int siz, int pos, LPCWSTR src)
 {
     LPCWSTR s = src;
     LPWSTR  d = dst + pos;
+    int     c = pos;
     int     n;
 
     ASSERT_NULL(dst, 0);
@@ -855,13 +856,14 @@ static int xwcslcat(LPWSTR dst, int siz, int pos, LPCWSTR src)
     n = siz - pos;
     if (n < 2)
         return siz;
-    while ((n-- != 1) && (*s != WNUL))
+    while ((n-- != 1) && (*s != WNUL)) {
         *d++ = *s++;
-
+         c++;
+    }
     *d = WNUL;
     if (*s != WNUL)
-        d++;
-    return (int)(d - dst);
+        c++;
+    return c;
 }
 
 static int xwcslcpy(LPWSTR dst, int siz, LPCWSTR src)
@@ -869,19 +871,20 @@ static int xwcslcpy(LPWSTR dst, int siz, LPCWSTR src)
     LPCWSTR s = src;
     LPWSTR  d = dst;
     int     n = siz;
+    int     c = 0;
 
     ASSERT_NULL(dst, 0);
-    ASSERT_SIZE(siz, 2, 0);
-    *d = WNUL;
     ASSERT_WSTR(src, 0);
+    ASSERT_SIZE(siz, 2, 0);
 
-    while ((n-- != 1) && (*s != WNUL))
+    while ((n-- != 1) && (*s != WNUL)) {
         *d++ = *s++;
-
+         c++;
+    }
     *d = WNUL;
     if (*s != WNUL)
-        d++;
-    return (int)(d - dst);
+        c++;
+    return c;
 }
 
 static int xvsnwprintf(LPWSTR dst, int siz,
