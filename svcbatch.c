@@ -4442,8 +4442,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             if (svcstop->script == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         }
-        if ((stopmaxlogs > 0) && (svclogfname == NULL))
+        if ((stopmaxlogs > 0) && (svclogfname == NULL) && (stoplogname == NULL))
             stoplogname = SVCBATCH_LOGSTOP;
+        if (stoplogname == NULL)
+            stopmaxlogs = 0;
     }
     else {
         SAFE_MEM_FREE(svcstop);
