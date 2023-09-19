@@ -3722,13 +3722,13 @@ static DWORD createevents(void)
     return 0;
 }
 
-static LPWSTR *mergearguments(LPWSTR msz, int *argc)
+static LPCWSTR *mergearguments(LPWSTR msz, int *argc)
 {
     int      i;
     int      x = 0;
     int      c = 1;
     LPWSTR   p;
-    LPWSTR  *argv;
+    LPCWSTR *argv;
 
     if (msz) {
         for (p = msz; *p; p++, c++) {
@@ -3737,9 +3737,9 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
         }
     }
     c   += svcmainargc;
-    argv = xwaalloc(c);
+    argv = (LPCWSTR *)xwaalloc(c);
 
-    argv[x++] = (LPWSTR)service->name;
+    argv[x++] = service->name;
     /**
      * Add option arguments in the following order
      * ImagePath
@@ -3748,7 +3748,7 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
      */
     if (svcmainargc > 0) {
         for (i = 0; i < svcmainargc; i++)
-            argv[x++] = (LPWSTR)svcmainargv[i];
+            argv[x++] = svcmainargv[i];
     }
     if (msz) {
         for (p = msz; *p; p++) {
@@ -3763,10 +3763,11 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
         DBG_PRINTF("[%.2d] '%S'", i, argv[i]);
     }
 #endif
+    xfree(msz);
     return argv;
 }
 
-static DWORD getsvcarguments(int *argc, LPWSTR **argv)
+static DWORD getsvcarguments(int *argc, LPCWSTR **argv)
 {
     DWORD   t;
     DWORD   c;
@@ -3838,7 +3839,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     int      eenvc = 0;
     int      uenvc = 0;
     int      wargc = 0;
-    LPWSTR  *wargv;
+    LPCWSTR *wargv;
     LPWSTR   eenvn[SVCBATCH_MAX_ENVS];
     LPWSTR   eenvv[SVCBATCH_MAX_ENVS];
     LPWSTR   uenvn[SVCBATCH_MAX_ENVS];
@@ -3879,8 +3880,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     return xsyserrno(16, L"c", xwoptarg);
             break;
             case 'S':
-                if (svcstop == NULL)
-                    svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                 if (svcstop->argc < SVCBATCH_MAX_ARGS)
                     svcstop->args[svcstop->argc++] = xwoptarg;
                 else
@@ -3961,9 +3960,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             case 'c':
                 if (commandparam)
                     return xsyserrno(10, L"c", xwoptarg);
-                commandparam = skipdotslash(xwoptarg);
-                if (commandparam == NULL)
-                    return xsyserrno(11, L"c", xwoptarg);
+                commandparam = xwoptarg;
                 xwoptarr     = 'C';
             break;
             case 's':
@@ -3971,8 +3968,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     return xsyserrno(10, L"s", xwoptarg);
                 svcstopparam = xwoptarg;
                 xwoptarr     = 'S';
-                if (svcstop == NULL)
-                    svcstop  = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
+                svcstop      = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
             break;
             case 'r':
                 if (rotateparam)
@@ -4263,7 +4259,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
          *
          * This is the system default value.
          */
-        wp = xexpandenvstr(commandparam);
+        wp = xexpandenvstr(skipdotslash(commandparam));
         if (wp == NULL)
             return xsyserror(GetLastError(), commandparam, NULL);
         SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
@@ -4332,17 +4328,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             else if (isdotslash(svcstopparam))
                 svcstop->script = xwcsdup(svcstopparam + 2);
             else
-                svcstop->script = xgetfinalpath(0, svcstopparam);
+                svcstop->script = xgetfinalpath(0, skipdotslash(svcstopparam));
             if (svcstop->script == NULL)
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         }
-        if ((stopmaxlogs > 0) && (svclogfname == NULL) && (stoplogname == NULL))
+        if ((stopmaxlogs > 0) && (stoplogname == NULL))
             stoplogname = SVCBATCH_LOGSTOP;
-        if (stoplogname == NULL)
-            stopmaxlogs = 0;
-    }
-    else {
-        SAFE_MEM_FREE(svcstop);
     }
 
     for (i = 0; i < cenvc; i++)
