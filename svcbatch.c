@@ -411,6 +411,7 @@ static const wchar_t *wcsmessages[] = {
     L"The maximum service name length is 256 characters",                   /* 24 */
     L"Stop the service and call Delete again",                              /* 25 */
     L"The Control code is missing. Use control [service name] <value>",     /* 26 */
+    L"The parameter is outside valid range",                                /* 27 */
 
     NULL
 };
@@ -4663,7 +4664,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     if ((wtime < 0) || (wtime > SVCBATCH_STOP_TMAX)) {
                         rv = ERROR_INVALID_PARAMETER;
                         ec = __LINE__;
-                        ed = xwoptarg;
+                        ex = SVCBATCH_MSG(27);
+                        ed = L"[0 - 180]";
+                        en = wtime;
                         goto finished;
                     }
                 }
@@ -4857,7 +4860,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             if ((sv < 1) || (sv > 4)) {
                 rv = ERROR_INVALID_PARAMETER;
                 ec = __LINE__;
-                ed = argv[0];
+                ex = SVCBATCH_MSG(27);
+                ed = L"[1 - 4]";
+                en = sv;
                 goto finished;
             }
             srflag = (sv << 28);
@@ -4869,7 +4874,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             if ((sv < 1) || (sv > 255)) {
                 rv = ERROR_INVALID_PARAMETER;
                 ec = __LINE__;
-                ed = argv[0];
+                ex = SVCBATCH_MSG(27);
+                ed = L"[1 - 255]";
+                en = sv;
                 goto finished;
             }
             srmajor = (sv << 16);
@@ -4881,7 +4888,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             if ((sv < 1) || (sv > 65535)) {
                 rv = ERROR_INVALID_PARAMETER;
                 ec = __LINE__;
-                ed = argv[0];
+                ex = SVCBATCH_MSG(27);
+                ed = L"[1 - 65535]";
+                en = sv;
                 goto finished;
             }
             srminor = sv;
@@ -4947,6 +4956,9 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if ((cc < 128) || (cc > 255)) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
+            ex = SVCBATCH_MSG(27);
+            ed = L"[128 - 255]";
+            en = cc;
             goto finished;
         }
         if (!ControlServiceExW(svc, cc,
