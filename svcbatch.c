@@ -703,7 +703,7 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
     ln = xwcslen(n);
     le = xwcslen(e);
 
-    if (lp < 2)
+    if (lp < 3)
         lp = 0;
     c = lp + ln + le;
     if (c == 0)
@@ -713,8 +713,8 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
             c += 1;
         if (IS_NOT(SVCBATCH_OPT_LONGPATHS)) {
             if ((c >= MAX_PATH) &&
-                (p[0] != L'\\') &&
-                (p[1] != L'\\'))
+                (p[1] == L':' ) &&
+                (p[2] == L'\\'))
                 o = 4;
         }
     }
@@ -2083,10 +2083,10 @@ static DWORD xfixmaxpath(LPWSTR buf, DWORD len, int isdir)
                 return len;
             /**
              * Prepend \\?\ to long paths
-             * but not if already starts with \\?\
+             * if starts with X:\
              */
-            if ((buf[0] != L'\\') &&
-                (buf[1] != L'\\')) {
+            if ((buf[1] == L':' ) &&
+                (buf[2] != L'\\')) {
                 wmemmove(buf + 4, buf, len + 1);
                 wmemcpy(buf, L"\\\\?\\", 4);
                 len += 4;
