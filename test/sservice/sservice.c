@@ -20,7 +20,6 @@
 #include <io.h>
 #include <fcntl.h>
 
-#define WAIT_OBJECT_1  (WAIT_OBJECT_0 + 1)
 static HANDLE stopsig = NULL;
 
 static BOOL WINAPI consolehandler(DWORD ctrl)
@@ -61,9 +60,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     int r     = 0;
     int secs  = 300;
     DWORD  id;
-    DWORD  wn = 0;
-    HANDLE wh[2];
-    const wchar_t *uuid;
 
 
     _setmode(_fileno(stdout),_O_BINARY);
@@ -95,34 +91,16 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
-    wh[wn++] = stopsig;
-    uuid = _wgetenv(L"SVCBATCH_SERVICE_UUID");
-    if (uuid) {
-        wchar_t sn[256];
 
-        wcscpy(sn, L"Local\\ss-");
-        wcscat(sn, uuid);
-        wh[1] = OpenEventW(SYNCHRONIZE, FALSE, sn);
-        if (wh[1]) {
-            wn++;
-            fprintf(stdout, "\nStop event %S\n", sn);
-        }
-    }
     fprintf(stdout, "\n\n[%.4lu] Program running for %d seconds\n\n", id, secs);
     i = 1;
     for(;;) {
-        DWORD ws = WaitForMultipleObjects(wn, wh, FALSE, 1000);
+        DWORD ws = WaitForSingleObject(stopsig, 1000);
 
         if (ws == WAIT_OBJECT_0) {
             fprintf(stdout, "\n\n[%.4lu] Stop signaled\n", id);
             fflush(stdout);
-            Sleep(2000);
-            break;
-        }
-        else if (ws == WAIT_OBJECT_1) {
-            fprintf(stdout, "\n\n[%.4lu] Stop Event signaled\n", id);
-            fflush(stdout);
-            Sleep(500);
+            Sleep(1000);
             break;
         }
         fprintf(stdout, "[%.4d] ... running\n", i);

@@ -23,7 +23,7 @@ rem goto doStressTest
 rem
 copy /Y svcbatch.exe xservice.exe >NUL
 rem
-svcbatch create sservice --binPath:xservice.exe -f:LCRE -c:sservice.exe [ "200 some parameters" ]
+svcbatch create sservice --binPath:xservice.exe -f:LCR -c:sservice.exe [ "200 some parameters" ]
 rem
 goto End
 rem

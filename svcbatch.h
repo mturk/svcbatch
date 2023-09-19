@@ -74,7 +74,6 @@
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
 #define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"
-#define SVCBATCH_STOPPFX       L"Local\\ss-"
 
 /**
  * Registry value name where SvcBatch store
@@ -267,16 +266,14 @@
 #define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging             */
 
 #define SVCBATCH_OPT_HAS_CTRL_BREAK 0x00000100   /* Enable CTRL_BREAK control   */
-#define SVCBATCH_OPT_STOP_FILE      0x00000200   /* Create uuid file on stop    */
-#define SVCBATCH_OPT_STOP_SIGNAL    0x00000400   /* Create uuid stop event      */
 #define SVCBATCH_OPT_ROTATE         0x00001000   /* Enable log rotation         */
 #define SVCBATCH_OPT_ROTATE_BY_SIG  0x00002000   /* Rotate by signal            */
 #define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00004000   /* Rotate by size              */
 #define SVCBATCH_OPT_ROTATE_BY_TIME 0x00008000   /* Rotate by time              */
 
 
-#define SVCBATCH_FAIL_ERROR     0   /* Set service error if run endeded without stop    */
-#define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
+#define SVCBATCH_FAIL_NONE      0   /* Do not set error if run ends without stop        */
+#define SVCBATCH_FAIL_ERROR     1   /* Set service error if run endeded without stop    */
 #define SVCBATCH_FAIL_EXIT      2   /* Call exit() on stop without scm CTRL_STOP        */
 
 /**

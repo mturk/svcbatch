@@ -365,52 +365,6 @@ reported to Windows Event log.
       to the Windows Event log.
 
 
-    * **E**
-
-      **Create stop event**
-
-      This option will create a named Windows event object
-      with name is **Local\ss-%SVCBATCH_SERVICE_UUID%**.
-
-      On service stop, SvcBatch will set that event and
-      wait for service script to finish.
-
-      The service application should use `OpenEvent` Windows
-      API, to open and wait for that event.
-
-      When that event enters the signaled state, service should exit.
-
-      **Notice**
-
-      This option is mutually exclusive with **F** feature
-      and **-s** command option.
-      If this feature is defined together with the mentioned option,
-      the service will fail to start, and write an error message
-      to the Windows Event log.
-
-
-    * **F**
-
-      **Create stop file**
-
-      This option will create a file inside service logs
-      directory on service stop.
-
-      The created temporary file name is **ss-%SVCBATCH_SERVICE_UUID%**,
-      and can be used by service script or application to signal
-      that service should stop.
-
-      Service should monitor if that file exists on regular intervals,
-      and if the file is present, service should exit.
-
-      **Notice**
-
-      This option is mutually exclusive with **E** feature
-      and **-s** command option.
-      If this feature is defined together with the mentioned option,
-      the service will fail to start, and write an error message
-      to the Windows Event log.
-
     * **L**
 
       **Use local time**
@@ -480,6 +434,16 @@ reported to Windows Event log.
       service failure in case it enters a `STOP` state
       without explicit Stop command from the SCM.
 
+      This mode will not set the error code when the service
+      fails. The information message will be written to
+      the Windows Event log and service will enter a stop state.
+
+      The typical usage of this feature is for the services
+      that run for some time and then stop.
+
+
+    * **1**
+
       This mode will set the error code when the service
       fails. The error message will be written to
       the Windows Event log and service will enter a stop state.
@@ -502,13 +466,8 @@ reported to Windows Event log.
       The upper example will restart `myService` service after `10`
       seconds if it enters a stop state without Stop command.
 
-      This is the default mode.
+      **This is the default mode.**
 
-    * **1**
-
-      This mode will not set the error code when the service
-      fails. The information message will be written to
-      the Windows Event log and service will enter a stop state.
 
     * **2**
 

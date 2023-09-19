@@ -185,8 +185,6 @@ static DWORD     svcoptions     = SVCBATCH_OPT_ENV;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 static int       svcfailmode    = SVCBATCH_FAIL_ERROR;
-static HANDLE    svcstopfile    = NULL;
-static HANDLE    svcstopssig    = NULL;
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
@@ -3032,46 +3030,6 @@ static DWORD WINAPI stopthread(void *ssp)
             }
         }
     }
-    if (IS_SET(SVCBATCH_OPT_STOP_FILE)) {
-        LPWSTR fn;
-
-        rs = GetTickCount64();
-        fn = xwmakepath(service->logs, L"ss-", service->uuid);
-        DBG_PRINTF("stop file %S", fn);
-        svcstopfile = CreateFileW(fn, GENERIC_READ | GENERIC_WRITE,
-                                  FILE_SHARE_READ, NULL, CREATE_NEW,
-                                  FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE,
-                                  NULL);
-        if (svcstopfile != INVALID_HANDLE_VALUE) {
-            DWORD wr;
-
-            WriteFile(svcstopfile, YYES, 1, &wr, NULL);
-            FlushFileBuffers(svcstopfile);
-            DBG_PRINTF("waiting %d ms for worker", ri);
-            ws = WaitForSingleObject(workerended, ri);
-            if (ws != WAIT_OBJECT_0) {
-                ri = (int)(GetTickCount64() - rs);
-                ri = stoptimeout - ri;
-                if (ri < SVCBATCH_STOP_SYNC)
-                    ri = SVCBATCH_STOP_SYNC;
-            }
-        }
-        xfree(fn);
-    }
-    if (IS_SET(SVCBATCH_OPT_STOP_SIGNAL)) {
-        rs = GetTickCount64();
-
-        DBG_PRINTS("setting stop signal");
-        SetEvent(svcstopssig);
-        DBG_PRINTF("waiting %d ms for worker", ri);
-        ws = WaitForSingleObject(workerended, ri);
-        if (ws != WAIT_OBJECT_0) {
-            ri = (int)(GetTickCount64() - rs);
-            ri = stoptimeout - ri;
-            if (ri < SVCBATCH_STOP_SYNC)
-                ri = SVCBATCH_STOP_SYNC;
-        }
-    }
     if (ws != WAIT_OBJECT_0) {
         xsvcstatus(SERVICE_STOP_PENDING, 0);
         SetConsoleCtrlHandler(NULL, TRUE);
@@ -3670,8 +3628,6 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(svcstopdone);
     SAFE_CLOSE_HANDLE(stopstarted);
     SAFE_CLOSE_HANDLE(dologrotate);
-    SAFE_CLOSE_HANDLE(svcstopfile);
-    SAFE_CLOSE_HANDLE(svcstopssig);
     if (sharedmem)
         UnmapViewOfFile(sharedmem);
     SAFE_CLOSE_HANDLE(sharedmmap);
@@ -3701,18 +3657,6 @@ static DWORD createevents(void)
                                      CREATE_EVENT_MANUAL_RESET,
                                      EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (IS_INVALID_HANDLE(dologrotate))
-            return GetLastError();
-    }
-    if (IS_SET(SVCBATCH_OPT_STOP_SIGNAL)) {
-        int   i;
-        WCHAR n[SVCBATCH_NAME_MAX];
-
-        i = xwcslcpy(n, SVCBATCH_NAME_MAX, SVCBATCH_STOPPFX);
-        i = xwcslcat(n, SVCBATCH_NAME_MAX, i, service->uuid);
-        svcstopssig = CreateEventExW(NULL, n,
-                                     CREATE_EVENT_MANUAL_RESET,
-                                     EVENT_MODIFY_STATE | SYNCHRONIZE);
-        if (IS_INVALID_HANDLE(svcstopssig))
             return GetLastError();
     }
     return 0;
@@ -3890,12 +3834,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'C':
                             OPT_SET(SVCBATCH_OPT_HAS_CTRL_BREAK);
                         break;
-                        case L'E':
-                            OPT_SET(SVCBATCH_OPT_STOP_SIGNAL);
-                        break;
-                        case L'F':
-                            OPT_SET(SVCBATCH_OPT_STOP_FILE);
-                        break;
                         case L'L':
                             OPT_SET(SVCBATCH_OPT_LOCALTIME);
                         break;
@@ -4072,14 +4010,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         IS_SET(SVCBATCH_OPT_HAS_CTRL_BREAK)) {
         return xsyserrno(21, L"features B and C", xwoptarg);
     }
-    if (IS_SET(SVCBATCH_OPT_STOP_FILE) &&
-        IS_SET(SVCBATCH_OPT_STOP_SIGNAL)) {
-        return xsyserrno(21, L"features E and F", xwoptarg);
-    }
-    if (IS_SET(SVCBATCH_OPT_STOP_FILE)   && svcstopparam)
-        return xsyserrno(21, L"feature F and option s", xwoptarg);
-    if (IS_SET(SVCBATCH_OPT_STOP_SIGNAL) && svcstopparam)
-        return xsyserrno(21, L"feature E and option s", xwoptarg);
 
     wargc -= xwoptind;
     wargv += xwoptind;
