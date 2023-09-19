@@ -2939,55 +2939,6 @@ finished:
     return rc;
 }
 
-static DWORD cmdshutdown(void)
-{
-    DWORD i;
-    DWORD rc;
-
-    DBG_PRINTS("started");
-    rc = createiopipes(&svcstop->sInfo, NULL, NULL, 0);
-    if (rc != 0) {
-        DBG_PRINTF("createiopipes failed with %lu", rc);
-        return rc;
-    }
-
-    svcstop->commandLine = xappendarg(1, NULL, svcstop->application);
-    for (i = 0; i < svcstop->argc; i++)
-        svcstop->commandLine = xappendarg(1, svcstop->commandLine, svcstop->args[i]);
-    DBG_PRINTF("cmdline %S", svcstop->commandLine);
-
-    svcstop->sInfo.dwFlags     = STARTF_USESHOWWINDOW;
-    svcstop->sInfo.wShowWindow = SW_HIDE;
-    if (!CreateProcessW(svcstop->application,
-                        svcstop->commandLine,
-                        NULL, NULL, TRUE,
-                        CREATE_UNICODE_ENVIRONMENT | CREATE_NEW_CONSOLE,
-                        NULL, NULL,
-                        &svcstop->sInfo,
-                        &svcstop->pInfo)) {
-        rc = GetLastError();
-        xsyserror(rc, L"CreateProcess", svcstop->application);
-        goto finished;
-    }
-    InterlockedExchange(&svcstop->state, SVCBATCH_PROCESS_RUNNING);
-    SAFE_CLOSE_HANDLE(svcstop->pInfo.hThread);
-    SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdInput);
-    SAFE_CLOSE_HANDLE(svcstop->sInfo.hStdError);
-
-    DBG_PRINTF("waiting %lu ms for shutdown process %lu",
-               stoptimeout, svcstop->pInfo.dwProcessId);
-    rc = WaitForSingleObject(svcstop->pInfo.hProcess, stoptimeout);
-    if (rc == WAIT_OBJECT_0)
-        GetExitCodeProcess(svcstop->pInfo.hProcess, &rc);
-    else
-        killprocess(svcstop, rc);
-finished:
-    svcstop->exitCode = rc;
-    closeprocess(svcstop);
-    DBG_PRINTF("done %lu", rc);
-    return rc;
-}
-
 static DWORD WINAPI stopthread(void *ssp)
 {
     DWORD rc = 0;
@@ -3008,11 +2959,9 @@ static DWORD WINAPI stopthread(void *ssp)
     }
     if (svcstop) {
         rs = GetTickCount64();
+
         DBG_PRINTS("creating shutdown process");
-        if (svcstop->application)
-            rc = cmdshutdown();
-        else
-            rc = runshutdown();
+        rc = runshutdown();
         ri = (int)(GetTickCount64() - rs);
         DBG_PRINTF("shutdown finished with %lu in %d ms", rc, ri);
         xsvcstatus(SERVICE_STOP_PENDING, 0);
@@ -4224,28 +4173,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             svcstop->script = cmdproc->script;
             if (svcstop->argc == 0)
                 svcstop->args[svcstop->argc++] = L"stop";
-        }
-        else if (*svcstopparam == L'$') {
-            /**
-             * Use different stop application
-             */
-            wp = xexpandenvstr(skipdotslash(svcstopparam));
-            if (wp == NULL)
-                return xsyserror(GetLastError(), svcstopparam, NULL);
-            SetSearchPathMode(BASE_SEARCH_PATH_DISABLE_SAFE_SEARCHMODE);
-            if (isrelativepath(wp))
-                svcstop->application = xsearchexe(wp);
-            else
-                svcstop->application = xgetfinalpath(0, wp);
-            if (svcstop->application == NULL)
-                return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
-            xfree(wp);
-            for (x = 0; x < svcstop->argc; x++) {
-                wp = xexpandenvstr(svcstop->args[x]);
-                if (wp == NULL)
-                    return xsyserror(GetLastError(), L"ExpandEnvironment", svcstop->args[x]);
-                svcstop->args[x] = wp;
-            }
         }
         else {
             if (*svcstopparam == ':')

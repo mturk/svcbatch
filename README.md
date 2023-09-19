@@ -933,12 +933,7 @@ reported to Windows Event log.
   In case the **script** equals to **@**,
   SvcBatch will use the main service script file for shutdown,
   add pass **stop** string as the argument to that script file,
-  unless additional argument(s) were not defined.
-
-  In case the **script** starts with **$** character,
-  SvcBatch will use the string following the **$**
-  as application that will be executed instead default
-  script interpreter.
+  if the additional argument(s) were not defined.
 
 
   To set additional **arguments** for stop script
@@ -946,13 +941,12 @@ reported to Windows Event log.
 
 
   ```no-highlight
+
   > svcbatch create ... -s:stop.bat [ --connect --command=:shutdown ] ...
   ...
   > svcbatch create ... -s:@ ...
   ...
   > svcbatch create ... -s:@ [ used instead default stop ] ...
-  ...
-  > svcbatch create ... -s:$shutdown.exe [ param1 param2 ] ...
 
   ```
 
