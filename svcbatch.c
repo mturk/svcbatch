@@ -711,10 +711,12 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
     if (lp > 0) {
         if (ln > 0)
             c += 1;
-        if ((c >= MAX_PATH) &&
-            (p[0] != L'\\') &&
-            (p[1] != L'\\'))
-            o = 4;
+        if (IS_NOT(SVCBATCH_OPT_LONGPATHS)) {
+            if ((c >= MAX_PATH) &&
+                (p[0] != L'\\') &&
+                (p[1] != L'\\'))
+                o = 4;
+        }
     }
     rs = xwmalloc(c + o + 1);
 
@@ -2076,9 +2078,11 @@ static DWORD xfixmaxpath(LPWSTR buf, DWORD len)
             }
         }
         else {
+            if (IS_SET(SVCBATCH_OPT_LONGPATHS))
+                return len;
             /**
              * Prepend \\?\ to long paths
-             * but not if already starts with \\
+             * but not if already starts with \\?\
              */
             if ((buf[0] != L'\\') &&
                 (buf[1] != L'\\')) {
@@ -3793,6 +3797,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         break;
                         case L'L':
                             OPT_SET(SVCBATCH_OPT_LOCALTIME);
+                        break;
+                        case L'N':
+                            OPT_SET(SVCBATCH_OPT_LONGPATHS);
                         break;
                         case L'Q':
                             OPT_SET(SVCBATCH_OPT_QUIET);

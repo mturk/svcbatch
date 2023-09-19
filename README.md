@@ -373,6 +373,20 @@ reported to Windows Event log.
       to use local instead system time.
 
 
+    * **N**
+
+      **Use long path names**
+
+      This option enables long path behavior if enabled
+      on the system running Windows 10, Version 1607, and later.
+
+      To enable the new long path behavior, the value of
+      the **LongPathsEnabled** must be set to **1** in
+      the **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem**
+      registry key.
+
+
+
     * **P**
 
       **Enable preshutdown service notification**
