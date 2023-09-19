@@ -696,28 +696,30 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
     int    ln;
     int    le;
     int    c;
+    int    o = 0;
     int    x = 0;
 
     lp = xwcslen(p);
     ln = xwcslen(n);
     le = xwcslen(e);
 
+    if (lp < 2)
+        lp = 0;
     c = lp + ln + le;
     if (c == 0)
         return NULL;
     if (lp > 0) {
-        c += 1;
+        if (ln > 0)
+            c += 1;
         if ((c >= MAX_PATH) &&
             (p[0] != L'\\') &&
             (p[1] != L'\\'))
-            c += 4;
+            o = 4;
     }
-    rs = xwmalloc(c + 1);
+    rs = xwmalloc(c + o + 1);
 
     if (lp > 0) {
-        if ((c >= MAX_PATH) &&
-            (p[0] != L'\\') &&
-            (p[1] != L'\\')) {
+        if (o > 0) {
             wmemcpy(rs, L"\\\\?\\", 4);
             x += 4;
         }
@@ -729,8 +731,10 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
     if (ln > 0) {
         wmemcpy(rs + x, n, ln);
         x += ln;
-        if (le > 0)
-            wmemcpy(rs + x, e, le);
+    }
+    if (le > 0) {
+        wmemcpy(rs + x, e, le);
+        x += ln;
     }
     xwinpathsep(rs);
     return rs;
@@ -2071,9 +2075,10 @@ static DWORD xfixmaxpath(LPWSTR buf, DWORD len)
         else {
             /**
              * Prepend \\?\ to long paths
-             * but not if already starts with \
+             * but not if already starts with \\
              */
-            if (buf[0] != L'\\') {
+            if ((buf[0] != L'\\') &&
+                (buf[1] != L'\\')) {
                 wmemmove(buf + 4, buf, len + 1);
                 wmemcpy(buf, L"\\\\?\\", 4);
                 len += 4;
@@ -2437,7 +2442,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
     x = xwcslcat(lognn, SVCBATCH_PATH_MAX - 4, x, L".0");
     if (x >= (SVCBATCH_PATH_MAX - 4))
         return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
-    xfixmaxpath(lognn, x);
+    x = xfixmaxpath(lognn, x);
     if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
         return xsyserror(GetLastError(), log->logFile, lognn);
     if (ssp)
