@@ -3114,8 +3114,8 @@ static DWORD WINAPI stopthread(void *ssp)
         SVCBATCH_CS_LEAVE(outputlog);
     }
     if (svcstop) {
-        DBG_PRINTS("creating shutdown process");
         rs = GetTickCount64();
+        DBG_PRINTS("creating shutdown process");
         if (svcstop->application)
             rc = cmdshutdown();
         else
@@ -3138,26 +3138,21 @@ static DWORD WINAPI stopthread(void *ssp)
         }
     }
     if (IS_SET(SVCBATCH_OPT_STOP_FILE)) {
-        int   i;
-        WCHAR nb[SVCBATCH_PATH_MAX];
+        LPWSTR fn;
 
-        DBG_PRINTS("creating shutdown file");
-        i = xwcsncat(nb, SVCBATCH_PATH_MAX - 4, 0, service->logs);
-        i = xwcsncat(nb, SVCBATCH_PATH_MAX - 4, i, L"\\ss-");
-        i = xwcsncat(nb, SVCBATCH_PATH_MAX - 4, i, service->uuid);
-        xfixmaxpath(nb, i);
-        DBG_PRINTF("stop file %S", nb);
-        svcstopfile = CreateFileW(nb, GENERIC_READ | GENERIC_WRITE,
+        rs = GetTickCount64();
+        fn = xwmakepath(service->logs, L"ss-", service->uuid);
+        DBG_PRINTF("stop file %S", fn);
+        svcstopfile = CreateFileW(fn, GENERIC_READ | GENERIC_WRITE,
                                   FILE_SHARE_READ, NULL, CREATE_NEW,
                                   FILE_ATTRIBUTE_TEMPORARY | FILE_FLAG_DELETE_ON_CLOSE,
                                   NULL);
         if (svcstopfile != INVALID_HANDLE_VALUE) {
-            DWORD     wr;
+            DWORD wr;
 
             WriteFile(svcstopfile, YYES, 1, &wr, NULL);
             FlushFileBuffers(svcstopfile);
             DBG_PRINTF("waiting %d ms for worker", ri);
-            rs = GetTickCount64();
             ws = WaitForSingleObject(workerended, ri);
             if (ws != WAIT_OBJECT_0) {
                 ri = (int)(GetTickCount64() - rs);
@@ -3166,13 +3161,14 @@ static DWORD WINAPI stopthread(void *ssp)
                     ri = SVCBATCH_STOP_SYNC;
             }
         }
+        xfree(fn);
     }
     if (IS_SET(SVCBATCH_OPT_STOP_SIGNAL)) {
-        DBG_PRINTS("setting stop signal");
+        rs = GetTickCount64();
 
+        DBG_PRINTS("setting stop signal");
         SetEvent(svcstopssig);
         DBG_PRINTF("waiting %d ms for worker", ri);
-        rs = GetTickCount64();
         ws = WaitForSingleObject(workerended, ri);
         if (ws != WAIT_OBJECT_0) {
             ri = (int)(GetTickCount64() - rs);
@@ -4271,7 +4267,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
      *    directory as home directory or fail if it cannot be resolved.
      *
      */
-
     if (isabsolutepath(svcbaseparam)) {
         service->base = xgetfinalpath(1, svcbaseparam);
         if (IS_EMPTY_WCS(service->base))

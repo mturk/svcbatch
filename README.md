@@ -40,6 +40,7 @@ with your application.
   - [Stop and Shutdown](#stop-and-shutdown)
   - [Version Information](#version-information)
   - [Error Logging](#error-logging)
+- [Limitations](#limitations)
 - [License](#license)
 
 # Getting Started
@@ -213,7 +214,6 @@ You can rename **svcbatch.exe** executable to **myservice.exe**
 and modify service ImagePath registry value. When the service
 start, SvcBatch will use **myservice_debug.log** as log file.
 This can be useful when multiple service share the same SvcBatch executable.
-
 
 
 # Examples
@@ -1221,6 +1221,34 @@ bug reports.
 SvcBatch logs any runtime error to Windows Event Log.
 Use Windows **Event Viewer** and check `Windows Logs/Application/SvcBatch`
 events.
+
+
+# Limitations
+
+SvcBatch have limits for the following features:
+
+* **File name length**
+
+  The maximum file name length is limited to the
+  **4096** characters, and is defined by the
+  `#define SVCBATCH_PATH_MAX 4096` macro
+  inside [svcbatch header file](svcbatch.h)
+
+  In case your service uses file and directory names
+  larger then that number, modify the `SVCBATCH_PATH_MAX`
+  value and recompile SvcBatch.
+
+
+* **Maximum number of arguments**
+
+  The maximum number of arguments that can be passed
+  to the command processor is limited to **32**,
+  and is defined by the `#define SVCBATCH_MAX_ARGS 32`
+  macro inside [svcbatch header file](svcbatch.h)
+
+  This option also defines the maximum number of
+  parameters passed to the command interpreter when
+  **-c** command option is used.
 
 
 

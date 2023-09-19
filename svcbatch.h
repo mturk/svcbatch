@@ -128,7 +128,7 @@
  * in length, we set the limit to more
  * realistic number.
  */
-#define SVCBATCH_PATH_MAX       8192
+#define SVCBATCH_PATH_MAX       4096
 
 /**
  * Maximum length for the object names.
