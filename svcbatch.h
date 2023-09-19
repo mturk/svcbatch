@@ -117,6 +117,11 @@
 #define SVCBATCH_MAX_ARGS       32
 
 /**
+ * Maximum number of each -e option type
+ */
+#define SVCBATCH_MAX_ENVS       32
+
+/**
  * Maximum length for the path and
  * file names. Although the C Runtime
  * supports path lengths up to 32768 characters

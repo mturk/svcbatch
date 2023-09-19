@@ -619,8 +619,10 @@ reported to Windows Event log.
   The **$_W$** will be evaluated to the current working directory,
   **$_N$** will set the **value** to the current Service name, etc.
 
+  This feature is usually used when the **-f:U** feature is defined,
+  since it allows to export specific runtime value(s).
 
-  The supported **$_x$** options are:
+  The supported **$_x$** values are:
 
   ```no-highlight
 
@@ -628,6 +630,7 @@ reported to Windows Event log.
     B   Base directory
     D   Program directory
     H   Home directory
+    I   Program ProcessId
     L   Logs directory
     N   Service Name
     P   Program Name
@@ -639,11 +642,12 @@ reported to Windows Event log.
   ```
 
 
+
   The following example will modify `PATH` environment
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... -e "PATH=@ProgramFiles@\SomeApplication;@_H$@;@PATH@" ...
+  > svcbatch create ... -e "PATH=@ProgramFiles@\SomeApplication;@PATH@" ...
 
   ```
 
@@ -656,9 +660,6 @@ reported to Windows Event log.
   Each **@@** character pair will be replaced by the
   single **@** character. This allows to use **@** characters
   as part of **value** without replacing them to **%**.
-
-  The `@_H$@` variable will be evaluated to current home
-  directory, and `@_W$@` to current work directory.
 
 
   ```no-highlight
@@ -735,6 +736,14 @@ reported to Windows Event log.
   be unusable.
 
 
+
+  SvcBatch will evaluate **-e** command options in order they
+  are defined in service configuration.
+
+  It will first evaluate and set all **VAR=$_x$** variables.
+  Then it will evaluate and set all other "standard" variables.
+  Finally it will delete all environment variables defined
+  by using **-e:VAR**.
 
 
 * **-h [path]**
