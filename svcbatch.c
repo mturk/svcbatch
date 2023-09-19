@@ -843,18 +843,16 @@ static LPCWSTR xntowcs(DWORD n)
 }
 
 
-static int xwcsncat(LPWSTR dst, int siz, int pos, LPCWSTR src)
+static int xwcslcat(LPWSTR dst, int siz, int pos, LPCWSTR src)
 {
     LPCWSTR s = src;
     LPWSTR  d = dst + pos;
     int     n;
-    int     c;
 
     ASSERT_NULL(dst, 0);
     ASSERT_WSTR(src, pos);
 
-    c = (int)(d - dst);
-    n = siz - c;
+    n = siz - pos;
     if (n < 2)
         return siz;
     while ((n-- != 1) && (*s != WNUL))
@@ -1128,8 +1126,8 @@ static DWORD xsetsvcenv(LPCWSTR p, LPCWSTR n, LPCWSTR v)
     int    i;
     WCHAR  b[SVCBATCH_NAME_MAX];
 
-    i = xwcsncat(b, SVCBATCH_NAME_MAX, 0, p);
-    i = xwcsncat(b, SVCBATCH_NAME_MAX, i, n);
+    i = xwcslcat(b, SVCBATCH_NAME_MAX, 0, p);
+    i = xwcslcat(b, SVCBATCH_NAME_MAX, i, n);
     if ((i == 0) || (i >= SVCBATCH_NAME_MAX))
         return ERROR_INVALID_PARAMETER;
     if (!SetEnvironmentVariableW(b, v))
@@ -1729,19 +1727,19 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
             n = xsnwprintf(dsc, siz, err, eds);
         }
         else {
-            n = xwcsncat(dsc, siz, 0, err);
+            n = xwcslcat(dsc, siz, 0, err);
             if (eds) {
-                n = xwcsncat(dsc, siz, n, L": ");
-                n = xwcsncat(dsc, siz, n, eds);
+                n = xwcslcat(dsc, siz, n, L": ");
+                n = xwcslcat(dsc, siz, n, eds);
             }
         }
         c += n;
     }
     else {
-        n = xwcsncat(dsc, siz, 0, eds);
+        n = xwcslcat(dsc, siz, 0, eds);
         if (erp) {
-            n = xwcsncat(dsc, siz, n, L": ");
-            n = xwcsncat(dsc, siz, n, erp);
+            n = xwcslcat(dsc, siz, n, L": ");
+            n = xwcslcat(dsc, siz, n, erp);
         }
         c += n;
     }
@@ -2382,9 +2380,9 @@ static DWORD createlogsdir(LPCWSTR outdir)
     if (isrelativepath(outdir)) {
         int i;
 
-        i = xwcsncat(b, n, 0, service->work);
+        i = xwcslcat(b, n, 0, service->work);
         b[i++] = L'\\';
-        i = xwcsncat(b, n, i, outdir);
+        i = xwcslcat(b, n, i, outdir);
         if (i >= n) {
             xsyserror(0, L"GetPath", outdir);
             return ERROR_BAD_PATHNAME;
@@ -2440,7 +2438,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
             return 0;
     }
     x = xwcslcpy(lognn, SVCBATCH_PATH_MAX - 4, log->logFile);
-    x = xwcsncat(lognn, SVCBATCH_PATH_MAX - 4, x, L".0");
+    x = xwcslcat(lognn, SVCBATCH_PATH_MAX - 4, x, L".0");
     if (x >= (SVCBATCH_PATH_MAX - 4))
         return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
     xfixmaxpath(lognn, x);
@@ -2858,7 +2856,7 @@ static DWORD addshmemdata(LPWSTR d, LPDWORD x, LPCWSTR s)
         return 0;
     if (i >= SVCBATCH_DATA_LEN)
         return 0;
-    *x = xwcsncat(d, SVCBATCH_DATA_LEN, i, s) + 1;
+    *x = xwcslcat(d, SVCBATCH_DATA_LEN, i, s) + 1;
     return i;
 }
 
@@ -3340,6 +3338,7 @@ static DWORD WINAPI workerthread(void *unused)
         cmdproc->exitCode = rc;
         goto finished;
     }
+
     cmdproc->commandLine = xappendarg(1, NULL, cmdproc->application);
     for (i = 0; i < cmdproc->optc; i++)
         cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, cmdproc->opts[i]);
@@ -3713,7 +3712,7 @@ static DWORD createevents(void)
         WCHAR n[SVCBATCH_NAME_MAX];
 
         i = xwcslcpy(n, SVCBATCH_NAME_MAX, SVCBATCH_STOPPFX);
-        i = xwcsncat(n, SVCBATCH_NAME_MAX, i, service->uuid);
+        i = xwcslcat(n, SVCBATCH_NAME_MAX, i, service->uuid);
         svcstopssig = CreateEventExW(NULL, n,
                                      CREATE_EVENT_MANUAL_RESET,
                                      EVENT_MODIFY_STATE | SYNCHRONIZE);
