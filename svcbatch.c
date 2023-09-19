@@ -1634,7 +1634,7 @@ static void xiphandler(LPCWSTR e,
 static int xwinapierror(LPWSTR buf, int siz, DWORD err)
 {
     int n;
-
+    ASSERT_SIZE(siz, SBUFSIZ, 0);
     n = FormatMessageW(FORMAT_MESSAGE_FROM_SYSTEM |
                        FORMAT_MESSAGE_IGNORE_INSERTS,
                        NULL,
@@ -1704,7 +1704,8 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     int     c = 0;
     int     i = 0;
     int     n;
-    int   siz = SVCBATCH_LINE_MAX;
+    int     siz;
+    int     bsz = SVCBATCH_LINE_MAX - TBUFSIZ;
 
     if (service && service->name)
         svc = service->name;
@@ -1719,7 +1720,7 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     msg[i++] = buf + c;
     buf[c++] = L'\r';
     buf[c++] = L'\n';
-    siz = SVCBATCH_LINE_MAX - c;
+    siz = bsz - c;
     dsc = buf + c;
     if (err) {
         if (xwcschr(err, L'%')) {
@@ -1744,32 +1745,35 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     }
     buf[c++] = WNUL;
     buf[c++] = WNUL;
-    siz = SVCBATCH_LINE_MAX - c;
-
+    if (c > bsz)
+        c = bsz;
+    siz = bsz - c;
     if (ern == 0) {
         ern = ERROR_INVALID_PARAMETER;
 #if defined(_DEBUG)
         dbgprintf(fn, line, "%S", dsc);
 #endif
     }
-    else {
+    else if (siz > BBUFSIZ) {
         msg[i++] = buf + c;
         buf[c++] = L'\r';
         buf[c++] = L'\n';
         erb = buf + c;
-        siz = SVCBATCH_LINE_MAX - c;
+        siz = bsz - c;
 
         n   = xsnwprintf(erb,  siz, L"error(%lu) ", ern);
         c  += xwinapierror(erb + n, siz - n, ern);
 #if defined(_DEBUG)
         dbgprintf(fn, line, "%S, %S", dsc, erb);
 #endif
-        c += n;
+        c  += n;
         buf[c++] = WNUL;
         buf[c++] = WNUL;
-        siz = SVCBATCH_LINE_MAX - c;
+        if (c > bsz)
+            c = bsz;
+        siz = bsz - c;
     }
-    if (typ == EVENTLOG_ERROR_TYPE) {
+    if ((typ == EVENTLOG_ERROR_TYPE) && (siz > SBUFSIZ)) {
         erb = buf + c;
         xsnwprintf(erb, siz,
                    L"\r\n" CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS \
