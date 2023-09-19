@@ -1,9 +1,11 @@
 ## Running Python scripts with SvcBatch
 
-Python scripts can be run as Windows
-services using SvcBatch. All you need to do is create a simple
-batch file that will launch your Python interpreted and
-actual Python script.
+Python scripts can be run as Windows services using SvcBatch.
+
+
+You can either use the simple batch file that will
+launch your Python interpreter and actual Python script,
+or use Python interpreter directly.
 
 
 ### Prerequisites
@@ -12,60 +14,27 @@ Install or download your favorite Python distribution
 and `svcbatch.exe` binary release (or build it from the source code)
 The example depends on Python3 functionality, but the code can be modified.
 
-### Application
 
-Create a file named `pyservice.py` with the following content
+### Python script
 
-```python
-#!/usr/bin/env python
-
-"""
-One dummy infinite loop pretending to be a service
-"""
-
-import time
-
-def main():
-    print("Pyservice started", flush=True)
-
-    while True:
-        time.sleep(5)
-        now = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime())
-        print("Running : ", now, flush=True)
-
-if __name__ == '__main__':
-    main()
-
-```
-
-Save the file in the same directory where
-the `svcbatch.exe` is located.
+Inside [python](python/) directory you can find a
+simple python [script](python/pyservice.py)
+that runs as infinite loop and prints current time
+each five seconds.
 
 
-### Create service batch file
+### Wrapper batch file
 
-Create a batch file named `pyservice.bat`
-with the following content
+Inside [python](python/) directory you can find a
+simple python [batch](python/pyservice.bat) file
+that calls the python interpreter.
 
-```batchfile
-@echo off
-rem
-set "PATH=C:\Program Files\Python38;%PATH%"
-rem
-python pyservice.py
 
-```
-
-Save that file in the same location where the
-`svcbatch.exe` and `pyservice.py` are located.
-
-Modify the batch file's `set "PATH= ...` if your Python
-install location is different then `C:\Program Files\Python38`
 
 ### Installation
 
 Service installation and management tasks are done
-by using SvcBatch or Windows SC sutility.
+by using SvcBatch or Windows SC utility.
 
 
 ```no-highlight
@@ -78,8 +47,22 @@ by using SvcBatch or Windows SC sutility.
 
 ```
 
-After installation you can use SCM to start or stop the service.
+To create a service that will use python.exe directly
+without cmd.exe's wrapper pyservice.bat file, use the following:
+
+```no-highlight
+
+> svcbatch create pyservice -c:python -e:PATH=@ProgramFiles@\Python311;@PATH@ :pyservice.py
+
+
+```
+
+
+### Service management
+
+After installation you can use SvcBatch to start or stop the service.
 To manually start the service using SvcBatch, type:
+
 
 ```no-highlight
 
@@ -95,8 +78,11 @@ To stop the service, type
 
 ```
 
-### Example files
+To delete the service, type
 
-The above examples can be found inside
-[python](python/) directory.
+```no-highlight
+
+> svcbatch delete pyservice
+
+```
 

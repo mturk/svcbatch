@@ -20,7 +20,7 @@ setlocal
 rem
 if /i "x%~1" == "xcreate" goto doCreate
 rem
-set "PATH=C:\Program Files\Python39;%PATH%"
+set "PATH=%ProgramFiles%\Python311;%PATH%"
 rem
 python %~n0.py
 goto End
