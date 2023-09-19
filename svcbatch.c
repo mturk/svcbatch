@@ -93,7 +93,6 @@ typedef struct _SVCBATCH_PROCESS {
     volatile LONG       state;
     PROCESS_INFORMATION pInfo;
     STARTUPINFOW        sInfo;
-    DWORD               ppid;
     DWORD               exitCode;
     DWORD               argc;
     DWORD               optc;
@@ -137,9 +136,8 @@ typedef struct _SVCBATCH_LOG {
  * Adjust this number so that SVCBATCH_IPC
  * structure aligns to 64K
  */
-#define SVCBATCH_DATA_LEN   32614
+#define SVCBATCH_DATA_LEN   32616
 typedef struct _SVCBATCH_IPC {
-    DWORD   ppid;
     DWORD   options;
     DWORD   timeout;
     DWORD   killdepth;
@@ -2879,7 +2877,6 @@ static DWORD runshutdown(void)
                                               0, 0, DSIZEOF(SVCBATCH_IPC));
     if (sharedmem == NULL)
         return GetLastError();
-    sharedmem->ppid      = program->pInfo.dwProcessId;
     sharedmem->options   = svcoptions & 0x000000FF;
     sharedmem->timeout   = stoptimeout;
     sharedmem->killdepth = killdepth;
@@ -4425,7 +4422,7 @@ static DWORD svcstopmain(void)
                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
     if (IS_INVALID_HANDLE(workerended))
         return GetLastError();
-    DBG_PRINTF("%S (%lu) 0x%08X", service->name, cmdproc->ppid, svcoptions);
+    DBG_PRINTF("%S 0x%08X", service->name, svcoptions);
     if (outputlog) {
         rc = openlogfile(outputlog, FALSE);
         if (rc)
@@ -5284,7 +5281,6 @@ int wmain(int argc, LPCWSTR *argv)
             goto finished;
         }
         dp = sharedmem->data;
-        cmdproc->ppid = sharedmem->ppid;
         svcoptions    = sharedmem->options;
         stoptimeout   = sharedmem->timeout;
         killdepth     = sharedmem->killdepth;
