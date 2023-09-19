@@ -3763,7 +3763,6 @@ static LPCWSTR *mergearguments(LPWSTR msz, int *argc)
         DBG_PRINTF("[%.2d] '%S'", i, argv[i]);
     }
 #endif
-    xfree(msz);
     return argv;
 }
 
@@ -5183,18 +5182,24 @@ static int xwmaininit(int argc, LPCWSTR *argv)
 
 static LPWSTR gettempdir(void)
 {
-    WCHAR  bb[BBUFSIZ];
-    DWORD  nn;
+    LPWSTR p;
+    LPWSTR r;
 
-    nn = GetTempPathW(BBUFSIZ, bb);
-    if (nn == 0)
-        return NULL;
-    if (nn > MAX_PATH) {
-        SetLastError(ERROR_INSUFFICIENT_BUFFER);
-        return NULL;
+    p = xgetenv(L"TMP");
+    if (p == NULL)
+        p = xgetenv(L"TEMP");
+    if (p == NULL)
+        p = xgetenv(L"USERPROFILE");
+    if (p == NULL) {
+        r = xgetenv(L"SystemRoot");
+        if (r != NULL) {
+            p = xwcsconcat(r, L"\\Temp");
+            xfree(r);
+        }
     }
-    bb[--nn] = WNUL;
-    return xgetfinalpath(2, bb);
+    r = xgetfinalpath(2, p);
+    xfree(p);
+    return r;
 }
 
 /**
