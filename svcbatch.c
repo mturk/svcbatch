@@ -1059,12 +1059,8 @@ static DWORD xsetenvvar(LPCWSTR n, LPWSTR v)
     LPWSTR e;
 
     ASSERT_WSTR(n, ERROR_BAD_ENVIRONMENT);
-    if (IS_EMPTY_WCS(v)) {
-        if (!SetEnvironmentVariableW(n, NULL))
-            return GetLastError();
-        else
-            return 0;
-    }
+    ASSERT_WSTR(v, ERROR_INVALID_PARAMETER);
+
     e = xexpandenv(v);
     if ((e == NULL) || !SetEnvironmentVariableW(n, e))
         r = GetLastError();
@@ -1188,7 +1184,7 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
     e  = (LPWSTR)xrealloc(s1, nn * sizeof(WCHAR));
     d  = e;
 
-    if(l1) {
+    if (l1) {
         d += l1;
         *(d++) = L' ';
     }
@@ -3944,6 +3940,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         }
                     }
                     else {
+                        if (IS_EMPTY_WCS(wp))
+                            return xsyserrno(11, L"e", xwoptarg);
                         if (eenvc < SVCBATCH_MAX_ENVS) {
                             eenvn[eenvc] = pp;
                             eenvv[eenvc] = wp;
