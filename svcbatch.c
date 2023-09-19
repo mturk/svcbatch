@@ -1208,7 +1208,7 @@ static DWORD xsetsvcenv(LPCWSTR p, LPCWSTR n, LPCWSTR v)
     if (i >= SVCBATCH_NAME_MAX)
         return ERROR_INVALID_PARAMETER;
     if (xenvprefix) {
-        i = xwcsncat(d, SVCBATCH_PATH_MAX, 0, xenvprefix);
+        i = xwcslcpy(d, SVCBATCH_PATH_MAX, xenvprefix);
         /**
          * Strip leading \\?\ for short paths
          * but not \\?\UNC\* paths
@@ -1218,15 +1218,15 @@ static DWORD xsetsvcenv(LPCWSTR p, LPCWSTR n, LPCWSTR v)
             (v[2] == L'?' ) &&
             (v[3] == L'\\') &&
             (v[5] == L':')) {
-            d[i] = xtolower(v[4]);
-            i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 6);
+            d[i++] = xtolower(v[4]);
+            i = xwcsncat(d, SVCBATCH_PATH_MAX, i, v + 6);
             xunxpathsep(d + 2);
             v = d;
         }
         else if (xisalpha(v[0]) &&
                 (v[1] == L':')) {
-            d[i] = xtolower(v[0]);
-            i = xwcsncat(d, SVCBATCH_PATH_MAX, i + 1, v + 2);
+            d[i++] = xtolower(v[0]);
+            i = xwcsncat(d, SVCBATCH_PATH_MAX, i, v + 2);
             xunxpathsep(d + 2);
             v = d;
         }
@@ -4129,7 +4129,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (*xwoptarg == L'/') {
                     if (xenvprefix)
                         return xsyserrno(10, L"e", xwoptarg);
-                    xenvprefix = xwoptarg + 1;
+                    xenvprefix = xwoptarg;
                     break;
                 }
                 if (*xwoptarg == L'=') {

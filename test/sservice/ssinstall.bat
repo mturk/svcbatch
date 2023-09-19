@@ -21,7 +21,9 @@ if /i "x%~1" == "xdelete" goto doDelete
 rem
 rem goto doStressTest
 rem
-svcbatch create sservice -f:LCR -c sservice.exe [ "300 some parameters" ] ":fake script" "script argument"
+copy /Y svcbatch.exe xservice.exe >NUL
+rem
+svcbatch create sservice --binPath:xservice.exe -f:LCRE -c:sservice.exe [ "200 some parameters" ]
 rem
 goto End
 rem
@@ -35,7 +37,7 @@ copy /Y ssxsleep.bat work\ > nul
 copy /Y sservice.exe work\ > nul
 copy /Y xsleep.exe work\ > nul
 rem
-rem Presume that svcbatch.exe is in this directory
+rem
 svcbatch create sservice -f:LCR -w work
 rem
 goto End
@@ -43,6 +45,8 @@ rem
 :doDelete
 rem
 svcbatch delete sservice
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+
 rem
 :End
 exit /B 0

@@ -16,7 +16,7 @@
 # limitations under the License.
 #
 #
-# svcbatch create adummybash -f:FB -e:/ -c:bash.exe [ --norc --noprofile ] -e:PATH=@SystemDrive@\msys64\usr\bin;@PATH@ ./dummyloop.sh
+# Simple SvcBatch script
 #
 echo "Running $SVCBATCH_SERVICE_NAME Service"
 echo
@@ -29,15 +29,20 @@ echo
 echo
 #
 # Dumb infinite loop
+echo "[`date +%H:%M:%S`] Starting infinite loop"
+echo
+#
 while :
 do
-    echo "[`date +%Y%m%d%H%M%S`] ... running an infinite loop"
+    echo "[`date +%H:%M:%S`] ... running"
     sleep 2
     if [ -f "$SVCBATCH_SERVICE_LOGS/ss-$SVCBATCH_SERVICE_UUID" ]
     then
         echo
-        echo "Stop file detected. Terminating ..."
+        echo "[`date +%H:%M:%S`] Stop file detected"
         sleep 1
+        echo
+        echo "[`date +%H:%M:%S`] Terminating"
         exit 0
     fi
 done
