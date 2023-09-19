@@ -2060,10 +2060,11 @@ static BOOL isrelativepath(LPCWSTR p)
     return FALSE;
 }
 
-static DWORD xfixmaxpath(LPWSTR buf, DWORD len)
+static DWORD xfixmaxpath(LPWSTR buf, DWORD len, int isdir)
 {
     if (len > 5) {
-        if (len < MAX_PATH) {
+        DWORD siz = isdir ? 248 : MAX_PATH;
+        if (len < siz) {
             /**
              * Strip leading \\?\ for short paths
              * but not \\?\UNC\* paths
@@ -2104,7 +2105,7 @@ static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     if ((len == 0) || (len >= siz))
         return NULL;
     xwinpathsep(dst);
-    xfixmaxpath(dst, len);
+    xfixmaxpath(dst, len, 1);
     return dst;
 }
 
@@ -2120,7 +2121,7 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
     len = GetFullPathNameW(path, siz, buf, NULL);
     if ((len == 0) || (len >= siz))
         return NULL;
-    xfixmaxpath(buf, len);
+    xfixmaxpath(buf, len, isdir);
     if (isdir > 1)
         acc |= GENERIC_WRITE;
     fh = CreateFileW(buf, acc, FILE_SHARE_READ, NULL,
@@ -2132,7 +2133,7 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
     if ((len == 0) || (len >= siz))
         return NULL;
 
-    xfixmaxpath(buf, len);
+    xfixmaxpath(buf, len, isdir);
     return xwcsdup(buf);
 }
 
@@ -2150,7 +2151,7 @@ static LPWSTR xgetdirpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     if ((len == 0) || (len >= siz))
         return NULL;
 
-    xfixmaxpath(dst, len);
+    xfixmaxpath(dst, len, 1);
     return dst;
 }
 
@@ -2175,7 +2176,7 @@ static LPWSTR xsearchexe(LPCWSTR name)
     if ((len == 0) || (len >= siz))
         return NULL;
 
-    xfixmaxpath(buf, len);
+    xfixmaxpath(buf, len, 0);
     DBG_PRINTF("found %S", buf);
     return xwcsdup(buf);
 }
@@ -2395,7 +2396,7 @@ static DWORD createlogsdir(LPCWSTR outdir)
             xsyserror(0, L"GetPath", outdir);
             return ERROR_BAD_PATHNAME;
         }
-        xfixmaxpath(b, i);
+        xfixmaxpath(b, i, 1);
     }
     else {
         p = xgetfullpath(outdir, b, n);
@@ -2449,7 +2450,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
     x = xwcslcat(lognn, SVCBATCH_PATH_MAX - 4, x, L".0");
     if (x >= (SVCBATCH_PATH_MAX - 4))
         return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
-    x = xfixmaxpath(lognn, x);
+    x = xfixmaxpath(lognn, x, 0);
     if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
         return xsyserror(GetLastError(), log->logFile, lognn);
     if (ssp)
@@ -5032,7 +5033,7 @@ static int xwmaininit(int argc, LPCWSTR *argv)
         return GetLastError();
     if (nn >= (SVCBATCH_PATH_MAX - 4))
         return ERROR_INSUFFICIENT_BUFFER;
-    nn = xfixmaxpath(bb, nn);
+    nn = xfixmaxpath(bb, nn, 0);
     program->application = xwcsdup(bb);
     while (--nn > 4) {
         if ((dp == NULL) && (bb[nn] == L'.')) {
