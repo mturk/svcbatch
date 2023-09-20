@@ -10,6 +10,17 @@ For a full list of changes, see the [git commit log][log]
 
   * In development
 
+### This is major version upgrade incompatible with previous versions
+
+  * Although the concept is the same, most of the command options have been changed or have different purpose
+
+### New Features
+
+  * SvcBatch can now be used to install and manage services
+  * Support Windows long path names
+  * Improve the support for running alternate script interpreters
+
+
 
 ## v2.1.2
 
