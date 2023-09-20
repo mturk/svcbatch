@@ -373,20 +373,6 @@ reported to Windows Event log.
       to use local instead system time.
 
 
-    * **N**
-
-      **Use long path names**
-
-      This option enables long path behavior if enabled
-      on the system running Windows 10, Version 1607, and later.
-
-      To enable the new long path behavior, the value of
-      the **LongPathsEnabled** must be set to **1** in
-      the **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem**
-      registry key.
-
-
-
     * **P**
 
       **Enable preshutdown service notification**
@@ -430,6 +416,29 @@ reported to Windows Event log.
 
       Check [Private Environment Variables](#private-environment-variables)
       section, for the list of exported variables.
+
+
+    * **X**
+
+      **Use long path names**
+
+      By default Windows paths are limited to **260** characters,
+      unless prefixed by **\\?\\**. SvcBatch adds that prefix for
+      all directory names larger the **248** characters, and file
+      names larger then **MAX_PATH** (defined as `260`).
+
+      This option enables long path behavior if enabled
+      on the system running Windows 10, Version 1607, and later.
+
+      To enable the new long path behavior, the value of
+      the **LongPathsEnabled** must be set to **1** in
+      the **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem**
+      registry key.
+
+      This option can be useful for new applications targeting
+      Windows 10 platform, without the overhead of prefixing each
+      path or file name parameter or environment variable.
+
 
     * **Y**
 

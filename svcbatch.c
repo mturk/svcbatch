@@ -3797,26 +3797,26 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                             OPT_SET(SVCBATCH_OPT_HAS_CTRL_BREAK);
                         break;
                         case L'L':
-                            OPT_SET(SVCBATCH_OPT_LOCALTIME);
-                        break;
-                        case L'N':
                             OPT_SET(SVCBATCH_OPT_LONGPATHS);
                         break;
                         case L'Q':
                             OPT_SET(SVCBATCH_OPT_QUIET);
                         break;
-                        case L'P':
-                            preshutdown = SERVICE_ACCEPT_PRESHUTDOWN;
-                        break;
                         case L'R':
                             OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIG);
                             OPT_SET(SVCBATCH_OPT_ROTATE);
+                        break;
+                        case L'T':
+                            OPT_SET(SVCBATCH_OPT_LOCALTIME);
                         break;
                         case L'U':
                             OPT_CLR(SVCBATCH_OPT_ENV);
                         break;
                         case L'Y':
                             OPT_SET(SVCBATCH_OPT_WRPIPE);
+                        break;
+                        case L'P':
+                            preshutdown = SERVICE_ACCEPT_PRESHUTDOWN;
                         break;
                         case L'0':
                             svcfailmode = SVCBATCH_FAIL_ERROR;
