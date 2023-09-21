@@ -12,6 +12,7 @@ inside different environments and target applications.
 - [Ruby Examples](examples/ruby.md)
 - [PowerShell Examples](examples/powershell.md)
 - [Bash Examples](examples/bash.md)
+- [Lua Examples](examples/lua.md)
 
 # Maintainer Help
 
