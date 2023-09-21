@@ -3852,10 +3852,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             case 'e':
                 if (*xwoptarg == L'=') {
                     if (uprefixparam)
-                        return xsyserrno(10, L"o", xwoptarg);
-                    if (!xisvalidvarname(xwoptarg + 1))
-                        return xsyserrno(14, L"e", xwoptarg);
-                    uprefixparam = xwoptarg + 1;
+                        return xsyserrno(10, L"e", xwoptarg);
+                    if (xiswcschar(xwoptarg + 1, L':'))
+                        uprefixparam = service->name;
+                    else
+                        uprefixparam = xwoptarg + 1;
                     break;
                 }
                 pp = xwcsdup(xwoptarg);
@@ -4040,15 +4041,15 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     if (IS_SET(SVCBATCH_OPT_ENV)) {
         WCHAR ub[SVCBATCH_NAME_MAX];
 
-        if (uprefixparam == NULL) {
-            if (!xisvalidvarname(program->name))
-                return xsyserrno(20, L"program name", program->name);
-            i = xwcslcpy(ub, SVCBATCH_NAME_MAX, program->name);
-            xwcsupper(ub);
-            if (i >= SVCBATCH_NAME_MAX)
-                return xsyserrno(21, L"program name", program->name);
-            uprefixparam = ub;
-        }
+        if (uprefixparam == NULL)
+            uprefixparam = program->name;
+        if (!xisvalidvarname(uprefixparam))
+            return xsyserrno(20, L"Environment variable prefix", uprefixparam);
+        i = xwcslcpy(ub, SVCBATCH_NAME_MAX, uprefixparam);
+        if (i >= SVCBATCH_NAME_MAX)
+            return xsyserrno(21, L"Environment variable name", uprefixparam);
+        xwcsupper(ub);
+        uprefixparam = ub;
         xsetsvcenv(uprefixparam, L"_BASE", service->base);
         xsetsvcenv(uprefixparam, L"_HOME", service->home);
         xsetsvcenv(uprefixparam, L"_LOGS", service->logs);

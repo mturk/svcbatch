@@ -613,6 +613,9 @@ reported to Windows Event log.
   In case the **name** starts with **=** character,
   the reminder of the **name** will be used to set
   the prefix for private environment variables.
+  In case the reminder is **:** character, the
+  service name will be used as prefix for the private
+  environment variables.
 
   Check [Private Environment Variables](#private-environment-variables)
   section, for the list of exported variables.
@@ -622,12 +625,21 @@ reported to Windows Event log.
 
 
   The following example will cause SvcBatch to
+  export **ASERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
+
+  ```no-highlight
+  > svcbatch create ... -e:=ASERVICE ...
+
+  ```
+
+  The following example will cause SvcBatch to
   export **MYSERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
 
   ```no-highlight
-  > svcbatch create ... -e:=MYSERVICE ...
+  > svcbatch create myService ... -e:=: ...
 
   ```
+
 
   If **-f:U** was added to the service's configuration
   this option will have no meaning.
