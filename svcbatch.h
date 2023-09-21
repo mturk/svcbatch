@@ -68,7 +68,6 @@
 #define SVCBATCH_NAME           "SvcBatch"
 #define SVCBATCH_APPNAME        "SvcBatch Service"
 #define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
-#define SVCBATCH_UENVPFX       L"SVCBATCH_SERVICE"
 #define SVCBATCH_LOGNAME       L"SvcBatch.log"
 #define SVCBATCH_LOGSTOP       L"SvcBatch.stop.log"
 #define SVCBATCH_LOGSDIR       L"Logs"

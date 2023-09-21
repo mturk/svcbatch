@@ -3697,9 +3697,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  svcworkparam = NULL;
     LPCWSTR  svcstopparam = NULL;
     LPCWSTR  commandparam = NULL;
+    LPCWSTR  uprefixparam = NULL;
     LPCWSTR  rotateparam  = NULL;
     LPCWSTR  outdirparam  = NULL;
-    LPCWSTR  uenvprefix   = NULL;
 
     DBG_PRINTS("started");
     x = getsvcarguments(&wargc, &wargv);
@@ -3851,11 +3851,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
              */
             case 'e':
                 if (*xwoptarg == L'=') {
-                    if (uenvprefix)
+                    if (uprefixparam)
                         return xsyserrno(10, L"o", xwoptarg);
                     if (!xisvalidvarname(xwoptarg + 1))
                         return xsyserrno(14, L"e", xwoptarg);
-                    uenvprefix = xwoptarg + 1;
+                    uprefixparam = xwoptarg + 1;
                     break;
                 }
                 pp = xwcsdup(xwoptarg);
@@ -4038,26 +4038,23 @@ static int parseoptions(int sargc, LPWSTR *sargv)
      * They are unique to this service instance
      */
     if (IS_SET(SVCBATCH_OPT_ENV)) {
-        WCHAR ub[SBUFSIZ];
+        WCHAR ub[SVCBATCH_NAME_MAX];
 
-        if (uenvprefix == NULL) {
-            if (wcscmp(program->name, L"svcbatch") && xisvalidvarname(program->name)) {
-                xwcslcpy(ub, SBUFSIZ, program->name);
-                xwcsupper(ub);
-                uenvprefix = ub;
-            }
+        if (uprefixparam == NULL) {
+            if (!xisvalidvarname(program->name))
+                return xsyserrno(14, L"program name", program->name);
+            i = xwcslcat(ub, SVCBATCH_NAME_MAX, 0, program->name);
+            xwcsupper(ub);
+            i = xwcslcat(ub, SVCBATCH_NAME_MAX, i, L"_SERVICE");
+            uprefixparam = ub;
         }
-        if (uenvprefix == NULL) {
-            /* Use default name */
-            uenvprefix = SVCBATCH_UENVPFX;
-        }
-        xsetsvcenv(uenvprefix, L"_BASE", service->base);
-        xsetsvcenv(uenvprefix, L"_HOME", service->home);
-        xsetsvcenv(uenvprefix, L"_LOGS", service->logs);
-        xsetsvcenv(uenvprefix, L"_NAME", service->name);
-        xsetsvcenv(uenvprefix, L"_TEMP", service->temp);
-        xsetsvcenv(uenvprefix, L"_UUID", service->uuid);
-        xsetsvcenv(uenvprefix, L"_WORK", service->work);
+        xsetsvcenv(uprefixparam, L"_BASE", service->base);
+        xsetsvcenv(uprefixparam, L"_HOME", service->home);
+        xsetsvcenv(uprefixparam, L"_LOGS", service->logs);
+        xsetsvcenv(uprefixparam, L"_NAME", service->name);
+        xsetsvcenv(uprefixparam, L"_TEMP", service->temp);
+        xsetsvcenv(uprefixparam, L"_UUID", service->uuid);
+        xsetsvcenv(uprefixparam, L"_WORK", service->work);
     }
 
     for (i = 0; i < uenvc; i++) {
