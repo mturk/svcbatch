@@ -562,7 +562,6 @@ reported to Windows Event log.
     L   Logs directory
     N   Service Name
     P   Program Name
-    T   Temp directory
     U   Service UUID
     V   SvcBatch version
     W   Work directory
@@ -980,7 +979,7 @@ SvcBatch sets for each instance.
   This variable is set to the service's output directory.
 
   In case the logging is disabled, by using **-f:Q**
-  command option, this variable is set to the **SVCBATCH_TEMP**
+  command option, this variable is set to the **SVCBATCH_WORK**
   directory.
 
 
@@ -998,28 +997,6 @@ SvcBatch sets for each instance.
   echo Running service %SVCBATCH_NAME%
 
   ```
-
-* **SVCBATCH_TEMP**
-
-  This variable is set to the temp directory
-  of the account that was used to start the service.
-
-  SvcBatch uses GetTempPath function that checks for
-  the existence of environment variables in the following
-  order and uses the first path found:
-
-  * The path specified by the TMP environment variable.
-  * The path specified by the TEMP environment variable.
-  * The path specified by the USERPROFILE environment variable.
-  * The Windows directory.
-
-  SvcBatch verifies that the path exists, and tests to see if the
-  current process has read and write access rights to the path.
-
-  In case the temp directory does not exist or if it misses the
-  read and write access rights it will be set to the service
-  work directory.
-
 
 * **SVCBATCH_UUID**
 

@@ -32,6 +32,7 @@ static void     dbgprintf(LPCSTR, int, LPCSTR, ...);
 static void     dbgprints(LPCSTR, int, LPCSTR);
 static DWORD    dbgfopen(void);
 static int      dbgsvcmode = 0;
+static LPWSTR   dbgtemdir  = NULL;
 static volatile HANDLE  dbgfile = NULL;
 static CRITICAL_SECTION dbglock;
 
@@ -114,7 +115,6 @@ typedef struct _SVCBATCH_SERVICE {
     LPCWSTR                 name;
     LPWSTR                  base;
     LPWSTR                  home;
-    LPWSTR                  temp;
     LPWSTR                  uuid;
     LPWSTR                  work;
     LPWSTR                  logs;
@@ -1093,9 +1093,6 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
         break;
         case L'L':
             v = service->logs;
-        break;
-        case L'T':
-            v = service->temp;
         break;
         case L'W':
             v = service->work;
@@ -4044,8 +4041,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (IS_EMPTY_WCS(service->work))
             return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
     }
-    if (service->temp == NULL)
-        service->temp = service->work;
     if (!resolvescript(scriptparam))
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
     if (service->base == NULL)
@@ -4059,10 +4054,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     else {
         /**
-         * Use temp directory as logs directory
+         * Use work directory as logs directory
          * for quiet mode.
          */
-        service->logs = service->temp;
+        service->logs = service->work;
     }
     /**
      * Add additional environment variables
@@ -4084,7 +4079,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         xsetsvcenv(uprefixparam, L"_HOME", service->home);
         xsetsvcenv(uprefixparam, L"_LOGS", service->logs);
         xsetsvcenv(uprefixparam, L"_NAME", service->name);
-        xsetsvcenv(uprefixparam, L"_TEMP", service->temp);
         xsetsvcenv(uprefixparam, L"_UUID", service->uuid);
         xsetsvcenv(uprefixparam, L"_WORK", service->work);
     }
@@ -4902,9 +4896,9 @@ static DWORD dbgfopen(void)
     LPWSTR n;
     DWORD  rc;
 
-    if (IS_EMPTY_WCS(service->temp))
+    if (IS_EMPTY_WCS(dbgtemdir))
         return ERROR_PATH_NOT_FOUND;
-    n = xwmakepath(service->temp, program->name, DBG_FILE_NAME);
+    n = xwmakepath(dbgtemdir, program->name, DBG_FILE_NAME);
     h = CreateFileW(n, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                     OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
@@ -4930,6 +4924,28 @@ static DWORD dbgfopen(void)
         }
     }
     return rc;
+}
+
+static LPWSTR gettempdir(void)
+{
+    LPWSTR p;
+    LPWSTR r;
+
+    p = xgetenv(L"TMP");
+    if (p == NULL)
+        p = xgetenv(L"TEMP");
+    if (p == NULL)
+        p = xgetenv(L"USERPROFILE");
+    if (p == NULL) {
+        r = xgetenv(L"SystemRoot");
+        if (r != NULL) {
+            p = xwcsconcat(r, L"\\Temp");
+            xfree(r);
+        }
+    }
+    r = xgetfinalpath(2, p);
+    xfree(p);
+    return r;
 }
 
 #endif
@@ -4984,28 +5000,6 @@ static int xwmaininit(int argc, LPCWSTR *argv)
 
     xwcslower(program->name);
     return 0;
-}
-
-static LPWSTR gettempdir(void)
-{
-    LPWSTR p;
-    LPWSTR r;
-
-    p = xgetenv(L"TMP");
-    if (p == NULL)
-        p = xgetenv(L"TEMP");
-    if (p == NULL)
-        p = xgetenv(L"USERPROFILE");
-    if (p == NULL) {
-        r = xgetenv(L"SystemRoot");
-        if (r != NULL) {
-            p = xwcsconcat(r, L"\\Temp");
-            xfree(r);
-        }
-    }
-    r = xgetfinalpath(2, p);
-    xfree(p);
-    return r;
 }
 
 /**
@@ -5079,7 +5073,7 @@ int wmain(int argc, LPCWSTR *argv)
         cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
 #if defined(_DEBUG)
         dbgsvcmode = 2;
-        service->temp = gettempdir();
+        dbgtemdir  = gettempdir();
         dbgfopen();
         DBG_PRINTS(cnamestamp);
 #endif
@@ -5127,10 +5121,10 @@ int wmain(int argc, LPCWSTR *argv)
         r = svcstopmain();
         goto finished;
     }
-    servicemode   = 1;
-    service->temp = gettempdir();
+    servicemode = 1;
 #if defined(_DEBUG)
     dbgsvcmode  = 1;
+    dbgtemdir   = gettempdir();
     dbgfopen();
 #endif
     /**
