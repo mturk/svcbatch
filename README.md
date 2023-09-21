@@ -1042,6 +1042,20 @@ SvcBatch sets for each instance.
   was defined as relative path.
 
 
+**Notice**
+
+  In case you rename SvcBatch executable from **svcbatch.exe**
+  to for example **myapp.exe**, SvcBatch will use **MYAPP_SERVICE**
+  as prefix for those variables. In that case it will export
+  **MYAPP_SERVICE_NAME**, **MYAPP_SERVICE_HOME**, etc.
+
+  If defined, the **-e:=PREFIX** command option takes
+  precedence over this feature.
+
+  **Important**
+
+    Make sure to use only alphanumeric and underscore (`_`) characters
+    as executable name, or the service will fail to start.
 
 
 ## Stop and Shutdown
