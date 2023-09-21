@@ -34,7 +34,7 @@ rem
 rem
 rem     When creating service add '/wnodes\01'
 rem     as argument to service.bat
-rem     so that SVCBATCH_SERVICE_WORK points to the
+rem     so that SVCBATCH_WORK points to the
 rem     correct location where the log files will be created.
 rem
 rem     For example:
@@ -42,6 +42,6 @@ rem     service.bat create Tomcat11Node1 /wnodes\01
 rem
 rem Set CATALINA_HOME and CATALINA_BASE variables
 rem
-set "CATALINA_HOME=%SVCBATCH_SERVICE_HOME%"
-set "CATALINA_BASE=%SVCBATCH_SERVICE_WORK%"
+set "CATALINA_HOME=%SVCBATCH_HOME%"
+set "CATALINA_BASE=%SVCBATCH_WORK%"
 rem

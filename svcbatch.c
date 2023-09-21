@@ -4043,13 +4043,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (uprefixparam == NULL) {
             if (!xisvalidvarname(program->name))
                 return xsyserrno(20, L"program name", program->name);
-            i = xwcslcat(ub, SVCBATCH_NAME_MAX, 0, program->name);
+            i = xwcslcpy(ub, SVCBATCH_NAME_MAX, program->name);
             xwcsupper(ub);
-            if (wcscmp(ub, L"SVCBATCH") == 0)
-                i = xwcslcat(ub, SVCBATCH_NAME_MAX, i, L"_SERVICE");
             if (i >= SVCBATCH_NAME_MAX)
                 return xsyserrno(21, L"program name", program->name);
-
             uprefixparam = ub;
         }
         xsetsvcenv(uprefixparam, L"_BASE", service->base);

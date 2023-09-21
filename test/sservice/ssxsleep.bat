@@ -18,9 +18,9 @@ rem
 setlocal
 rem
 rem
-set "_SS_LOG=%SVCBATCH_SERVICE_WORK%\%SVCBATCH_SERVICE_NAME%.%~nx0.%~2log"
+set "_SS_LOG=%SVCBATCH_WORK%\%SVCBATCH_NAME%.%~nx0.%~2log"
 rem
-echo %~nx0: Running inside %SVCBATCH_SERVICE_NAME% > %_SS_LOG%
+echo %~nx0: Running inside %SVCBATCH_NAME% > %_SS_LOG%
 echo %~nx0: Sleep interval [%~1] >> %_SS_LOG%
 echo. >> %_SS_LOG%
 rem

@@ -617,12 +617,12 @@ reported to Windows Event log.
   Check [Private Environment Variables](#private-environment-variables)
   section, for the list of exported variables.
 
-  To change default **SVCBATCH_SERVICE** prefix, add
+  To change default **SVCBATCH** prefix, add
   **-e:=prefix** to your service configuration.
 
 
   The following example will cause SvcBatch to
-  export **MYSERVICE_NAME** instead default **SVCBATCH_SERVICE_NAME**, etc.
+  export **MYSERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
 
   ```no-highlight
   > svcbatch create ... -e:=MYSERVICE ...
@@ -806,7 +806,7 @@ reported to Windows Event log.
   location where SvcBatch.log files will be created.
   SvcBatch will create a **path** directory if it doesn't exist.
 
-  If not set, SvcBatch will create and use the  **SVCBATCH_SERVICE_WORK\Logs**
+  If not set, SvcBatch will create and use the  **SVCBATCH_WORK\Logs**
   directory as a location for log files and any runtime data
   that has to be created.
 
@@ -946,33 +946,33 @@ reported to Windows Event log.
 
 SvcBatch sets a few private environment variables that
 provide more info about running environments to batch files.
-Those variable by default have **SVCBATCH_SERVICE** prefix.
+Those variable by default have **SVCBATCH** prefix.
 
 Here is the list of environment variables that
 SvcBatch sets for each instance.
 
 
-* **SVCBATCH_SERVICE_BASE**
+* **SVCBATCH_BASE**
 
   This variable is set to the directory of the service
   script file.
 
 
-* **SVCBATCH_SERVICE_HOME**
+* **SVCBATCH_HOME**
 
   This variable is set to the service home directory.
 
 
-* **SVCBATCH_SERVICE_LOGS**
+* **SVCBATCH_LOGS**
 
   This variable is set to the service's output directory.
 
   In case the logging is disabled, by using **-f:Q**
-  command option, this variable is set to the **SVCBATCH_SERVICE_TEMP**
+  command option, this variable is set to the **SVCBATCH_TEMP**
   directory.
 
 
-* **SVCBATCH_SERVICE_NAME**
+* **SVCBATCH_NAME**
 
   This variable is set to the actual service name
   defined with `svcbatch create [service name] ...`
@@ -983,11 +983,11 @@ SvcBatch sets for each instance.
   rem Simple example
   rem
 
-  echo Running service %SVCBATCH_SERVICE_NAME%
+  echo Running service %SVCBATCH_NAME%
 
   ```
 
-* **SVCBATCH_SERVICE_TEMP**
+* **SVCBATCH_TEMP**
 
   This variable is set to the temp directory
   of the account that was used to start the service.
@@ -1009,38 +1009,38 @@ SvcBatch sets for each instance.
   work directory.
 
 
-* **SVCBATCH_SERVICE_UUID**
+* **SVCBATCH_UUID**
 
   This is the service's unique identifier in following hexadecimal format
   `abcd-01234567-89ab-cdef-0123-456789abcdef`.
   The first four digits are current process id, and remaining digits
   are randomly generated at service startup.
 
-  The **SVCBATCH_SERVICE_UUID** environment variable can be used
+  The **SVCBATCH_UUID** environment variable can be used
   inside batch file when unique identifier is needed.
 
   ```batchfile
   rem
   rem Create unique temp directory
   rem
-  md "%TEMP%\%SVCBATCH_SERVICE_UUID%"
+  md "%TEMP%\%SVCBATCH_UUID%"
   ...
   ... do some work using that directory
   ...
-  rd /S /Q "%TEMP%\%SVCBATCH_SERVICE_UUID%"
+  rd /S /Q "%TEMP%\%SVCBATCH_UUID%"
 
   ```
 
-* **SVCBATCH_SERVICE_WORK**
+* **SVCBATCH_WORK**
 
   This variable is set to the service working directory.
 
-  The working directory is set to **SVCBATCH_SERVICE_HOME**
+  The working directory is set to **SVCBATCH_HOME**
   directory, unless the **-w** command option was configured.
 
   This variable is set as current directory for the
   shell process launched from SvcBatch, and as base directory
-  for **SVCBATCH_SERVICE_LOGS** in case the **-o** parameter
+  for **SVCBATCH_LOGS** in case the **-o** parameter
   was defined as relative path.
 
 

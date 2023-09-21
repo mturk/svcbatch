@@ -14,7 +14,7 @@ rem
 rem set "JAVA_HOME=%JDK_11_HOME%"
 rem set "JRE_HOME=%JRE_11_HOME%"
 rem
-echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Running %SVCBATCH_NAME% Service
 echo.
 rem
 rem echo %~nx0: System Information

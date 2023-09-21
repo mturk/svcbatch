@@ -24,18 +24,18 @@ if [ "x$1" = "xstop" ]
 # Running as stop script
 #
 then
-  echo "Running $SVCBATCH_SERVICE_NAME Stop"
+  echo "Running $SVCBATCH_NAME Stop"
   echo
   echo "[`date +%H:%M:%S`] Creating stop file"
   echo
-  echo Y > logs/ss-$SVCBATCH_SERVICE_UUID
+  echo Y > logs/ss-$SVCBATCH_UUID
   sleep 1
   echo "[`date +%H:%M:%S`] Done"
   exit 0
 fi
 #
 #
-echo "Running $SVCBATCH_SERVICE_NAME Service"
+echo "Running $SVCBATCH_NAME Service"
 echo
 #
 # Print the current environment
@@ -53,13 +53,13 @@ while :
 do
     echo "[`date +%H:%M:%S`] ... running"
     sleep 2
-    if [ -f logs/ss-$SVCBATCH_SERVICE_UUID ]
+    if [ -f logs/ss-$SVCBATCH_UUID ]
     then
         echo
         echo "[`date +%H:%M:%S`] Stop file detected"
         sleep 1
         echo
-        rm -v logs/ss-$SVCBATCH_SERVICE_UUID
+        rm -v logs/ss-$SVCBATCH_UUID
         echo
         echo "[`date +%H:%M:%S`] Terminating"
         exit 0

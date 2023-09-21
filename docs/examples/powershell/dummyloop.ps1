@@ -15,7 +15,7 @@
 
 # Infinite loop
 
-Write-Host "Running from $env:SVCBATCH_SERVICE_NAME service"
+Write-Host "Running from $env:SVCBATCH_NAME service"
 
 Write-Host ""
 Write-Host "Arguments:"

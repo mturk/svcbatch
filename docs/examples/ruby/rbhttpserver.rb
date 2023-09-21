@@ -21,7 +21,7 @@ server = WEBrick::HTTPServer.new(
 )
 
 server.mount_proc '/' do |req, res|
-  res.body = 'Service name=' + ENV['SVCBATCH_SERVICE_NAME'] + ' uuid=' + ENV['SVCBATCH_SERVICE_UUID']
+  res.body = 'Service name=' + ENV['SVCBATCH_NAME'] + ' uuid=' + ENV['SVCBATCH_UUID']
 end
 
 server.start

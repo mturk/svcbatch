@@ -20,7 +20,7 @@ rem
 rem
 setlocal
 rem
-echo %~nx0: Called from %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Called from %SVCBATCH_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
 echo %~nx0: System Information

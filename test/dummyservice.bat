@@ -20,12 +20,12 @@ rem
 rem
 setlocal
 rem
-if "x%SVCBATCH_SERVICE_NAME%" == "x" goto noService
+if "x%SVCBATCH_NAME%" == "x" goto noService
 rem
 if /i "x%~1" == "xstop"     goto doShutdown
 if /i "x%~1" == "xshutdown" goto doShutdown
 rem
-echo %~nx0: Running %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Running %SVCBATCH_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
 echo %~nx0: System Information
@@ -68,7 +68,7 @@ rem ping -n 3 127.0.0.1 >NUL
 xsleep.exe 2
 rem
 rem Check if shutdown batch signaled to stop the service
-if exist "%SVCBATCH_SERVICE_LOGS%\ss-%SVCBATCH_SERVICE_UUID%" (
+if exist "%SVCBATCH_LOGS%\ss-%SVCBATCH_UUID%" (
     goto doCleanup
 )
 rem Increment counter
@@ -113,7 +113,7 @@ if %_rc% lss 10 (
 )
 rem
 rem Send shutdown signal
-rem sc stop %SVCBATCH_SERVICE_NAME%
+rem sc stop %SVCBATCH_NAME%
 goto doRun
 rem Comment above goto to simulate failure
 echo %~nx0: [%TIME%] Simulating failure
@@ -125,13 +125,13 @@ goto End
 rem
 :doCleanup
 rem
-del /F /Q "%SVCBATCH_SERVICE_LOGS%\ss-%SVCBATCH_SERVICE_UUID%" 2>NUL
+del /F /Q "%SVCBATCH_LOGS%\ss-%SVCBATCH_UUID%" 2>NUL
 if %_qc% geq 15 (
     xsleep.exe 2
     goto End
 )
 echo.
-echo %~nx0: [%TIME%] Found ss-%SVCBATCH_SERVICE_UUID%
+echo %~nx0: [%TIME%] Found ss-%SVCBATCH_UUID%
 echo %~nx0: [%TIME%] Simulating cleanup
 rem ping -n 3 127.0.0.1 >NUL
 xsleep.exe 2
@@ -144,7 +144,7 @@ rem
 rem
 :doShutdown
 rem
-echo %~nx0: Called from %SVCBATCH_SERVICE_NAME% Service
+echo %~nx0: Called from %SVCBATCH_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
 echo %~nx0: System Information
@@ -168,9 +168,9 @@ xsleep.exe 2
 rem Simple IPC mechanism to signal the service
 rem to stop by creating unique file
 echo.
-echo %~nx0: [%TIME%] Creating ss-%SVCBATCH_SERVICE_UUID%
+echo %~nx0: [%TIME%] Creating ss-%SVCBATCH_UUID%
 echo.
-echo Y> "%SVCBATCH_SERVICE_LOGS%\ss-%SVCBATCH_SERVICE_UUID%"
+echo Y> "%SVCBATCH_LOGS%\ss-%SVCBATCH_UUID%"
 rem
 :doShutdownWork
 rem ping -n 6 127.0.0.1 >NUL
@@ -184,7 +184,7 @@ goto End
 rem
 rem
 :noService
-echo %~nx0: SVCBATCH_SERVICE_NAME is not defined
+echo %~nx0: SVCBATCH_NAME is not defined
 exit /B 1
 rem
 rem

@@ -29,7 +29,7 @@ end
 --
 -- Infinite loop
 --
-print("Running", os.getenv("SVCBATCH_SERVICE_NAME"), "Service\n")
+print("Running", os.getenv("SVCBATCH_NAME"), "Service\n")
 print(os.date("[%H:%M:%S]"), "Starting an infinite loop\n")
 --
 while true do
