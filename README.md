@@ -1142,10 +1142,12 @@ SvcBatch have limits for the following features:
     |  (vertical bar or pipe)
     ?  (question mark)
     *  (asterisk)
-       (space)
   ```
 
-  Service will fail to start if the upper criteria is not met.
+  Service Name must start with alphanumeric character,
+  and its length is limited to `256` characters.
+
+  Service will **fail** to start if the upper criteria is not met.
 
 
 * **Program File Name**

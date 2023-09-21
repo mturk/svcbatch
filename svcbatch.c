@@ -403,8 +403,8 @@ static const wchar_t *wcsmessages[] = {
     L"The /\\:;<>?*|\" are not valid service name characters",              /* 23 */
     L"The maximum service name length is 256 characters",                   /* 24 */
     L"Stop the service and call Delete again",                              /* 25 */
-    L"The Control code is missing. Use control [service name] <value>",     /* 26 */
-    L"The parameter is outside valid range",                                /* 27 */
+    L"The parameter is outside valid range",                                /* 26 */
+    L"Service name starts with invalid character(s)",                       /* 27 */
 
     NULL
 };
@@ -554,6 +554,15 @@ static __inline int xisalpha(int ch)
         return 0;
 }
 
+static __inline int xisalnum(int ch)
+{
+    if (((ch > 64) && (ch < 91)) || ((ch > 96) && (ch < 123)) ||
+        ((ch > 47) && (ch < 58)))
+        return 1;
+    else
+        return 0;
+}
+
 static __inline int xisdigit(int ch)
 {
     if ((ch > 47) && (ch < 58))
@@ -623,7 +632,7 @@ static __inline LPWSTR xwcsrchr(LPCWSTR str, int c)
 static int xisvalidvarname(LPCWSTR n)
 {
     for (; *n != WNUL; n++) {
-        if (!xisalpha(*n) && !xisdigit(*n) && (*n != L'_') && (*n != L'.'))
+        if (!xisalnum(*n) && (*n != L'_') && (*n != L'.'))
             return 0;
     }
     return 1;
@@ -4407,7 +4416,13 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     service->name = argv[0];
     wtmstart      = GetTickCount64();
     DBG_PRINTF("%S %S", scmcommands[cmd], service->name);
-    if (xwcsnone(service->name, L" /\\:;<>?*|\"")) {
+    if (!xisalnum(*service->name)) {
+        rv = ERROR_INVALID_NAME;
+        ec = __LINE__;
+        ex = SVCBATCH_MSG(27);
+        goto finished;
+    }
+    if (xwcsnone(service->name, L"/\\:;<>?*|\"")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
         ex = SVCBATCH_MSG(23);
@@ -4489,7 +4504,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                     if ((wtime < 0) || (wtime > SVCBATCH_STOP_TMAX)) {
                         rv = ERROR_INVALID_PARAMETER;
                         ec = __LINE__;
-                        ex = SVCBATCH_MSG(27);
+                        ex = SVCBATCH_MSG(26);
                         ed = L"[0 - 180]";
                         en = wtime;
                         goto finished;
@@ -4689,7 +4704,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             if ((sv < 1) || (sv > 4)) {
                 rv = ERROR_INVALID_PARAMETER;
                 ec = __LINE__;
-                ex = SVCBATCH_MSG(27);
+                ex = SVCBATCH_MSG(26);
                 ed = L"[1 - 4]";
                 en = sv;
                 goto finished;
@@ -4703,7 +4718,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             if ((sv < 1) || (sv > 255)) {
                 rv = ERROR_INVALID_PARAMETER;
                 ec = __LINE__;
-                ex = SVCBATCH_MSG(27);
+                ex = SVCBATCH_MSG(26);
                 ed = L"[1 - 255]";
                 en = sv;
                 goto finished;
@@ -4717,7 +4732,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             if ((sv < 1) || (sv > 65535)) {
                 rv = ERROR_INVALID_PARAMETER;
                 ec = __LINE__;
-                ex = SVCBATCH_MSG(27);
+                ex = SVCBATCH_MSG(26);
                 ed = L"[1 - 65535]";
                 en = sv;
                 goto finished;
@@ -4961,11 +4976,11 @@ static int xwmaininit(int argc, LPCWSTR *argv)
             break;
         }
     }
-    if (!xwcsequals(dp, L"exe"))
-        return ERROR_BAD_FORMAT;
     ASSERT_WSTR(program->application, ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->directory,   ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->name,        ERROR_BAD_PATHNAME);
+    if (!xwcsequals(dp, L"exe") || !xisvalidvarname(program->name))
+        return ERROR_BAD_FORMAT;
 
     xwcslower(program->name);
     return 0;
