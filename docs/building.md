@@ -19,7 +19,7 @@ or any later version. Alternatively you use
 [MSYS2](https://www.msys2.org) mingw64 compiler toolchain.
 
 The official distributions are build using
-[Build Tools for Visual Studio 2019](https://visualstudio.microsoft.com/vs/older-downloads/)
+[Build Tools for Visual Studio 2022](https://visualstudio.microsoft.com/downloads/)
 
 
 ### Build using Visual Studio
@@ -138,45 +138,6 @@ This will create build with version strings set to `x.y.z_1.acme` where
 `x.y.z` are SvcBatch version numbers.
 
 
-### SvcBatch Lite
-
-
-Starting with version **3.0.0** SvcBatch can be build
-as "lite" version.
-
-The Lite version contains only the minimum functionality
-needed to run the service.
-
-Entire Logging and Shutdown processing is disabled.
-On service STOP SvcBatch will send `CTRL+C` or `CTRL+BREAK`
-(if `-g` command option was defined) to its child script interpreter.
-
-The resulting executable has both the smaller size
-and uses less memory resources the a standard version.
-
-To compile the Lite version use the:
-
-```cmd
-> nmake ...  _SVCBATCH_LITE=1"
-```
-
-All log related command options are disabled with
-this build. The service will fail to start in case
-it contains any of the `a`, `l`, `m`, `n`, `o`, `q`,
-`r`, `s`, `t` or `v` command option(s).
-
-Use this build for service's that do not require
-or manage its own logging, and no special shutdown
-IPC mechanism is required.
-
-To compile out Service Management code as well,
-create the build using the following:
-
-```cmd
-> nmake ...  _SVCBATCH_LITE=2"
-```
-
-
 ## Creating Release
 
 Ensure that each release tag starts with letter **v**,
@@ -216,18 +177,14 @@ and set `SVCBATCH_ISDEV_VERSION` back to `1` in [svcbatch.h](../svcbatch.h).
 Update `version="x.x.x.x"` to the new one in [svcbatch.manifest](../svcbatch.manifest)
 file, and add a new section above the current one in [CHANGES](../CHANGES.md) file.
 
-The official binary release contains standard, debug and lite
-SvcBatch builds.
+The official binary release contains standard and debug builds.
 
 It is done by invoking:
 
 ```cmd
 > mkrelease.bat /h x.y.x
 ...
-> mkrelease.bat /h /l x.y.x
+> mkrelease.bat /d x.y.x
 ...
-> mkrelease.bat /d /s x.y.x
-...
-> mkrelease.bat /d /l /s x.y.x
 
 ```
