@@ -2078,7 +2078,7 @@ static DWORD xfixmaxpath(LPWSTR buf, DWORD len, int isdir)
              * if starts with X:\
              */
             if ((buf[1] == L':' ) &&
-                (buf[2] != L'\\')) {
+                (buf[2] == L'\\')) {
                 wmemmove(buf + 4, buf, len + 1);
                 wmemcpy(buf, L"\\\\?\\", 4);
                 len += 4;
@@ -2444,6 +2444,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
     if (x >= (SVCBATCH_PATH_MAX - 4))
         return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
     x = xfixmaxpath(lognn, x, 0);
+    DBG_PRINTF("0 %S", lognn);
     if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
         return xsyserror(GetLastError(), log->logFile, lognn);
     if (ssp)
@@ -2469,9 +2470,10 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
         lognn[x] = L'0' + i;
         if (GetFileAttributesExW(logpn, GetFileExInfoStandard, &ad)) {
             if ((ad.nFileSizeHigh == 0) && (ad.nFileSizeLow == 0)) {
-                DBG_PRINTF("skipping empty %S", logpn);
+                DBG_PRINTF("%d skipping empty %S", i, logpn);
             }
             else {
+                DBG_PRINTF("%d %S", i, lognn);
                 if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
                     return xsyserror(GetLastError(), logpn, lognn);
                 if (ssp)
