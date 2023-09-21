@@ -322,6 +322,7 @@ static const char *xcommandhelp[] = {
     "\n                     Default is LocalSystem account."                                    \
     "\n      --password     The password to the account name specified by the"                  \
     "\n                     username parameter."                                                \
+    "\n      --quiet        Quiet mode, do not print status or error messages."                 \
     "\n",
     /* Config */
     "\nDescription:\n  Modifies a service entry in the registry and Service Database."          \
@@ -338,10 +339,13 @@ static const char *xcommandhelp[] = {
     "\n                     Default is LocalSystem account."                                    \
     "\n      --password     The password to the account name specified by the"                  \
     "\n                     username parameter."                                                \
+    "\n      --quiet        Quiet mode, do not print status or error messages."                 \
     "\n",
     /* Delete */
     "\nDescription:\n  Deletes a service entry from the registry."                              \
-    "\nUsage:\n  " SVCBATCH_NAME " delete [service name]\n"                                     \
+    "\nUsage:\n  " SVCBATCH_NAME " delete [service name] <options ...>\n"                       \
+    "\n    Options:"                                                                            \
+    "\n      --quiet            Quiet mode, do not print status or error messages."             \
     "\n",
     /* Help */
     "\nDescription:\n  Display command help."                                                   \
@@ -351,6 +355,7 @@ static const char *xcommandhelp[] = {
     "\nDescription:\n  Starts a service running."                                               \
     "\nUsage:\n  " SVCBATCH_NAME " start [service name] <options ...> <arguments ...>\n"        \
     "\n    Options:"                                                                            \
+    "\n      --quiet            Quiet mode, do not print status or error messages."             \
     "\n      --wait[:seconds]   Wait up to seconds until the service"                           \
     "\n                         enters the RUNNING state."                                      \
     "\n",
@@ -358,6 +363,7 @@ static const char *xcommandhelp[] = {
     "\nDescription:\n  Sends a STOP control request to a service."                              \
     "\nUsage:\n  " SVCBATCH_NAME " stop [service name] <options ...> <reason> <comment>\n"      \
     "\n    Options:"                                                                            \
+    "\n      --quiet            Quiet mode, do not print status or error messages."             \
     "\n      --wait[:seconds]   Wait up to seconds for service to stop."                        \
     "\n",
     /* Version */
