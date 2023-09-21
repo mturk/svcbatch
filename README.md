@@ -1126,6 +1126,37 @@ events.
 
 SvcBatch have limits for the following features:
 
+
+* **Service Name**
+
+  The Service Name must consists of only ASCII characters
+  except the following set:
+
+  ```no-highlight
+    <  (less than)
+    >  (greater than)
+    :  (colon)
+    "  (double quote)
+    /  (forward slash)
+    \  (backslash)
+    |  (vertical bar or pipe)
+    ?  (question mark)
+    *  (asterisk)
+       (space)
+  ```
+
+  Service will fail to start if the upper criteria is not met.
+
+
+* **Program File Name**
+
+  Default Program File Name is **svcbatch.exe**.
+
+  Program File Name can contain only alphanumeric ASCII
+  characters including underscore (`_`) and period (`.`),
+  and must end with **.exe** file extension.
+
+
 * **File name length**
 
   The maximum file name length is limited to the

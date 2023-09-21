@@ -623,7 +623,7 @@ static __inline LPWSTR xwcsrchr(LPCWSTR str, int c)
 static int xisvalidvarname(LPCWSTR n)
 {
     for (; *n != WNUL; n++) {
-        if (!isalnum(*n) && (*n != L'_'))
+        if (!xisalpha(*n) && !xisdigit(*n) && (*n != L'_') && (*n != L'.'))
             return 0;
     }
     return 1;
@@ -738,6 +738,27 @@ static LPWSTR xwcspbrk(LPCWSTR str, LPCWSTR set)
         p++;
     }
     return NULL;
+}
+
+static int xwcsnone(LPCWSTR str, LPCWSTR set)
+{
+    LPCWSTR p = str;
+    LPCWSTR q;
+
+    ASSERT_WSTR(str, 0);
+    ASSERT_WSTR(set, 0);
+    while (*p) {
+        if ((*p < 32) || (*p > 127))
+            return 1;
+        q = set;
+        while (*q) {
+            if (*p == *q)
+                return 1;
+            q++;
+        }
+        p++;
+    }
+    return 0;
 }
 
 static LPWSTR xargvtomsz(int argc, LPCWSTR *argv, int *sz)
@@ -4386,7 +4407,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     service->name = argv[0];
     wtmstart      = GetTickCount64();
     DBG_PRINTF("%S %S", scmcommands[cmd], service->name);
-    if (xwcspbrk(service->name, L"/\\:;<>?*|\"")) {
+    if (xwcsnone(service->name, L" /\\:;<>?*|\"")) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
         ex = SVCBATCH_MSG(23);
@@ -4930,7 +4951,7 @@ static int xwmaininit(int argc, LPCWSTR *argv)
     while (--nn > 4) {
         if ((dp == NULL) && (bb[nn] == L'.')) {
              dp = bb + nn;
-            *dp = WNUL;
+             *(dp++) = WNUL;
             continue;
         }
         if (bb[nn] == L'\\') {
@@ -4940,6 +4961,8 @@ static int xwmaininit(int argc, LPCWSTR *argv)
             break;
         }
     }
+    if (!xwcsequals(dp, L"exe"))
+        return ERROR_BAD_FORMAT;
     ASSERT_WSTR(program->application, ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->directory,   ERROR_BAD_PATHNAME);
     ASSERT_WSTR(program->name,        ERROR_BAD_PATHNAME);
