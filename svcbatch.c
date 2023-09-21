@@ -192,14 +192,13 @@ static HANDLE    dologrotate    = NULL;
 static HANDLE    sharedmmap     = NULL;
 static LPCWSTR   stoplogname    = NULL;
 
+static LPCSTR    cnamestamp     = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
+
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
 static WCHAR        zerostring[]  = {  0,  0,  0,  0 };
 static WCHAR        CRLFW[]       = { 13, 10,  0,  0 };
 static BYTE         YYES[]        = { 89, 13, 10,  0 };
-
-static LPCSTR  cnamestamp  = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
-static LPCWSTR uenvprefix  = SVCBATCH_ENVNAME;
 
 static int     xwoptend    = 0;
 static int     xwoptarr    = 0;
@@ -3700,6 +3699,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  commandparam = NULL;
     LPCWSTR  rotateparam  = NULL;
     LPCWSTR  outdirparam  = NULL;
+    LPCWSTR  uenvprefix   = NULL;
 
     DBG_PRINTS("started");
     x = getsvcarguments(&wargc, &wargv);
@@ -3851,6 +3851,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
              */
             case 'e':
                 if (*xwoptarg == L'=') {
+                    if (uenvprefix)
+                        return xsyserrno(10, L"o", xwoptarg);
                     if (!xisvalidvarname(xwoptarg + 1))
                         return xsyserrno(14, L"e", xwoptarg);
                     uenvprefix = xwoptarg + 1;
@@ -4036,6 +4038,19 @@ static int parseoptions(int sargc, LPWSTR *sargv)
      * They are unique to this service instance
      */
     if (IS_SET(SVCBATCH_OPT_ENV)) {
+        WCHAR ub[SBUFSIZ];
+
+        if (uenvprefix == NULL) {
+            if (wcscmp(program->name, L"svcbatch") && xisvalidvarname(program->name)) {
+                xwcslcpy(ub, SBUFSIZ, program->name);
+                xwcsupper(ub);
+                uenvprefix = ub;
+            }
+        }
+        if (uenvprefix == NULL) {
+            /* Use default name */
+            uenvprefix = SVCBATCH_UENVPFX;
+        }
         xsetsvcenv(uenvprefix, L"_BASE", service->base);
         xsetsvcenv(uenvprefix, L"_HOME", service->home);
         xsetsvcenv(uenvprefix, L"_LOGS", service->logs);
