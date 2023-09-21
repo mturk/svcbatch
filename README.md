@@ -1047,9 +1047,9 @@ SvcBatch sets for each instance.
 **Notice**
 
   In case you rename SvcBatch executable from **svcbatch.exe**
-  to for example **myapp.exe**, SvcBatch will use **MYAPP_SERVICE**
+  to for example **myservice.exe**, SvcBatch will use **MYSERVICE**
   as prefix for those variables. In that case it will export
-  **MYAPP_SERVICE_NAME**, **MYAPP_SERVICE_HOME**, etc.
+  **MYSERVICE_NAME**, **MYSERVICE_HOME**, etc.
 
   If defined, the **-e:=PREFIX** command option takes
   precedence over this feature.

@@ -397,8 +397,8 @@ static const wchar_t *wcsmessages[] = {
     L"Too many %s arguments",                                               /* 17 */
     L"The %s command was not initialized",                                  /* 18 */
     L"The %s is invalid",                                                   /* 19 */
-    L"The %s contains invalid filename characters",                         /* 20 */
-    L"The %s are mutually exclusive",                                       /* 21 */
+    L"The %s contains invalid characters",                                  /* 20 */
+    L"The %s is too large",                                                 /* 21 */
     L"Unknown command option",                                              /* 22 */
     L"The /\\:;<>?*|\" are not valid service name characters",              /* 23 */
     L"The maximum service name length is 256 characters",                   /* 24 */
@@ -3775,7 +3775,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (svclogfname)
                     return xsyserrno(10, L"n", xwoptarg);
                 if (xwcspbrk(xwoptarg, L"\\:;<>?*|\""))
-                    return xsyserrno(20, L"n", xwoptarg);
+                    return xsyserrno(14, L"n", xwoptarg);
                 if (*xwoptarg == L'/') {
                     /* Set only stop log name */
                     stoplogname = xwoptarg + 1;
@@ -4042,10 +4042,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
 
         if (uprefixparam == NULL) {
             if (!xisvalidvarname(program->name))
-                return xsyserrno(14, L"program name", program->name);
+                return xsyserrno(20, L"program name", program->name);
             i = xwcslcat(ub, SVCBATCH_NAME_MAX, 0, program->name);
             xwcsupper(ub);
-            i = xwcslcat(ub, SVCBATCH_NAME_MAX, i, L"_SERVICE");
+            if (wcscmp(ub, L"SVCBATCH") == 0)
+                i = xwcslcat(ub, SVCBATCH_NAME_MAX, i, L"_SERVICE");
+            if (i >= SVCBATCH_NAME_MAX)
+                return xsyserrno(21, L"program name", program->name);
+
             uprefixparam = ub;
         }
         xsetsvcenv(uprefixparam, L"_BASE", service->base);
