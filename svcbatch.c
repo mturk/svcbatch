@@ -686,48 +686,32 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
     int    ln;
     int    le;
     int    c;
-    int    o = 0;
     int    x = 0;
 
+    ASSERT_WSTR(p, NULL);
+    ASSERT_WSTR(n, NULL);
     lp = xwcslen(p);
     ln = xwcslen(n);
     le = xwcslen(e);
 
-    if (lp < 3)
-        lp = 0;
-    c = lp + ln + le;
-    if (c == 0)
-        return NULL;
-    if (lp > 0) {
-        if (ln > 0)
-            c += 1;
-        if (IS_NOT(SVCBATCH_OPT_LONGPATHS)) {
-            if ((c >= MAX_PATH) &&
-                (p[1] == L':' ) &&
-                (p[2] == L'\\'))
-                o = 4;
-        }
+    c = lp + ln + le + 2;
+    if (IS_NOT(SVCBATCH_OPT_LONGPATHS)) {
+        if ((c > MAX_PATH) &&
+            (p[1] == L':' ) &&
+            (p[2] == L'\\'))
+            x = 4;
     }
-    rs = xwmalloc(c + o + 1);
+    rs = xwmalloc(c + x);
 
-    if (lp > 0) {
-        if (o > 0) {
-            wmemcpy(rs, L"\\\\?\\", 4);
-            x += 4;
-        }
-        wmemcpy(rs + x, p, lp);
-        x += lp;
-        if (ln > 0)
-            rs[x++] = L'\\';
-    }
-    if (ln > 0) {
-        wmemcpy(rs + x, n, ln);
-        x += ln;
-    }
-    if (le > 0) {
-        wmemcpy(rs + x, e, le);
-        x += ln;
-    }
+    if (x > 0)
+        wmemcpy(rs, L"\\\\?\\", 4);
+    wmemcpy(rs + x, p, lp);
+    x += lp;
+    rs[x++] = L'\\';
+    wmemcpy(rs + x, n, ln);
+    if (le > 0)
+        wmemcpy(rs + x + ln, e, le);
+
     xwinpathsep(rs);
     return rs;
 }
