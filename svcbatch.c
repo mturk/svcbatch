@@ -250,7 +250,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"bcefhkmnorstw";
+static const wchar_t *scmdoptions = L"cefhkmnorstw";
 
 
 /**
@@ -3642,6 +3642,7 @@ finished:
 
 static BOOL resolvescript(LPCWSTR bp)
 {
+    LPWSTR p;
     if (cmdproc->script)
         return TRUE;
     if (IS_EMPTY_WCS(bp))
@@ -3657,18 +3658,12 @@ static BOOL resolvescript(LPCWSTR bp)
     cmdproc->script = xgetfinalpath(0, bp);
     if (IS_EMPTY_WCS(cmdproc->script))
         return FALSE;
-    if (service->base == NULL) {
-        LPWSTR p = xwcsrchr(cmdproc->script, L'\\');
-        if (p) {
-            *p = WNUL;
-            service->base = xwcsdup(cmdproc->script);
-            *p = L'\\';
-        }
-        else {
-            SAFE_MEM_FREE(cmdproc->script);
-            return FALSE;
-        }
-    }
+    p = xwcsrchr(cmdproc->script, L'\\');
+    if (p == NULL)
+        return FALSE;
+    *p = WNUL;
+    service->base = xwcsdup(cmdproc->script);
+    *p = L'\\';
     return TRUE;
 }
 
@@ -3693,7 +3688,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPWSTR   pp;
     LPWSTR   scriptparam  = NULL;
     LPWSTR   svclogfname  = NULL;
-    LPCWSTR  svcbaseparam = NULL;
     LPCWSTR  svchomeparam = NULL;
     LPCWSTR  svcworkparam = NULL;
     LPCWSTR  svcstopparam = NULL;
@@ -3806,11 +3800,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (rotateparam)
                     return xsyserrno(10, L"r", xwoptarg);
                 rotateparam = xwoptarg;
-            break;
-            case 'b':
-                if (svcbaseparam)
-                    return xsyserrno(10, L"b", xwoptarg);
-                svcbaseparam = skipdotslash(xwoptarg);
             break;
             case 'h':
                 if (svchomeparam)
@@ -3980,11 +3969,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
      *    directory as home directory or fail if it cannot be resolved.
      *
      */
-    if (isabsolutepath(svcbaseparam)) {
-        service->base = xgetfinalpath(1, svcbaseparam);
-        if (IS_EMPTY_WCS(service->base))
-            return xsyserror(ERROR_FILE_NOT_FOUND, svcbaseparam, NULL);
-    }
     if (isabsolutepath(scriptparam)) {
         if (!resolvescript(scriptparam))
             return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
@@ -4023,12 +4007,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     if (service->temp == NULL)
         service->temp = service->work;
-    if (isrelativepath(svcbaseparam)) {
-        xfree(service->base);
-        service->base = xgetfinalpath(1, svcbaseparam);
-        if (IS_EMPTY_WCS(service->base))
-            return xsyserror(ERROR_FILE_NOT_FOUND, svcbaseparam, NULL);
-    }
     if (!resolvescript(scriptparam))
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
     if (service->base == NULL)

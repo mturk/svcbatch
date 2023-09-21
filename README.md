@@ -463,20 +463,6 @@ reported to Windows Event log.
 
 
 
-* **-b [path]**
-
-  **Set service base directory**
-
-  This option enables users to explicitly set the
-  service base directory.
-
-  By default, service base is set to the directory
-  of the service script file.
-
-  If the **path** is not the absolute path, it will
-  be resolved relative to the **-h** directory.
-
-
 * **-c [program][<[> parameters <]>]**
 
   **Use alternative program for running scripts**
