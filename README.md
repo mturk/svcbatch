@@ -940,6 +940,8 @@ reported to Windows Event log.
   read and write access rights for the current process.
 
 
+
+
 ## Private Environment Variables
 
 SvcBatch sets a few private environment variables that
@@ -1052,10 +1054,11 @@ SvcBatch sets for each instance.
   If defined, the **-e:=PREFIX** command option takes
   precedence over this feature.
 
-  **Important**
+**Important**
 
-    Make sure to use only alphanumeric and underscore (`_`) characters
-    as executable name, or the service will fail to start.
+  Make sure to use only alphanumeric and underscore (`_`) characters
+  as executable name, or the service will fail to start.
+
 
 
 ## Stop and Shutdown
@@ -1074,6 +1077,7 @@ If batch file or any of downstream processes do not exit within that timeout,
 SvcBatch will give another 20 seconds for all processes to exit.
 After that timeout it will simply kill each descendant process
 that originated from svcbatch.exe.
+
 
 
 ## Version Information
@@ -1096,11 +1100,14 @@ is to open command prompt and type
 Make sure to use the correct information when filing
 bug reports.
 
+
+
 ## Error Logging
 
 SvcBatch logs any runtime error to Windows Event Log.
 Use Windows **Event Viewer** and check `Windows Logs/Application/YourServiceName`
 events.
+
 
 
 # Limitations
@@ -1129,6 +1136,7 @@ SvcBatch have limits for the following features:
   This option also defines the maximum number of
   parameters passed to the command interpreter when
   **-c** command option is used.
+
 
 
 
