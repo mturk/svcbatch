@@ -91,40 +91,6 @@ To manually start the service use:
 
 #### Step 3:
 
-Get the full java thread dump
-
-```no-highlight
-
-> svcbatch control Tomcat 233
-
-```
-
-SvcBatch sends `CONSOLE_CTRL_BREAK` signal which is captured
-by `java.exe` in the same way as clicking CTRL+Break keys in interactive console.
-The output is written to SvcBatch.log file.
-
-This feature is enabled only if `-f:C` command line option was
-defined at service's install.
-
-
-#### Step 4:
-
-Rotate log files
-
-```no-highlight
-
-> svcbatch control Tomcat 234
-
-```
-
-This feature is enabled only if the log rotation is enabled.
-Add `-f:R` command option to enable manual log rotation.
-
-Read the Log Rotation section for more details.
-
-
-#### Step 5:
-
 Stop the service by entering
 
 ```no-highlight
@@ -134,7 +100,7 @@ Stop the service by entering
 ```
 
 
-#### Step 6:
+#### Step 4:
 
 Delete the service by entering
 

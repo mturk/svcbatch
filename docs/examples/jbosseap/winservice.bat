@@ -54,8 +54,6 @@ rem
 if /i "%SERVICE_CMD%" == "create"   goto doCreate
 if /i "%SERVICE_CMD%" == "createps" goto doCreatePs
 if /i "%SERVICE_CMD%" == "delete"   goto doDelete
-if /i "%SERVICE_CMD%" == "dump"     goto doThreadDump
-if /i "%SERVICE_CMD%" == "rotate"   goto doRotate
 if /i "%SERVICE_CMD%" == "start"    goto doStart
 if /i "%SERVICE_CMD%" == "stop"     goto doStop
 rem
@@ -68,8 +66,6 @@ echo commands:
 echo   create            Create the service
 echo   createps          Create the service using powershell
 echo   delete            Delete the service
-echo   dump              Create Full JDK Thread Dump
-echo   rotate            Rotate log files
 echo   start             Start the service
 echo   stop              Stop the service
 rem
@@ -92,7 +88,7 @@ rem
     --displayName "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
     --start:automatic ^
-    -f:PCR -e:NOPAUSE=Y ^
+    -f:P -e:NOPAUSE=Y ^
     -o:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
     -s:jboss-cli.bat [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
     %SERVER_MODE%.bat %CMD_LINE_ARGS%
@@ -114,28 +110,13 @@ rem
     --displayName "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
     --start:auto ^
-    -f:PCR ^
+    -f:P ^
     -o:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
     -c:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
     -s:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
     %SERVER_MODE%.ps1 %CMD_LINE_ARGS%
 
 rem
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
-rem
-:doThreadDump
-rem
-rem
-%EXECUTABLE% control "%SERVICE_NAME%" 233
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
-rem
-rem
-:doRotate
-rem
-rem
-%EXECUTABLE% control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem

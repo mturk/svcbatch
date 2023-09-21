@@ -26,7 +26,6 @@ if /i "x%~1" == "xdelete"   goto doDelete
 if /i "x%~1" == "xremove"   goto doRemove
 if /i "x%~1" == "xstart"    goto doStart
 if /i "x%~1" == "xstop"     goto doStop
-if /i "x%~1" == "xrotate"   goto doRotate
 rem
 echo %~nx0: Unknown command %~1
 exit /B 1
@@ -89,7 +88,7 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     "--displayName=A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs:SeShutdownPrivilege ^
-    -f:PL0R -h ..\..\test -w ..\build\dbg ^
+    -f:PL0 -h ..\..\test -w ..\build\dbg ^
     %SERVICE_ENVIRONMENT% ^
     %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^
     %ROTATE_RULE% ^
@@ -166,17 +165,6 @@ if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Stopped %SERVICE_NAME%
 goto End
 rem
-:doRotate
-rem
-rem
-rem sc control "%SERVICE_NAME%" 234
-rem
-pushd "..\build\dbg"
-set "BUILD_DIR=%cd%"
-popd
-%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 234
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
 rem
 :doDelete
 rem

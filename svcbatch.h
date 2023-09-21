@@ -161,32 +161,6 @@
 #define SVCBATCH_INT_MAX        10000000
 
 /**
- * Custom SCM control code that
- * sends CTRL_BREAK_EVENT to the child processes.
- *
- * This option has to be enabled on install
- * by adding -F:G switch.
- *
- * eg. C:\>sc control SvcBatchServiceName 233
- * will cause java.exe to dump thread stack
- * if running inside batch file.
- *
- * Programs that do not handle CTRL_BREAK_EVENT
- * will cause SvcBatch to fail or hang
- */
-#define SVCBATCH_CTRL_BREAK     233
-/**
- * Custom SCM control code that
- * will send a signal to rotate the log files
- * if log rotation is enabled
- *
- * eg. C:\>sc control SvcBatchServiceName 234
- *
- * Check documentation for more details
- */
-#define SVCBATCH_CTRL_ROTATE    234
-
-/**
  * Timing definitions
  */
 #define SVCBATCH_START_HINT     10000
@@ -266,11 +240,9 @@
 #define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging             */
 #define SVCBATCH_OPT_LONGPATHS      0x00000020   /* Use LongPathsEnabled        */
 
-#define SVCBATCH_OPT_HAS_CTRL_BREAK 0x00000100   /* Enable CTRL_BREAK control   */
-#define SVCBATCH_OPT_ROTATE         0x00001000   /* Enable log rotation         */
-#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00002000   /* Rotate by signal            */
-#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00004000   /* Rotate by size              */
-#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00008000   /* Rotate by time              */
+#define SVCBATCH_OPT_ROTATE         0x00000100   /* Enable log rotation         */
+#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00000200   /* Rotate by size              */
+#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00000400   /* Rotate by time              */
 
 
 #define SVCBATCH_FAIL_NONE      0   /* Do not set error if run ends without stop        */

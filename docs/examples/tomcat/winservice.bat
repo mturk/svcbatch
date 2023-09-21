@@ -52,8 +52,6 @@ rem Process the requested command
 rem
 if /i "%SERVICE_CMD%" == "create"  goto doCreate
 if /i "%SERVICE_CMD%" == "delete"  goto doDelete
-if /i "%SERVICE_CMD%" == "dump"    goto doThreadDump
-if /i "%SERVICE_CMD%" == "rotate"  goto doRotate
 if /i "%SERVICE_CMD%" == "start"   goto doStart
 if /i "%SERVICE_CMD%" == "stop"    goto doStop
 rem
@@ -65,8 +63,6 @@ echo Usage: %~nx0 command [service_name] [arguments ...]
 echo commands:
 echo   create            Create the service
 echo   delete            Delete the service
-echo   dump              Full JDK Thread Dump
-echo   rotate            Rotate log files
 echo   start             Start the service
 echo   stop              Stop the service
 rem
@@ -96,22 +92,6 @@ rem
     -f:CR -h .. %SERVICE_LOGNAME% ^
     %SHUTDOWN_FILE% %CMD_LINE_ARGS% %SVCBATCH_FILE% run
 rem
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
-rem
-rem
-:doThreadDump
-rem
-rem
-%EXECUTABLE% control "%SERVICE_NAME%" 233
-if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-goto End
-rem
-rem
-:doRotate
-rem
-rem
-%EXECUTABLE% control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem

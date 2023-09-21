@@ -36,7 +36,6 @@ with your application.
   - [Log Rotation](#log-rotation)
   - [Command Line Options](#command-line-options)
   - [Private Environment Variables](#private-environment-variables)
-  - [Custom Control Codes](#custom-control-codes)
   - [Stop and Shutdown](#stop-and-shutdown)
   - [Version Information](#version-information)
   - [Error Logging](#error-logging)
@@ -254,18 +253,6 @@ present inside `Logs` directory using the following procedure:
 
 ```
 
-In case **-f:R** option was defined, users can use
-`sc.exe control [service name] 234` to initiate a
-log rotation at any time while the service is running.
-Note that **234** is our custom service control code.
-Number **234** has been randomly chosen, since win32
-API requires that this number must be larger then `127` and
-lower then `255`.
-
-In case the last log rotation was less then `2` minutes ago,
-or if there was no data written to the log file from the last
-rotation, SvcBatch will not rotate logs.
-
 
 ## Command Line Options
 
@@ -340,29 +327,12 @@ reported to Windows Event log.
       start /B some.exe instance2
       start /B some.exe instance3
       ...
+
       ```
 
       When using `start /B application`, the application does
       not receive `ctrl+c` signal. The `ctrl+break` is the only
       way to interrupt the application.
-
-
-    * **C**
-
-      **Enable sending CTRL_BREAK_EVENT**
-
-      This option enables our custom service control
-      code to send `CTRL_BREAK_EVENT` to the child processes.
-
-      See [Custom Control Codes](#custom-control-codes)
-      section below for more details
-
-      **Notice**
-
-      This option is mutually exclusive with **B** feature option.
-      If this option is defined together with the mentioned option,
-      the service will fail to start, and write an error message
-      to the Windows Event log.
 
 
     * **L**
@@ -395,16 +365,6 @@ reported to Windows Event log.
       **Notice**
 
       Any eventual log rotation option will not be processed.
-
-
-    * **R**
-
-      **Enable log rotation by signal**
-
-      When defined, SvcBatch will enable on demand log rotation.
-
-      See [Custom Control Codes](#custom-control-codes)
-      section below for more details
 
 
     * **U**
@@ -877,9 +837,6 @@ reported to Windows Event log.
 
   **Rotate logs by size or time interval**
 
-  SvcBatch can automatically rotate log files beside
-  explicit `sc.exe control [service name] 234` command.
-
   Depending on the **rule** parameter service can rotate
   log files at desired interval, once a day at specific time
   or when log file gets larger then defined size.
@@ -1097,29 +1054,6 @@ SvcBatch sets for each instance.
   shell process launched from SvcBatch, and as base directory
   for **SVCBATCH_SERVICE_LOGS** in case the **-o** parameter
   was defined as relative path.
-
-
-
-## Custom Control Codes
-
-SvcBatch can send `CTRL_BREAK_EVENT` signal to its child processes.
-
-This allows programs like **java.exe** to act upon that signal.
-For example JVM will dump it's full thread stack in the same way
-as if user hit the `CTRL` and `Break` keys in interactive console.
-
-Use `svcbatch control [service name] 233` to send
-`CTRL_BREAK_EVENT` to all child processes.
-Again, as with log rotate, the **233** is our custom control code.
-
-* **Important**
-
-  This option is enabled at service install time with **-f:C** command
-  switch option.
-
-  Do not send `CTRL_BREAK_EVENT` if the batch file runs a process
-  that does not have a custom `CTRL_BREAK_EVENT` console handler.
-  By default the process will exit and the service will either fail.
 
 
 

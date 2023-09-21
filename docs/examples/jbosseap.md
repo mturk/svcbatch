@@ -40,8 +40,6 @@ commands:
   create            Create the service
   createps          Create the service using powershell
   delete            Delete the service
-  dump              Create Full JDK Thread Dump
-  rotate            Rotate log files
   start             Start the service
   stop              Stop the service
 
@@ -52,7 +50,7 @@ and modify `DEFAULT_SERVICE_NAME` `SERVICE_DISPLAY`, `SERVICE_DESCIPTION`
 and `DEFAULT_SERVER_MODE` variables to match the exact version you are using.
 
 
-To create a service type ...
+To create a service type:
 
 ```no-highlight
 
@@ -65,7 +63,7 @@ Service Name : JBossEAP74
 
 ```
 
-That's it! Now, just type ...
+That's it! Now, just type:
 
 ```no-highlight
 
@@ -79,7 +77,7 @@ Service Name : JBossEAP74
 
 ```
 
-To manually stop the service type ..
+To manually stop the service type:
 
 
 ```no-highlight

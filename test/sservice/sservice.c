@@ -41,6 +41,7 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
         break;
         case CTRL_BREAK_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_BREAK_EVENT signaled\n\n", pid);
+            SetEvent(stopsig);
         break;
         case CTRL_LOGOFF_EVENT:
             fprintf(stdout, "\n\n[%.4lu] CTRL_LOGOFF_EVENT signaled\n\n", pid);

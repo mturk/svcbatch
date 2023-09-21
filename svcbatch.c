@@ -214,7 +214,6 @@ static LPCWSTR xwoption    = NULL;
 typedef enum {
     SVCBATCH_SCM_CREATE = 0,
     SVCBATCH_SCM_CONFIG,
-    SVCBATCH_SCM_CONTROL,
     SVCBATCH_SCM_DELETE,
     SVCBATCH_SCM_HELP,
     SVCBATCH_SCM_START,
@@ -231,7 +230,6 @@ static const wchar_t *scmsvcaccounts[] = {
 static const wchar_t *scmcommands[] = {
     L"Create",                  /* SVCBATCH_SCM_CREATE      */
     L"Config",                  /* SVCBATCH_SCM_CONFIG      */
-    L"Control",                 /* SVCBATCH_SCM_CONTROL     */
     L"Delete",                  /* SVCBATCH_SCM_DELETE      */
     L"Help",                    /* SVCBATCH_SCM_HELP        */
     L"Start",                   /* SVCBATCH_SCM_START       */
@@ -243,7 +241,6 @@ static const wchar_t *scmcommands[] = {
 static const wchar_t *scmallowed[] = {
     L"qbdDnpPsu",          /* SVCBATCH_SCM_CREATE      */
     L"qbdDnpPsu",          /* SVCBATCH_SCM_CONFIG      */
-    L"q",                  /* SVCBATCH_SCM_CONTROL     */
     L"q",                  /* SVCBATCH_SCM_DELETE      */
     L"x",                  /* SVCBATCH_SCM_HELP        */
     L".qw",                /* SVCBATCH_SCM_START       */
@@ -301,7 +298,6 @@ static const char *xgenerichelp =
     "\n    Commands:"                                                                           \
     "\n      Create.....Creates a service."                                                     \
     "\n      Config.....Changes the configuration of a service."                                \
-    "\n      Control....Sends a control to a service."                                          \
     "\n      Delete.....Deletes a service."                                                     \
     "\n      Help.......Print this screen and exit."                                            \
     "\n                 Use Help [command] for command help."                                   \
@@ -342,12 +338,6 @@ static const char *xcommandhelp[] = {
     "\n                     Default is LocalSystem account."                                    \
     "\n      --password     The password to the account name specified by the"                  \
     "\n                     username parameter."                                                \
-    "\n",
-    /* Control */
-    "\nDescription:\n  Sends a CONTROL code to a service."                                      \
-    "\nUsage:\n  " SVCBATCH_NAME " control [service name] <value>\n"                            \
-    "\n    Value:"                                                                              \
-    "\n      User defined control code (128 ... 255)"                                           \
     "\n",
     /* Delete */
     "\nDescription:\n  Deletes a service entry from the registry."                              \
@@ -3476,44 +3466,6 @@ static DWORD WINAPI servicehandler(DWORD ctrl, DWORD _xe, LPVOID _xd, LPVOID _xc
             }
             SVCBATCH_CS_LEAVE(service);
         break;
-        case SVCBATCH_CTRL_BREAK:
-            if (IS_SET(SVCBATCH_OPT_HAS_CTRL_BREAK)) {
-                DBG_PRINTS("service SVCBATCH_CTRL_BREAK signaled");
-                /**
-                 * Danger Zone!!!
-                 *
-                 * Send CTRL_BREAK_EVENT to the child process.
-                 * This is useful if batch file is running java
-                 * CTRL_BREAK signal tells JDK to dump thread stack
-                 *
-                 */
-                GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, 0);
-            }
-            else {
-                DBG_PRINTS("ctrl+break is disabled");
-                return ERROR_INVALID_SERVICE_CONTROL;
-            }
-        break;
-        case SVCBATCH_CTRL_ROTATE:
-            if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIG)) {
-                /**
-                 * Signal to rotatethread that
-                 * user send custom service control
-                 */
-                if (canrotatelogs(outputlog)) {
-                    DBG_PRINTS("signaling SVCBATCH_CTRL_ROTATE");
-                    SetEvent(dologrotate);
-                }
-                else {
-                    DBG_PRINTS("rotatelogs is busy");
-                    return ERROR_SERVICE_CANNOT_ACCEPT_CTRL;
-                }
-            }
-            else {
-                DBG_PRINTS("log rotation is disabled");
-                return ERROR_INVALID_SERVICE_CONTROL;
-            }
-        break;
         case SERVICE_CONTROL_INTERROGATE:
             DBG_PRINTS("SERVICE_CONTROL_INTERROGATE");
         break;
@@ -3793,24 +3745,17 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'B':
                             OPT_SET(SVCBATCH_OPT_CTRL_BREAK);
                         break;
-                        case L'C':
-                            OPT_SET(SVCBATCH_OPT_HAS_CTRL_BREAK);
-                        break;
                         case L'L':
-                            OPT_SET(SVCBATCH_OPT_LONGPATHS);
+                            OPT_SET(SVCBATCH_OPT_LOCALTIME);
                         break;
                         case L'Q':
                             OPT_SET(SVCBATCH_OPT_QUIET);
                         break;
-                        case L'R':
-                            OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIG);
-                            OPT_SET(SVCBATCH_OPT_ROTATE);
-                        break;
-                        case L'T':
-                            OPT_SET(SVCBATCH_OPT_LOCALTIME);
-                        break;
                         case L'U':
                             OPT_CLR(SVCBATCH_OPT_ENV);
+                        break;
+                        case L'X':
+                            OPT_SET(SVCBATCH_OPT_LONGPATHS);
                         break;
                         case L'Y':
                             OPT_SET(SVCBATCH_OPT_WRPIPE);
@@ -3973,10 +3918,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             break;
         }
     }
-    if (IS_SET(SVCBATCH_OPT_CTRL_BREAK) &&
-        IS_SET(SVCBATCH_OPT_HAS_CTRL_BREAK)) {
-        return xsyserrno(21, L"features B and C", xwoptarg);
-    }
 
     wargc -= xwoptind;
     wargv += xwoptind;
@@ -4014,7 +3955,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
          * Discard any log rotate related command options
          * when -q is defined
          */
-        svcoptions &= 0x00000FFF;
+        svcoptions &= 0x000000FF;
         rotateparam = NULL;
         stoplogname = NULL;
         svclogfname = NULL;
@@ -4804,45 +4745,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         }
         goto finished;
     }
-    if (cmd == SVCBATCH_SCM_CONTROL) {
-        int cc = 0;
-        if (argc == 0) {
-            rv = ERROR_INVALID_PARAMETER;
-            ec = __LINE__;
-            ex = SVCBATCH_MSG(26);
-            goto finished;
-        }
-        if (!QueryServiceStatusEx(svc,
-                                  SC_STATUS_PROCESS_INFO, (LPBYTE)ssp,
-                                  SZ_STATUS_PROCESS_INFO, &bneed)) {
-            rv = GetLastError();
-            ec = __LINE__;
-            goto finished;
-        }
-        if (ssp->dwCurrentState != SERVICE_RUNNING) {
-            rv = ERROR_SERVICE_CANNOT_ACCEPT_CTRL;
-            ec = __LINE__;
-            ed = SVCBATCH_MSG(2);
-            goto finished;
-        }
-        cc = xwcstoi(argv[0], NULL);
-        ed = argv[0];
-
-        if ((cc < 128) || (cc > 255)) {
-            rv = ERROR_INVALID_PARAMETER;
-            ec = __LINE__;
-            ex = SVCBATCH_MSG(27);
-            ed = L"[128 - 255]";
-            en = cc;
-            goto finished;
-        }
-        if (!ControlServiceExW(svc, cc,
-                               SERVICE_CONTROL_STATUS_REASON_INFO, (LPBYTE)ssr)) {
-            rv = GetLastError();
-            ec = __LINE__;
-        }
-        goto finished;
-    }
     if (cmd == SVCBATCH_SCM_CONFIG) {
         if (!ChangeServiceConfigW(svc,
                                   servicetype,
@@ -4939,8 +4841,6 @@ finished:
             fprintf(stdout, "             : SUCCESS\n");
             if (wtime)
             fprintf(stdout, "               %llu ms\n", GetTickCount64() - wtmstart);
-            if (cmd == SVCBATCH_SCM_CONTROL)
-            fprintf(stdout, "               %S\n", argv[0]);
             if (cmd == SVCBATCH_SCM_CREATE)
             fprintf(stdout, "     STARTUP : %S (%lu)\n", xcodemap(starttypemap, starttype), starttype);
             if (cmd == SVCBATCH_SCM_START && wtime)
