@@ -21,9 +21,8 @@ if /i "x%~1" == "xdelete" goto doDelete
 rem
 rem goto doStressTest
 rem
-copy /Y svcbatch.exe xservice.exe >NUL
 rem
-svcbatch create sservice --binPath:xservice.exe -f:L -c:sservice.exe [ "200 some parameters" ]
+svcbatch create sservice -f:L0 -c:sservice.exe [ "200 some parameters" ]
 rem
 goto End
 rem

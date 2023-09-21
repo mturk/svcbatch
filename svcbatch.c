@@ -372,10 +372,10 @@ static const char *xcommandhelp[] = {
  * Message strings
  */
 static const wchar_t *wcsmessages[] = {
-    L"Unknown",
-    L"Service stopped without SERVICE_CONTROL_STOP signal",                 /*  1 */
-    L"The service is not in the RUNNING state",                             /*  2 */
-    L"Reserved for the future use",                                         /*  3 */
+    L"The operation completed successfully",                                /*  0 */
+    L"The operation failed",                                                /*  1 */
+    L"Service stopped without SERVICE_CONTROL_STOP signal",                 /*  2 */
+    NULL,                                                                   /*  3 */
     NULL,                                                                   /*  4 */
     NULL,                                                                   /*  5 */
     NULL,                                                                   /*  6 */
@@ -1653,20 +1653,24 @@ static int xwinapierror(LPWSTR buf, int siz, DWORD err)
     return n;
 }
 
-static BOOL setupeventlog(void)
+static BOOL setupeventlog(LPCWSTR name)
 {
     static BOOL ssrv = FALSE;
     static volatile LONG eset = 0;
     static const WCHAR emsg[] = L"%SystemRoot%\\System32\\netmsg.dll\0";
+    WCHAR n[BBUFSIZ];
     DWORD c;
     HKEY  k;
+    int   i;
 
+    if (IS_EMPTY_WCS(name))
+        return ssrv;
     if (InterlockedIncrement(&eset) > 1)
         return ssrv;
+    i = xwcslcat(n, BBUFSIZ, 0, SYSTEM_SVC_SUBKEY L"\\EventLog\\Application\\");
+    i = xwcslcat(n, BBUFSIZ, i, name);
     if (RegCreateKeyExW(HKEY_LOCAL_MACHINE,
-                        SYSTEM_SVC_SUBKEY \
-                        L"\\EventLog\\Application\\" CPP_WIDEN(SVCBATCH_NAME),
-                        0, NULL, 0,
+                        n, 0, NULL, 0,
                         KEY_QUERY_VALUE | KEY_READ | KEY_WRITE,
                         NULL, &k, &c) != ERROR_SUCCESS)
         return FALSE;
@@ -1691,7 +1695,6 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     WCHAR   buf[SVCBATCH_LINE_MAX];
     LPWSTR  dsc;
     LPWSTR  erb;
-    LPCWSTR svc;
     LPCWSTR msg[10];
     int     c = 0;
     int     i = 0;
@@ -1699,42 +1702,50 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     int     siz;
     int     bsz = SVCBATCH_LINE_MAX - TBUFSIZ;
 
-    if (service && service->name)
-        svc = service->name;
-    else
-        svc = CPP_WIDEN(SVCBATCH_NAME);
-    c = xsnwprintf(buf, BBUFSIZ, L"The %s service", svc);
+    buf[0]   = WNUL;
+    dsc      = buf;
     msg[i++] = buf;
-    if (typ == EVENTLOG_ERROR_TYPE)
-        msg[i++] = L"reported the following error:";
-    buf[c++] = WNUL;
-    buf[c++] = WNUL;
-    msg[i++] = buf + c;
-    buf[c++] = L'\r';
-    buf[c++] = L'\n';
-    siz = bsz - c;
-    dsc = buf + c;
-    if (err) {
-        if (xwcschr(err, L'%')) {
-            n = xsnwprintf(dsc, siz, err, eds);
+    if (typ != EVENTLOG_INFORMATION_TYPE) {
+        if (service->name) {
+            c = xsnwprintf(buf, BBUFSIZ, L"The %s service", service->name);
+            if (typ == EVENTLOG_ERROR_TYPE)
+                msg[i++] = L"reported the following error:";
+            buf[c++] = WNUL;
+            buf[c++] = WNUL;
+            msg[i++] = buf + c;
+            buf[c++] = L'\r';
+            buf[c++] = L'\n';
+            dsc = buf + c;
         }
-        else {
-            n = xwcslcat(dsc, siz, 0, err);
-            if (eds) {
-                n = xwcslcat(dsc, siz, n, L": ");
-                n = xwcslcat(dsc, siz, n, eds);
-            }
-        }
-        c += n;
     }
     else {
-        n = xwcslcat(dsc, siz, 0, eds);
+        if (err || eds) {
+        }
+        else {
+            if (ern == 0)
+                c = xwcslcpy(buf, BBUFSIZ, SVCBATCH_MSG(0));
+            else
+                c = xwcslcpy(buf, BBUFSIZ, SVCBATCH_MSG(1));
+            buf[c++] = WNUL;
+            buf[c++] = WNUL;
+        }
+    }
+    n   = 0;
+    siz = bsz - c;
+    if (err) {
+        if (xwcschr(err, L'%'))
+            n = xsnwprintf(dsc, siz, err, eds);
+        else
+            n = xwcslcat(dsc, siz, n, err);
+    }
+    if (eds) {
+        n = xwcslcat(dsc, siz, n, eds);
         if (erp) {
             n = xwcslcat(dsc, siz, n, L": ");
             n = xwcslcat(dsc, siz, n, erp);
         }
-        c += n;
     }
+    c += n;
     buf[c++] = WNUL;
     buf[c++] = WNUL;
     if (c > bsz)
@@ -1753,31 +1764,22 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
         erb = buf + c;
         siz = bsz - c;
 
-        n   = xsnwprintf(erb,  siz, L"error(%lu) ", ern);
-        c  += xwinapierror(erb + n, siz - n, ern);
+        n  = xwinapierror(erb,   siz, ern);
+        c += xsnwprintf(erb + n, siz - n, L" (%lu)", ern);
 #if defined(_DEBUG)
         dbgprintf(fn, line, "%S, %S", dsc, erb);
 #endif
-        c  += n;
+        c += n;
         buf[c++] = WNUL;
         buf[c++] = WNUL;
-        if (c > bsz)
-            c = bsz;
-        siz = bsz - c;
     }
-    if ((typ == EVENTLOG_ERROR_TYPE) && (siz > SBUFSIZ)) {
-        erb = buf + c;
-        xsnwprintf(erb, siz,
-                   L"\r\n" CPP_WIDEN(SVCBATCH_NAME) L" " SVCBATCH_VERSION_WCS \
-                   L" %S %d", fn, line);
-        msg[i++] = erb;
-    }
+
     msg[i++] = CRLFW;
     while (i < 10)
         msg[i++] = NULL;
 
-    if (setupeventlog()) {
-        HANDLE es = RegisterEventSourceW(NULL, CPP_WIDEN(SVCBATCH_NAME));
+    if (setupeventlog(service->name)) {
+        HANDLE es = RegisterEventSourceW(NULL, service->name);
         if (IS_VALID_HANDLE(es)) {
             /**
              * Generic message: '%1 %2 %3 %4 %5 %6 %7 %8 %9'
@@ -2201,29 +2203,30 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
     else if (status == SERVICE_STOPPED) {
         if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
             if (svcfailmode == SVCBATCH_FAIL_EXIT) {
-                svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, 0, NULL,
-                            SVCBATCH_MSG(1), NULL);
+                svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL,
+                            SVCBATCH_MSG(2), NULL);
                 SVCBATCH_CS_LEAVE(service);
                 exit(ERROR_INVALID_LEVEL);
             }
             else {
                 if ((svcfailmode == SVCBATCH_FAIL_NONE) &&
                     (service->status.dwCurrentState == SERVICE_RUNNING)) {
-                    svcsyserror(fn, line, EVENTLOG_INFORMATION_TYPE, 0, NULL,
-                                SVCBATCH_MSG(1), NULL);
+                    svcsyserror(fn, line, EVENTLOG_INFORMATION_TYPE, param, NULL,
+                                NULL, NULL);
                     param = 0;
                     service->status.dwWin32ExitCode = NO_ERROR;
+                    service->status.dwServiceSpecificExitCode = 0;
                 }
                 else {
                     /* SVCBATCH_FAIL_ERROR */
-                    svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, 0, NULL,
-                                SVCBATCH_MSG(1), NULL);
                     if (param == 0) {
                         if (service->status.dwCurrentState == SERVICE_RUNNING)
                             param = ERROR_PROCESS_ABORTED;
                         else
                             param = ERROR_SERVICE_START_HANG;
                     }
+                    svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL,
+                                SVCBATCH_MSG(2), NULL);
                 }
             }
         }
@@ -3764,10 +3767,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                             preshutdown = SERVICE_ACCEPT_PRESHUTDOWN;
                         break;
                         case L'0':
-                            svcfailmode = SVCBATCH_FAIL_ERROR;
+                            svcfailmode = SVCBATCH_FAIL_NONE;
                         break;
                         case L'1':
-                            svcfailmode = SVCBATCH_FAIL_NONE;
+                            svcfailmode = SVCBATCH_FAIL_ERROR;
                         break;
                         case L'2':
                             svcfailmode = SVCBATCH_FAIL_EXIT;
@@ -4216,6 +4219,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
          * Service ended without stop signal
          */
         DBG_PRINTS("ended without SERVICE_CONTROL_STOP");
+        rv = cmdproc->exitCode;
     }
     SVCBATCH_CS_LEAVE(service);
     DBG_PRINTS("waiting for stop to finish");
@@ -4576,6 +4580,10 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             rv = GetLastError();
             ec = __LINE__;
         }
+        i = xwcslcat(cb, BBUFSIZ, 0, SYSTEM_SVC_SUBKEY L"\\EventLog\\Application\\");
+        i = xwcslcat(cb, BBUFSIZ, i, service->name);
+        RegDeleteKeyExW(HKEY_LOCAL_MACHINE, cb, KEY_WOW64_64KEY, 0);
+
         goto finished;
     }
     if (cmd == SVCBATCH_SCM_START) {

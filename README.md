@@ -1099,7 +1099,7 @@ bug reports.
 ## Error Logging
 
 SvcBatch logs any runtime error to Windows Event Log.
-Use Windows **Event Viewer** and check `Windows Logs/Application/SvcBatch`
+Use Windows **Event Viewer** and check `Windows Logs/Application/YourServiceName`
 events.
 
 

@@ -94,8 +94,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     SetConsoleCtrlHandler(consolehandler, TRUE);
 
     fprintf(stdout, "\n\n[%.4lu] Program running for %d seconds\n\n", id, secs);
-    i = 1;
-    for(;;) {
+    for(i = 0; ;i++) {
         DWORD ws = WaitForSingleObject(stopsig, 1000);
 
         if (ws == WAIT_OBJECT_0) {
@@ -104,13 +103,13 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
             Sleep(1000);
             break;
         }
-        fprintf(stdout, "[%.4d] ... running\n", i);
-        i++;
-        if (i > secs) {
-            fprintf(stderr, "\n\n[%.4d] Timeout reached\n", id);
-            r = ERROR_PROCESS_ABORTED;
+        if (i >= secs) {
+            fprintf(stderr, "\n[%.4d] ... Timeout\n", i);
+            r = WAIT_TIMEOUT;
             break;
         }
+        if ((i % 2) == 0)
+            fprintf(stdout, "[%.4d] ... Running\n", i);
     }
     fprintf(stdout, "\n\n[%.4lu] Program done\n", id);
     _flushall();
