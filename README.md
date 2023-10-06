@@ -263,6 +263,9 @@ service mode, or with **--** for SvcBatch service management.
 This means that `-h or /H` and `--Wait or --wait`
 can be used interchangeably.
 
+Check the [managing](docs/manage.md) for more info about
+command line options when SvcBatch is used for managing services.
+
 Command line option value can be either the rest of the
 command option or the entire next argument.
 
@@ -274,7 +277,7 @@ followed by the actual option value.
 For example:
 
 ```no-highlight
-> svcbatch create myService ... /o:log\directory ...
+> svcbatch create myService ... /O:log\directory ...
 
 Is the same as
 
@@ -291,6 +294,11 @@ In that case, if `ServiceName` contain any of the
 invalid file name characters `/\:;<>?*|"`,
 the service will fail and error message will be
 reported to Windows Event log.
+
+
+Although command options are case insensitive,
+use capital letters with **/** command switch,
+and lowercase letters with **-** command switch.
 
 
 
