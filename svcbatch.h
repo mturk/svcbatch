@@ -146,7 +146,7 @@
 /**
  * Size of the pipe read buffer in bytes.
  */
-#define SVCBATCH_PIPE_LEN       16384
+#define SVCBATCH_PIPE_LEN       8192
 
 /**
  * Maximum number of characters in one line
