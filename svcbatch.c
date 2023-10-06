@@ -378,8 +378,8 @@ static const char *xcommandhelp[] = {
  */
 static const wchar_t *wcsmessages[] = {
     L"The operation completed successfully",                                /*  0 */
-    L"The operation failed",                                                /*  1 */
-    L"Service stopped without SERVICE_CONTROL_STOP signal",                 /*  2 */
+    L"Service stopped",                                                     /*  1 */
+    NULL,                                                                   /*  2 */
     NULL,                                                                   /*  3 */
     NULL,                                                                   /*  4 */
     NULL,                                                                   /*  5 */
@@ -2220,7 +2220,7 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
         if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
             if (svcfailmode == SVCBATCH_FAIL_EXIT) {
                 svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL,
-                            SVCBATCH_MSG(2), NULL);
+                            SVCBATCH_MSG(1), NULL);
                 SVCBATCH_CS_LEAVE(service);
                 exit(ERROR_INVALID_LEVEL);
             }
@@ -2242,7 +2242,7 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
                             param = ERROR_SERVICE_START_HANG;
                     }
                     svcsyserror(fn, line, EVENTLOG_ERROR_TYPE, param, NULL,
-                                SVCBATCH_MSG(2), NULL);
+                                SVCBATCH_MSG(1), NULL);
                 }
             }
         }
