@@ -89,7 +89,7 @@ rem
     --displayName "Apache Tomcat 11.0 %SERVICE_NAME%" ^
     --description "Apache Tomcat 11.1.x Server - https://tomcat.apache.org/" ^
     --start:auto ^
-    -f:CR -h .. %SERVICE_LOGNAME% ^
+    -f:LP -h .. %SERVICE_LOGNAME% ^
     %SHUTDOWN_FILE% %CMD_LINE_ARGS% %SVCBATCH_FILE% run
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%

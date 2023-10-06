@@ -63,7 +63,7 @@ rem
 set "SERVICE_LOG_DIR=-o Logs\%SERVICE_NAME%\%LONG_STRING%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=-r:@10+100K"
-set "ROTATE_RULE=-r:@5+20K"
+set "ROTATE_RULE=/R:@5+20K"
 rem Rotate Log files at midnight
 rem set "ROTATE_RULE=-r:@0"
 rem Rotate Log files every full hour or when larger then 40000 bytes

@@ -258,26 +258,26 @@ present inside `Logs` directory using the following procedure:
 
 SvcBatch command line options allow users to customize
 service deployments. Options are case insensitive and
-defined with **-** as command switch when running in
+defined with **-** or **/** as command switch when running in
 service mode, or with **--** for SvcBatch service management.
-This means that `-h or -H` and `--Wait or --wait`
+This means that `-h or /H` and `--Wait or --wait`
 can be used interchangeably.
 
-Command line option values can be either the rest of the
+Command line option value can be either the rest of the
 command option or the entire next argument.
 
-In case they are the rest of the command option, the
-character after the option must be **:** or **=** character
-or the service will fail to start.
+In case it is the rest of the command option, the
+character after the option must be **:** character
+followed by the option value.
 
 For example:
 
 ```no-highlight
-> svcbatch create ... -o:log\directory ...
+> svcbatch create myService ... /o:log\directory ...
 
 Is the same as
 
-> svcbatch create ... -o log\directory ...
+> svcbatch create myService ... -o log\directory ...
 
 ```
 
@@ -308,7 +308,7 @@ reported to Windows Event log.
   listed in any order.
 
   ```no-highlight
-      <B><C><L><P><Q><R><U><Y><0|1|2>
+      <B><L><P><Q><U><W><Y><0|1|2>
   ```
 
     * **B**
@@ -378,9 +378,9 @@ reported to Windows Event log.
       section, for the list of exported variables.
 
 
-    * **X**
+    * **W**
 
-      **Use long path names**
+      **Use Windows Long Path Names**
 
       By default Windows paths are limited to **260** characters,
       unless prefixed by **\\?\\**. SvcBatch adds that prefix for
@@ -397,7 +397,7 @@ reported to Windows Event log.
 
       This option can be useful for new applications targeting
       Windows 10 platform, without the overhead of prefixing each
-      path or file name parameter or environment variable.
+      path or file name parameter with **\\?\\**.
 
 
     * **Y**
@@ -537,12 +537,12 @@ reported to Windows Event log.
 
   ```
 
-  This will set the `NOPATH` environment variable to `Y`,
+  This will set the `NOPAUSE` environment variable to `Y`,
   and `CATALINA_BASE` to the value of current working
   directory.
 
   If the **value** parameter starts with **$_**, followed
-  by the single character and **$** it will be evaluated to the
+  by the single letter and **$**, it will be evaluated to the
   corresponding runtime value.
   The **$_W$** will be evaluated to the current working directory,
   **$_N$** will set the **value** to the current Service name, etc.
@@ -785,6 +785,7 @@ reported to Windows Event log.
     <  (less than)
     >  (greater than)
     :  (colon)
+    ;  (semicolon)
     "  (double quote)
     /  (forward slash)
     \  (backslash)
@@ -1113,6 +1114,7 @@ SvcBatch have limits for the following features:
     <  (less than)
     >  (greater than)
     :  (colon)
+    ;  (semicolon)
     "  (double quote)
     /  (forward slash)
     \  (backslash)

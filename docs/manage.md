@@ -260,7 +260,7 @@ separated by either `:` or `=` character. This means that
 
     This option is the same as **--username "NT AUTHORITY\LocalService"**
 
-  * **--username:2**
+  * **--username=2**
     This option is the same as **--username "NT AUTHORITY\NetworkService"**
 
 
@@ -323,7 +323,7 @@ separated by either `:` or `=` character. This means that
 
 
   ```no-highlight
-  > svcbatch config myService --start:auto
+  > svcbatch config myService --start=disabled
   >
   ```
 
@@ -339,10 +339,10 @@ For example:
   ```no-highlight
   > svcbatch create myService
   ...
-  > svcbatch config myService --start=auto -f:R ...
+  > svcbatch config myService --start=auto -f:L ...
   ```
 
-Since the `-f:R` is not valid config or create option,
+Since the `-f:L` is not valid config or create option,
 it will be used as argument to svcbatch.exe when the
 service is started, as well as any following argument.
 
@@ -350,7 +350,7 @@ service is started, as well as any following argument.
 
 ## Start options
 
-* **--wait[:seconds]**
+* **--wait[=seconds]**
 
   **Wait for service to start**
 
@@ -362,7 +362,7 @@ service is started, as well as any following argument.
   the **--wait** option, the maximum
   value of `180` seconds will be used.
 
-  Use **--wait:0** option to return without waiting for
+  Use **--wait=0** option to return without waiting for
   service to enter the running state.
 
 
@@ -381,7 +381,7 @@ service is started, as well as any following argument.
 
 ## Stop options
 
-* **--wait[:seconds]**
+* **--wait[=seconds]**
 
   **Wait for service to stop**
 
@@ -392,7 +392,7 @@ service is started, as well as any following argument.
   between `0` and `180`. If not provided as part of
   the **--wait** option, the maximum value of `180` seconds will be used.
 
-  Use **--wait:0** option to return without waiting for
+  Use **--wait=0** option to return without waiting for
   service to enter the stopped state.
 
 

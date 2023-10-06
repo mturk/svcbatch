@@ -85,9 +85,9 @@ typedef struct _SVCBATCH_THREAD {
 typedef struct _SVCBATCH_PIPE {
     OVERLAPPED  o;
     HANDLE      pipe;
-    BYTE        buffer[SVCBATCH_PIPE_LEN];
     DWORD       read;
     DWORD       state;
+    BYTE        buffer[SVCBATCH_PIPE_LEN];
 } SVCBATCH_PIPE, *LPSVCBATCH_PIPE;
 
 typedef struct _SVCBATCH_PROCESS {
@@ -810,11 +810,11 @@ static int xwcstoi(LPCWSTR sp, LPWSTR *ep)
     if (ep != NULL)
         *ep = zerostring;
     ASSERT_WSTR(sp, -1);
-    while(xisblank(*sp))
+    while (xisblank(*sp))
         sp++;
     if (ep != NULL)
         *ep = (LPWSTR)sp;
-    while(xisdigit(*sp)) {
+    while (xisdigit(*sp)) {
         int dv = *sp - L'0';
 
         if (dv || rv) {
@@ -1380,8 +1380,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     LPCWSTR  optpos;
     LPCWSTR  optarg;
     int      option;
-    int      optsep = 0;
-    int      i = 0;
+    int      optsep;
 
     xwoptarg = NULL;
     if (xwoptind >= nargc)
@@ -1408,21 +1407,22 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     }
     xwoptarr = 0;
     xwoptend = 0;
-    if (xwoption[i++] != L'-')
+    if ((xwoption[0] != L'-') && (xwoption[0] != L'/'))
         return EOF;
-    if (xwoption[i] == WNUL) {
+    if (xwoption[1] == WNUL) {
         /* The single '-' is command delimiter */
-        xwoptind++;
+        if (xwoption[0] == L'-')
+            xwoptind++;
         return EOF;
     }
-    option = xtolower(xwoption[i++]);
+    option = xtolower(xwoption[1]);
     optpos = xwcschr(opts, option);
     if (optpos == NULL)
         return EINVAL;
 
-    optsep = xwoption[i];
-    if ((optsep == L':') || (optsep == L'=')) {
-        optarg = xwoption + i + 1;
+    optsep = xwoption[2];
+    if (optsep == L':') {
+        optarg = xwoption + 3;
         while (xisblank(*optarg))
             ++optarg;
         if (*optarg == WNUL) {
@@ -2283,7 +2283,7 @@ static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
                            PIPE_TYPE_BYTE,
                            1,
                            0,
-                           SVCBATCH_PIPE_LEN,
+                           65536,
                            0,
                            &sa);
     if (IS_INVALID_HANDLE(*rd))
@@ -3367,7 +3367,7 @@ static DWORD WINAPI workerthread(void *unused)
                         }
                     }
                     else {
-                        if (ReadFile(op->pipe, op->buffer, DSIZEOF(op->buffer),
+                        if (ReadFile(op->pipe, op->buffer, SVCBATCH_PIPE_LEN,
                                     &op->read, (LPOVERLAPPED)op) && op->read) {
                             op->state = 0;
                             rc = logwrdata(outputlog, op->buffer, op->read);
@@ -3770,7 +3770,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'U':
                             OPT_CLR(SVCBATCH_OPT_ENV);
                         break;
-                        case L'X':
+                        case L'W':
                             OPT_SET(SVCBATCH_OPT_LONGPATHS);
                         break;
                         case L'Y':
@@ -3897,7 +3897,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 }
                 else {
                     *(wp++) = WNUL;
-                    if ((wp[0] == L'$') && (wp[1] == L'_') && isalpha(wp[2]) &&
+                    if ((wp[0] == L'$') && (wp[1] == L'_') && xisalpha(wp[2]) &&
                         (wp[3] == L'$') && (wp[4] == WNUL)) {
                         if (!xisvalidvarname(pp))
                             return xsyserrno(14, L"e", pp);

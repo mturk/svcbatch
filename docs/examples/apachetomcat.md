@@ -65,7 +65,7 @@ privileges inside your `tomcat/bin` directory
 
 ```no-highlight
 
-> svcbatch create Tomcat --displayName "Apache Tomcat" -f:CR -h .. bin\catalina.bat run"
+> svcbatch create Tomcat --displayName "Apache Tomcat" -f:L -h .. bin\catalina.bat run"
   Optionally you can add description ...
 > svcbatch config Tomcat --description "Apache Tomcat Service"
   And ...
