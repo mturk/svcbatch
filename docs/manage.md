@@ -146,9 +146,9 @@ SvcBatch management command line options are case insensitive.
 This means that `--binPath, --BinPath or --BINPATH` can be used
 for the same option.
 
-Command options arguments can be part or the command option
-separated by either `:` or `=` character. This means that
-`--start:auto`, `--start=auto` or `--start auto` are the same.
+Command options arguments can be part of the command option
+separated by `=` or `:` character. This means that
+either `--start=auto`, `--start:auto` or `--start auto` can be used.
 
 
 
@@ -339,10 +339,10 @@ For example:
   ```no-highlight
   > svcbatch create myService
   ...
-  > svcbatch config myService --start=auto -f:L ...
+  > svcbatch config myService --start=auto /F:L ...
   ```
 
-Since the `-f:L` is not valid config or create option,
+Since the `/F:L` is not valid config or create option,
 it will be used as argument to svcbatch.exe when the
 service is started, as well as any following argument.
 

@@ -76,20 +76,20 @@ rem Set batch file to execute
 set "SVCBATCH_FILE=bin\catalina.bat"
 rem
 rem Use the service batch file for shutdown
-set "SHUTDOWN_FILE=-s:@"
+set "SHUTDOWN_FILE=/S:@"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log"
+set "SERVICE_LOGNAME=/N:service.@Y-@m-@d.log"
 rem
-rem set "SERVICE_LOGNAME=-n:service.@Y-@m-@d.log/service.stop.log -m:.1"
+rem set "SERVICE_LOGNAME=/N:service.@Y-@m-@d.log/service.stop.log /M:.1"
 rem
 rem
 rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
     --displayName "Apache Tomcat 11.0 %SERVICE_NAME%" ^
     --description "Apache Tomcat 11.1.x Server - https://tomcat.apache.org/" ^
-    --start:auto ^
-    -f:LP -h .. %SERVICE_LOGNAME% ^
+    --start=auto ^
+    /F:LP -h .. %SERVICE_LOGNAME% ^
     %SHUTDOWN_FILE% %CMD_LINE_ARGS% %SVCBATCH_FILE% run
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%

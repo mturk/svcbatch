@@ -22,7 +22,7 @@ rem
 rem goto doStressTest
 rem
 rem
-svcbatch create sservice -f:L0 -c:sservice.exe [ "200 some parameters" ]
+svcbatch create sservice /F:L0 /C:sservice.exe [ "200 some parameters" ]
 rem
 goto End
 rem
@@ -37,7 +37,7 @@ copy /Y sservice.exe work\ > nul
 copy /Y xsleep.exe work\ > nul
 rem
 rem
-svcbatch create sservice -f:L -w work
+svcbatch create sservice /F:L -w work
 rem
 goto End
 rem

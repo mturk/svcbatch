@@ -258,7 +258,7 @@ present inside `Logs` directory using the following procedure:
 
 SvcBatch command line options allow users to customize
 service deployments. Options are case insensitive and
-defined with **-** or **/** as command switch when running in
+defined with **/** or **-** as command switch when running in
 service mode, or with **--** for SvcBatch service management.
 This means that `-h or /H` and `--Wait or --wait`
 can be used interchangeably.
@@ -266,9 +266,10 @@ can be used interchangeably.
 Command line option value can be either the rest of the
 command option or the entire next argument.
 
-In case it is the rest of the command option, the
-character after the option must be **:** character
-followed by the option value.
+In case the value is the rest of the command option,
+the command switch must be **/** and the
+character after the option must be **:** character,
+followed by the actual option value.
 
 For example:
 
@@ -295,7 +296,7 @@ reported to Windows Event log.
 
 
 
-* **-f [features]**
+* **F [features]**
 
   **Set runtime features**
 
@@ -463,7 +464,7 @@ reported to Windows Event log.
 
 
 
-* **-c [program][<[> parameters <]>]**
+* **C [program][<[> parameters <]>]**
 
   **Use alternative program for running scripts**
 
@@ -473,7 +474,7 @@ reported to Windows Event log.
   For example:
 
   ```no-highlight
-  > svcbatch create ... -c:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] myservice.ps1 ...
+  > svcbatch create ... /C:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] myservice.ps1 ...
 
   ```
 
@@ -487,7 +488,7 @@ reported to Windows Event log.
   are **/D /E:ON /V:OFF /C**.
 
   ```no-highlight
-  > svcbatch create ... -c:cmd.exe [ /D /E:ON /V:OFF /C ] myservice.bat ...
+  > svcbatch create ... /C:cmd.exe [ /D /E:ON /V:OFF /C ] myservice.bat ...
 
   ```
 
@@ -501,7 +502,7 @@ reported to Windows Event log.
 
 
 
-* **-k [depth]**
+* **K [depth]**
 
   **Set the nested process kill depth**
 
@@ -522,7 +523,7 @@ reported to Windows Event log.
   keeps running in the background.
 
 
-* **-e [name<=value>]**
+* **E [name<=value>]**
 
   **Sets or deletes environment variable**
 
@@ -533,7 +534,7 @@ reported to Windows Event log.
   For example:
 
   ```no-highlight
-  > svcbatch create ... -E:NOPAUSE=Y -e:CATALINA_BASE=$_W$ ...
+  > svcbatch create ... /E:NOPAUSE=Y /E:CATALINA_BASE=$_W$ ...
 
   ```
 
@@ -547,7 +548,7 @@ reported to Windows Event log.
   The **$_W$** will be evaluated to the current working directory,
   **$_N$** will set the **value** to the current Service name, etc.
 
-  This feature is usually used when the **-f:U** feature is defined,
+  This feature is usually used when the **/F:U** feature is defined,
   since it allows to export specific runtime value(s).
 
   The supported **$_x$** values are:
@@ -590,7 +591,7 @@ reported to Windows Event log.
 
 
   ```no-highlight
-  > svcbatch create ... -e "SOME_VARIABLE=RUN@@1" ...
+  > svcbatch create ... /E "SOME_VARIABLE=RUN@@1" ...
 
   ```
   In the upper example, SvcBatch will set `SOME_VARIABLE`
@@ -605,14 +606,14 @@ reported to Windows Event log.
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... -e:SOME_VARIABLE ...
+  > svcbatch create ... /E:SOME_VARIABLE ...
 
   ```
 
   In case the **name** starts with **=** character,
   the reminder of the **name** will be used to set
   the prefix for private environment variables.
-  In case the reminder is **:** character, the
+  In case the reminder is **@** character, the
   service name will be used as prefix for the private
   environment variables.
 
@@ -620,14 +621,14 @@ reported to Windows Event log.
   section, for the list of exported variables.
 
   To change default **SVCBATCH** prefix, add
-  **-e:=prefix** to your service configuration.
+  **/E:=prefix** to your service configuration.
 
 
   The following example will cause SvcBatch to
   export **ASERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
 
   ```no-highlight
-  > svcbatch create ... -e:=ASERVICE ...
+  > svcbatch create ... /E:=ASERVICE ...
 
   ```
 
@@ -635,27 +636,27 @@ reported to Windows Event log.
   export **MYSERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
 
   ```no-highlight
-  > svcbatch create myService ... -e:=: ...
+  > svcbatch create myService ... /E:=@ ...
 
   ```
 
 
-  If **-f:U** was added to the service's configuration
+  If **/F:U** was added to the service's configuration
   this option will have no meaning.
 
 
   **Notice**
 
-  SvcBatch will evaluate **-e** command options in order they
+  SvcBatch will evaluate **E** command options in order they
   are defined in service configuration.
 
   It will first evaluate and set all **VAR=$_x$** variables.
   Then it will evaluate and set all other "standard" variables.
   Finally it will delete all environment variables defined
-  by using **-e:VAR**.
+  by using **/E:VAR**.
 
 
-* **-h [path]**
+* **H [path]**
 
   **Set service home directory**
 
@@ -680,7 +681,7 @@ reported to Windows Event log.
   to the Windows Event log.
 
 
-* **-t [timeout]**
+* **T [timeout]**
 
   **Set stop timeout in seconds**
 
@@ -700,7 +701,7 @@ reported to Windows Event log.
   as time limit.
 
 
-* **-m [number][<.>max stop logs]**
+* **M [number][<.>max stop logs]**
 
   **Set maximum number of log files**
 
@@ -708,7 +709,7 @@ reported to Windows Event log.
   between `1 and 9` it will be used instead default `1 .. 2`.
 
   ```no-highlight
-  > svcbatch create ... -m:4
+  > svcbatch create ... /M:4
 
   ```
 
@@ -722,7 +723,7 @@ reported to Windows Event log.
   followed by **max stop logs** number.
 
   ```no-highlight
-  > svcbatch create ... -m:4.2 -n myService.log/myService.stop.log
+  > svcbatch create ... /M:4.2 /N myService.log/myService.stop.log
 
   ```
 
@@ -730,22 +731,22 @@ reported to Windows Event log.
   and stop log files from `1 .. 2`.
 
 
-* **-n [log name][</>stop log name]**
+* **N [log name][</>stop log name]**
 
   **Set log file name**
 
   This option allows a user to set the alternate log file names.
 
   By default SvcBatch will use `SvcBatch.log` as **log name**.
-  To redefine default log name use the **-n**
+  To redefine default log name use the **N**
   command option at service install:
 
   ```no-highlight
-  > svcbatch create ... -n myService.log ...
+  > svcbatch create ... /N:myService.log ...
 
   ```
 
-  If the **-n** argument contains `@` characters,
+  If the **N** argument contains `@` characters,
   it will be treated as a format string
   to our custom `strftime` function.
 
@@ -797,7 +798,7 @@ reported to Windows Event log.
   In case the result from `strftime` contains any of the reserved
   characters the function will fail.
 
-  To enable stop logging for scripts defined by **-s** option,
+  To enable stop logging for scripts defined by **S** option,
   add forward slash `/` character to the end of **log name**, followed
   by **stop log name**.
 
@@ -807,7 +808,7 @@ reported to Windows Event log.
   ```
 
 
-* **-o [path]**
+* **O [path]**
 
   **Set service output directory**
 
@@ -831,7 +832,7 @@ reported to Windows Event log.
   set output directory to that value.
 
 
-* **-r [rule]**
+* **R [rule]**
 
   **Rotate logs by size or time interval**
 
@@ -853,7 +854,7 @@ reported to Windows Event log.
   ```
 
   ```no-highlight
-  > svcbatch create ... -r:@17:00:00+100K
+  > svcbatch create ... /R:@17:00:00+100K
 
   ```
 
@@ -861,7 +862,7 @@ reported to Windows Event log.
   as minutes between log rotation.
 
   ```no-highlight
-  >svcbatch create ... -r:@90+200K
+  >svcbatch create ... /R:@90+200K
 
   ```
 
@@ -872,7 +873,7 @@ reported to Windows Event log.
 
   In case **rule** parameter is `@0` SvcBatch will rotate
   log files each day at midnight. This is the same as
-  defining `-r:@00:00:00`.
+  defining `/R:@00:00:00`.
 
   In case **rule** parameter is `@60` SvcBatch will rotate
   log files every full hour.
@@ -888,7 +889,7 @@ reported to Windows Event log.
 
 
 
-* **-s [script][<[> arguments <]>]**
+* **S [script][<[> arguments <]>]**
 
   **Execute script file on service stop or shutdown**
 
@@ -920,17 +921,17 @@ reported to Windows Event log.
 
   ```no-highlight
 
-  > svcbatch create ... -s:stop.bat [ --connect --command=:shutdown ] ...
+  > svcbatch create ... /S:stop.bat [ --connect --command=:shutdown ] ...
   ...
-  > svcbatch create ... -s:@ ...
+  > svcbatch create ... /S:@ ...
   ...
-  > svcbatch create ... -s:@ [ used instead default stop ] ...
+  > svcbatch create ... /S:@ [ used instead default stop ] ...
 
   ```
 
 
 
-* **-w [path]**
+* **W [path]**
 
   **Set service working directory**
 
@@ -939,11 +940,11 @@ reported to Windows Event log.
   is set to this path.
 
   If not specified, the working directory is set
-  to the home directory defined using **-h** option.
-  Check **-h** command option for more details.
+  to the home directory defined using **H** option.
+  Check **H** command option for more details.
 
   If the **path** is not the absolute path, it will
-  be resolved relative to the **-h** directory.
+  be resolved relative to the **H** directory.
 
 
   **Notice**
@@ -979,7 +980,7 @@ SvcBatch sets for each instance.
 
   This variable is set to the service's output directory.
 
-  In case the logging is disabled, by using **-f:Q**
+  In case the logging is disabled, by using **/F:Q**
   command option, this variable is set to the **SVCBATCH_WORK**
   directory.
 
@@ -1026,11 +1027,11 @@ SvcBatch sets for each instance.
   This variable is set to the service working directory.
 
   The working directory is set to **SVCBATCH_HOME**
-  directory, unless the **-w** command option was configured.
+  directory, unless the **W** command option was configured.
 
   This variable is set as current directory for the
   shell process launched from SvcBatch, and as base directory
-  for **SVCBATCH_LOGS** in case the **-o** parameter
+  for **SVCBATCH_LOGS** in case the **O** parameter
   was defined as relative path.
 
 
@@ -1041,7 +1042,7 @@ SvcBatch sets for each instance.
   as prefix for those variables. In that case it will export
   **MYSERVICE_NAME**, **MYSERVICE_HOME**, etc.
 
-  If defined, the **-e:=PREFIX** command option takes
+  If defined, the **/E:=PREFIX** command option takes
   precedence over this feature.
 
 **Important**
@@ -1057,7 +1058,7 @@ When you type `sc.exe stop myservice` or when your machine gets into the
 shutdown state, SvcBatch running as a service will receive
 stop or shutdown event. SvcBatch will send `CTRL_C_EVENT` to its
 child processes or run shutdown batch file in case
-**-S [batchfile]** was defined at install time.
+**/S [batchfile]** was defined at install time.
 
 It is up to the application started from batch file to
 handle this event and do any cleanup needed and then exit.
@@ -1159,7 +1160,7 @@ SvcBatch have limits for the following features:
 
   This option also defines the maximum number of
   parameters passed to the command interpreter when
-  **-c** command option is used.
+  **C** command option is used.
 
 
 

@@ -1307,11 +1307,11 @@ static int xlongopt(int nargc, LPCWSTR *nargv,
             int endpos = xwstartswith(optstr, optsrc + 2);
             if (endpos) {
                 LPCWSTR oo = optstr + endpos;
-                /* Check for --option , --option: or --option= */
+                /* Check for --option, --option= or --option: */
                 if (*oo == WNUL) {
                     optopt = zerostring;
                 }
-                else if ((*oo == L':') || (*oo == L'=')) {
+                else if ((*oo == L'=') || (*oo == L':')) {
                     optsep = *oo;
                     optopt =  oo + 1;
                 }
@@ -1421,7 +1421,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         return EINVAL;
 
     optsep = xwoption[2];
-    if (optsep == L':') {
+    if ((xwoption[0] == L'/') && (optsep == L':')) {
         optarg = xwoption + 3;
         while (xisblank(*optarg))
             ++optarg;
@@ -3880,7 +3880,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (*xwoptarg == L'=') {
                     if (uprefixparam)
                         return xsyserrno(10, L"e", xwoptarg);
-                    if (xiswcschar(xwoptarg + 1, L':'))
+                    if (xiswcschar(xwoptarg + 1, L'@'))
                         uprefixparam = service->name;
                     else
                         uprefixparam = xwoptarg + 1;
@@ -3928,7 +3928,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 return xsyserrno(11, xwoption, NULL);
             break;
             default:
-                return xsyserrno(22, xwoption, NULL);
+                return xsyserrno(22, zerostring, xwoption);
             break;
         }
     }
