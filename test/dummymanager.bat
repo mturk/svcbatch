@@ -57,7 +57,7 @@ rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Use the service batch file for shutdown
 set "SERVICE_SHUTDOWN=/S:@"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=[ stop arguments "with spaces" ]"
+set "SHUTDOWN_ARGS=/S:[ stop arguments "with spaces" ]"
 rem
 rem
 set "SERVICE_LOG_DIR=-o Logs\%SERVICE_NAME%\%LONG_STRING%"

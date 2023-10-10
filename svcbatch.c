@@ -200,8 +200,7 @@ static WCHAR        zerostring[]  = {  0,  0,  0,  0 };
 static WCHAR        CRLFW[]       = { 13, 10,  0,  0 };
 static BYTE         YYES[]        = { 89, 13, 10,  0 };
 
-static int     xwoptend    = 0;
-static int     xwoptarr    = 0;
+static LPCWSTR xwoptarr    = NULL;
 static int     xwoptind    = 1;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
@@ -405,6 +404,7 @@ static const wchar_t *wcsmessages[] = {
     L"Stop the service and call Delete again",                              /* 25 */
     L"The parameter is outside valid range",                                /* 26 */
     L"Service name starts with invalid character(s)",                       /* 27 */
+    L"The %s command option value array is not terminated",                 /* 28 */
 
     NULL
 };
@@ -1387,26 +1387,16 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
         return EOF;
     xwoption = nargv[xwoptind];
     if (xwoptarr) {
-        if (xwoptend) {
-            if (xiswcschar(xwoption, L']')) {
-                xwoptind++;
-                return ']';
-            }
-            else {
-                xwoptarg = xwoption;
-                xwoptind++;
-                return xwoptarr;
-            }
+        if (xiswcschar(xwoption, L']')) {
+            xwoptind++;
+            return ']';
         }
         else {
-            if (xiswcschar(xwoption, L'[')) {
-                xwoptind++;
-                return '[';
-            }
+            xwoptarg = xwoption;
+            xwoptind++;
+            return *xwoptarr;
         }
     }
-    xwoptarr = 0;
-    xwoptend = 0;
     if ((xwoption[0] != L'-') && (xwoption[0] != L'/'))
         return EOF;
     if (xwoption[1] == WNUL) {
@@ -1749,17 +1739,21 @@ static DWORD svcsyserror(LPCSTR fn, int line, WORD typ, DWORD ern, LPCWSTR err, 
     n   = 0;
     siz = bsz - c;
     if (err) {
-        if (xwcschr(err, L'%'))
+        if (xwcschr(err, L'%')) {
             n = xsnwprintf(dsc, siz, err, eds);
-        else
-            n = xwcslcat(dsc, siz, n, err);
-    }
-    if (eds) {
-        n = xwcslcat(dsc, siz, n, eds);
-        if (erp) {
-            n = xwcslcat(dsc, siz, n, L": ");
-            n = xwcslcat(dsc, siz, n, erp);
         }
+        else {
+            n = xwcslcat(dsc, siz, n, err);
+            n = xwcslcat(dsc, siz, n, eds);
+        }
+    }
+    else {
+        if (eds)
+            n = xwcslcat(dsc, siz, n, eds);
+    }
+    if (erp) {
+        n = xwcslcat(dsc, siz, n, L": ");
+        n = xwcslcat(dsc, siz, n, erp);
     }
     c += n;
     buf[c++] = WNUL;
@@ -3735,12 +3729,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
 
     while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
         switch (opt) {
-            case '[':
-                xwoptend = 1;
-            break;
             case ']':
-                xwoptarr = 0;
-                xwoptend = 0;
+                xwoptarr = NULL;
             break;
             case 'C':
                 if (cmdproc->optc < SVCBATCH_MAX_ARGS)
@@ -3817,17 +3807,26 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 }
             break;
             case 'c':
-                if (commandparam)
-                    return xsyserrno(10, L"c", xwoptarg);
-                commandparam = xwoptarg;
-                xwoptarr     = 'C';
+                if (xiswcschar(xwoptarg, '[')) {
+                    xwoptarr = L"C";
+                }
+                else {
+                    if (commandparam)
+                        return xsyserrno(10, L"c", xwoptarg);
+                    commandparam = xwoptarg;
+                }
             break;
             case 's':
-                if (svcstopparam)
-                    return xsyserrno(10, L"s", xwoptarg);
-                svcstopparam = xwoptarg;
-                xwoptarr     = 'S';
-                svcstop      = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
+                if (svcstop == NULL)
+                    svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
+                if (xiswcschar(xwoptarg, '[')) {
+                    xwoptarr = L"S";
+                }
+                else {
+                    if (svcstopparam)
+                        return xsyserrno(10, L"s", xwoptarg);
+                    svcstopparam = xwoptarg;
+                }
             break;
             case 'r':
                 if (rotateparam)
@@ -3932,6 +3931,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             break;
         }
     }
+    if (xwoptarr)
+        return xsyserrno(28, xwoptarr, NULL);
 
     wargc -= xwoptind;
     wargv += xwoptind;
