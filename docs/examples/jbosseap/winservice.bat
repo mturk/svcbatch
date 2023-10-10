@@ -90,7 +90,7 @@ rem
     --start=automatic ^
     /F:P /E:NOPAUSE=Y ^
     /O:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
-    /S:jboss-cli.bat /S:[ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    /S:jboss-cli.bat [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
     %SERVER_MODE%.bat %CMD_LINE_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
@@ -112,8 +112,8 @@ rem
     --start=auto ^
     /F:P ^
     /O:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
-    /C:powershell /C:[ -NoProfile -ExecutionPolicy Bypass -File ] ^
-    /S:jboss-cli.ps1 /S:[ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    /C:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
+    /S:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
     %SERVER_MODE%.ps1 %CMD_LINE_ARGS%
 
 rem

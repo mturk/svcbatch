@@ -142,7 +142,6 @@ typedef struct _SVCBATCH_IPC {
     DWORD   timeout;
     DWORD   killdepth;
     DWORD   maxlogs;
-
     DWORD   application;
     DWORD   script;
     DWORD   name;
@@ -196,12 +195,13 @@ static LPCSTR    cnamestamp     = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
 
-static WCHAR        zerostring[]  = {  0,  0,  0,  0 };
-static WCHAR        CRLFW[]       = { 13, 10,  0,  0 };
-static BYTE         YYES[]        = { 89, 13, 10,  0 };
+static WCHAR     zerostring[]   = {  0,  0,  0,  0 };
+static WCHAR     CRLFW[]        = { 13, 10,  0,  0 };
+static BYTE      YCRLF[]        = { 89, 13, 10,  0 };
 
-static LPCWSTR xwoptarr    = NULL;
 static int     xwoptind    = 1;
+static int     xwoptend    = 0;
+static LPCWSTR xwoptarr    = NULL;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
 
@@ -405,6 +405,7 @@ static const wchar_t *wcsmessages[] = {
     L"The parameter is outside valid range",                                /* 26 */
     L"Service name starts with invalid character(s)",                       /* 27 */
     L"The %s command option value array is not terminated",                 /* 28 */
+    L"Command options %s are mutually exclusive",                           /* 29 */
 
     NULL
 };
@@ -1388,15 +1389,33 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     xwoption = nargv[xwoptind];
     if (xwoptarr) {
         if (xiswcschar(xwoption, L']')) {
+            if (xwoptend < 1)
+                return EOF;
+            xwoptarg = xwoption;
             xwoptind++;
-            return ']';
+            xwoptend--;
+            if (xwoptend > 0)
+                return *xwoptarr;
+            else
+                return ']';
         }
-        else {
+        if (xiswcschar(xwoption, L'[')) {
+            xwoptarg = xwoption;
+            xwoptind++;
+            xwoptend++;
+            if (xwoptend > 1)
+                return *xwoptarr;
+            else
+                return '[';
+        }
+        if (xwoptend) {
             xwoptarg = xwoption;
             xwoptind++;
             return *xwoptarr;
         }
     }
+    xwoptend = 0;
+    xwoptarr = NULL;
     if ((xwoption[0] != L'-') && (xwoption[0] != L'/'))
         return EOF;
     if (xwoption[1] == WNUL) {
@@ -2975,7 +2994,7 @@ static DWORD WINAPI stopthread(void *ssp)
         InterlockedExchange(&outputlog->state, 1);
         SVCBATCH_CS_LEAVE(outputlog);
     }
-    if (svcstop) {
+    if (svcstop && svcstop->script) {
         rs = GetTickCount64();
 
         DBG_PRINTS("creating shutdown process");
@@ -3052,7 +3071,6 @@ static void stopshutdown(DWORD rt)
     }
     ws = WaitForSingleObject(workerended, rt);
     SetConsoleCtrlHandler(NULL, FALSE);
-
     if (ws != WAIT_OBJECT_0) {
         DBG_PRINTS("worker process is still running ... terminating");
         killprocess(cmdproc, ws);
@@ -3102,18 +3120,20 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
 
 static DWORD WINAPI wrpipethread(void *pipe)
 {
-    DWORD rc = 0;
-    DWORD wr;
+    HANDLE h  = (HANDLE)pipe;
+    DWORD  rc = 0;
+    DWORD  wr = 0;
 
     DBG_PRINTS("started");
-    if (WriteFile(pipe, YYES, 3, &wr, NULL) && (wr != 0)) {
-        if (!FlushFileBuffers(pipe))
+    if (WriteFile(h, YCRLF, 3, &wr, NULL) && (wr != 0)) {
+        if (!FlushFileBuffers(h))
             rc = GetLastError();
+        DBG_PRINTF("wrote %lu bytes", wr);
     }
     else {
         rc = GetLastError();
     }
-    CloseHandle(pipe);
+    CloseHandle(h);
 #if defined(_DEBUG)
     if (rc) {
         if (rc == ERROR_BROKEN_PIPE)
@@ -3236,12 +3256,12 @@ finished:
 static DWORD WINAPI workerthread(void *unused)
 {
     DWORD    i;
+    HANDLE   rd = NULL;
     HANDLE   wr = NULL;
     LPHANDLE rp = NULL;
     LPHANDLE wp = NULL;
     DWORD    rc = 0;
     DWORD    cf = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
-    HANDLE   rd = NULL;
     LPSVCBATCH_PIPE op = NULL;
 
     DBG_PRINTS("started");
@@ -3268,7 +3288,7 @@ static DWORD WINAPI workerthread(void *unused)
         cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
     if (outputlog) {
         op = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
-        op->pipe = rd;
+        op->pipe     = rd;
         op->o.hEvent = CreateEventEx(NULL, NULL,
                                      CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
                                      EVENT_MODIFY_STATE | SYNCHRONIZE);
@@ -3729,7 +3749,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
 
     while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
         switch (opt) {
+            case '[':
+                xwoptend = 1;
+            break;
             case ']':
+                xwoptend = 0;
                 xwoptarr = NULL;
             break;
             case 'C':
@@ -3807,24 +3831,30 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 }
             break;
             case 'c':
-                if (xiswcschar(xwoptarg, '[')) {
-                    xwoptarr = L"C";
+                xwoptend = 0;
+                xwoptarr = L"C";
+                if (commandparam) {
+                    if (xiswcschar(xwoptarg, '['))
+                        xwoptend = 1;
+                    else
+                        return xsyserrno(10, L"c", xwoptarg);
                 }
                 else {
-                    if (commandparam)
-                        return xsyserrno(10, L"c", xwoptarg);
                     commandparam = xwoptarg;
                 }
             break;
             case 's':
                 if (svcstop == NULL)
                     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
-                if (xiswcschar(xwoptarg, '[')) {
-                    xwoptarr = L"S";
+                xwoptend = 0;
+                xwoptarr = L"S";
+                if (svcstopparam) {
+                    if (xiswcschar(xwoptarg, '['))
+                        xwoptend = 1;
+                    else
+                        return xsyserrno(10, L"s", xwoptarg);
                 }
                 else {
-                    if (svcstopparam)
-                        return xsyserrno(10, L"s", xwoptarg);
                     svcstopparam = xwoptarg;
                 }
             break;
@@ -3931,9 +3961,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             break;
         }
     }
-    if (xwoptarr)
+    if (xwoptarr && xwoptend)
         return xsyserrno(28, xwoptarr, NULL);
-
     wargc -= xwoptind;
     wargv += xwoptind;
 
@@ -4161,7 +4190,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
 
     for (i = 0; i < cenvc; i++)
         SetEnvironmentVariableW(cenvn[i], NULL);
-
     xfree(scriptparam);
     DBG_PRINTS("done");
     return 0;

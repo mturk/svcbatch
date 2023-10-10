@@ -232,11 +232,11 @@
 /**
  * Runtime options
  */
-#define SVCBATCH_OPT_WRPIPE         0x00000001   /* Write to child stdin        */
+#define SVCBATCH_OPT_WRPIPE         0x00000001   /* Write data to stdin on run  */
 #define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time              */
-#define SVCBATCH_OPT_CTRL_BREAK     0x00000004   /* Send CTRL_BREAK on stop     */
-#define SVCBATCH_OPT_ENV            0x00000008   /* Set private envvars         */
-#define SVCBATCH_OPT_QUIET          0x00000010   /* Disable logging             */
+#define SVCBATCH_OPT_QUIET          0x00000004   /* Disable logging             */
+#define SVCBATCH_OPT_CTRL_BREAK     0x00000008   /* Send CTRL_BREAK on stop     */
+#define SVCBATCH_OPT_ENV            0x00000010   /* Set private envvars         */
 #define SVCBATCH_OPT_LONGPATHS      0x00000020   /* Use LongPathsEnabled        */
 
 #define SVCBATCH_OPT_ROTATE         0x00000100   /* Enable log rotation         */

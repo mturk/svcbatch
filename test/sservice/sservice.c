@@ -63,7 +63,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     DWORD  id;
 
 
-    _setmode(_fileno(stdout),_O_BINARY);
+    _setmode(_fileno(stdout), _O_BINARY);
     setvbuf(stdout, (char*)NULL, _IONBF, 0);
     id = GetCurrentProcessId();
 
