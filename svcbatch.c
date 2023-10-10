@@ -3926,13 +3926,13 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 }
                 else {
                     *(wp++) = WNUL;
-                    if ((wp[0] == L'$') && (wp[1] == L'_') && xisalpha(wp[2]) &&
-                        (wp[3] == L'$') && (wp[4] == WNUL)) {
+                    if ((wp[0] == L'@') && xisalpha(wp[1]) &&
+                        (wp[2] == WNUL)) {
                         if (!xisvalidvarname(pp))
                             return xsyserrno(14, L"e", pp);
                         if (uenvc < SVCBATCH_MAX_ENVS) {
                             uenvn[uenvc] = pp;
-                            uenvv[uenvc] = xtoupper(wp[2]);
+                            uenvv[uenvc] = xtoupper(wp[1]);
                             uenvc++;
                         }
                         else {

@@ -542,24 +542,24 @@ and lowercase letters with **-** command switch.
   For example:
 
   ```no-highlight
-  > svcbatch create ... /E:NOPAUSE=Y /E:CATALINA_BASE=$_W$ ...
+  > svcbatch create ... /E:NOPAUSE=Y /E:CATALINA_BASE=@W ...
 
   ```
 
   This will set the `NOPAUSE` environment variable to `Y`,
-  and `CATALINA_BASE` to the value of current working
+  and `CATALINA_BASE` to the value of the current working
   directory.
 
-  If the **value** parameter starts with **$_**, followed
-  by the single letter and **$**, it will be evaluated to the
+  If the **value** parameter starts with **@**, followed
+  by the single letter, it will be evaluated to the
   corresponding runtime value.
-  The **$_W$** will be evaluated to the current working directory,
-  **$_N$** will set the **value** to the current Service name, etc.
+  The **@W** will be evaluated to the current working directory,
+  **@N** will set the **value** to the current Service name, etc.
 
   This feature is usually used when the **/F:U** feature is defined,
   since it allows to export specific runtime value(s).
 
-  The supported **$_x$** values are:
+  The supported **@X** values are:
 
   ```no-highlight
 
@@ -658,7 +658,7 @@ and lowercase letters with **-** command switch.
   SvcBatch will evaluate **E** command options in order they
   are defined in service configuration.
 
-  It will first evaluate and set all **VAR=$_x$** variables.
+  It will first evaluate and set all **VAR=@X** variables.
   Then it will evaluate and set all other "standard" variables.
   Finally it will delete all environment variables defined
   by using **/E:VAR**.
