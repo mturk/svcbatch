@@ -201,6 +201,7 @@ static BYTE      YCRLF[]        = { 89, 13, 10,  0 };
 
 static int     xwoptind    = 1;
 static int     xwoptend    = 0;
+static int     xwoptvar    = 0;
 static LPCWSTR xwoptarr    = NULL;
 static LPCWSTR xwoptarg    = NULL;
 static LPCWSTR xwoption    = NULL;
@@ -248,7 +249,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"cefhkmnorstw";
+static const wchar_t *scmdoptions = L"ce:fhkmnorstw";
 
 
 /**
@@ -406,6 +407,7 @@ static const wchar_t *wcsmessages[] = {
     L"Service name starts with invalid character(s)",                       /* 27 */
     L"The %s command option value array is not terminated",                 /* 28 */
     L"Command options %s are mutually exclusive",                           /* 29 */
+    L"Unknown %s command option modifier",                                  /* 30 */
 
     NULL
 };
@@ -1384,6 +1386,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     int      optsep;
 
     xwoptarg = NULL;
+    xwoptvar = 0;
     if (xwoptind >= nargc)
         return EOF;
     xwoption = nargv[xwoptind];
@@ -1424,14 +1427,20 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             xwoptind++;
         return EOF;
     }
+    if (xwoption[1] == L':')
+        return EINVAL;
     option = xtolower(xwoption[1]);
     optpos = xwcschr(opts, option);
     if (optpos == NULL)
         return EINVAL;
-
     optsep = xwoption[2];
+    optarg = xwoption + 3;
+    if ((optpos[1] == L':') && optsep && (optsep != L':')) {
+        /* Two letter option */
+        xwoptvar = xtolower(optsep);
+        optsep   = *(optarg++);
+    }
     if ((xwoption[0] == L'/') && (optsep == L':')) {
-        optarg = xwoption + 3;
         while (xisblank(*optarg))
             ++optarg;
         if (*optarg == WNUL) {
@@ -3723,11 +3732,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     int      uenvc = 0;
     int      wargc = 0;
     LPCWSTR *wargv;
+    LPCWSTR  cenvn[SVCBATCH_MAX_ENVS];
     LPWSTR   eenvn[SVCBATCH_MAX_ENVS];
     LPWSTR   eenvv[SVCBATCH_MAX_ENVS];
     LPWSTR   uenvn[SVCBATCH_MAX_ENVS];
     WCHAR    uenvv[SVCBATCH_MAX_ENVS];
-    LPCWSTR  cenvn[SVCBATCH_MAX_ENVS];
 
     LPCWSTR  cp;
     LPWSTR   wp;
@@ -3760,13 +3769,13 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (cmdproc->optc < SVCBATCH_MAX_ARGS)
                     cmdproc->opts[cmdproc->optc++] = xwoptarg;
                 else
-                    return xsyserrno(16, L"c", xwoptarg);
+                    return xsyserrno(16, L"C", xwoptarg);
             break;
             case 'S':
                 if (svcstop->argc < SVCBATCH_MAX_ARGS)
                     svcstop->args[svcstop->argc++] = xwoptarg;
                 else
-                    return xsyserrno(16, L"s", xwoptarg);
+                    return xsyserrno(16, L"S", xwoptarg);
             break;
             case 'f':
                 cp = xwoptarg;
@@ -3802,8 +3811,13 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'2':
                             svcfailmode = SVCBATCH_FAIL_EXIT;
                         break;
+                        case L'E':
+                            if (uprefixparam)
+                                return xsyserrno(10, L"F", L"E");
+                            uprefixparam = service->name;
+                        break;
                         default:
-                            xsyserrno(12, L"f", cp);
+                            xsyserrno(12, L"F", cp);
                         break;
                     }
                     xwoptarg++;
@@ -3814,9 +3828,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
              */
             case 'n':
                 if (svclogfname)
-                    return xsyserrno(10, L"n", xwoptarg);
+                    return xsyserrno(10, L"N", xwoptarg);
                 if (xwcspbrk(xwoptarg, L"\\:;<>?*|\""))
-                    return xsyserrno(14, L"n", xwoptarg);
+                    return xsyserrno(14, L"N", xwoptarg);
                 if (*xwoptarg == L'/') {
                     /* Set only stop log name */
                     stoplogname = xwoptarg + 1;
@@ -3837,7 +3851,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     if (xiswcschar(xwoptarg, '['))
                         xwoptend = 1;
                     else
-                        return xsyserrno(10, L"c", xwoptarg);
+                        return xsyserrno(10, L"C", xwoptarg);
                 }
                 else {
                     commandparam = xwoptarg;
@@ -3852,7 +3866,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     if (xiswcschar(xwoptarg, '['))
                         xwoptend = 1;
                     else
-                        return xsyserrno(10, L"s", xwoptarg);
+                        return xsyserrno(10, L"S", xwoptarg);
                 }
                 else {
                     svcstopparam = xwoptarg;
@@ -3860,28 +3874,28 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             break;
             case 'r':
                 if (rotateparam)
-                    return xsyserrno(10, L"r", xwoptarg);
+                    return xsyserrno(10, L"R", xwoptarg);
                 rotateparam = xwoptarg;
             break;
             case 'h':
                 if (svchomeparam)
-                    return xsyserrno(10, L"h", xwoptarg);
+                    return xsyserrno(10, L"H", xwoptarg);
                 svchomeparam = skipdotslash(xwoptarg);
             break;
             case 'o':
                 if (outdirparam)
-                    return xsyserrno(10, L"o", xwoptarg);
+                    return xsyserrno(10, L"O", xwoptarg);
                 outdirparam  = skipdotslash(xwoptarg);
             break;
             case 'w':
                 if (svcworkparam)
-                    return xsyserrno(10, L"w", xwoptarg);
+                    return xsyserrno(10, L"W", xwoptarg);
                 svcworkparam = skipdotslash(xwoptarg);
             break;
             case 'k':
                 killdepth = xwcstoi(xwoptarg, NULL);
                 if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
-                    return xsyserrno(13, L"k", xwoptarg);
+                    return xsyserrno(13, L"K", xwoptarg);
             break;
             case 'm':
                 if (*xwoptarg != L'.')
@@ -3891,14 +3905,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (*wp == L'.')
                     stopmaxlogs = xwcstoi(wp + 1, NULL);
                 if ((srvcmaxlogs < 0) || (srvcmaxlogs > SVCBATCH_MAX_LOGS))
-                    return xsyserrno(13, L"m", xwoptarg);
+                    return xsyserrno(13, L"M", xwoptarg);
                 if ((stopmaxlogs < 0) || (stopmaxlogs > SVCBATCH_MAX_LOGS))
-                    return xsyserrno(13, L"m", xwoptarg);
+                    return xsyserrno(13, L"M", xwoptarg);
             break;
             case 't':
                 stoptimeout = xwcstoi(xwoptarg, NULL);
                 if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
-                    return xsyserrno(13, L"t", xwoptarg);
+                    return xsyserrno(13, L"T", xwoptarg);
                 stoptimeout = stoptimeout * 1000;
             break;
             /**
@@ -3906,51 +3920,45 @@ static int parseoptions(int sargc, LPWSTR *sargv)
              * multiple times
              */
             case 'e':
-                if (*xwoptarg == L'=') {
-                    if (uprefixparam)
-                        return xsyserrno(10, L"e", xwoptarg);
-                    if (xiswcschar(xwoptarg + 1, L'@'))
-                        uprefixparam = service->name;
-                    else
-                        uprefixparam = xwoptarg + 1;
-                    break;
-                }
-                pp = xwcsdup(xwoptarg);
-                wp = xwcschr(pp, L'=');
-                if (wp == NULL) {
-                    xfree(pp);
+                if (xwoptvar == 'u') {
                     if (cenvc < SVCBATCH_MAX_ENVS)
                         cenvn[cenvc++] = xwoptarg;
                     else
-                        return xsyserrno(17, L"e", xwoptarg);
+                        return xsyserrno(17, L"EU", xwoptarg);
+                    break;
+                }
+                if (xwoptvar == 'p') {
+                    if (uprefixparam)
+                        return xsyserrno(10, L"EP", xwoptarg);
+                    uprefixparam = xwoptarg;
+                    break;
+                }
+                if (xwoptvar != 0)
+                    return xsyserrno(30, L"E", xwoption);
+                pp = xwcsdup(xwoptarg);
+                wp = xwcschr(pp, L'=');
+
+                if (wp == NULL)
+                    return xsyserrno(11, L"E", xwoptarg);
+                *(wp++) = WNUL;
+                if (IS_EMPTY_WCS(wp))
+                    return xsyserrno(11, L"E", xwoptarg);
+                if ((wp[0] == L'@') && xisalpha(wp[1]) &&
+                    (wp[2] == WNUL)) {
+                    if (!xisvalidvarname(pp))
+                        return xsyserrno(14, L"E", pp);
+                    if (uenvc >= SVCBATCH_MAX_ENVS)
+                        return xsyserrno(17, L"E", xwoptarg);
+                    uenvn[uenvc] = pp;
+                    uenvv[uenvc] = xtoupper(wp[1]);
+                    uenvc++;
                 }
                 else {
-                    *(wp++) = WNUL;
-                    if ((wp[0] == L'@') && xisalpha(wp[1]) &&
-                        (wp[2] == WNUL)) {
-                        if (!xisvalidvarname(pp))
-                            return xsyserrno(14, L"e", pp);
-                        if (uenvc < SVCBATCH_MAX_ENVS) {
-                            uenvn[uenvc] = pp;
-                            uenvv[uenvc] = xtoupper(wp[1]);
-                            uenvc++;
-                        }
-                        else {
-                            return xsyserrno(17, L"e", xwoptarg);
-                        }
-                    }
-                    else {
-                        if (IS_EMPTY_WCS(wp))
-                            return xsyserrno(11, L"e", xwoptarg);
-                        if (eenvc < SVCBATCH_MAX_ENVS) {
-                            eenvn[eenvc] = pp;
-                            eenvv[eenvc] = wp;
-                            eenvc++;
-                        }
-                        else {
-                            return xsyserrno(17, L"e", xwoptarg);
-                        }
-                    }
+                    if (eenvc >= SVCBATCH_MAX_ENVS)
+                        return xsyserrno(17, L"E", xwoptarg);
+                    eenvn[eenvc] = pp;
+                    eenvv[eenvc] = wp;
+                    eenvc++;
                 }
             break;
             case ENOENT:
@@ -4165,7 +4173,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     if (rotateparam) {
         if (!resolverotate(rotateparam))
-            return xsyserrno(12, L"r", rotateparam);
+            return xsyserrno(12, L"R", rotateparam);
         OPT_SET(SVCBATCH_OPT_ROTATE);
     }
     if (svcstopparam) {
@@ -4187,9 +4195,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if ((stopmaxlogs > 0) && (stoplogname == NULL))
             stoplogname = SVCBATCH_LOGSTOP;
     }
-
     for (i = 0; i < cenvc; i++)
         SetEnvironmentVariableW(cenvn[i], NULL);
+
     xfree(scriptparam);
     DBG_PRINTS("done");
     return 0;

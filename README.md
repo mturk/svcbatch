@@ -317,7 +317,7 @@ and lowercase letters with **-** command switch.
   listed in any order.
 
   ```no-highlight
-      <B><L><P><Q><U><W><Y><0|1|2>
+      <B><E><L><P><Q><U><W><Y><0|1|2>
   ```
 
     * **B**
@@ -351,6 +351,18 @@ and lowercase letters with **-** command switch.
       This option causes all logging and rotation
       to use local instead system time.
 
+
+    * **E**
+
+      **Sets private environment variable prefix to service name**
+
+      The following example will cause SvcBatch to
+      export **MYSERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
+
+      ```no-highlight
+      > svcbatch create myService ... /F:E ...
+
+      ```
 
     * **P**
 
@@ -531,9 +543,9 @@ and lowercase letters with **-** command switch.
   keeps running in the background.
 
 
-* **E [name<=value>]**
+* **E [name=value]**
 
-  **Sets or deletes environment variable**
+  **Sets environment variable**
 
   This option allows to set the contents of the specified
   environment variable. The content of the **name** environment
@@ -607,61 +619,65 @@ and lowercase letters with **-** command switch.
 
 
 
-  In case the **value** is empty, the **name** variable
-  will be deleted from the current process's environment.
+  SvcBatch will evaluate **E** command options in order they
+  are defined in service configuration.
+
+  In case the **/F:U** feature was not defined, SvcBatch
+  will first set all [Private Environment Variables](#private-environment-variables)
+
+  After that it will evaluate and set all **/E:VAR=@X** variables.
+  Then it will evaluate and set all other "standard" variables.
+
+  Finally it will delete all environment variables defined
+  by using **/EU:VAR**.
+
+
+* **EU [variable]**
+
+  **Unset the environment variable**
+
+  This option allows to remove the specified
+  environment **variable** from the current process's environment.
 
   The following example will delete `SOME_VARIABLE` environment
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... /E:SOME_VARIABLE ...
+  > svcbatch create ... /EU:SOME_VARIABLE ...
 
   ```
 
-  In case the **name** starts with **=** character,
-  the reminder of the **name** will be used to set
-  the prefix for private environment variables.
-  In case the reminder is **@** character, the
-  service name will be used as prefix for the private
-  environment variables.
+
+* **EP [prefix]**
+
+  **Sets private environment variables prefix**
+
+  By default SvcBatch uses uppercase program name as prefix
+  for private environment variables names.
 
   Check [Private Environment Variables](#private-environment-variables)
   section, for the list of exported variables.
 
   To change default **SVCBATCH** prefix, add
-  **/E:=prefix** to your service configuration.
+  **/EP:prefix** to your service configuration.
 
 
   The following example will cause SvcBatch to
   export **ASERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
 
   ```no-highlight
-  > svcbatch create ... /E:=ASERVICE ...
+  > svcbatch create ... /EP:ASERVICE ...
 
   ```
 
-  The following example will cause SvcBatch to
-  export **MYSERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
-
-  ```no-highlight
-  > svcbatch create myService ... /E:=@ ...
-
-  ```
-
+  **Notice**
 
   If **/F:U** was added to the service's configuration
   this option will have no meaning.
 
+  Also check the **/F:E** feature option for setting
+  the prefix to current service name.
 
-  **Notice**
-
-  SvcBatch will evaluate **E** command options in order they
-  are defined in service configuration.
-
-  It will first evaluate and set all **VAR=@X** variables.
-  Then it will evaluate and set all other "standard" variables.
-  Finally it will delete all environment variables defined
-  by using **/E:VAR**.
 
 
 * **H [path]**
@@ -967,10 +983,11 @@ and lowercase letters with **-** command switch.
 
 SvcBatch sets a few private environment variables that
 provide more info about running environments to batch files.
-Those variable by default have **SVCBATCH** prefix.
+Those variable by default have **SVCBATCH** prefix,
+determined from the program executable name.
 
 Here is the list of environment variables that
-SvcBatch sets for each instance.
+SvcBatch sets for each instance:
 
 
 * **SVCBATCH_BASE**
@@ -1050,8 +1067,8 @@ SvcBatch sets for each instance.
   as prefix for those variables. In that case it will export
   **MYSERVICE_NAME**, **MYSERVICE_HOME**, etc.
 
-  If defined, the **/E:=PREFIX** command option takes
-  precedence over this feature.
+  If either the **/F:E** or **/EP:PREFIX** command options were
+  defined, they will take precedence over this feature.
 
 **Important**
 
