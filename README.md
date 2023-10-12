@@ -719,13 +719,15 @@ and lowercase letters with **-** command switch.
   If not set, SvcBatch will create and use the  **SVCBATCH_WORK\Logs**
   directory as a location for log files that has to be created.
 
+  If the **path** is not the absolute path, it will
+  be resolved relative to the **W** directory.
+
+  **Notice**
+
   This directory has to be unique for each service instance. Otherwise the
   service will fail if another service already opened SvacBatch.log
   in that location.
 
-  If the **path** parameter contains any **@** or **%** characters,
-  SvcBatch will evaluate all environment strings in the **path**, and
-  set log directory to that value.
 
 
 * **LN [log name]**
