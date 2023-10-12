@@ -199,12 +199,15 @@ static WCHAR     zerostring[]   = {  0,  0,  0,  0 };
 static WCHAR     CRLFW[]        = { 13, 10,  0,  0 };
 static BYTE      YCRLF[]        = { 89, 13, 10,  0 };
 
-static int     xwoptind    = 1;
-static int     xwoptend    = 0;
-static int     xwoptvar    = 0;
-static LPCWSTR xwoptarr    = NULL;
-static LPCWSTR xwoptarg    = NULL;
-static LPCWSTR xwoption    = NULL;
+static LPBYTE   stdindata       = YCRLF;
+static DWORD    stdinsize       = 3;
+
+static int      xwoptind        = 1;
+static int      xwoptend        = 0;
+static int      xwoptvar        = 0;
+static LPCWSTR  xwoptarr        = NULL;
+static LPCWSTR  xwoptarg        = NULL;
+static LPCWSTR  xwoption        = NULL;
 
 /**
  * Service Manager types
@@ -249,7 +252,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"ce:fhkl:rs:tw";
+static const wchar_t *scmdoptions = L"ce:fhikl:rs:tw";
 
 
 /**
@@ -2211,6 +2214,56 @@ static LPWSTR xsearchexe(LPCWSTR name)
     return xwcsdup(buf);
 }
 
+static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
+{
+    DWORD  sz = SVCBATCH_PATH_MAX - 4;
+    DWORD  rc = 0;
+    DWORD  rd = 0;
+    DWORD  sn;
+    HANDLE fh;
+    LPBYTE bb;
+    WCHAR  nb[SVCBATCH_PATH_MAX];
+    WIN32_FILE_ATTRIBUTE_DATA ad;
+
+
+    sn = GetFullPathNameW(name, sz, nb, NULL);
+    if ((sn == 0) || (sn >= sz)) {
+        DBG_PRINTF("invalid name %S", name);
+        return ERROR_INVALID_NAME;
+    }
+    xfixmaxpath(nb, sn, 0);
+    if (GetFileAttributesExW(nb, GetFileExInfoStandard, &ad)) {
+        if ((ad.nFileSizeHigh > 0) || (ad.nFileSizeLow > maxsz)) {
+            DBG_PRINTF("file is too large %S", nb);
+            return ERROR_BUFFER_OVERFLOW;
+        }
+    }
+    else {
+        DBG_PRINTF("cannot stat %S", nb);
+        return GetLastError();
+    }
+    if (ad.nFileSizeLow == 0)
+        return ERROR_INVALID_DATA;
+
+    fh = CreateFileW(nb, GENERIC_READ, FILE_SHARE_READ, NULL,
+                     OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (IS_INVALID_HANDLE(fh))
+        return GetLastError();
+    bb = (LPBYTE)xmmalloc(ad.nFileSizeLow);
+    if (ReadFile(fh, bb, ad.nFileSizeLow, &rd, NULL) && rd) {
+        *data = bb;
+        *size = rd;
+        DBG_PRINTF("read %lu bytes from %S", rd, nb);
+    }
+    else {
+        rc = GetLastError();
+        xfree(bb);
+    }
+    CloseHandle(fh);
+    return rc;
+}
+
+
 static void setsvcstatusexit(DWORD e)
 {
     SVCBATCH_CS_ENTER(service);
@@ -3138,7 +3191,7 @@ static DWORD WINAPI wrpipethread(void *pipe)
     DWORD  wr = 0;
 
     DBG_PRINTS("started");
-    if (WriteFile(h, YCRLF, 3, &wr, NULL) && (wr != 0)) {
+    if (WriteFile(h, stdindata, stdinsize, &wr, NULL) && (wr != 0)) {
         if (!FlushFileBuffers(h))
             rc = GetLastError();
         DBG_PRINTF("wrote %lu bytes", wr);
@@ -3755,6 +3808,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  rotateparam  = NULL;
     LPCWSTR  logdirparam  = NULL;
     LPCWSTR  tmpdirparam  = NULL;
+    LPCWSTR  sinputparam  = NULL;
 
     DBG_PRINTS("started");
     x = getsvcarguments(&wargc, &wargv);
@@ -3886,6 +3940,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             break;
             case 'h':
                 svchomeparam = skipdotslash(xwoptarg);
+            break;
+            case 'i':
+                sinputparam  = skipdotslash(xwoptarg);
             break;
             case 't':
                 tmpdirparam  = skipdotslash(xwoptarg);
@@ -4079,6 +4136,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         SetEnvironmentVariableW(L"TMP",  pp);
         SetEnvironmentVariableW(L"TEMP", pp);
         xfree(pp);
+    }
+    if (sinputparam) {
+        x = xreadfile(sinputparam, &stdindata, &stdinsize, SVCBATCH_PIPE_LEN);
+        if (x)
+            return xsyserror(x, L"ReadFile", sinputparam);
+        OPT_SET(SVCBATCH_OPT_WRPIPE);
     }
     /**
      * Add additional environment variables

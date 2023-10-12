@@ -425,7 +425,7 @@ and lowercase letters with **-** command switch.
 
       **Write Y to child console**
 
-      If set this option will write Y character to script interpreter's
+      If set this option will write `Y\r\n` characters to script interpreter's
       console standard input.
 
       This option is enabled by default when **cmd.exe** is used,
@@ -541,6 +541,21 @@ and lowercase letters with **-** command switch.
   Use this option if the service script file creates
   a process that do not respond to STOP command, but
   keeps running in the background.
+
+
+* **I [filename]**
+
+  **Send data from filename to child standard input**
+
+  This option allows to send the content of the **filename**
+  to the child's standard input.
+
+  If the **filename** is not the absolute path, it will
+  be resolved relative to the **H** directory.
+
+  **Notice**
+
+  Maximum size of the **filename** is `8192` bytes.
 
 
 * **E [name=value]**

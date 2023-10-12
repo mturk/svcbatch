@@ -160,6 +160,11 @@
 #define SVCBATCH_INT_MAX        10000000
 
 /**
+ * Maximum size of the data file in bytes
+ */
+#define SVCBATCH_DATA_MAX       131072
+
+/**
  * Timing definitions
  */
 #define SVCBATCH_START_HINT     10000
