@@ -3759,13 +3759,14 @@ static BOOL resolvescript(LPCWSTR bp)
         return TRUE;
     if (IS_EMPTY_WCS(bp))
         return TRUE;
-    if (*bp == L':') {
-        cmdproc->script = xwcsdup(bp + 1);
+    if (xwcsequals(bp, L"NUL"))
         return TRUE;
-    }
     if (isdotslash(bp)) {
         cmdproc->script = xwcsdup(bp + 2);
-        return TRUE;
+        if (IS_EMPTY_WCS(cmdproc->script))
+            return FALSE;
+        else
+            return TRUE;
     }
     cmdproc->script = xgetfinalpath(0, bp);
     if (IS_EMPTY_WCS(cmdproc->script))
@@ -4142,29 +4143,29 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (x)
             return xsyserror(x, L"ReadFile", sinputparam);
         OPT_SET(SVCBATCH_OPT_WRPIPE);
+        xsvcstatus(SERVICE_START_PENDING, 0);
     }
     /**
      * Add additional environment variables
      * They are unique to this service instance
      */
     if (IS_SET(SVCBATCH_OPT_ENV)) {
-        WCHAR ub[SVCBATCH_NAME_MAX];
+        WCHAR ep[SVCBATCH_NAME_MAX];
 
         if (eprefixparam == NULL)
             eprefixparam = program->name;
         if (!xisvalidvarname(eprefixparam))
             return xsyserrno(20, L"Environment variable prefix", eprefixparam);
-        i = xwcslcpy(ub, SVCBATCH_NAME_MAX, eprefixparam);
+        i = xwcslcpy(ep, SVCBATCH_NAME_MAX, eprefixparam);
         if (i >= SVCBATCH_NAME_MAX)
             return xsyserrno(21, L"Environment variable name", eprefixparam);
-        xwcsupper(ub);
-        eprefixparam = ub;
-        xsetsvcenv(eprefixparam, L"_BASE", service->base);
-        xsetsvcenv(eprefixparam, L"_HOME", service->home);
-        xsetsvcenv(eprefixparam, L"_LOGS", service->logs);
-        xsetsvcenv(eprefixparam, L"_NAME", service->name);
-        xsetsvcenv(eprefixparam, L"_UUID", service->uuid);
-        xsetsvcenv(eprefixparam, L"_WORK", service->work);
+        xwcsupper(ep);
+        xsetsvcenv(ep, L"_BASE", service->base);
+        xsetsvcenv(ep, L"_HOME", service->home);
+        xsetsvcenv(ep, L"_LOGS", service->logs);
+        xsetsvcenv(ep, L"_NAME", service->name);
+        xsetsvcenv(ep, L"_UUID", service->uuid);
+        xsetsvcenv(ep, L"_WORK", service->work);
     }
 
     for (i = 0; i < uenvc; i++) {
@@ -4228,14 +4229,16 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             if (svcstop->argc == 0)
                 svcstop->args[svcstop->argc++] = L"stop";
         }
+        else if (xwcsequals(svcstopparam, L"NUL")) {
+            if (svcstop->argc == 0)
+                return xsyserrno(18, L"S", svcstopparam);
+        }
         else {
-            if (*svcstopparam == ':')
-                svcstop->script = xwcsdup(svcstopparam + 1);
-            else if (isdotslash(svcstopparam))
+            if (isdotslash(svcstopparam))
                 svcstop->script = xwcsdup(svcstopparam + 2);
             else
                 svcstop->script = xgetfinalpath(0, skipdotslash(svcstopparam));
-            if (svcstop->script == NULL)
+            if (IS_EMPTY_WCS(svcstop->script))
                 return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
         }
         if ((stopmaxlogs > 0) && (stoplogname == NULL))
@@ -4290,17 +4293,15 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
+    xsvcstatus(SERVICE_START_PENDING, 0);
     if (outputlog) {
-        xsvcstatus(SERVICE_START_PENDING, 0);
-
         rv = openlogfile(outputlog, TRUE);
-        if (rv != 0) {
+        if (rv) {
             xsvcstatus(SERVICE_STOPPED, rv);
             return;
         }
+        xsvcstatus(SERVICE_START_PENDING, 0);
     }
-    xsvcstatus(SERVICE_START_PENDING, 0);
-
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
         rv = xsyserror(GetLastError(), L"WorkerThread", NULL);

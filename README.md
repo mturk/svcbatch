@@ -285,10 +285,15 @@ Is the same as
 
 ```
 
-After handling switches SvcBatch will pass remained
+After handling switches SvcBatch will pass remaining
 arguments to the script interpreter.
 
-If there is no additional arguments, SvcBatch will
+The first argument is treated as script file.
+If the first argument is not the absolute path, it will
+be resolved relative to the service home directory.
+
+
+If there are no additional arguments, SvcBatch will
 append `.bat` to the running Service Name.
 In that case, if `ServiceName` contain any of the
 invalid file name characters `/\:;<>?*|"`,
@@ -898,12 +903,12 @@ and lowercase letters with **-** command switch.
   This is particularly useful for services that do not handle
   `CTRL_C_EVENT` or have specific shutdown requirements.
 
-  In case the **script** starts with **:** character,
-  SvcBatch will use the string following the **:**
-  as script file without checking for its existence.
+  In case the **script** equals to **NUL**, SvcBatch
+  will only pass additional arguments to the script interpreter.
+  Service will fail to start if the additional argument(s) were not defined.
 
   In case the **script** starts with **./** or **.\\**,
-  SvcBatch will use the string following the **./**
+  SvcBatch will use the string following the **./** or **.\\**
   as script file without checking for its existence.
 
   In case the **script** equals to **@**,
