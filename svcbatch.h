@@ -31,7 +31,7 @@
 # define CPP_INT64_C(_v)    (_v##I64)
 # define CPP_UINT64_C(_v)   (_v##UI64)
 # define INT64_ZERO         0I64
-# define UINT64_ZERO        0U64
+# define UINT64_ZERO        0UI64
 #else
 # define CPP_INT64_C(_v)    (_v##LL)
 # define CPP_UINT64_C(_v)   (_v##ULL)

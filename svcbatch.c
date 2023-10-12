@@ -431,17 +431,17 @@ static int xfatalerr(LPCSTR func, int err)
 
 static void *xmmalloc(size_t size)
 {
-    LONG64 *p;
+    UINT64 *p;
     size_t  n;
 
     n = MEM_ALIGN_DEFAULT(size);
-    p = (LONG64 *)malloc(n);
+    p = (UINT64 *)malloc(n);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
         return NULL;
     }
     n = (n >> 3) - 1;
-    *(p + n) = INT64_ZERO;
+    *(p + n) = UINT64_ZERO;
     return p;
 }
 
@@ -2240,10 +2240,12 @@ static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
     }
     else {
         DBG_PRINTF("cannot stat %S", nb);
-        return GetLastError();
+        return ERROR_ACCESS_DENIED;
     }
-    if (ad.nFileSizeLow == 0)
+    if (ad.nFileSizeLow == 0) {
+        DBG_PRINTF("file is empty %S", nb);
         return ERROR_INVALID_DATA;
+    }
 
     fh = CreateFileW(nb, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -2257,7 +2259,7 @@ static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
             *size = rd;
         }
         else {
-            DBG_PRINTF("read %lu bytes instead %lu from %S", rd, ad.nFileSizeLow, nb);
+            DBG_PRINTF("read %lu instead %lu bytes from %S", rd, ad.nFileSizeLow, nb);
             rc = ERROR_BAD_LENGTH;
             xfree(bb);
         }
@@ -2265,6 +2267,7 @@ static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
     else {
         rc = GetLastError();
         xfree(bb);
+        DBG_PRINTF("read failed from %S", nb);
     }
     CloseHandle(fh);
     return rc;
