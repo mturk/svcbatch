@@ -78,9 +78,9 @@ rem Create service
 rem
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/N:service.log"
+set "SERVICE_LOGNAME=/LN:service.log"
 rem
-rem set "SERVICE_LOGNAME=/N:service.@Y-@m-@d.log/service.stop.log /M:.1"
+rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SL:service.stop.log /SM:1"
 rem
 rem
 rem
@@ -89,7 +89,7 @@ rem
     --description "%SERVICE_DESCIPTION%" ^
     --start=automatic ^
     /F:P /E:NOPAUSE=Y ^
-    /O:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
+    /L:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
     /S:jboss-cli.bat [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
     %SERVER_MODE%.bat %CMD_LINE_ARGS%
 rem
@@ -102,16 +102,16 @@ rem Run service using powershell
 rem
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/N:service.log"
+set "SERVICE_LOGNAME=/LN:service.log"
 rem
-rem set "SERVICE_LOGNAME=/N:service.@Y-@m-@d.log/service.stop.log /M:.1"
+rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SL:service.stop.log /SM:1"
 rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
     --displayName "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
     --start=auto ^
     /F:P ^
-    /O:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
+    /L:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
     /C:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
     /S:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
     %SERVER_MODE%.ps1 %CMD_LINE_ARGS%

@@ -277,11 +277,11 @@ followed by the actual option value.
 For example:
 
 ```no-highlight
-> svcbatch create myService ... /O:log\directory ...
+> svcbatch create myService ... /L:log\directory ...
 
 Is the same as
 
-> svcbatch create myService ... -o log\directory ...
+> svcbatch create myService ... -l log\directory ...
 
 ```
 
@@ -705,72 +705,45 @@ and lowercase letters with **-** command switch.
   to the Windows Event log.
 
 
-* **T [timeout]**
+* **L [path]**
 
-  **Set stop timeout in seconds**
+  **Set service log directory**
 
-  This option sets the **timeout** when service receives
-  stop or shutdown signal.
-  The valid **timeout** range is between `2` and `120`
-  seconds (two minutes).
+  This option allows a user to set the log directory, which is where
+  SvcBatch will create any runtime log files.
 
-  By default this value is set to `10` seconds.
+  If set, the **path** parameter will be used as the
+  location where SvcBatch.log files will be created.
+  SvcBatch will create a **path** directory if it doesn't exist.
 
-  Also make sure to check the **WaitToKillServiceTimeout**
-  value specified in the following registry key:
+  If not set, SvcBatch will create and use the  **SVCBATCH_WORK\Logs**
+  directory as a location for log files that has to be created.
 
-  **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control**
+  This directory has to be unique for each service instance. Otherwise the
+  service will fail if another service already opened SvacBatch.log
+  in that location.
 
-  If the operating system is rebooting, this value is used
-  as time limit.
-
-
-* **M [number][<.>max stop logs]**
-
-  **Set maximum number of log files**
-
-  In case the **number** contains a single decimal number
-  between `1 and 9` it will be used instead default `1 .. 2`.
-
-  ```no-highlight
-  > svcbatch create ... /M:4
-
-  ```
-
-  Instead rotating Svcbatch.log from `1 .. 2` it will rotate
-  exiting log files from `1 .. 4.`.
-
-  Default maximum number of stop log files is `0` (zero),
-  which means that no log rotation will be performed for stop
-  script logging. To enable log rotation for stop logging, add
-  the dot character to the end of **number**,
-  followed by **max stop logs** number.
-
-  ```no-highlight
-  > svcbatch create ... /M:4.2 /N myService.log/myService.stop.log
-
-  ```
-
-  This will rotate service log files from `1 .. 4.`,
-  and stop log files from `1 .. 2`.
+  If the **path** parameter contains any **@** or **%** characters,
+  SvcBatch will evaluate all environment strings in the **path**, and
+  set log directory to that value.
 
 
-* **N [log name][</>stop log name]**
+* **LN [log name]**
 
   **Set log file name**
 
   This option allows a user to set the alternate log file names.
 
   By default SvcBatch will use `SvcBatch.log` as **log name**.
-  To redefine default log name use the **N**
+  To redefine default log name use the **LN**
   command option at service install:
 
   ```no-highlight
-  > svcbatch create ... /N:myService.log ...
+  > svcbatch create ... /LN:myService.log ...
 
   ```
 
-  If the **N** argument contains `@` characters,
+  If the **log name** argument contains `@` characters,
   it will be treated as a format string
   to our custom `strftime` function.
 
@@ -822,38 +795,21 @@ and lowercase letters with **-** command switch.
   In case the result from `strftime` contains any of the reserved
   characters the function will fail.
 
-  To enable stop logging for scripts defined by **S** option,
-  add forward slash `/` character to the end of **log name**, followed
-  by **stop log name**.
+
+* **LM [number]**
+
+  **Set maximum number of log files**
+
+  In case the **number** contains a single decimal number
+  between `1 and 9` it will be used instead default `1 .. 2`.
 
   ```no-highlight
-  > svcbatch create ... -n myService.log/myService.stop.log ...
+  > svcbatch create ... /LM:4
 
   ```
 
-
-* **O [path]**
-
-  **Set service output directory**
-
-  This option allows a user to set the output directory, which is where SvcBatch
-  will create any runtime data files.
-
-  If set, the **path** parameter will be used as the
-  location where SvcBatch.log files will be created.
-  SvcBatch will create a **path** directory if it doesn't exist.
-
-  If not set, SvcBatch will create and use the  **SVCBATCH_WORK\Logs**
-  directory as a location for log files and any runtime data
-  that has to be created.
-
-  This directory has to be unique for each service instance. Otherwise the
-  service will fail if another service already opened SvacBatch.log
-  in that location.
-
-  If the **path** parameter contains any **@** or **%** characters,
-  SvcBatch will evaluate all environment strings in the **path**, and
-  set output directory to that value.
+  Instead rotating Svcbatch.log from `1 .. 2` it will rotate
+  exiting log files from `1 .. 4.`.
 
 
 * **R [rule]**
@@ -953,6 +909,78 @@ and lowercase letters with **-** command switch.
 
   ```
 
+
+* **SL [log name]**
+
+  **Set stop log file name**
+
+  This option allows a user to enable stop logging for scripts
+  defined by **S** option,
+
+  ```no-highlight
+  > svcbatch create ... /SL:myService.stop.log ...
+
+  ```
+
+  The **log name** parameter uses the same naming rules
+  as defined by **LN** command option.
+
+
+
+
+* **SM [number]**
+
+  **Set maximum number of stop log files**
+
+
+  Default maximum number of stop log files is `0` (zero),
+  which means that no log rotation will be performed for stop
+  script logging. To enable log rotation for stop logging, set
+  the **number** parameter value between `1 and 9`.
+
+  ```no-highlight
+  > svcbatch create ... /SM:2 /SL:myService.stop.log
+
+  ```
+
+  This will rotate stop log files from `1 .. 2`.
+
+
+
+* **ST [timeout]**
+
+  **Set stop timeout in seconds**
+
+  This option sets the **timeout** when service receives
+  stop or shutdown signal.
+  The valid **timeout** range is between `2` and `120`
+  seconds (two minutes).
+
+  By default this value is set to `10` seconds.
+
+  Also make sure to check the **WaitToKillServiceTimeout**
+  value specified in the following registry key:
+
+  **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control**
+
+  If the operating system is rebooting, this value is used
+  as time limit.
+
+
+* **T [path]**
+
+  **Set temp directory**
+
+  This option allows a user to set the temp directory.
+
+  If the **path** is not the absolute path, it will
+  be resolved relative to the **W** directory.
+
+  SvcBatch will set **TEMP** and **TMP** environment
+  variables to that directory.
+
+  In case the directory specified by **path** parameter
+  does not exists, it will be created.
 
 
 * **W [path]**
@@ -1056,7 +1084,7 @@ SvcBatch sets for each instance:
 
   This variable is set as current directory for the
   shell process launched from SvcBatch, and as base directory
-  for **SVCBATCH_LOGS** in case the **O** parameter
+  for **SVCBATCH_LOGS** in case the **L** parameter
   was defined as relative path.
 
 

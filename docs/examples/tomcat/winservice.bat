@@ -79,9 +79,9 @@ rem Use the service batch file for shutdown
 set "SHUTDOWN_FILE=/S:@"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/N:service.@Y-@m-@d.log"
+set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log"
 rem
-rem set "SERVICE_LOGNAME=/N:service.@Y-@m-@d.log/service.stop.log /M:.1"
+rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SL:service.stop.log /SM:1"
 rem
 rem
 rem

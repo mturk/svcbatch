@@ -60,7 +60,7 @@ rem Set arguments for shutdown bat file
 set "SHUTDOWN_ARGS=[ stop arguments ] /S:[ "with spaces" ]"
 rem
 rem
-set "SERVICE_LOG_DIR=-o Logs\%SERVICE_NAME%\%LONG_STRING%"
+set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%\%LONG_STRING%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/R:@10+100K"
 set "ROTATE_RULE=/R:@5+20K"
@@ -70,13 +70,13 @@ rem Rotate Log files every full hour or when larger then 40000 bytes
 rem set "ROTATE_RULE=/R:@60+40000B"
 rem
 rem Set log file names instead default SvcBatch.log
-rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.log""
+rem set "SERVICE_LOG_FNAME=-ln "%SERVICE_NAME%.log""
 rem
-rem set "SERVICE_LOG_FNAME=-n "%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log""
+rem set "SERVICE_LOG_FNAME=-ln "%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log""
 rem
-set "SERVICE_LOG_FNAME=/N:@N.@Y-@m-@d.log/@N.stop.log"
+set "SERVICE_LOG_FNAME=/LN:@N.@Y-@m-@d.log /SL:@N.stop.log"
 rem
-set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /M:.1"
+set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /SM:1"
 rem
 rem Set PATH
 set "SERVICE_ENVIRONMENT=/E:PATH=@_TEMP_HOME@;@PATH@ /E:_TEMP_HOME=@H /E:ADUMMYSVC_PID=@i /E:ADUMMYSVC_VER=@V /EU:_TEMP_HOME"
