@@ -29,3 +29,15 @@ To stop the service type
 > svcbatch stop luasvc
 
 ```
+
+To delete the service type
+
+```no-highlight
+
+> svcbatch delete luasvc
+
+```
+
+
+You can find lua executable at
+[https://github.com/mturk/lua](https://github.com/mturk/lua)
