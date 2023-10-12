@@ -460,7 +460,7 @@ static void *xmcalloc(size_t size)
 
 static void *xrealloc(void *mem, size_t size)
 {
-    LONG64 *p;
+    UINT64 *p;
     size_t  n;
 
     if (size == 0) {
@@ -469,13 +469,15 @@ static void *xrealloc(void *mem, size_t size)
         return NULL;
     }
     n = MEM_ALIGN_DEFAULT(size);
-    p = (LONG64 *)realloc(mem, n);
+    p = (UINT64 *)realloc(mem, n);
     if (p == NULL) {
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
         return NULL;
     }
-    n = (n >> 3) - 1;
-    *(p + n) = INT64_ZERO;
+    if (mem == NULL) {
+        n = (n >> 3) - 1;
+        *(p + n) = UINT64_ZERO;
+    }
     return p;
 }
 
