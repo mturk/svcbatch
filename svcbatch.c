@@ -3908,14 +3908,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 logdirparam  = skipdotslash(xwoptarg);
             break;
             case 's':
-                if (xwoptvar == 'l') {
-                    stoplogname = xwoptarg;
-                    break;
-                }
                 if (xwoptvar == 'm') {
                     stopmaxlogs = xwcstoi(xwoptarg, NULL);
                     if ((stopmaxlogs < 0) || (stopmaxlogs > SVCBATCH_MAX_LOGS))
                         return xsyserrno(13, L"SM", xwoptarg);
+                    break;
+                }
+                if (xwoptvar == 'n') {
+                    stoplogname = xwoptarg;
                     break;
                 }
                 if (xwoptvar == 't') {

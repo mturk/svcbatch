@@ -80,7 +80,7 @@ rem
 rem Set the log name
 set "SERVICE_LOGNAME=/LN:service.log"
 rem
-rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SL:service.stop.log /SM:1"
+rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SN:service.stop.log /SM:1"
 rem
 rem
 rem
@@ -104,7 +104,7 @@ rem
 rem Set the log name
 set "SERVICE_LOGNAME=/LN:service.log"
 rem
-rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SL:service.stop.log /SM:1"
+rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SN:service.stop.log /SM:1"
 rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
     --displayName "%SERVICE_DISPLAY%" ^

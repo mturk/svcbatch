@@ -750,13 +750,13 @@ and lowercase letters with **-** command switch.
 
 
 
-* **LN [log name]**
+* **LN [name]**
 
   **Set log file name**
 
   This option allows a user to set the alternate log file names.
 
-  By default SvcBatch will use `SvcBatch.log` as **log name**.
+  By default SvcBatch will use `SvcBatch.log` as **name**.
   To redefine default log name use the **LN**
   command option at service install:
 
@@ -765,7 +765,7 @@ and lowercase letters with **-** command switch.
 
   ```
 
-  If the **log name** argument contains `@` characters,
+  If the **name** parameter contains `@` characters,
   it will be treated as a format string
   to our custom `strftime` function.
 
@@ -932,24 +932,6 @@ and lowercase letters with **-** command switch.
   ```
 
 
-* **SL [log name]**
-
-  **Set stop log file name**
-
-  This option allows a user to enable stop logging for scripts
-  defined by **S** option,
-
-  ```no-highlight
-  > svcbatch create ... /SL:myService.stop.log ...
-
-  ```
-
-  The **log name** parameter uses the same naming rules
-  as defined by **LN** command option.
-
-
-
-
 * **SM [number]**
 
   **Set maximum number of stop log files**
@@ -961,11 +943,33 @@ and lowercase letters with **-** command switch.
   the **number** parameter value between `1 and 9`.
 
   ```no-highlight
-  > svcbatch create ... /SM:2 /SL:myService.stop.log
+  > svcbatch create ... /SM:2 /SN:myService.stop.log
 
   ```
 
   This will rotate stop log files from `1 .. 2`.
+
+  **Notice**
+
+  If this option is defined, and **SN** option was not defined,
+  SvcBatch will use default `SvcBatch.stop.log` as stop log name.
+
+
+* **SN [name]**
+
+  **Set stop log file name**
+
+  This option allows a user to enable stop logging for scripts
+  defined by **S** option.
+
+  ```no-highlight
+  > svcbatch create ... /SN:myService.stop.log ...
+
+  ```
+
+  The **name** parameter is handled the same as
+  described with **LN** command option.
+
 
 
 
