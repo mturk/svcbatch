@@ -2233,7 +2233,7 @@ static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
     }
     xfixmaxpath(nb, sn, 0);
     if (GetFileAttributesExW(nb, GetFileExInfoStandard, &ad)) {
-        if ((ad.nFileSizeHigh > 0) || (ad.nFileSizeLow > maxsz)) {
+        if ((ad.nFileSizeHigh > 0) || (ad.nFileSizeLow >= maxsz)) {
             DBG_PRINTF("file is too large %S", nb);
             return ERROR_BUFFER_OVERFLOW;
         }
@@ -2249,11 +2249,18 @@ static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (IS_INVALID_HANDLE(fh))
         return GetLastError();
-    bb = (LPBYTE)xmmalloc(ad.nFileSizeLow);
+    bb = (LPBYTE)xmmalloc(ad.nFileSizeLow + 1);
     if (ReadFile(fh, bb, ad.nFileSizeLow, &rd, NULL) && rd) {
-        *data = bb;
-        *size = rd;
-        DBG_PRINTF("read %lu bytes from %S", rd, nb);
+        if (rd == ad.nFileSizeLow) {
+            DBG_PRINTF("read %lu bytes from %S", rd, nb);
+            *data = bb;
+            *size = rd;
+        }
+        else {
+            DBG_PRINTF("read %lu bytes instead %lu from %S", rd, ad.nFileSizeLow, nb);
+            rc = ERROR_BAD_LENGTH;
+            xfree(bb);
+        }
     }
     else {
         rc = GetLastError();
