@@ -243,6 +243,7 @@
 #define SVCBATCH_OPT_CTRL_BREAK     0x00000008   /* Send CTRL_BREAK on stop     */
 #define SVCBATCH_OPT_ENV            0x00000010   /* Set private envvars         */
 #define SVCBATCH_OPT_LONGPATHS      0x00000020   /* Use LongPathsEnabled        */
+#define SVCBATCH_OPT_EXPAND_ARGS    0x00000040   /* ExpandEnvironment for args  */
 
 #define SVCBATCH_OPT_ROTATE         0x00000100   /* Enable log rotation         */
 #define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00000200   /* Rotate by size              */

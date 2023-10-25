@@ -3874,6 +3874,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'W':
                             OPT_SET(SVCBATCH_OPT_LONGPATHS);
                         break;
+                        case L'X':
+                            OPT_SET(SVCBATCH_OPT_EXPAND_ARGS);
+                        break;
                         case L'Y':
                             OPT_SET(SVCBATCH_OPT_WRPIPE);
                         break;
@@ -4187,7 +4190,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         xsetsvcenv(ep, L"_UUID", service->uuid);
         xsetsvcenv(ep, L"_WORK", service->work);
     }
-
     for (i = 0; i < uenvc; i++) {
         x = xsetusrenv(uenvn[i], uenvv[i]);
         if (x)
@@ -4219,12 +4221,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (cmdproc->application == NULL)
             return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
         xfree(wp);
-        for (x = 0; x < cmdproc->argc; x++) {
-            wp = xexpandenvstr(cmdproc->args[x]);
-            if (wp == NULL)
-                return xsyserror(GetLastError(), L"ExpandEnvironment", cmdproc->args[x]);
-            cmdproc->args[x] = wp;
-        }
     }
     else {
         wp = xgetenv(L"COMSPEC");
@@ -4237,6 +4233,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         xfree(wp);
         cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS;
         OPT_SET(SVCBATCH_OPT_WRPIPE);
+    }
+    if (IS_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
+        for (x = 0; x < cmdproc->argc; x++) {
+            wp = xexpandenvstr(cmdproc->args[x]);
+            if (wp == NULL)
+                return xsyserror(GetLastError(), L"ExpandEnvironment", cmdproc->args[x]);
+            cmdproc->args[x] = wp;
+        }
     }
     if (rotateparam) {
         if (!resolverotate(rotateparam))

@@ -322,7 +322,7 @@ and lowercase letters with **-** command switch.
   listed in any order.
 
   ```no-highlight
-      <B><E><L><P><Q><U><W><Y><0|1|2>
+      <B><E><L><P><Q><U><W><X><Y><0|1|2>
   ```
 
     * **B**
@@ -424,6 +424,15 @@ and lowercase letters with **-** command switch.
       This option can be useful for new applications targeting
       Windows 10 platform, without the overhead of prefixing each
       path or file name parameter with **\\?\\**.
+
+
+    * **X**
+
+      **Expand environment variables for script arguments**
+
+      If set this option will expand environment strings for
+      each script argument.
+
 
 
     * **Y**
