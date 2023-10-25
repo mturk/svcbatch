@@ -2733,7 +2733,6 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
 {
     HANDLE  fh = NULL;
     DWORD   rc;
-    DWORD   cd = CREATE_ALWAYS;
     WCHAR   nb[SVCBATCH_NAME_MAX];
     LPCWSTR np = log->logName;
     int     rp = srvcmaxlogs;
@@ -2756,7 +2755,8 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
     }
     fh = CreateFileW(log->logFile,
                      GENERIC_READ | GENERIC_WRITE,
-                     FILE_SHARE_READ, NULL, cd,
+                     FILE_SHARE_READ, NULL,
+                     CREATE_ALWAYS,
                      FILE_ATTRIBUTE_NORMAL, NULL);
     rc = GetLastError();
     if (IS_INVALID_HANDLE(fh))
@@ -3132,6 +3132,7 @@ static DWORD WINAPI stopthread(void *ssp)
 
 static void createstopthread(DWORD rv)
 {
+    DBG_PRINTF("status %lu", rv);
     if (servicemode)
         xcreatethread(SVCBATCH_STOP_THREAD, 0, stopthread, NULL);
     if (rv)
@@ -3239,13 +3240,12 @@ static DWORD WINAPI rotatethread(void *unused)
     DWORD  nw = 3;
     DWORD  rw = SVCBATCH_ROTATE_READY;
 
-    DBG_PRINTF("started");
-
     wh[0] = workerended;
     wh[1] = stopstarted;
     wh[2] = dologrotate;
     wh[3] = NULL;
 
+    DBG_PRINTF("started");
     InterlockedExchange(&outputlog->state, 1);
     if (IS_SET(SVCBATCH_OPT_ROTATE_BY_TIME)) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
@@ -3429,14 +3429,15 @@ static DWORD WINAPI workerthread(void *unused)
     }
     ResumeThread(cmdproc->pInfo.hThread);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_RUNNING);
+    xsvcstatus(SERVICE_RUNNING, 0);
+
+    DBG_PRINTF("running process %lu", cmdproc->pInfo.dwProcessId);
     if (IS_SET(SVCBATCH_OPT_WRPIPE))
         ResumeThread(threads[SVCBATCH_WRPIPE_THREAD].thread);
-
-    SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
-    xsvcstatus(SERVICE_RUNNING, 0);
-    DBG_PRINTF("running process %lu", cmdproc->pInfo.dwProcessId);
     if (IS_SET(SVCBATCH_OPT_ROTATE))
         ResumeThread(threads[SVCBATCH_ROTATE_THREAD].thread);
+
+    SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     if (outputlog) {
         HANDLE wh[2];
         DWORD  nw = 2;
@@ -4350,6 +4351,7 @@ static DWORD svcstopmain(void)
 {
     DWORD rc;
 
+    DBG_PRINTS("started");
     workerended = CreateEventEx(NULL, NULL,
                                 CREATE_EVENT_MANUAL_RESET,
                                 EVENT_MODIFY_STATE | SYNCHRONIZE);
@@ -4367,12 +4369,12 @@ static DWORD svcstopmain(void)
         setsvcstatusexit(rc);
         goto finished;
     }
+    DBG_PRINTS("waiting for worker thread to finish");
     rc = WaitForSingleObject(threads[SVCBATCH_WORKER_THREAD].thread, stoptimeout);
     if (rc != WAIT_OBJECT_0) {
         DBG_PRINTS("stop timeout");
         stopshutdown(SVCBATCH_STOP_SYNC);
         setsvcstatusexit(rc);
-        DBG_PRINTS("waiting for worker thread to finish");
     }
     waitforthreads(SVCBATCH_STOP_WAIT);
 
