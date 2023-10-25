@@ -250,9 +250,9 @@
 #define SVCBATCH_OPT_ROTATE_BY_TIME 0x00000400   /* Rotate by time              */
 
 
-#define SVCBATCH_FAIL_NONE      0   /* Do not set error if run ends without stop        */
-#define SVCBATCH_FAIL_ERROR     1   /* Set service error if run endeded without stop    */
-#define SVCBATCH_FAIL_EXIT      2   /* Call exit() on stop without scm CTRL_STOP        */
+#define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
+#define SVCBATCH_FAIL_ERROR     2   /* Set service error if run endeded without stop    */
+#define SVCBATCH_FAIL_EXIT      3   /* Call exit() on stop without scm CTRL_STOP        */
 
 /**
  * Helper macros

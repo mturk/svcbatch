@@ -183,7 +183,7 @@ static int       servicemode    = 0;
 static DWORD     svcoptions     = SVCBATCH_OPT_ENV;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
-static int       svcfailmode    = SVCBATCH_FAIL_ERROR;
+static int       svcfailmode    = 0;
 static HANDLE    stopstarted    = NULL;
 static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
@@ -3887,12 +3887,18 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                             preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
                         break;
                         case L'0':
+                            if (svcfailmode)
+                                return xsyserrno(10, L"Fail mode", xwoptarg);
                             svcfailmode  = SVCBATCH_FAIL_NONE;
                         break;
                         case L'1':
+                            if (svcfailmode)
+                                return xsyserrno(10, L"Fail mode", xwoptarg);
                             svcfailmode  = SVCBATCH_FAIL_ERROR;
                         break;
                         case L'2':
+                            if (svcfailmode)
+                                return xsyserrno(10, L"Fail mode", xwoptarg);
                             svcfailmode  = SVCBATCH_FAIL_EXIT;
                         break;
                         default:
@@ -4029,7 +4035,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         return xsyserrno(29, L"/F:Y and /I", NULL);
     wargc -= xwoptind;
     wargv += xwoptind;
-
+    if (svcfailmode == 0)
+        svcfailmode = SVCBATCH_FAIL_ERROR;
     if (wargc == 0) {
         /**
          * No script file defined.
