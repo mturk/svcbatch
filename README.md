@@ -680,6 +680,23 @@ and lowercase letters with **-** command switch.
 
   ```
 
+* **ET [name=value]**
+
+  **Sets temporary environment variable**
+
+  This option behaves as a combination of **/E**
+  and **/EU** options.
+
+  The following example will set `_TEMP_HOME`
+  environment variable so it can be used for processing
+  other **/E** options or for evaluating arguments.
+
+  ```no-highlight
+  > svcbatch create ... /ET:_TEMP_HOME=@H ...
+
+  ```
+
+
 
 * **EP [prefix]**
 

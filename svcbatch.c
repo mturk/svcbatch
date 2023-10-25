@@ -3808,7 +3808,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     int      uenvc = 0;
     int      wargc = 0;
     LPCWSTR *wargv;
-    LPCWSTR  cenvn[SVCBATCH_MAX_ENVS];
+    LPWSTR   cenvn[SVCBATCH_MAX_ENVS];
     LPWSTR   eenvn[SVCBATCH_MAX_ENVS];
     LPWSTR   eenvv[SVCBATCH_MAX_ENVS];
     LPWSTR   uenvn[SVCBATCH_MAX_ENVS];
@@ -3986,7 +3986,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             case 'e':
                 if (xwoptvar == 'u') {
                     if (cenvc < SVCBATCH_MAX_ENVS)
-                        cenvn[cenvc++] = xwoptarg;
+                        cenvn[cenvc++] = xwcsdup(xwoptarg);
                     else
                         return xsyserrno(17, L"EU", xwoptarg);
                     break;
@@ -3995,8 +3995,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     eprefixparam = xwoptarg;
                     break;
                 }
-                if (xwoptvar != 0)
-                    return xsyserrno(30, L"E", xwoption);
                 pp = xwcsdup(xwoptarg);
                 wp = xwcschr(pp, L'=');
 
@@ -4020,6 +4018,15 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     eenvv[eenvc] = wp;
                     eenvc++;
                 }
+                if (xwoptvar == 't') {
+                    if (cenvc < SVCBATCH_MAX_ENVS)
+                        cenvn[cenvc++] = xwcsdup(pp);
+                    else
+                        return xsyserrno(17, L"ET", xwoptarg);
+                    break;
+                }
+                if (xwoptvar != 0)
+                    return xsyserrno(30, L"E", xwoption);
             break;
             case ENOENT:
                 return xsyserrno(11, xwoption, NULL);
@@ -4286,9 +4293,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     else {
         SAFE_MEM_FREE(svcstop);
     }
-    for (i = 0; i < cenvc; i++)
+    for (i = 0; i < cenvc; i++) {
         SetEnvironmentVariableW(cenvn[i], NULL);
-
+        xfree(cenvn[i]);
+    }
     xfree(scriptparam);
     DBG_PRINTS("done");
     return 0;
