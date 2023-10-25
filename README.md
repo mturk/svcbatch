@@ -1001,7 +1001,8 @@ and lowercase letters with **-** command switch.
 
   **Set temp directory**
 
-  This option allows a user to set the temp directory.
+  This option allows a user to set different temp directory
+  then the one defined by the service account environment.
 
   If the **path** is not the absolute path, it will
   be resolved relative to the **W** directory.
@@ -1130,8 +1131,8 @@ SvcBatch sets for each instance:
 
 **Important**
 
-  Make sure to use only alphanumeric and underscore (`_`) characters
-  as executable name, or the service will fail to start.
+  Make sure to use only ASCII alphanumeric and underscore (`_`)
+  characters as executable name, or the service will fail to start.
 
 
 
@@ -1145,9 +1146,9 @@ child processes or run shutdown batch file in case
 
 It is up to the application started from batch file to
 handle this event and do any cleanup needed and then exit.
-On startup service  writes 'Y' to `cmd.exe` stdin,
+By default, on startup, SvcBatch writes 'Y' to `cmd.exe` stdin,
 to handle that obnoxious `Terminate batch job (Y/N)?` prompt.
-If batch file or any of downstream processes do not exit within that timeout,
+If batch file or any of downstream processes do not exit within stop timeout,
 SvcBatch will give another 20 seconds for all processes to exit.
 After that timeout it will simply kill each descendant process
 that originated from svcbatch.exe.
@@ -1208,7 +1209,7 @@ SvcBatch have limits for the following features:
   ```
 
   Service Name must start with alphanumeric character,
-  and its length is limited to `256` characters.
+  and its length is limited to **255** characters.
 
   Service will **fail** to start if the upper criteria is not met.
 
@@ -1224,14 +1225,11 @@ SvcBatch have limits for the following features:
 
 * **File name length**
 
-  The maximum file name length is limited to the
+  The maximum file name length must be less then
   **4096** characters, and is defined by the
   `#define SVCBATCH_PATH_MAX 4096` macro
   inside [svcbatch header file](svcbatch.h)
 
-  In case your service uses file and directory names
-  larger then that number, modify the `SVCBATCH_PATH_MAX`
-  value and recompile SvcBatch.
 
 
 * **Maximum number of arguments**
