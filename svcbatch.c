@@ -4022,6 +4022,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     if (xwoptarr && xwoptend)
         return xsyserrno(28, xwoptarr, NULL);
+    if (IS_SET(SVCBATCH_OPT_WRPIPE) && sinputparam)
+        return xsyserrno(29, L"/F:Y and /I", NULL);
     wargc -= xwoptind;
     wargv += xwoptind;
 
@@ -4157,7 +4159,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         xfree(pp);
     }
     if (sinputparam) {
-        x = xreadfile(sinputparam, &stdindata, &stdinsize, SVCBATCH_PIPE_LEN);
+        x = xreadfile(sinputparam, &stdindata, &stdinsize, SVCBATCH_DATA_MAX);
         if (x)
             return xsyserror(x, L"ReadFile", sinputparam);
         OPT_SET(SVCBATCH_OPT_WRPIPE);

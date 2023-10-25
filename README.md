@@ -349,14 +349,6 @@ and lowercase letters with **-** command switch.
       way to interrupt the application.
 
 
-    * **L**
-
-      **Use local time**
-
-      This option causes all logging and rotation
-      to use local instead system time.
-
-
     * **E**
 
       **Sets private environment variable prefix to service name**
@@ -368,6 +360,14 @@ and lowercase letters with **-** command switch.
       > svcbatch create myService ... /F:E ...
 
       ```
+
+    * **L**
+
+      **Use local time**
+
+      This option causes all logging and rotation
+      to use local instead system time.
+
 
     * **P**
 
@@ -553,14 +553,18 @@ and lowercase letters with **-** command switch.
   **Send data from filename to child standard input**
 
   This option allows to send the content of the **filename**
-  to the child's standard input.
+  to the child's standard input on service startup.
 
   If the **filename** is not the absolute path, it will
   be resolved relative to the **H** directory.
 
   **Notice**
 
-  Maximum size of the **filename** is `8192` bytes.
+  The **filename** size must be less then **128** kilobytes,
+  and is defined by the `#define SVCBATCH_DATA_MAX 131072`
+  macro inside [svcbatch header file](svcbatch.h)
+
+  Do not use this option together with **/F:Y** feature.
 
 
 * **E [name=value]**
