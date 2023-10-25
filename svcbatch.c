@@ -2165,9 +2165,10 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
         return NULL;
     len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
     CloseHandle(fh);
-    if ((len == 0) || (len >= siz))
-        return NULL;
-
+    if ((len == 0) || (len >= siz)) {
+       SetLastError(ERROR_BAD_PATHNAME);
+       return NULL;
+    }
     xfixmaxpath(buf, len, isdir);
     return xwcsdup(buf);
 }
@@ -2183,8 +2184,10 @@ static LPWSTR xgetdirpath(LPCWSTR path, LPWSTR dst, DWORD siz)
         return NULL;
     len = GetFinalPathNameByHandleW(fh, dst, siz, VOLUME_NAME_DOS);
     CloseHandle(fh);
-    if ((len == 0) || (len >= siz))
+    if ((len == 0) || (len >= siz)) {
+        SetLastError(ERROR_BAD_PATHNAME);
         return NULL;
+    }
 
     xfixmaxpath(dst, len, 1);
     return dst;
@@ -2199,18 +2202,20 @@ static LPWSTR xsearchexe(LPCWSTR name)
 
     DBG_PRINTF("search %S", name);
     len = SearchPathW(NULL, name, L".exe", siz, buf, NULL);
-    if ((len == 0) || (len >= siz))
+    if ((len == 0) || (len >= siz)) {
+        SetLastError(ERROR_FILE_NOT_FOUND);
         return NULL;
-
+    }
     fh = CreateFileW(buf, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
     len = GetFinalPathNameByHandleW(fh, buf, siz, VOLUME_NAME_DOS);
     CloseHandle(fh);
-    if ((len == 0) || (len >= siz))
-        return NULL;
-
+    if ((len == 0) || (len >= siz)) {
+       SetLastError(ERROR_BAD_PATHNAME);
+       return NULL;
+    }
     xfixmaxpath(buf, len, 0);
     DBG_PRINTF("found %S", buf);
     return xwcsdup(buf);
@@ -2237,7 +2242,7 @@ static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
     if (GetFileAttributesExW(nb, GetFileExInfoStandard, &ad)) {
         if ((ad.nFileSizeHigh > 0) || (ad.nFileSizeLow >= maxsz)) {
             DBG_PRINTF("file is too large %S", nb);
-            return ERROR_BUFFER_OVERFLOW;
+            return ERROR_FILE_TOO_LARGE;
         }
     }
     else {
@@ -2549,7 +2554,7 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
     x = xwcslcpy(lognn, SVCBATCH_PATH_MAX - 4, log->logFile);
     x = xwcslcat(lognn, SVCBATCH_PATH_MAX - 4, x, L".0");
     if (x >= (SVCBATCH_PATH_MAX - 4))
-        return xsyserror(ERROR_BAD_PATHNAME, lognn, NULL);
+        return xsyserror(ERROR_BAD_PATHNAME, log->logFile, NULL);
     x = xfixmaxpath(lognn, x, 0);
     DBG_PRINTF("0 %S", lognn);
     if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
