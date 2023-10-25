@@ -4267,6 +4267,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         }
         if ((stopmaxlogs > 0) && (stoplogname == NULL))
             stoplogname = SVCBATCH_LOGSTOP;
+        if (IS_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
+            for (x = 0; x < svcstop->argc; x++) {
+                wp = xexpandenvstr(svcstop->args[x]);
+                if (wp == NULL)
+                    return xsyserror(GetLastError(), L"ExpandEnvironment", svcstop->args[x]);
+                svcstop->args[x] = wp;
+            }
+        }
     }
     else {
         SAFE_MEM_FREE(svcstop);
