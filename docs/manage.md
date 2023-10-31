@@ -8,6 +8,8 @@ create, configure, manage, and delete services.
 
 - [Table of Contents](#table-of-contents)
 - [Commands](#commands)
+  - [Help](#help)
+  - [Version](#help)
   - [Create](#create)
   - [Config](#config)
   - [Control](#control)
@@ -22,7 +24,56 @@ create, configure, manage, and delete services.
 
 # Commands
 
-Every command must be followed by **Service Name**
+Every command except [Help](#help) and [Version](#version)
+must be followed by the **Service Name**.
+
+## Help
+
+This command prints help to the console output.
+
+  ```no-highlight
+  > svcbatch help
+
+    Usage:
+      SvcBatch [command] [service name] <option1> <option2>...
+
+        Commands:
+          Create.....Creates a service.
+          Config.....Changes the configuration of a service.
+          Control....Sends a control to a service.
+          Delete.....Deletes a service.
+          Help.......Print this screen and exit.
+                     Use Help [command] for command help.
+          Start......Starts a service.
+          Stop.......Sends a STOP request to a service.
+          Version....Print version information.
+  ```
+
+To get more detailed help for the individual command option
+add command name as an argument to the help command.
+
+  ```no-highlight
+  > svcbatch help delete
+
+    Description:
+      Deletes a service entry from the registry.
+    Usage:
+      SvcBatch delete [service name] <options ...>
+
+        Options:
+          --quiet            Quiet mode, do not print status or error messages.
+```
+
+## Version
+
+Use this command to display build and version information
+to the console output.
+
+  ```no-highlight
+  > svcbatch version
+  SvcBatch 1.2.3.4 ...
+  ```
+
 
 ## Create
 
