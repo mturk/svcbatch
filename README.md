@@ -322,7 +322,7 @@ and lowercase letters with **-** command switch.
   listed in any order.
 
   ```no-highlight
-      <B><E><L><P><Q><U><W><X><Y><0|1|2>
+      <B><E><L><P><Q><R><U><W><X><Y><0|1|2>
   ```
 
     * **B**
@@ -391,6 +391,15 @@ and lowercase letters with **-** command switch.
       **Notice**
 
       Any eventual log rotation option will not be processed.
+
+
+    * **R**
+
+      **Enable log rotation by control code**
+
+      When defined, SvcBatch will accept custom `SVCBATCH_CTRL_ROTATE (234)`
+      control code and initiate log rotation when this control
+      is signaled.
 
 
     * **U**

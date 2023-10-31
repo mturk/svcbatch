@@ -129,6 +129,13 @@
 #define SVCBATCH_PATH_MAX       4096
 
 /**
+ * Maximum safe path length that
+ * allows inserting \\?\ for long paths.
+ * This value must be SVCBATCH_PATH_MAX - 4
+ */
+#define SVCBATCH_PATH_SIZ       4092
+
+/**
  * Maximum length for the object names.
  *
  * Although some object names are limited
@@ -181,9 +188,21 @@
 #define SVCBATCH_STOP_TIMEOUT   10000
 
 /**
+ * Custom SCM control code that
+ * will send a signal to rotate the log files
+ * if log rotation is enabled
+ *
+ * eg. C:\>sc control SvcBatchServiceName 234
+ *
+ * Check documentation for more details
+ */
+#define SVCBATCH_CTRL_ROTATE    234
+
+/**
  * Minimum rotate size in kilobytes
  */
 #define SVCBATCH_MIN_ROTATE_SIZ 1
+
 /**
  * Minimum time between two log
  * rotations in minutes
@@ -248,6 +267,7 @@
 #define SVCBATCH_OPT_ROTATE         0x00000100   /* Enable log rotation         */
 #define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00000200   /* Rotate by size              */
 #define SVCBATCH_OPT_ROTATE_BY_TIME 0x00000400   /* Rotate by time              */
+#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00000800   /* Rotate by signal            */
 
 
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */

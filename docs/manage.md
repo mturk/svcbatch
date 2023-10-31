@@ -10,6 +10,7 @@ create, configure, manage, and delete services.
 - [Commands](#commands)
   - [Create](#create)
   - [Config](#config)
+  - [Control](#control)
   - [Delete](#delete)
   - [Start](#start)
   - [Stop](#stop)
@@ -53,6 +54,30 @@ or as part of service's installation process.
 
 All the configuration for the service should
 be done within **create** command.
+
+
+## Control
+
+Sends a control to a service.
+
+This command can be used to send Custom control
+codes to the SvcBatch service.
+
+For example `234` is SvcBatch custom control code
+that will signal log rotation. In case the log
+rotation is not ready the following will be displayed:
+
+
+  ```no-highlight
+  > svcbatch control myService 234
+    Service Name : myService
+         Command : Control
+                 : FAILED
+            LINE : 4982
+           ERROR : 1061 (0x425)
+                   The service cannot accept control messages at this time
+                   234
+  ```
 
 
 ## Delete
