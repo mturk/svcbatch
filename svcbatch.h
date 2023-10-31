@@ -263,11 +263,12 @@
 #define SVCBATCH_OPT_ENV            0x00000010   /* Set private envvars         */
 #define SVCBATCH_OPT_LONGPATHS      0x00000020   /* Use LongPathsEnabled        */
 #define SVCBATCH_OPT_EXPAND_ARGS    0x00000040   /* ExpandEnvironment for args  */
+#define SVCBATCH_OPT_MASK           0x0000FFFF
 
-#define SVCBATCH_OPT_ROTATE         0x00000100   /* Enable log rotation         */
-#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00000200   /* Rotate by size              */
-#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00000400   /* Rotate by time              */
-#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00000800   /* Rotate by signal            */
+#define SVCBATCH_OPT_ROTATE         0x00010000   /* Enable log rotation         */
+#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00020000   /* Rotate by signal            */
+#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00040000   /* Rotate by size              */
+#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00080000   /* Rotate by time              */
 
 
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */

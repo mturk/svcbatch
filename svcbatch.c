@@ -3016,7 +3016,7 @@ static DWORD runshutdown(void)
                                               0, 0, DSIZEOF(SVCBATCH_IPC));
     if (sharedmem == NULL)
         return GetLastError();
-    sharedmem->options   = svcoptions & 0x000000FF;
+    sharedmem->options   = svcoptions & SVCBATCH_OPT_MASK;
     sharedmem->timeout   = stoptimeout;
     sharedmem->killdepth = killdepth;
     sharedmem->maxlogs   = stopmaxlogs;
@@ -4122,7 +4122,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
          * Discard any log rotate related command options
          * when -q is defined
          */
-        svcoptions &= 0x000000FF;
+        svcoptions &= SVCBATCH_OPT_MASK;
         rotateparam = NULL;
         stoplogname = NULL;
         svclogfname = NULL;
@@ -4300,6 +4300,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             cmdproc->args[x] = wp;
         }
     }
+#if defined(_DEBUG)
+    if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIG)) {
+        DBG_PRINTS("rotate by signal");
+    }
+#endif
     if (rotateparam) {
         if (!resolverotate(rotateparam))
             return xsyserrno(12, L"R", rotateparam);
