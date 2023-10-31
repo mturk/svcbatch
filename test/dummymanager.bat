@@ -24,6 +24,7 @@ rem
 if /i "x%~1" == "xcreate"   goto doCreate
 if /i "x%~1" == "xdelete"   goto doDelete
 if /i "x%~1" == "xremove"   goto doRemove
+if /i "x%~1" == "xrotate"   goto doRotate
 if /i "x%~1" == "xstart"    goto doStart
 if /i "x%~1" == "xstop"     goto doStop
 rem
@@ -163,6 +164,17 @@ rem
 %BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" --wait %STOP_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo %_NX%: Stopped %SERVICE_NAME%
+goto End
+rem
+rem
+:doRotate
+rem
+rem
+pushd "..\build\dbg"
+set "BUILD_DIR=%cd%"
+popd
+%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 234
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
 rem
