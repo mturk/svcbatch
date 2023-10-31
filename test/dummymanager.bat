@@ -21,6 +21,11 @@ rem
 setlocal
 set "SERVICE_NAME=adummysvc"
 rem
+pushd "..\build\dbg"
+set "BUILD_DIR=%cd%"
+popd
+set "_NX=%~nx0"
+rem
 if /i "x%~1" == "xcreate"   goto doCreate
 if /i "x%~1" == "xdelete"   goto doDelete
 if /i "x%~1" == "xremove"   goto doRemove
@@ -28,7 +33,7 @@ if /i "x%~1" == "xrotate"   goto doRotate
 if /i "x%~1" == "xstart"    goto doStart
 if /i "x%~1" == "xstop"     goto doStop
 rem
-echo %~nx0: Unknown command %~1
+echo %_NX%: Unknown command %~1
 exit /B 1
 rem
 :doCreate
@@ -42,9 +47,6 @@ if not exist "%TEST_DIR%\..\build\dbg" (
     echo Run [n]make tests _DEBUG=1
     exit /B 1
 )
-pushd "..\build\dbg"
-set "BUILD_DIR=%cd%"
-popd
 rem Check long paths
 set "LONG_STRING=0123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123"
 set "SERVICE_LOG_FNAME="
@@ -101,7 +103,7 @@ rem
 rem sc failure adummysvc reset= INFINITE actions= restart/10000
 rem sc failureflag adummysvc 1
 rem
-echo %~nx0: Created %SERVICE_NAME%
+echo %_NX%: Created %SERVICE_NAME%
 goto End
 rem
 :doLite
@@ -114,7 +116,7 @@ rem
     -h "%TEST_DIR%" %SERVICE_BATCH% run
 rem
 rem
-echo %~nx0: Created %SERVICE_NAME%
+echo %_NX%: Created %SERVICE_NAME%
 goto End
 rem
 :doStart
@@ -124,7 +126,6 @@ pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
 rem
-set "_NX=%~nx0"
 echo %_NX%: Starting %SERVICE_NAME%
 rem Wait until the service is Running
 rem
@@ -144,11 +145,6 @@ goto End
 rem
 :doStop
 rem
-pushd "..\build\dbg"
-set "BUILD_DIR=%cd%"
-popd
-rem
-set "_NX=%~nx0"
 echo %_NX%: Stopping %SERVICE_NAME%
 rem Wait up to 30 seconds until the service is Stopped
 rem
@@ -170,9 +166,6 @@ rem
 :doRotate
 rem
 rem
-pushd "..\build\dbg"
-set "BUILD_DIR=%cd%"
-popd
 %BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
@@ -181,15 +174,12 @@ rem
 :doDelete
 rem
 rem
-pushd "..\build\dbg"
-set "BUILD_DIR=%cd%"
-popd
 rem
-echo %~nx0: Deleting %SERVICE_NAME%
+echo %_NX%: Deleting %SERVICE_NAME%
 rem
 %BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %~nx0: Deleted %SERVICE_NAME%
+echo %_NX%: Deleted %SERVICE_NAME%
 goto End
 rem
 :doRemove
@@ -197,7 +187,7 @@ rem
 rem
 pushd "..\build\dbg"
 rd /S /Q "Logs" >NUL 2>&1
-echo %~nx0: Removed %SERVICE_NAME%
+echo %_NX%: Removed %SERVICE_NAME%
 popd
 rem
 rem
