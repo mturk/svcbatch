@@ -397,9 +397,26 @@ and lowercase letters with **-** command switch.
 
       **Enable log rotation by control code**
 
-      When defined, SvcBatch will accept custom `SVCBATCH_CTRL_ROTATE (234)`
+      When defined, SvcBatch will accept custom **234**
       control code and initiate log rotation when this control
       is signaled.
+
+      Note that **234** is our custom service control code.
+      Number **234** has been randomly chosen, since win32
+      API requires that this number must be larger then `127` and
+      lower then `255`.
+
+      To initiate log rotation manually use the following:
+
+      ```no-highlight
+      > svcbatch control myService 234
+
+      ```
+
+      In case the last log rotation was less then `2` minutes ago,
+      or if there was no data written to the log file from the last
+      rotation, SvcBatch will not rotate the logs.
+
 
 
     * **U**
