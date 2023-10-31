@@ -298,6 +298,21 @@ static const SVCBATCH_NAME_MAP starttypemap[] = {
     { NULL,         0                       }
 };
 
+static const SVCBATCH_NAME_MAP envnamemap[] = {
+    { L"_APP",          L'A'                },
+    { L"_BASE",         L'B'                },
+    { L"_DIR",          L'D'                },
+    { L"_HOME",         L'H'                },
+    { L"_PID",          L'I'                },
+    { L"_LOGS",         L'L'                },
+    { L"_NAME",         L'N'                },
+    { L"_PROGRAM",      L'P'                },
+    { L"_UUID",         L'U'                },
+    { L"_VER",          L'V'                },
+    { L"_WORK",         L'W'                },
+    { NULL,             0                   }
+};
+
 static const char *xgenerichelp =
     "\nUsage:\n  " SVCBATCH_NAME " [command] [service name] <option1> <option2>...\n"           \
     "\n    Commands:"                                                                           \
@@ -395,8 +410,8 @@ static const wchar_t *wcsmessages[] = {
     L"The operation completed successfully",                                /*  0 */
     L"Service stopped",                                                     /*  1 */
     L"The service is not in the RUNNING state",                             /*  2 */
-    NULL,                                                                   /*  3 */
-    NULL,                                                                   /*  4 */
+    L"Fail mode",                                                           /*  3 */
+    L"Environment variable prefix",                                         /*  4 */
     NULL,                                                                   /*  5 */
     NULL,                                                                   /*  6 */
     NULL,                                                                   /*  7 */
@@ -652,6 +667,7 @@ static __inline LPWSTR xwcsrchr(LPCWSTR str, int c)
 
 static int xisvalidvarname(LPCWSTR n)
 {
+    ASSERT_WSTR(n, 0);
     for (; *n != WNUL; n++) {
         if (!xisalnum(*n) && (*n != L'_') && (*n != L'.'))
             return 0;
@@ -757,7 +773,7 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
     if (le > 0)
         wmemcpy(rs + x + ln, e, le);
 
-    xwinpathsep(rs + x);
+    xwinpathsep(rs);
     return rs;
 }
 
@@ -1033,6 +1049,30 @@ static int xwcsequals(const wchar_t *str, const wchar_t *src)
     return 0;
 }
 
+static DWORD xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, DWORD def)
+{
+    int i;
+
+    if (IS_EMPTY_WCS(src))
+        return def;
+    for (i = 0; map[i].name != NULL; i++) {
+        if (xwcsequals(src, map[i].name))
+            return map[i].code;
+    }
+    return def;
+}
+
+static LPCWSTR xcodemap(SVCBATCH_NAME_MAP const *map, DWORD c)
+{
+    int i;
+
+    for (i = 0; map[i].name != NULL; i++) {
+        if (map[i].code == c)
+            return map[i].name;
+    }
+    return zerostring;
+}
+
 static LPWSTR xgetenv(LPCWSTR s)
 {
     WCHAR  e[BBUFSIZ];
@@ -1265,30 +1305,6 @@ static LPWSTR xappendarg(int nq, LPWSTR s1, LPCWSTR s2)
     }
     *d = WNUL;
     return e;
-}
-
-static DWORD xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, DWORD def)
-{
-    int i;
-
-    if (IS_EMPTY_WCS(src))
-        return def;
-    for (i = 0; map[i].name != NULL; i++) {
-        if (xwcsequals(src, map[i].name))
-            return map[i].code;
-    }
-    return def;
-}
-
-static LPCWSTR xcodemap(SVCBATCH_NAME_MAP const *map, DWORD c)
-{
-    int i;
-
-    for (i = 0; map[i].name != NULL; i++) {
-        if (map[i].code == c)
-            return map[i].name;
-    }
-    return zerostring;
 }
 
 static int xlongopt(int nargc, LPCWSTR *nargv,
@@ -3849,11 +3865,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     int      uenvc = 0;
     int      wargc = 0;
     LPCWSTR *wargv;
-    LPWSTR   cenvn[SVCBATCH_MAX_ENVS];
+    LPCWSTR  cenvn[SVCBATCH_MAX_ENVS];
     LPWSTR   eenvn[SVCBATCH_MAX_ENVS];
     LPWSTR   eenvv[SVCBATCH_MAX_ENVS];
     LPWSTR   uenvn[SVCBATCH_MAX_ENVS];
     WCHAR    uenvv[SVCBATCH_MAX_ENVS];
+    WCHAR    eenvp[SVCBATCH_NAME_MAX];
 
     LPCWSTR  cp;
     LPWSTR   wp;
@@ -3925,25 +3942,22 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'Y':
                             OPT_SET(SVCBATCH_OPT_WRPIPE);
                         break;
-                        case L'E':
-                            eprefixparam = service->name;
-                        break;
                         case L'P':
                             preshutdown  = SERVICE_ACCEPT_PRESHUTDOWN;
                         break;
                         case L'0':
                             if (svcfailmode)
-                                return xsyserrno(10, L"Fail mode", xwoptarg);
+                                return xsyserrno(10, SVCBATCH_MSG(3), xwoptarg);
                             svcfailmode  = SVCBATCH_FAIL_NONE;
                         break;
                         case L'1':
                             if (svcfailmode)
-                                return xsyserrno(10, L"Fail mode", xwoptarg);
+                                return xsyserrno(10, SVCBATCH_MSG(3), xwoptarg);
                             svcfailmode  = SVCBATCH_FAIL_ERROR;
                         break;
                         case L'2':
                             if (svcfailmode)
-                                return xsyserrno(10, L"Fail mode", xwoptarg);
+                                return xsyserrno(10, SVCBATCH_MSG(3), xwoptarg);
                             svcfailmode  = SVCBATCH_FAIL_EXIT;
                         break;
                         default:
@@ -4031,19 +4045,24 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             case 'e':
                 if (xwoptvar == 'u') {
                     if (cenvc < SVCBATCH_MAX_ENVS)
-                        cenvn[cenvc++] = xwcsdup(xwoptarg);
+                        cenvn[cenvc++] = xwoptarg;
                     else
                         return xsyserrno(17, L"EU", xwoptarg);
                     break;
                 }
                 if (xwoptvar == 'p') {
-                    eprefixparam = xwoptarg;
+                    if (xiswcschar(xwoptarg, L'@'))
+                        eprefixparam = service->name;
+                    else
+                        eprefixparam = xwoptarg;
                     break;
                 }
+                if (xwoptvar != 0)
+                    return xsyserrno(30, L"E", xwoption);
+
                 pp = xwcsdup(xwoptarg);
                 wp = xwcschr(pp, L'=');
-
-                if (wp == NULL)
+                if ((wp == NULL) || (wp == pp))
                     return xsyserrno(11, L"E", xwoptarg);
                 *(wp++) = WNUL;
                 if (IS_EMPTY_WCS(wp))
@@ -4063,15 +4082,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     eenvv[eenvc] = wp;
                     eenvc++;
                 }
-                if (xwoptvar == 't') {
-                    if (cenvc < SVCBATCH_MAX_ENVS)
-                        cenvn[cenvc++] = xwcsdup(pp);
-                    else
-                        return xsyserrno(17, L"ET", xwoptarg);
-                    break;
-                }
-                if (xwoptvar != 0)
-                    return xsyserrno(30, L"E", xwoption);
             break;
             case ENOENT:
                 return xsyserrno(11, xwoption, NULL);
@@ -4136,6 +4146,15 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
         SVCBATCH_CS_INIT(outputlog);
     }
+    if (eprefixparam == NULL)
+        eprefixparam = program->name;
+    if (!xisvalidvarname(eprefixparam))
+        return xsyserrno(20, SVCBATCH_MSG(4), eprefixparam);
+    i = xwcslcpy(eenvp, SVCBATCH_NAME_MAX, eprefixparam);
+    if (i >= SVCBATCH_NAME_MAX)
+        return xsyserrno(21, SVCBATCH_MSG(4), eprefixparam);
+    xwcsupper(eenvp);
+
     /**
      * Find the location of SVCBATCH_SERVICE_HOME
      * all relative paths are resolved against it.
@@ -4227,27 +4246,17 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         OPT_SET(SVCBATCH_OPT_WRPIPE);
         xsvcstatus(SERVICE_START_PENDING, 0);
     }
-    /**
-     * Add additional environment variables
-     * They are unique to this service instance
-     */
     if (IS_SET(SVCBATCH_OPT_ENV)) {
-        WCHAR ep[SVCBATCH_NAME_MAX];
-
-        if (eprefixparam == NULL)
-            eprefixparam = program->name;
-        if (!xisvalidvarname(eprefixparam))
-            return xsyserrno(20, L"Environment variable prefix", eprefixparam);
-        i = xwcslcpy(ep, SVCBATCH_NAME_MAX, eprefixparam);
-        if (i >= SVCBATCH_NAME_MAX)
-            return xsyserrno(21, L"Environment variable name", eprefixparam);
-        xwcsupper(ep);
-        xsetsvcenv(ep, L"_BASE", service->base);
-        xsetsvcenv(ep, L"_HOME", service->home);
-        xsetsvcenv(ep, L"_LOGS", service->logs);
-        xsetsvcenv(ep, L"_NAME", service->name);
-        xsetsvcenv(ep, L"_UUID", service->uuid);
-        xsetsvcenv(ep, L"_WORK", service->work);
+        /**
+         * Add additional environment variables
+         * that are unique to this service instance
+         */
+        xsetsvcenv(eenvp, L"_BASE", service->base);
+        xsetsvcenv(eenvp, L"_HOME", service->home);
+        xsetsvcenv(eenvp, L"_LOGS", service->logs);
+        xsetsvcenv(eenvp, L"_NAME", service->name);
+        xsetsvcenv(eenvp, L"_UUID", service->uuid);
+        xsetsvcenv(eenvp, L"_WORK", service->work);
     }
     for (i = 0; i < uenvc; i++) {
         x = xsetusrenv(uenvn[i], uenvv[i]);
@@ -4342,10 +4351,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     else {
         SAFE_MEM_FREE(svcstop);
     }
-    for (i = 0; i < cenvc; i++) {
+    for (i = 0; i < cenvc; i++)
         SetEnvironmentVariableW(cenvn[i], NULL);
-        xfree(cenvn[i]);
-    }
     xfree(scriptparam);
     DBG_PRINTS("done");
     return 0;

@@ -322,7 +322,7 @@ and lowercase letters with **-** command switch.
   listed in any order.
 
   ```no-highlight
-      <B><E><L><P><Q><R><U><W><X><Y><0|1|2>
+      <B><L><P><Q><R><U><W><X><Y><0|1|2>
   ```
 
     * **B**
@@ -348,18 +348,6 @@ and lowercase letters with **-** command switch.
       not receive `ctrl+c` signal. The `ctrl+break` is the only
       way to interrupt the application.
 
-
-    * **E**
-
-      **Sets private environment variable prefix to service name**
-
-      The following example will cause SvcBatch to
-      export **MYSERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
-
-      ```no-highlight
-      > svcbatch create myService ... /F:E ...
-
-      ```
 
     * **L**
 
@@ -428,6 +416,7 @@ and lowercase letters with **-** command switch.
 
       Check [Private Environment Variables](#private-environment-variables)
       section, for the list of exported variables.
+
 
 
     * **W**
@@ -706,23 +695,6 @@ and lowercase letters with **-** command switch.
 
   ```
 
-* **ET [name=value]**
-
-  **Sets temporary environment variable**
-
-  This option behaves as a combination of **/E**
-  and **/EU** options.
-
-  The following example will set `_TEMP_HOME`
-  environment variable so it can be used for processing
-  other **/E** options or for evaluating arguments.
-
-  ```no-highlight
-  > svcbatch create ... /ET:_TEMP_HOME=@H ...
-
-  ```
-
-
 
 * **EP [prefix]**
 
@@ -746,13 +718,23 @@ and lowercase letters with **-** command switch.
 
   ```
 
+  In case the **prefix** is a single **@** character,
+  SvcBatch will use service name as private environment prefix.
+
+  The following example will cause SvcBatch to
+  export **MYSERVICE_NAME** instead default **SVCBATCH_NAME**, etc.
+
+  ```no-highlight
+  > svcbatch create myService ... /EP:@ ...
+
+  ```
+
+
   **Notice**
 
   If **/F:U** was added to the service's configuration
-  this option will have no meaning.
-
-  Also check the **/F:E** feature option for setting
-  the prefix to current service name.
+  this option will ensure that all private environment
+  variables are removed from the current process.
 
 
 
