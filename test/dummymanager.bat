@@ -24,7 +24,6 @@ rem
 pushd "..\build\dbg"
 set "BUILD_DIR=%cd%"
 popd
-set "_NX=%~nx0"
 rem
 if /i "x%~1" == "xcreate"   goto doCreate
 if /i "x%~1" == "xdelete"   goto doDelete
@@ -33,7 +32,7 @@ if /i "x%~1" == "xrotate"   goto doRotate
 if /i "x%~1" == "xstart"    goto doStart
 if /i "x%~1" == "xstop"     goto doStop
 rem
-echo %_NX%: Unknown command %~1
+echo %~nx0: Unknown command %~1
 exit /B 1
 rem
 :doCreate
@@ -41,7 +40,7 @@ rem
 pushd "%~dp0"
 set "TEST_DIR=%cd%"
 popd
-if not exist "%TEST_DIR%\..\build\dbg" (
+if not exist "%BUILD_DIR%" (
     echo.
     echo Cannot find build directory.
     echo Run [n]make tests _DEBUG=1
@@ -53,12 +52,11 @@ set "SERVICE_LOG_FNAME="
 set "SHUTDOWN_ARGS="
 set "ROTATE_RULE="
 set "SERVICE_BATCH=dummyservice.bat"
-rem set "SERVICE_SHUTDOWN=/S:%SERVICE_BATCH%"
+rem Use the service batch file for shutdown
+set "SERVICE_SHUTDOWN=/S:@"
 rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
-rem Use the service batch file for shutdown
-set "SERVICE_SHUTDOWN=/S:@"
 rem Set arguments for shutdown bat file
 set "SHUTDOWN_ARGS=[ stop arguments ] /S:[ "with spaces" ]"
 rem
@@ -103,7 +101,7 @@ rem
 rem sc failure adummysvc reset= INFINITE actions= restart/10000
 rem sc failureflag adummysvc 1
 rem
-echo %_NX%: Created %SERVICE_NAME%
+echo Created %SERVICE_NAME%
 goto End
 rem
 :doLite
@@ -116,17 +114,15 @@ rem
     -h "%TEST_DIR%" %SERVICE_BATCH% run
 rem
 rem
-echo %_NX%: Created %SERVICE_NAME%
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+echo Created %SERVICE_NAME%
 goto End
+rem
 rem
 :doStart
 rem
 rem
-pushd "..\build\dbg"
-set "BUILD_DIR=%cd%"
-popd
-rem
-echo %_NX%: Starting %SERVICE_NAME%
+echo Starting %SERVICE_NAME%
 rem Wait until the service is Running
 rem
 shift
@@ -140,12 +136,14 @@ goto setStartArgs
 rem
 %BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" --wait=10 %START_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %_NX%: Started %SERVICE_NAME%
+echo Started %SERVICE_NAME%
 goto End
+rem
 rem
 :doStop
 rem
-echo %_NX%: Stopping %SERVICE_NAME%
+rem
+echo Stopping %SERVICE_NAME%
 rem Wait up to 30 seconds until the service is Stopped
 rem
 shift
@@ -159,7 +157,7 @@ goto setStopArgs
 rem
 %BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" --wait %STOP_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %_NX%: Stopped %SERVICE_NAME%
+echo Stopped %SERVICE_NAME%
 goto End
 rem
 rem
@@ -174,20 +172,18 @@ rem
 :doDelete
 rem
 rem
-rem
-echo %_NX%: Deleting %SERVICE_NAME%
-rem
 %BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-echo %_NX%: Deleted %SERVICE_NAME%
+echo Deleted %SERVICE_NAME%
 goto End
+rem
 rem
 :doRemove
 rem
 rem
-pushd "..\build\dbg"
+pushd "%BUILD_DIR%"
 rd /S /Q "Logs" >NUL 2>&1
-echo %_NX%: Removed %SERVICE_NAME%
+echo Removed %SERVICE_NAME%
 popd
 rem
 rem
