@@ -304,9 +304,9 @@ static const SVCBATCH_NAME_MAP envnamemap[] = {
     { L"_DIR",          L'D'                },
     { L"_EXE",          L'E'                },
     { L"_HOME",         L'H'                },
-    { L"_PID",          L'I'                },
     { L"_LOGS",         L'L'                },
     { L"_NAME",         L'N'                },
+    { L"_PID",          L'P'                },
     { L"_UUID",         L'U'                },
     { L"_VER",          L'V'                },
     { L"_WORK",         L'W'                },
@@ -1189,7 +1189,7 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
         case L'U':
             v = service->uuid;
         break;
-        case L'I':
+        case L'P':
             v = xntowcs(program->pInfo.dwProcessId);
         break;
         case L'V':

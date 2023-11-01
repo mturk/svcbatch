@@ -628,9 +628,9 @@ and lowercase letters with **-** command switch.
     D   Program directory
     E   Program executable
     H   Home directory
-    I   Program ProcessId
     L   Logs directory
     N   Service Name
+    P   Program ProcessId
     U   Service UUID
     V   SvcBatch version
     W   Work directory
@@ -699,9 +699,9 @@ and lowercase letters with **-** command switch.
     D   Program directory
     E   Program executable
     H   Home directory
-    I   Program ProcessId
     L   Logs directory
     N   Service Name
+    P   Program ProcessId
     U   Service UUID
     V   SvcBatch version
     W   Work directory
@@ -719,9 +719,9 @@ and lowercase letters with **-** command switch.
     D  ...  [PREFIX]_DIR
     E  ...  [PREFIX]_EXE
     H  ...  [PREFIX]_HOME
-    I  ...  [PREFIX]_PID
     L  ...  [PREFIX]_LOGS
     N  ...  [PREFIX]_NAME
+    P  ...  [PREFIX]_PID
     U  ...  [PREFIX]_UUID
     V  ...  [PREFIX]_VER
     W  ...  [PREFIX]_WORK
@@ -733,7 +733,7 @@ and lowercase letters with **-** command switch.
   values set to their corresponding runtime values.
 
   ```no-highlight
-  > svcbatch create ... /EE:IV ...
+  > svcbatch create ... /EE:PV ...
 
   ```
 
@@ -1231,8 +1231,8 @@ SvcBatch sets for each instance:
   as prefix for those variables. In that case it will export
   **MYSERVICE_NAME**, **MYSERVICE_HOME**, etc.
 
-  If either the **/F:E** or **/EP:PREFIX** command options were
-  defined, they will take precedence over this feature.
+  In case the **/EP:@** or **/EP:PREFIX** command option is
+  defined, it will take precedence over this feature.
 
 **Important**
 
