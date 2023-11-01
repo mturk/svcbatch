@@ -2834,9 +2834,24 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
         goto finished;
     }
     InterlockedIncrement(&log->count);
-    FlushFileBuffers(h);
-    CloseHandle(h);
-    rc = openlogfile(log, FALSE);
+    if (IS_SET(SVCBATCH_OPT_TRUNCATE)) {
+        LARGE_INTEGER ee = {{ 0, 0 }};
+
+        if (SetFilePointerEx(h, ee, NULL, FILE_BEGIN)) {
+            if (SetEndOfFile(h)) {
+                DBG_PRINTS("log truncated");
+                InterlockedExchangePointer(&log->fd, h);
+                goto finished;
+            }
+        }
+        rc = GetLastError();
+        CloseHandle(h);
+    }
+    else {
+        FlushFileBuffers(h);
+        CloseHandle(h);
+        rc = openlogfile(log, FALSE);
+    }
     if (rc)
         setsvcstatusexit(rc);
 
@@ -3944,6 +3959,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'R':
                             OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIG);
                             OPT_SET(SVCBATCH_OPT_ROTATE);
+                        break;
+                        case L'T':
+                            OPT_SET(SVCBATCH_OPT_TRUNCATE);
                         break;
                         case L'U':
                             OPT_CLR(SVCBATCH_OPT_ENV);

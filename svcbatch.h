@@ -271,9 +271,10 @@
 #define SVCBATCH_OPT_MASK           0x0000FFFF
 
 #define SVCBATCH_OPT_ROTATE         0x00010000   /* Enable log rotation         */
-#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00020000   /* Rotate by signal            */
-#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00040000   /* Rotate by size              */
-#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00080000   /* Rotate by time              */
+#define SVCBATCH_OPT_TRUNCATE       0x00020000   /* Truncate log on rotation    */
+#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00100000   /* Rotate by signal            */
+#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00200000   /* Rotate by size              */
+#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00400000   /* Rotate by time              */
 
 
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */

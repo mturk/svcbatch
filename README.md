@@ -322,7 +322,7 @@ and lowercase letters with **-** command switch.
   listed in any order.
 
   ```no-highlight
-      <B><L><P><Q><R><U><W><X><Y><0|1|2>
+      <B><L><P><Q><R><T><U><W><X><Y><0|1|2>
   ```
 
     * **B**
@@ -404,6 +404,15 @@ and lowercase letters with **-** command switch.
       In case the last log rotation was less then `2` minutes ago,
       or if there was no data written to the log file from the last
       rotation, SvcBatch will not rotate the logs.
+
+
+    * **T**
+
+      **Truncate log on rotation**
+
+      If set this option will truncate existing
+      log file on log rotation instead creating
+      a new log file.
 
 
 
