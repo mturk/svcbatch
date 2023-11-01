@@ -576,7 +576,7 @@ static __inline void xwcsupper(LPWSTR str)
 
 static __inline int xisblank(int ch)
 {
-    if ((ch == 32) || (ch == 9))
+    if ((ch > 0) && (ch < 33))
         return 1;
     else
         return 0;
@@ -639,7 +639,15 @@ static __inline void xunxpathsep(LPWSTR str)
     }
 }
 
-static __inline LPWSTR xwcschr(LPCWSTR str, int c)
+static __inline void xpprefix(LPWSTR str)
+{
+    str[0] = L'\\';
+    str[1] = L'\\';
+    str[2] = L'?';
+    str[3] = L'\\';
+}
+
+static LPWSTR xwcschr(LPCWSTR str, int c)
 {
     ASSERT_WSTR(str, NULL);
 
@@ -651,7 +659,7 @@ static __inline LPWSTR xwcschr(LPCWSTR str, int c)
     return NULL;
 }
 
-static __inline LPWSTR xwcsrchr(LPCWSTR str, int c)
+static LPWSTR xwcsrchr(LPCWSTR str, int c)
 {
     LPCWSTR s = str;
 
@@ -765,7 +773,7 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
     rs = xwmalloc(c + x);
 
     if (x > 0)
-        wmemcpy(rs, L"\\\\?\\", 4);
+        xpprefix(rs);
     wmemcpy(rs + x, p, lp);
     x += lp;
     rs[x++] = L'\\';
@@ -821,12 +829,12 @@ static LPWSTR xargvtomsz(int argc, LPCWSTR *argv, int *sz)
 {
     int    i;
     int    len = 0;
-    int    s[SVCBATCH_NAME_MAX];
+    int    s[SVCBATCH_MAX_OPTS];
     LPWSTR ep;
     LPWSTR bp;
 
     ASSERT_ZERO(argc, NULL);
-    ASSERT_LESS(argc, SVCBATCH_NAME_MAX, NULL);
+    ASSERT_LESS(argc, SVCBATCH_MAX_OPTS, NULL);
 
     for (i = 0; i < argc; i++) {
         s[i]  = xwcslen(argv[i]) + 1;
@@ -2166,7 +2174,7 @@ static DWORD xfixmaxpath(LPWSTR buf, DWORD len, int isdir)
             if ((buf[1] == L':' ) &&
                 (buf[2] == L'\\')) {
                 wmemmove(buf + 4, buf, len + 1);
-                wmemcpy(buf, L"\\\\?\\", 4);
+                xpprefix(buf);
                 len += 4;
             }
         }

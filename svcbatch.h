@@ -115,9 +115,14 @@
 #define SVCBATCH_MAX_ARGS       32
 
 /**
- * Maximum number of each -e option type
+ * Maximum number of each /E option type
  */
 #define SVCBATCH_MAX_ENVS       32
+
+/**
+ * Maximum number of command options
+ */
+#define SVCBATCH_MAX_OPTS      256
 
 /**
  * Maximum length for the path and
