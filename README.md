@@ -623,14 +623,14 @@ and lowercase letters with **-** command switch.
 
   ```no-highlight
 
-    A   Program application
+    A   Program application name
     B   Base directory
     D   Program directory
+    E   Program executable
     H   Home directory
     I   Program ProcessId
     L   Logs directory
     N   Service Name
-    P   Program Name
     U   Service UUID
     V   SvcBatch version
     W   Work directory
@@ -694,14 +694,14 @@ and lowercase letters with **-** command switch.
 
   ```no-highlight
 
-    A   Program application
+    A   Program application name
     B   Base directory
     D   Program directory
+    E   Program executable
     H   Home directory
     I   Program ProcessId
     L   Logs directory
     N   Service Name
-    P   Program Name
     U   Service UUID
     V   SvcBatch version
     W   Work directory
@@ -717,11 +717,11 @@ and lowercase letters with **-** command switch.
     A  ...  [PREFIX]_APP
     B  ...  [PREFIX]_BASE
     D  ...  [PREFIX]_DIR
+    E  ...  [PREFIX]_EXE
     H  ...  [PREFIX]_HOME
     I  ...  [PREFIX]_PID
     L  ...  [PREFIX]_LOGS
     N  ...  [PREFIX]_NAME
-    P  ...  [PREFIX]_PROGRAM
     U  ...  [PREFIX]_UUID
     V  ...  [PREFIX]_VER
     W  ...  [PREFIX]_WORK

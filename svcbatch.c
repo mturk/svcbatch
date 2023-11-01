@@ -302,11 +302,11 @@ static const SVCBATCH_NAME_MAP envnamemap[] = {
     { L"_APP",          L'A'                },
     { L"_BASE",         L'B'                },
     { L"_DIR",          L'D'                },
+    { L"_EXE",          L'E'                },
     { L"_HOME",         L'H'                },
     { L"_PID",          L'I'                },
     { L"_LOGS",         L'L'                },
     { L"_NAME",         L'N'                },
-    { L"_PROGRAM",      L'P'                },
     { L"_UUID",         L'U'                },
     { L"_VER",          L'V'                },
     { L"_WORK",         L'W'                },
@@ -1175,16 +1175,16 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
             v = service->work;
         break;
         case L'A':
-            v = program->application;
+            v = program->name;
         break;
         case L'D':
             v = program->directory;
         break;
+        case L'E':
+            v = program->application;
+        break;
         case L'N':
             v = service->name;
-        break;
-        case L'P':
-            v = program->name;
         break;
         case L'U':
             v = service->uuid;
