@@ -322,7 +322,7 @@ and lowercase letters with **-** command switch.
   listed in any order.
 
   ```no-highlight
-      <B><L><P><Q><R><T><U><W><X><Y><0|1|2>
+      <B><E><L><P><Q><R><T><U><W><Y><0|1|2>
   ```
 
     * **B**
@@ -347,6 +347,15 @@ and lowercase letters with **-** command switch.
       When using `start /B application`, the application does
       not receive `ctrl+c` signal. The `ctrl+break` is the only
       way to interrupt the application.
+
+
+    * **E**
+
+      **Expand environment variables for script arguments**
+
+      If set this option will expand environment strings for
+      each script argument.
+
 
 
     * **L**
@@ -448,15 +457,6 @@ and lowercase letters with **-** command switch.
       This option can be useful for new applications targeting
       Windows 10 platform, without the overhead of prefixing each
       path or file name parameter with **\\?\\**.
-
-
-    * **X**
-
-      **Expand environment variables for script arguments**
-
-      If set this option will expand environment strings for
-      each script argument.
-
 
 
     * **Y**
