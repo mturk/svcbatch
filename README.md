@@ -680,6 +680,77 @@ and lowercase letters with **-** command switch.
   by using **/EU:VAR**.
 
 
+* **EE [variables]**
+
+  **Export private environment variables**
+
+  This option exports various runtime environment variables.
+  The **variables** parameter is a combination of
+  one or more characters, where each character sets
+  the particular environment variable.
+
+  Variables are case sensitive, and can be
+  listed in any order.
+
+  ```no-highlight
+
+    A   Program application
+    B   Base directory
+    D   Program directory
+    H   Home directory
+    I   Program ProcessId
+    L   Logs directory
+    N   Service Name
+    P   Program Name
+    U   Service UUID
+    V   SvcBatch version
+    W   Work directory
+
+  ```
+
+  Each variable name will be evaluated at runtime
+  using either default or prefix or the one defined
+  by the **/EP:PREFIX** command option.
+
+  ```no-highlight
+
+    A  ...  [PREFIX]_APP
+    B  ...  [PREFIX]_BASE
+    D  ...  [PREFIX]_DIR
+    H  ...  [PREFIX]_HOME
+    I  ...  [PREFIX]_PID
+    L  ...  [PREFIX]_LOGS
+    N  ...  [PREFIX]_NAME
+    P  ...  [PREFIX]_PROGRAM
+    U  ...  [PREFIX]_UUID
+    V  ...  [PREFIX]_VER
+    W  ...  [PREFIX]_WORK
+
+  ```
+
+  The following example will export `SVCBATCH_PID`
+  and `SVCBATCH_VER` environment variables with the
+  values set to their corresponding runtime values.
+
+  ```no-highlight
+  > svcbatch create ... /EE:IV ...
+
+  ```
+
+  This feature is usually used when the **/F:U** feature
+  is defined, or to export specific runtime value(s).
+
+  The following example will only export service's home
+  and work directories as `MYSERVICE_HOME` and `MYSERVICE_WORK`
+  environment variables:
+
+  ```no-highlight
+  > svcbatch create myService ... /F:U /EP:@ /EE:HW ...
+
+  ```
+
+
+
 * **EU [variable]**
 
   **Unset the environment variable**
