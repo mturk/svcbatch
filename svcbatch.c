@@ -1091,7 +1091,7 @@ static LPWSTR xgetenv(LPCWSTR s)
     n = GetEnvironmentVariableW(s, e, BBUFSIZ);
     if (n == 0)
         return NULL;
-    d = xwmalloc(n);
+    d = xwmalloc(n + 1);
     if (n >= BBUFSIZ)
         GetEnvironmentVariableW(s, d, n);
     else
