@@ -255,7 +255,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"ce:fhikl:rs:tw";
+static const wchar_t *scmdoptions = L"ce:fhikl:s:tw";
 
 
 /**
@@ -4022,6 +4022,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     svclogfname = xwoptarg;
                     break;
                 }
+                if (xwoptvar == 'r') {
+                    rotateparam = xwoptarg;
+                    break;
+                }
                 if (xwoptvar != 0)
                     return xsyserrno(30, L"L", xwctowcs(xwoptvar));
                 logdirparam  = skipdotslash(xwoptarg);
@@ -4054,9 +4058,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     xwoptend = 1;
                 else
                     svcstopparam = xwoptarg;
-            break;
-            case 'r':
-                rotateparam  = xwoptarg;
             break;
             case 'h':
                 svchomeparam = skipdotslash(xwoptarg);

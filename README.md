@@ -952,7 +952,7 @@ and lowercase letters with **-** command switch.
   exiting log files from `1 .. 4.`.
 
 
-* **R [rule]**
+* **LR [rule]**
 
   **Rotate logs by size or time interval**
 
@@ -974,7 +974,7 @@ and lowercase letters with **-** command switch.
   ```
 
   ```no-highlight
-  > svcbatch create ... /R:@17:00:00+100K
+  > svcbatch create ... /LR:@17:00:00+100K
 
   ```
 
@@ -982,7 +982,7 @@ and lowercase letters with **-** command switch.
   as minutes between log rotation.
 
   ```no-highlight
-  >svcbatch create ... /R:@90+200K
+  >svcbatch create ... /LR:@90+200K
 
   ```
 
@@ -1087,7 +1087,6 @@ and lowercase letters with **-** command switch.
 
   The **name** parameter is handled the same as
   described with **LN** command option.
-
 
 
 
