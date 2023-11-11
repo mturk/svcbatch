@@ -172,6 +172,7 @@ static LPSVCBATCH_PROCESS    program     = NULL;
 static LPSVCBATCH_PROCESS    cmdproc     = NULL;
 static LPSVCBATCH_PROCESS    svcstop     = NULL;
 static LPSVCBATCH_LOG        outputlog   = NULL;
+static LPSVCBATCH_LOG        stderrlog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
 
 static volatile LONG         killdepth      = 0;
@@ -2469,6 +2470,7 @@ static BOOL createnulpipe(LPHANDLE ph)
 static DWORD createiopipes(LPSTARTUPINFOW si,
                            LPHANDLE iwrs,
                            LPHANDLE ords,
+                           LPHANDLE erds,
                            DWORD mode)
 {
     HANDLE cp = program->pInfo.hProcess;
@@ -2512,6 +2514,20 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
             return GetLastError();
     }
     si->hStdOutput = wr;
+    if (erds) {
+        /**
+         * Create stderr pipe, with read side
+         * of the pipe as non inheritable
+         */
+        if (!createiopipe(&rd, &wr, mode))
+            return GetLastError();
+        if (!DuplicateHandle(cp, rd, cp,
+                             erds, FALSE, 0,
+                             DUPLICATE_CLOSE_SOURCE | DUPLICATE_SAME_ACCESS))
+            return GetLastError();
+
+
+    }
     si->hStdError  = wr;
 
     return 0;
@@ -3082,7 +3098,7 @@ static DWORD runshutdown(void)
     if (x >= SVCBATCH_DATA_LEN)
         return ERROR_INSUFFICIENT_BUFFER;
     DBG_PRINTF("shared memory size %lu", DSIZEOF(SVCBATCH_IPC));
-    rc = createiopipes(&svcstop->sInfo, NULL, NULL, 0);
+    rc = createiopipes(&svcstop->sInfo, NULL, NULL, NULL, 0);
     if (rc != 0) {
         DBG_PRINTF("createiopipes failed with %lu", rc);
         return rc;
@@ -3401,26 +3417,74 @@ finished:
     return rc > 1 ? rc : 0;
 }
 
+static DWORD readiopipe(LPSVCBATCH_PIPE op, LPSVCBATCH_LOG log)
+{
+    DWORD rc = 0;
+
+    if (op->state == ERROR_IO_PENDING) {
+        if (!GetOverlappedResult(op->pipe, (LPOVERLAPPED)op,
+                                &op->read, FALSE)) {
+            op->state = GetLastError();
+        }
+        else {
+            op->state = 0;
+            rc = logwrdata(log, op->buffer, op->read);
+        }
+    }
+    else {
+        if (ReadFile(op->pipe, op->buffer, SVCBATCH_PIPE_LEN,
+                    &op->read, (LPOVERLAPPED)op) && op->read) {
+            op->state = 0;
+            rc = logwrdata(log, op->buffer, op->read);
+            SetEvent(op->o.hEvent);
+        }
+        else {
+            op->state = GetLastError();
+            if (op->state != ERROR_IO_PENDING)
+                rc = op->state;
+        }
+    }
+    if (rc) {
+        ResetEvent(op->o.hEvent);
+#if defined(_DEBUG)
+        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
+            DBG_PRINTF("%S pipe closed", log == outputlog ? L"out" : L"err");
+        else if (rc == ERROR_NO_MORE_FILES)
+            DBG_PRINTS("log file closed");
+        else
+            DBG_PRINTF("error %lu", rc);
+#endif
+    }
+
+    return rc;
+}
+
 static DWORD WINAPI workerthread(void *unused)
 {
     DWORD    i;
-    HANDLE   rd = NULL;
+    HANDLE   eh = NULL;
+    HANDLE   rh = NULL;
     HANDLE   wr = NULL;
-    LPHANDLE rp = NULL;
-    LPHANDLE wp = NULL;
+    LPHANDLE pe = NULL;
+    LPHANDLE pr = NULL;
+    LPHANDLE pw = NULL;
+    DWORD    ws;
     DWORD    rc = 0;
     DWORD    cf = CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT;
     LPSVCBATCH_PIPE op = NULL;
+    LPSVCBATCH_PIPE ep = NULL;
 
     DBG_PRINTS("started");
     xsvcstatus(SERVICE_START_PENDING, SVCBATCH_START_HINT);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_STARTING);
 
     if (outputlog)
-        rp = &rd;
+        pr = &rh;
+    if (stderrlog)
+        pe = &eh;
     if (IS_SET(SVCBATCH_OPT_WRPIPE))
-        wp = &wr;
-    rc = createiopipes(&cmdproc->sInfo, wp, rp, FILE_FLAG_OVERLAPPED);
+        pw = &wr;
+    rc = createiopipes(&cmdproc->sInfo, pw, pr, pe, FILE_FLAG_OVERLAPPED);
     if (rc != 0) {
         DBG_PRINTF("createiopipes failed with %lu", rc);
         setsvcstatusexit(rc);
@@ -3436,11 +3500,25 @@ static DWORD WINAPI workerthread(void *unused)
         cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
     if (outputlog) {
         op = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
-        op->pipe     = rd;
+        op->pipe     = rh;
         op->o.hEvent = CreateEventEx(NULL, NULL,
                                      CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
                                      EVENT_MODIFY_STATE | SYNCHRONIZE);
         if (IS_INVALID_HANDLE(op->o.hEvent)) {
+            rc = GetLastError();
+            setsvcstatusexit(rc);
+            xsyserror(rc, L"CreateEvent", NULL);
+            cmdproc->exitCode = rc;
+            goto finished;
+        }
+    }
+    if (stderrlog) {
+        ep = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
+        ep->pipe     = eh;
+        ep->o.hEvent = CreateEventEx(NULL, NULL,
+                                     CREATE_EVENT_MANUAL_RESET | CREATE_EVENT_INITIAL_SET,
+                                     EVENT_MODIFY_STATE | SYNCHRONIZE);
+        if (IS_INVALID_HANDLE(ep->o.hEvent)) {
             rc = GetLastError();
             setsvcstatusexit(rc);
             xsyserror(rc, L"CreateEvent", NULL);
@@ -3504,14 +3582,14 @@ static DWORD WINAPI workerthread(void *unused)
 
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     if (outputlog) {
-        HANDLE wh[2];
+        HANDLE wh[4];
         DWORD  nw = 2;
 
         wh[0] = cmdproc->pInfo.hProcess;
         wh[1] = op->o.hEvent;
+        if (ep)
+            wh[nw++] = ep->o.hEvent;
         do {
-            DWORD ws;
-
             ws = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
             switch (ws) {
                 case WAIT_OBJECT_0:
@@ -3519,55 +3597,27 @@ static DWORD WINAPI workerthread(void *unused)
                     DBG_PRINTS("process signaled");
                 break;
                 case WAIT_OBJECT_1:
-                    if (op->state == ERROR_IO_PENDING) {
-                        if (!GetOverlappedResult(op->pipe, (LPOVERLAPPED)op,
-                                                &op->read, FALSE)) {
-                            op->state = GetLastError();
-                        }
-                        else {
-                            op->state = 0;
-                            rc = logwrdata(outputlog, op->buffer, op->read);
-                        }
-                    }
-                    else {
-                        if (ReadFile(op->pipe, op->buffer, SVCBATCH_PIPE_LEN,
-                                    &op->read, (LPOVERLAPPED)op) && op->read) {
-                            op->state = 0;
-                            rc = logwrdata(outputlog, op->buffer, op->read);
-                            SetEvent(op->o.hEvent);
-                        }
-                        else {
-                            op->state = GetLastError();
-                            if (op->state != ERROR_IO_PENDING)
-                                rc = op->state;
-                        }
-                    }
-                    if (rc) {
-                        SAFE_CLOSE_HANDLE(op->pipe);
-                        ResetEvent(op->o.hEvent);
-                        nw = 1;
-#if defined(_DEBUG)
-                        if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
-                            DBG_PRINTS("pipe closed");
-                        else if (rc == ERROR_NO_MORE_FILES)
-                            DBG_PRINTS("log file closed");
-                        else
-                            DBG_PRINTF("error %lu", rc);
-#endif
-                    }
+                    rc = readiopipe(op, outputlog);
+                break;
+                case WAIT_OBJECT_2:
+                    rc = readiopipe(ep, stderrlog);
                 break;
                 default:
-                    DBG_PRINTF("wait failed %lu with %lu", ws, GetLastError());
+                    rc = GetLastError();
                     nw = 0;
+                    DBG_PRINTF("wait failed %lu with %lu", ws, rc);
                 break;
-
             }
         } while (nw);
+        if (op)
+            CancelIoEx(op->pipe, (LPOVERLAPPED)op);
+        if (ep)
+            CancelIoEx(ep->pipe, (LPOVERLAPPED)ep);
     }
     else {
-        WaitForSingleObject(cmdproc->pInfo.hProcess, INFINITE);
+        ws = WaitForSingleObject(cmdproc->pInfo.hProcess, INFINITE);
     }
-    DBG_PRINTS("stopping");
+    DBG_PRINTF("stopping %lu", ws);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_STOPPING);
     if (IS_SET(SVCBATCH_OPT_WRPIPE) && threads[SVCBATCH_WRPIPE_THREAD].started) {
         if (WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
@@ -3595,6 +3645,11 @@ finished:
         SAFE_CLOSE_HANDLE(op->pipe);
         SAFE_CLOSE_HANDLE(op->o.hEvent);
         free(op);
+    }
+    if (ep != NULL) {
+        SAFE_CLOSE_HANDLE(ep->pipe);
+        SAFE_CLOSE_HANDLE(ep->o.hEvent);
+        free(ep);
     }
     closeprocess(cmdproc);
 
@@ -3906,6 +3961,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPWSTR   wp;
     LPWSTR   pp;
     LPWSTR   scriptparam  = NULL;
+    LPCWSTR  svcerrfname  = NULL;
     LPCWSTR  svclogfname  = NULL;
     LPCWSTR  svchomeparam = NULL;
     LPCWSTR  svcworkparam = NULL;
@@ -4016,6 +4072,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     srvcmaxlogs = xwcstoi(xwoptarg, NULL);
                     if ((srvcmaxlogs < 0) || (srvcmaxlogs > SVCBATCH_MAX_LOGS))
                         return xsyserrno(13, L"LM", xwoptarg);
+                    break;
+                }
+                if (xwoptvar == 'e') {
+                    svcerrfname = xwoptarg;
                     break;
                 }
                 if (xwoptvar == 'n') {
@@ -4188,9 +4248,13 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     else {
         outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
-
         outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
         SVCBATCH_CS_INIT(outputlog);
+        if (svcerrfname) {
+            stderrlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
+            stderrlog->logName = svcerrfname;
+            SVCBATCH_CS_INIT(stderrlog);
+        }
     }
     cp = eprefixparam;
     if (cp == NULL)
@@ -4466,6 +4530,14 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         }
         xsvcstatus(SERVICE_START_PENDING, 0);
     }
+    if (stderrlog) {
+        rv = openlogfile(stderrlog, TRUE);
+        if (rv) {
+            xsvcstatus(SERVICE_STOPPED, rv);
+            return;
+        }
+        xsvcstatus(SERVICE_START_PENDING, 0);
+    }
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
         rv = xsyserror(GetLastError(), L"WorkerThread", NULL);
@@ -4488,6 +4560,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 finished:
     DBG_PRINTS("closing");
     closelogfile(outputlog);
+    closelogfile(stderrlog);
     threadscleanup();
     xsvcstatus(SERVICE_STOPPED, rv);
     DBG_PRINTS("done");

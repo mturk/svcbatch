@@ -40,6 +40,8 @@ rem Display environment variables
 set
 echo.
 echo.
+echo %~nx0: [%TIME%] ... started >&2
+echo. >&2
 rem
 :doMain
 rem
@@ -79,8 +81,8 @@ if %_wc% lss 10 (
 rem
 set /A _qc+=1
 if %_qc% gtr 50 (
-    echo %~nx0: [%_rc%] [%TIME%] ... leaving quiet mode
-    echo.
+    echo %~nx0: [%_rc%] [%TIME%] ... leaving quiet mode >&2
+    echo. >&2
     goto doMain
 )
 rem
@@ -102,8 +104,8 @@ echo proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 echo.
 rem
 if %_qc% geq 15 (
-    echo.
-    echo %~nx0: [%_rc%] [%TIME%] ... entering quiet mode
+    echo. >&2
+    echo %~nx0: [%_rc%] [%TIME%] ... entering quiet mode >&2
 )
 rem Increment counter
 set /A _rc+=1
