@@ -2233,8 +2233,9 @@ static LPWSTR xgetdirpath(LPCWSTR path, LPWSTR dst, DWORD siz)
     HANDLE fh;
     DWORD  len;
 
-    fh = CreateFileW(path, GENERIC_READ, FILE_SHARE_READ, NULL,
-                     OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
+    fh = CreateFileW(path, GENERIC_READ | GENERIC_WRITE,
+                     FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                     FILE_FLAG_BACKUP_SEMANTICS, NULL);
     if (IS_INVALID_HANDLE(fh))
         return NULL;
     len = GetFinalPathNameByHandleW(fh, dst, siz, VOLUME_NAME_DOS);
@@ -2426,7 +2427,7 @@ static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
                            PIPE_TYPE_BYTE,
                            1,
                            0,
-                           65536,
+                           SVCBATCH_DATA_MAX,
                            0,
                            &sa);
     if (IS_INVALID_HANDLE(*rd))
@@ -3275,10 +3276,17 @@ static DWORD WINAPI wrpipethread(void *pipe)
     DWORD  wr = 0;
 
     DBG_PRINTS("started");
+    DBG_PRINTF("writing %lu bytes", stdinsize);
     if (WriteFile(h, stdindata, stdinsize, &wr, NULL) && (wr != 0)) {
-        if (!FlushFileBuffers(h))
-            rc = GetLastError();
         DBG_PRINTF("wrote %lu bytes", wr);
+        if (!FlushFileBuffers(h)) {
+            rc = GetLastError();
+        }
+#if defined(_DEBUG)
+        else {
+            DBG_PRINTF("flush %lu bytes", wr);
+        }
+#endif
     }
     else {
         rc = GetLastError();
