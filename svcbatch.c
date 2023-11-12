@@ -257,7 +257,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"ce:fhikl:s:tw";
+static const wchar_t *scmdoptions = L"ce:fhkl:s:tw";
 
 
 /**
@@ -2277,66 +2277,6 @@ static LPWSTR xsearchexe(LPCWSTR name)
     return xwcsndup(buf, len);
 }
 
-static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
-{
-    DWORD  rc = 0;
-    DWORD  rd = 0;
-    DWORD  sn;
-    HANDLE fh;
-    LPBYTE bb;
-    WCHAR  nb[SVCBATCH_PATH_MAX];
-    WIN32_FILE_ATTRIBUTE_DATA ad;
-
-
-    sn = GetFullPathNameW(name, SVCBATCH_PATH_SIZ, nb, NULL);
-    if ((sn == 0) || (sn >= SVCBATCH_PATH_SIZ)) {
-        DBG_PRINTF("invalid name %S", name);
-        return ERROR_INVALID_NAME;
-    }
-    xwinpathsep(nb);
-    xfixmaxpath(nb, sn, 0);
-    if (GetFileAttributesExW(nb, GetFileExInfoStandard, &ad)) {
-        if ((ad.nFileSizeHigh > 0) || (ad.nFileSizeLow >= maxsz)) {
-            DBG_PRINTF("file is too large %S", nb);
-            return ERROR_FILE_TOO_LARGE;
-        }
-    }
-    else {
-        DBG_PRINTF("cannot stat %S", nb);
-        return ERROR_ACCESS_DENIED;
-    }
-    if (ad.nFileSizeLow == 0) {
-        DBG_PRINTF("file is empty %S", nb);
-        return ERROR_INVALID_DATA;
-    }
-
-    fh = CreateFileW(nb, GENERIC_READ, FILE_SHARE_READ, NULL,
-                     OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-    if (IS_INVALID_HANDLE(fh))
-        return GetLastError();
-    bb = (LPBYTE)xmmalloc(ad.nFileSizeLow + 1);
-    if (ReadFile(fh, bb, ad.nFileSizeLow, &rd, NULL) && rd) {
-        if (rd == ad.nFileSizeLow) {
-            DBG_PRINTF("read %lu bytes from %S", rd, nb);
-            *data = bb;
-            *size = rd;
-        }
-        else {
-            DBG_PRINTF("read %lu instead %lu bytes from %S", rd, ad.nFileSizeLow, nb);
-            rc = ERROR_BAD_LENGTH;
-            xfree(bb);
-        }
-    }
-    else {
-        rc = GetLastError();
-        xfree(bb);
-        DBG_PRINTF("read failed from %S", nb);
-    }
-    CloseHandle(fh);
-    return rc;
-}
-
-
 static void setsvcstatusexit(DWORD e)
 {
     SVCBATCH_CS_ENTER(service);
@@ -2428,7 +2368,7 @@ static BOOL createstdpipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
                            PIPE_TYPE_BYTE,
                            1,
                            0,
-                           SVCBATCH_DATA_MAX,
+                           65536,
                            0,
                            &sa);
     if (IS_INVALID_HANDLE(*rd))
@@ -3277,7 +3217,6 @@ static DWORD WINAPI wrpipethread(void *pipe)
     DWORD  wr = 0;
 
     DBG_PRINTS("started");
-    DBG_PRINTF("writing %lu bytes", stdinsize);
     if (WriteFile(h, stdindata, stdinsize, &wr, NULL) && (wr != 0)) {
         DBG_PRINTF("wrote %lu bytes", wr);
         if (!FlushFileBuffers(h)) {
@@ -3954,7 +3893,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  rotateparam  = NULL;
     LPCWSTR  logdirparam  = NULL;
     LPCWSTR  tmpdirparam  = NULL;
-    LPCWSTR  sinputparam  = NULL;
 
     DBG_PRINTS("started");
     x = getsvcarguments(&wargc, &wargv);
@@ -4101,9 +4039,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             case 'h':
                 svchomeparam = skipdotslash(xwoptarg);
             break;
-            case 'i':
-                sinputparam  = skipdotslash(xwoptarg);
-            break;
             case 't':
                 tmpdirparam  = skipdotslash(xwoptarg);
             break;
@@ -4178,12 +4113,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     if (xwoptarr && xwoptend)
         return xsyserrno(28, xwoptarr, NULL);
-    if (sinputparam) {
-        if (IS_SET(SVCBATCH_OPT_WRPIPE))
-            return xsyserrno(29, L"feature Y and I", NULL);
-        if (svcstopparam)
-            return xsyserrno(29, L"options S and I", NULL);
-    }
     wargc -= xwoptind;
     wargv += xwoptind;
     if (svcfailmode == 0)
@@ -4327,13 +4256,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         SetEnvironmentVariableW(L"TMP",  pp);
         SetEnvironmentVariableW(L"TEMP", pp);
         xfree(pp);
-    }
-    if (sinputparam) {
-        x = xreadfile(sinputparam, &stdindata, &stdinsize, SVCBATCH_DATA_MAX);
-        if (x)
-            return xsyserror(x, L"ReadFile", sinputparam);
-        OPT_SET(SVCBATCH_OPT_WRPIPE);
-        xsvcstatus(SERVICE_START_PENDING, 0);
     }
     if (IS_NOT(SVCBATCH_OPT_NOENV)) {
         /**

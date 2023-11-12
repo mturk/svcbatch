@@ -581,27 +581,6 @@ and lowercase letters with **-** command switch.
   keeps running in the background.
 
 
-* **I [filename]**
-
-  **Send data from filename to child standard input**
-
-  This option allows to send the content of the **filename**
-  to the child's standard input on service startup.
-
-  If the **filename** is not the absolute path, it will
-  be resolved relative to the **H** directory.
-
-  **Notice**
-
-  The **filename** size must be less then **64** kilobytes,
-  and is defined by the `#define SVCBATCH_DATA_MAX 65536`
-  macro inside [svcbatch header file](svcbatch.h)
-
-  Do not use this option together with **/F:Y** feature or
-  with **/S** command option(s). Service will fail to start
-  and write an error to the Windows Event Log.
-
-
 * **E [name=value]**
 
   **Sets environment variable**
