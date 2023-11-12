@@ -113,8 +113,8 @@ $(POUTPUT): $(WORKDIR) $(OBJECTS)
 
 $(TESTAPPS): $(POUTPUT)
 	@cd $@
-  @$(MAKE) /L$(MAKEFLAGS)
-  @cd $(MAKEDIR)
+	@$(MAKE) /L$(MAKEFLAGS)
+	@cd $(MAKEDIR)
 
 tests: $(TESTAPPS)
 
