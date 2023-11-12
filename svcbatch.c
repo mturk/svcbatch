@@ -255,7 +255,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"ce:fhikl:s:tw";
+static const wchar_t *scmdoptions = L"ce:fhikl:rs:tw";
 
 
 /**
@@ -610,7 +610,7 @@ static __inline int xisdigit(int ch)
 
 static __inline int xiswcschar(LPCWSTR s, WCHAR c)
 {
-    if ((s[0] == c) && (s[1] == WNUL))
+    if ((s != NULL) && (s[0] == c) && (s[1] == WNUL))
         return 1;
     else
         return 0;
@@ -2924,9 +2924,6 @@ static BOOL resolverotate(LPCWSTR param)
 
     ASSERT_WSTR(rp, FALSE);
 
-    rotateinterval      = CPP_INT64_C(0);
-    rotatetime.QuadPart = CPP_INT64_C(0);
-
     if (*rp == L'@') {
         rp++;
         if (xwcschr(rp, L':')) {
@@ -2952,9 +2949,6 @@ static BOOL resolverotate(LPCWSTR param)
                        hh, mm, ss);
             resolvetimeout(hh, mm, ss, 1);
             rp = ep;
-            if (*rp != L'+')
-                return TRUE;
-
         }
         else {
             int mm = xwcstoi(rp, &ep);
@@ -2978,58 +2972,70 @@ static BOOL resolverotate(LPCWSTR param)
                     return FALSE;
                 }
                 rotateinterval = mm * ONE_MINUTE * CPP_INT64_C(-1);
-                DBG_PRINTF("rotate each %d minutes", mm);
                 rotatetime.QuadPart = rotateinterval;
                 OPT_SET(SVCBATCH_OPT_ROTATE_BY_TIME);
+                DBG_PRINTF("rotate each %d minutes", mm);
             }
             rp = ep;
-            if (*rp != L'+')
-                return TRUE;
         }
+        if (*rp == WNUL)
+            return TRUE;
+        if (*rp == L'+')
+            rp++;
+        else
+            rp = NULL;
     }
-    if (*rp == L'+') {
-        rp++;
-        if (xwcspbrk(rp, L"BKMG")) {
-            int      val;
-            LONGLONG siz;
-            LONGLONG mux = CPP_INT64_C(0);
+    if (xwcspbrk(rp, L"BKMG")) {
+        int      val;
+        LONGLONG siz;
+        LONGLONG mux = CPP_INT64_C(0);
 
-            val = xwcstoi(rp, &ep);
-            if (val < 1)
+        val = xwcstoi(rp, &ep);
+        if (val < 1)
+            return FALSE;
+        switch (*ep) {
+            case L'B':
+                mux = CPP_INT64_C(1);
+            break;
+            case L'K':
+                mux = KILOBYTES(1);
+            break;
+            case L'M':
+                mux = MEGABYTES(1);
+            break;
+            case L'G':
+                mux = MEGABYTES(1024);
+            break;
+            default:
                 return FALSE;
-            switch (*ep) {
-                case L'B':
-                    mux = CPP_INT64_C(1);
-                break;
-                case L'K':
-                    mux = KILOBYTES(1);
-                break;
-                case L'M':
-                    mux = MEGABYTES(1);
-                break;
-                case L'G':
-                    mux = MEGABYTES(1024);
-                break;
-                default:
-                    return FALSE;
-                break;
-            }
-            siz = val * mux;
-            if (siz < KILOBYTES(SVCBATCH_MIN_ROTATE_SIZ)) {
-                DBG_PRINTF("rotate size is less then %dK",
-                           SVCBATCH_MIN_ROTATE_SIZ);
-                return FALSE;
-            }
-            else {
-                DBG_PRINTF("rotate if larger then %d %C", val, *ep);
-                rotatesize = siz;
-                OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIZE);
-                return TRUE;
-            }
+            break;
         }
+        siz = val * mux;
+        if (siz < KILOBYTES(SVCBATCH_MIN_ROTATE_SIZ)) {
+            DBG_PRINTF("rotate size is less then %dK",
+                       SVCBATCH_MIN_ROTATE_SIZ);
+            return FALSE;
+        }
+        else {
+            rotatesize = siz;
+            OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIZE);
+            DBG_PRINTF("rotate if larger then %d%C", val, *ep);
+        }
+        rp = ep + 1;
+        if (*rp == WNUL)
+            return TRUE;
+        if (*rp == L'+')
+            rp++;
+        else
+            rp = NULL;
+    }
+    if (xiswcschar(rp, L'S')) {
+        OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIG);
+        DBG_PRINTS("rotate by signal");
+        return TRUE;
     }
     DBG_PRINTF("invalid rotate format %S", param);
-    return TRUE;
+    return FALSE;
 }
 
 static DWORD addshmemdata(LPWSTR d, LPDWORD x, LPCWSTR s)
@@ -3988,10 +3994,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'Q':
                             OPT_SET(SVCBATCH_OPT_QUIET);
                         break;
-                        case L'R':
-                            OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIG);
-                            OPT_SET(SVCBATCH_OPT_ROTATE);
-                        break;
                         case L'T':
                             OPT_SET(SVCBATCH_OPT_TRUNCATE);
                         break;
@@ -4035,7 +4037,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             case 'c':
                 xwoptend = 0;
                 xwoptarr = L"C";
-                if (xiswcschar(xwoptarg, '['))
+                if (xiswcschar(xwoptarg, L'['))
                     xwoptend = 1;
                 else
                     commandparam = xwoptarg;
@@ -4051,13 +4053,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     svclogfname = xwoptarg;
                     break;
                 }
-                if (xwoptvar == 'r') {
-                    rotateparam = xwoptarg;
-                    break;
-                }
                 if (xwoptvar != 0)
                     return xsyserrno(30, L"L", xwctowcs(xwoptvar));
                 logdirparam  = skipdotslash(xwoptarg);
+            break;
+            case 'r':
+                rotateparam = xwoptarg;
             break;
             case 's':
                 if (xwoptvar == 'm') {
@@ -4083,7 +4084,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                 xwoptend = 0;
                 xwoptarr = L"S";
-                if (xiswcschar(xwoptarg, '['))
+                if (xiswcschar(xwoptarg, L'['))
                     xwoptend = 1;
                 else
                     svcstopparam = xwoptarg;
@@ -4398,11 +4399,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             cmdproc->args[x] = wp;
         }
     }
-#if defined(_DEBUG)
-    if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIG)) {
-        DBG_PRINTS("rotate by signal");
-    }
-#endif
     if (rotateparam) {
         if (!resolverotate(rotateparam))
             return xsyserrno(12, L"R", rotateparam);

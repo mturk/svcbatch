@@ -390,31 +390,6 @@ and lowercase letters with **-** command switch.
       Any eventual log rotation option will not be processed.
 
 
-    * **R**
-
-      **Enable log rotation by control code**
-
-      When defined, SvcBatch will accept custom **234**
-      control code and initiate log rotation when this control
-      is signaled.
-
-      Note that **234** is our custom service control code.
-      Number **234** has been randomly chosen, since win32
-      API requires that this number must be larger then `127` and
-      lower then `255`.
-
-      To initiate log rotation manually use the following:
-
-      ```no-highlight
-      > svcbatch control myService 234
-
-      ```
-
-      In case the last log rotation was less then `2` minutes ago,
-      or if there was no data written to the log file from the last
-      rotation, SvcBatch will not rotate the logs.
-
-
     * **T**
 
       **Truncate log on rotation**
@@ -953,13 +928,33 @@ and lowercase letters with **-** command switch.
 
 
 
-* **LR [rule]**
+* **R [rule]**
 
-  **Rotate logs by size or time interval**
+  **Rotate logs by size, time interval or signal**
 
   Depending on the **rule** parameter service can rotate
   log files at desired interval, once a day at specific time
   or when log file gets larger then defined size.
+
+  If **rule** ends with **S** character, SvcBatch
+  will accept custom **234** control code and initiate
+  log rotation when this control is signaled.
+
+  Note that **234** is our custom service control code.
+  Number **234** has been randomly chosen, since win32
+  API requires that this number must be larger then `127` and
+  lower then `255`.
+
+  To initiate log rotation manually use the following:
+
+  ```no-highlight
+  > svcbatch control myService 234
+
+  ```
+
+  In case the last log rotation was less then `2` minutes ago,
+  or if there was no data written to the log file from the last
+  rotation, SvcBatch will not rotate the logs.
 
   Time and size values can be combined, which allows
   to rotate logs at specific time or size which ever first.
@@ -971,11 +966,11 @@ and lowercase letters with **-** command switch.
   value separator. The order is important.
 
   ```no-highlight
-    <@Time><+Size>
+    <@Time><+><Size><+><S>
   ```
 
   ```no-highlight
-  > svcbatch create ... /LR:@17:00:00+100K
+  > svcbatch create ... /R:@17:00:00+100K+S
 
   ```
 
@@ -983,7 +978,7 @@ and lowercase letters with **-** command switch.
   as minutes between log rotation.
 
   ```no-highlight
-  >svcbatch create ... /LR:@90+200K
+  >svcbatch create ... /R:@90+200K
 
   ```
 
@@ -1005,7 +1000,7 @@ and lowercase letters with **-** command switch.
   The **rule** parameter uses the following format:
 
   ```no-highlight
-      <[@hh:mm:ss|@minutes]><+size[B|K|M|G]>
+      <[@hh:mm:ss|@minutes]><+><size[B|K|M|G]><+><S>
   ```
 
 
