@@ -294,7 +294,6 @@
 #define IS_SET(_o)              ((svcoptions & (_o)) == (_o))
 #define IS_NOT(_o)              ((svcoptions & (_o)) != (_o))
 #define OPT_SET(_o)             svcoptions |=  (_o)
-#define OPT_CLR(_o)             svcoptions &= ~(_o)
 
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 
@@ -313,19 +312,13 @@
     } (void)0
 
 #define ASSERT_CSTR(_s, _r)                                 \
-    if (((_s) == NULL) || (*(_s) == '\0')) {                \
+    if (((_s) == NULL) || (*(_s) == CNUL)) {                \
         SetLastError(ERROR_INVALID_PARAMETER);              \
         return (_r);                                        \
     } (void)0
 
 #define ASSERT_ZERO(_v, _r)                                 \
     if ((_v) <= 0) {                                        \
-        SetLastError(ERROR_INVALID_PARAMETER);              \
-        return (_r);                                        \
-    } (void)0
-
-#define ASSERT_TRUE(_v, _r)                                 \
-    if ((_v) != 0) {                                        \
         SetLastError(ERROR_INVALID_PARAMETER);              \
         return (_r);                                        \
     } (void)0
