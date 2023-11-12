@@ -55,7 +55,7 @@ static const char *dbgsvcmodes[] = {
 #define xsyserror(_n, _d, _p)   svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_ERROR_TYPE,      _n, NULL, _d, _p)
 #define xsyswarn(_n, _e, _d)    svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_WARNING_TYPE,    _n, _e, _d,  NULL)
 #define xsysinfo(_e, _d)        svcsyserror(__FUNCTION__, __LINE__, EVENTLOG_INFORMATION_TYPE, 0, _e, _d,  NULL)
-#define xsvcstatus(_s, _p)      reportsvcstatus(__FUNCTION__, __LINE__, _s, _p)
+#define xsvcstatus(_s, _p)      if (servicemode) reportsvcstatus(__FUNCTION__, __LINE__, _s, _p)
 
 #define SZ_STATUS_PROCESS_INFO  sizeof(SERVICE_STATUS_PROCESS)
 #define SYSTEM_SVC_SUBKEY       L"SYSTEM\\CurrentControlSet\\Services"
@@ -108,6 +108,8 @@ typedef struct _SVCBATCH_PROCESS {
 
 typedef struct _SVCBATCH_SERVICE {
     volatile LONG           state;
+    volatile LONG           check;
+    volatile LONG           exitCode;
     SERVICE_STATUS_HANDLE   handle;
     SERVICE_STATUS          status;
     CRITICAL_SECTION        cs;
@@ -124,7 +126,6 @@ typedef struct _SVCBATCH_LOG {
     volatile LONG64     size;
     volatile HANDLE     fd;
     volatile LONG       state;
-    DWORD               flags;
     CRITICAL_SECTION    cs;
 
     LPCWSTR             logName;
@@ -2337,29 +2338,25 @@ static DWORD xreadfile(LPCWSTR name, LPBYTE *data, LPDWORD size, DWORD maxsz)
 static void setsvcstatusexit(DWORD e)
 {
     SVCBATCH_CS_ENTER(service);
-    service->status.dwServiceSpecificExitCode = e;
+    InterlockedExchange(&service->exitCode, e);
     SVCBATCH_CS_LEAVE(service);
 }
 
 static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
 {
-    static volatile LONG cpcnt = 0;
-
-    if (!servicemode)
-        return;
     SVCBATCH_CS_ENTER(service);
     if (InterlockedExchange(&service->state, SERVICE_STOPPED) == SERVICE_STOPPED)
         goto finished;
-    service->status.dwControlsAccepted = 0;
-    service->status.dwCheckPoint       = 0;
-    service->status.dwWaitHint         = 0;
-
+    service->status.dwControlsAccepted        = 0;
+    service->status.dwCheckPoint              = 0;
+    service->status.dwWaitHint                = 0;
+    service->status.dwServiceSpecificExitCode = service->exitCode;
     if (status == SERVICE_RUNNING) {
         service->status.dwControlsAccepted = SERVICE_ACCEPT_STOP |
                                              SERVICE_ACCEPT_SHUTDOWN |
                                              preshutdown;
         service->status.dwWin32ExitCode    = NO_ERROR;
-        InterlockedExchange(&cpcnt, 0);
+        InterlockedExchange(&service->check, 0);
     }
     else if (status == SERVICE_STOPPED) {
         if (service->status.dwCurrentState != SERVICE_STOP_PENDING) {
@@ -2397,7 +2394,7 @@ static void reportsvcstatus(LPCSTR fn, int line, DWORD status, DWORD param)
             service->status.dwWin32ExitCode = ERROR_SERVICE_SPECIFIC_ERROR;
     }
     else {
-        service->status.dwCheckPoint = InterlockedIncrement(&cpcnt);
+        service->status.dwCheckPoint = InterlockedIncrement(&service->check);
         service->status.dwWaitHint   = param;
     }
     service->status.dwCurrentState = status;
@@ -2611,9 +2608,9 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
     DBG_PRINTF("0 %S", lognn);
     if (!MoveFileExW(log->logFile, lognn, MOVEFILE_REPLACE_EXISTING))
         return xsyserror(GetLastError(), log->logFile, lognn);
-    if (ssp)
+    if (ssp) {
         xsvcstatus(SERVICE_START_PENDING, 0);
-
+    }
     n = srvcmaxlogs;
     wmemcpy(logpn, lognn, x + 1);
     x--;
@@ -2640,8 +2637,9 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
                 DBG_PRINTF("%d %S", i, lognn);
                 if (!MoveFileExW(logpn, lognn, MOVEFILE_REPLACE_EXISTING))
                     return xsyserror(GetLastError(), logpn, lognn);
-                if (ssp)
+                if (ssp) {
                     xsvcstatus(SERVICE_START_PENDING, 0);
+                }
             }
         }
         else {
@@ -3135,8 +3133,9 @@ static DWORD WINAPI stopthread(void *ssp)
     ResetEvent(svcstopdone);
     SetEvent(stopstarted);
 
-    if (ssp == NULL)
+    if (ssp == NULL) {
         xsvcstatus(SERVICE_STOP_PENDING, stoptimeout + SVCBATCH_STOP_HINT);
+    }
     DBG_PRINTS("started");
     if (outputlog) {
         SVCBATCH_CS_ENTER(outputlog);
@@ -4562,7 +4561,7 @@ finished:
     closelogfile(outputlog);
     threadscleanup();
     DBG_PRINTS("done");
-    return service->status.dwServiceSpecificExitCode;
+    return service->exitCode;
 }
 
 static int setsvcarguments(SC_HANDLE svc, int argc, LPCWSTR *argv)
