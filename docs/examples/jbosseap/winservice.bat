@@ -34,8 +34,9 @@ rem Set service name
 set "SERVICE_NAME=%~1"
 shift
 rem
-if /i "%SERVICE_CMD%" == "start" goto doneSetArgs
-if /i "%SERVICE_CMD%" == "stop"  goto doneSetArgs
+if /i "%SERVICE_CMD%" == "delete" goto setArgs
+if /i "%SERVICE_CMD%" == "start"  goto setArgs
+if /i "%SERVICE_CMD%" == "stop"   goto setArgs
 rem
 if "x%~1x" == "xx" goto doneSetArgs
 rem Set server mode
