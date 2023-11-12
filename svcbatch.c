@@ -4020,7 +4020,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                             svcfailmode  = SVCBATCH_FAIL_EXIT;
                         break;
                         default:
-                            xsyserrno(12, L"F", xwctowcs(*cp));
+                            return xsyserrno(12, L"F", xwctowcs(*cp));
                         break;
                     }
                     cp++;
