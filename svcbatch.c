@@ -2409,7 +2409,7 @@ finished:
     SVCBATCH_CS_LEAVE(service);
 }
 
-static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
+static BOOL createstdpipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
 {
     DWORD i;
     WCHAR name[SVCBATCH_UUID_MAX];
@@ -2442,8 +2442,8 @@ static BOOL createiopipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
                       NULL);
     if (IS_INVALID_HANDLE(*wr))
         return FALSE;
-    else
-        return TRUE;
+    DBG_PRINTF("%d %S", mode ? 1 : 0, name);
+    return TRUE;
 }
 
 static BOOL createnulpipe(LPHANDLE ph)
@@ -2484,7 +2484,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
          * Create stdin pipe, with write side
          * of the pipe as non inheritable.
          */
-        if (!createiopipe(&rd, &wr, 0))
+        if (!createstdpipe(&rd, &wr, 0))
             return GetLastError();
         if (!DuplicateHandle(cp, wr, cp,
                              iwrs, FALSE, 0,
@@ -2501,7 +2501,7 @@ static DWORD createiopipes(LPSTARTUPINFOW si,
          * Create stdout/stderr pipe, with read side
          * of the pipe as non inheritable
          */
-        if (!createiopipe(&rd, &wr, mode))
+        if (!createstdpipe(&rd, &wr, mode))
             return GetLastError();
         if (!DuplicateHandle(cp, rd, cp,
                              ords, FALSE, 0,
