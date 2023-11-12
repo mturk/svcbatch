@@ -3553,7 +3553,7 @@ static DWORD WINAPI workerthread(void *unused)
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_RUNNING);
     xsvcstatus(SERVICE_RUNNING, 0);
 
-    DBG_PRINTF("running process %lu", cmdproc->pInfo.dwProcessId);
+    DBG_PRINTF("running %lu", cmdproc->pInfo.dwProcessId);
     if (IS_SET(SVCBATCH_OPT_WRPIPE))
         ResumeThread(threads[SVCBATCH_WRPIPE_THREAD].thread);
     if (IS_SET(SVCBATCH_OPT_ROTATE))
@@ -3592,7 +3592,7 @@ static DWORD WINAPI workerthread(void *unused)
     else {
         ws = WaitForSingleObject(cmdproc->pInfo.hProcess, INFINITE);
     }
-    DBG_PRINTF("stopping process %lu", cmdproc->pInfo.dwProcessId);
+    DBG_PRINTF("stopping %lu", cmdproc->pInfo.dwProcessId);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_STOPPING);
     if (IS_SET(SVCBATCH_OPT_WRPIPE) && threads[SVCBATCH_WRPIPE_THREAD].started) {
         if (WaitForSingleObject(threads[SVCBATCH_WRPIPE_THREAD].thread, SVCBATCH_STOP_STEP)) {
@@ -3604,7 +3604,7 @@ static DWORD WINAPI workerthread(void *unused)
         rc = GetLastError();
     if (rc) {
         if ((ws != WAIT_OBJECT_0) && (rc == STILL_ACTIVE)) {
-            DBG_PRINTF("terminating process %lu", cmdproc->pInfo.dwProcessId);
+            DBG_PRINTF("terminating %lu", cmdproc->pInfo.dwProcessId);
             rc = ERROR_ARENA_TRASHED;
             TerminateProcess(cmdproc->pInfo.hProcess, rc);
         }
@@ -3616,7 +3616,7 @@ static DWORD WINAPI workerthread(void *unused)
             cmdproc->exitCode = rc;
         }
     }
-    DBG_PRINTF("finished process %lu with %lu",
+    DBG_PRINTF("finished %lu with %lu",
                cmdproc->pInfo.dwProcessId,
                cmdproc->exitCode);
 
