@@ -953,7 +953,7 @@ and lowercase letters with **-** command switch.
 
 
 
-* **R [rule]**
+* **LR [rule]**
 
   **Rotate logs by size or time interval**
 
@@ -975,7 +975,7 @@ and lowercase letters with **-** command switch.
   ```
 
   ```no-highlight
-  > svcbatch create ... /R:@17:00:00+100K
+  > svcbatch create ... /LR:@17:00:00+100K
 
   ```
 
@@ -983,7 +983,7 @@ and lowercase letters with **-** command switch.
   as minutes between log rotation.
 
   ```no-highlight
-  >svcbatch create ... /R:@90+200K
+  >svcbatch create ... /LR:@90+200K
 
   ```
 
@@ -994,7 +994,7 @@ and lowercase letters with **-** command switch.
 
   In case **rule** parameter is `@0` SvcBatch will rotate
   log files each day at midnight. This is the same as
-  defining `/R:@00:00:00`.
+  defining `/LR:@00:00:00`.
 
   In case **rule** parameter is `@60` SvcBatch will rotate
   log files every full hour.

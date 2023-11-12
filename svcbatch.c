@@ -255,7 +255,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"ce:fhikl:rs:tw";
+static const wchar_t *scmdoptions = L"ce:fhikl:s:tw";
 
 
 /**
@@ -4048,12 +4048,13 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     svclogfname = xwoptarg;
                     break;
                 }
+                if (xwoptvar == 'r') {
+                    rotateparam = xwoptarg;
+                    break;
+                }
                 if (xwoptvar != 0)
                     return xsyserrno(30, L"L", xwctowcs(xwoptvar));
                 logdirparam  = skipdotslash(xwoptarg);
-            break;
-            case 'r':
-                rotateparam = xwoptarg;
             break;
             case 's':
                 if (xwoptvar == 'm') {
@@ -4396,7 +4397,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     if (rotateparam) {
         if (!resolverotate(rotateparam))
-            return xsyserrno(12, L"R", rotateparam);
+            return xsyserrno(12, L"LR", rotateparam);
         OPT_SET(SVCBATCH_OPT_ROTATE);
     }
 #if defined(_DEBUG)
