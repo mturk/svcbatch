@@ -3570,24 +3570,24 @@ static DWORD WINAPI workerthread(void *unused)
             ws = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
             switch (ws) {
                 case WAIT_OBJECT_0:
-                    if (nw == 2)
-                        CancelIo(op->pipe);
                     nw = 0;
                     DBG_PRINTS("process signaled");
                 break;
                 case WAIT_OBJECT_1:
                     rc = logiodata(outputlog, op);
-                    if (rc != 0)
+                    if (rc)
                         nw = 1;
                 break;
                 default:
-                    rc = GetLastError();
                     nw = 0;
-                    CancelIo(op->pipe);
-                    DBG_PRINTF("wait failed %lu with %lu", ws, rc);
+                    DBG_PRINTF("wait failed %lu with %lu", ws, GetLastError());
                 break;
             }
         } while (nw);
+        if (rc == 0) {
+            DBG_PRINTS("cancel pipe");
+            CancelIo(op->pipe);
+        }
     }
     else {
         ws = WaitForSingleObject(cmdproc->pInfo.hProcess, INFINITE);
