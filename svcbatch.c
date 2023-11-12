@@ -3391,20 +3391,22 @@ static DWORD WINAPI rotatethread(void *unused)
     InterlockedExchange(&outputlog->state, 0);
     if (rc > 1)
         createstopthread(rc);
-    goto finished;
-
-failed:
-    setsvcstatusexit(rc);
-    if (WaitForSingleObject(workerended, SVCBATCH_STOP_SYNC) == WAIT_TIMEOUT)
-        createstopthread(rc);
-
-finished:
+    else
+        rc = 0;
     if (IS_VALID_HANDLE(wt)) {
         CancelWaitableTimer(wt);
         CloseHandle(wt);
     }
     DBG_PRINTS("done");
-    return rc > 1 ? rc : 0;
+    return rc;
+
+failed:
+    InterlockedExchange(&outputlog->state, 0);
+    setsvcstatusexit(rc);
+    if (WaitForSingleObject(workerended, SVCBATCH_STOP_SYNC) == WAIT_TIMEOUT)
+        createstopthread(rc);
+    DBG_PRINTS("failed");
+    return rc;
 }
 
 static DWORD logiodata(LPSVCBATCH_LOG log, LPSVCBATCH_PIPE op)
