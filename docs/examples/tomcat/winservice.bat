@@ -23,6 +23,7 @@ setlocal
 rem
 rem
 set "EXECUTABLE=svcbatch.exe"
+set "WINSERVICE=%~nx0"
 rem Set default service name
 set "DEFAULT_SERVICE_NAME=Tomcat11"
 set "SERVICE_NAME=%DEFAULT_SERVICE_NAME%"
@@ -59,7 +60,7 @@ rem
 echo Unknown command "%SERVICE_CMD%"
 :displayUsage
 echo.
-echo Usage: %~nx0 command [service_name] [arguments ...]
+echo Usage: %WINSERVICE% command [service_name] [arguments ...]
 echo commands:
 echo   create            Create the service
 echo   delete            Delete the service
