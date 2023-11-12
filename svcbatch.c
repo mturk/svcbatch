@@ -440,8 +440,8 @@ static const wchar_t *wcsmessages[] = {
     L"The %s command option value array is not terminated",                 /* 28 */
     L"Command options %s are mutually exclusive",                           /* 29 */
     L"Unknown %s command option modifier",                                  /* 30 */
-    L"The Control code is missing. Use control [service name] [code]",      /* 31 */
-    L"Service %s names cannot be the same",                                 /* 32 */
+    L"Service %s log names cannot be the same",                             /* 31 */
+    L"The Control code is missing. Use control [service name] [code]",      /* 32 */
 
     NULL
 };
@@ -4267,7 +4267,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         SVCBATCH_CS_INIT(outputlog);
         if (svcerrfname) {
             if (xwcsequals(svcerrfname, outputlog->logName))
-                return xsyserrno(32, L"log error log", svcerrfname);
+                return xsyserrno(31, L"log and error", svcerrfname);
             stderrlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
             stderrlog->logName = svcerrfname;
             SVCBATCH_CS_INIT(stderrlog);
@@ -4493,10 +4493,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         }
         if (stoplogname) {
             if (xwcsequals(stoplogname, outputlog->logName))
-                return xsyserrno(32, L"log and stop log", stoplogname);
+                return xsyserrno(31, L"log and stop", stoplogname);
             if (svcerrfname) {
                 if (xwcsequals(svcerrfname, stoplogname))
-                    return xsyserrno(32, L"stop and error log", svcerrfname);
+                    return xsyserrno(31, L"stop and error", svcerrfname);
             }
         }
     }
@@ -5124,7 +5124,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (argc == 0) {
             rv = ERROR_INVALID_PARAMETER;
             ec = __LINE__;
-            ed = SVCBATCH_MSG(31);
+            ed = SVCBATCH_MSG(32);
             goto finished;
         }
         if (!QueryServiceStatusEx(svc,
