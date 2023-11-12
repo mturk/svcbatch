@@ -43,6 +43,7 @@ static const char *dbgsvcmodes[] = {
     "MANAGER"
 };
 
+# define DBG_TEMP_NAME          L"_SVCBATCH_DEBUG_TEMP"
 # define DBG_FILE_NAME          L"_debug.log"
 # define DBG_PRINTF(Fmt, ...)   dbgprintf(__FUNCTION__, __LINE__, Fmt, ##__VA_ARGS__)
 # define DBG_PRINTS(Msg)        dbgprints(__FUNCTION__, __LINE__, Msg)
@@ -5256,7 +5257,7 @@ static LPWSTR gettempdir(void)
     LPWSTR p;
     LPWSTR r;
 
-    p = xgetenv(L"_SVCBATCH_DEBUG_TEMP");
+    p = xgetenv(DBG_TEMP_NAME);
     if (p == NULL)
         p = xgetenv(L"TMP");
     if (p == NULL)
@@ -5454,7 +5455,7 @@ int wmain(int argc, LPCWSTR *argv)
 #if defined(_DEBUG)
     dbgsvcmode  = 1;
     dbgtemdir   = gettempdir();
-    SetEnvironmentVariableW(L"_SVCBATCH_DEBUG_TEMP", dbgtemdir);
+    SetEnvironmentVariableW(DBG_TEMP_NAME, dbgtemdir);
     dbgfopen();
 #endif
     /**
