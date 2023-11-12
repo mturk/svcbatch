@@ -3305,6 +3305,7 @@ static DWORD WINAPI rotatethread(void *unused)
     DWORD  rc = 0;
     DWORD  nw = 3;
     DWORD  rw = SVCBATCH_ROTATE_READY;
+    BOOL   rr = TRUE;
 
     wh[0] = workerended;
     wh[1] = stopstarted;
@@ -3320,21 +3321,22 @@ static DWORD WINAPI rotatethread(void *unused)
         }
         if (!SetWaitableTimer(wt, &rotatetime, 0, NULL, NULL, FALSE)) {
             rc = xsyserror(GetLastError(), L"SetWaitableTimer", NULL);
+            CloseHandle(wt);
             goto failed;
         }
         wh[nw++] = wt;
     }
-    while (rc == 0) {
+    while (rr) {
         DWORD wc;
 
         wc = WaitForMultipleObjects(nw, wh, FALSE, rw);
         switch (wc) {
             case WAIT_OBJECT_0:
-                rc = 1;
+                rr = FALSE;
                 DBG_PRINTS("workerended signaled");
             break;
             case WAIT_OBJECT_1:
-                rc = 1;
+                rr = FALSE;
                 DBG_PRINTS("stopstarted signaled");
             break;
             case WAIT_OBJECT_2:
@@ -3387,12 +3389,12 @@ static DWORD WINAPI rotatethread(void *unused)
                 rc = wc;
             break;
         }
+        if (rc)
+            rr = FALSE;
     }
     InterlockedExchange(&outputlog->state, 0);
-    if (rc > 1)
+    if (rc)
         createstopthread(rc);
-    else
-        rc = 0;
     if (IS_VALID_HANDLE(wt)) {
         CancelWaitableTimer(wt);
         CloseHandle(wt);
