@@ -28,27 +28,27 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
     switch (ctrl) {
         case CTRL_CLOSE_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_CLOSE_EVENT signaled\n\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] CTRL_CLOSE_EVENT signaled\n", pid);
             SetEvent(stopsig);
         break;
         case CTRL_SHUTDOWN_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_SHUTDOWN_EVENT signaled\n\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] CTRL_SHUTDOWN_EVENT signaled\n", pid);
             SetEvent(stopsig);
         break;
         case CTRL_C_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_C_EVENT signaled\n\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] CTRL_C_EVENT signaled\n", pid);
             SetEvent(stopsig);
         break;
         case CTRL_BREAK_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_BREAK_EVENT signaled\n\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] CTRL_BREAK_EVENT signaled\n", pid);
             SetEvent(stopsig);
         break;
         case CTRL_LOGOFF_EVENT:
-            fprintf(stdout, "\n\n[%.4lu] CTRL_LOGOFF_EVENT signaled\n\n", pid);
+            fprintf(stdout, "\n\n[%.4lu] CTRL_LOGOFF_EVENT signaled\n", pid);
             SetEvent(stopsig);
         break;
         default:
-            fprintf(stdout, "\n\n[%.4lu] Unknown control '%lu' signaled\n\n", pid, ctrl);
+            fprintf(stdout, "\n\n[%.4lu] Unknown control '%lu' signaled\n", pid, ctrl);
         break;
     }
     return TRUE;
@@ -56,11 +56,11 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
-    int   i     = 0;
+    int   i;
     int   e     = 0;
     int   r     = 0;
     int   secs  = 300;
-    char  buf[128];
+    char  buf[32];
     DWORD id;
 
 
@@ -74,9 +74,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fprintf(stderr, "\n\n[%.4lu] CreateEvent failed\n", id);
         return r;
     }
-    if (fgets(buf, 128, stdin))
-        i = 1;
-    fprintf(stdout, "\n[%.4lu] %d Program '%S' started\n", id, i, wargv[0]);
+    fprintf(stdout, "\n[%.4lu] Program  %S\n", id, wargv[0]);
+    if (fgets(buf, 32, stdin))
+        fprintf(stdout, "[%.4lu] StdInput %c\n", id, buf[0]);
     if (argc > 1) {
         secs = _wtoi(wargv[1]);
         if (secs > 1800)
@@ -95,12 +95,12 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
-    fprintf(stdout, "\n\n[%.4lu] Program running for %d seconds\n\n", id, secs);
+    fprintf(stdout, "\n\n[%.4lu] Running for %d seconds\n\n", id, secs);
     for(i = 0; ;i++) {
         DWORD ws = WaitForSingleObject(stopsig, 1000);
 
         if (ws == WAIT_OBJECT_0) {
-            fprintf(stdout, "\n\n[%.4lu] Stop signaled\n", id);
+            fprintf(stdout, "[%.4lu] Stop signaled\n", id);
             fflush(stdout);
             Sleep(1000);
             break;
@@ -113,7 +113,7 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         if ((i % 2) == 0)
             fprintf(stdout, "[%.4d] ... Running\n", i);
     }
-    fprintf(stdout, "\n\n[%.4lu] Program done\n", id);
+    fprintf(stdout, "\n[%.4lu] Program done\n", id);
     _flushall();
     CloseHandle(stopsig);
     return r;
