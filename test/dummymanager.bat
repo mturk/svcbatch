@@ -64,7 +64,7 @@ rem
 set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%\%LONG_STRING%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/R:@10+100K"
-set "ROTATE_RULE=/R:@5+20K+S"
+set "ROTATE_RULE=/R:@5+20K"
 rem Rotate Log files at midnight
 rem set "ROTATE_RULE=/R:@0"
 rem Rotate Log files every full hour or when larger then 40000 bytes
@@ -89,7 +89,7 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     "--displayName=A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs=SeShutdownPrivilege ^
-    /F:PLE0 /H ..\..\test -w ..\build\dbg ^
+    /F:PLER0 /H ..\..\test -w ..\build\dbg ^
     %SERVICE_ENVIRONMENT% ^
     %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^
     %ROTATE_RULE% ^

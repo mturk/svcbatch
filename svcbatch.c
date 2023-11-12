@@ -610,7 +610,7 @@ static __inline int xisdigit(int ch)
 
 static __inline int xiswcschar(LPCWSTR s, WCHAR c)
 {
-    if ((s != NULL) && (s[0] == c) && (s[1] == WNUL))
+    if ((s[0] == c) && (s[1] == WNUL))
         return 1;
     else
         return 0;
@@ -3024,15 +3024,6 @@ static BOOL resolverotate(LPCWSTR param)
         rp = ep + 1;
         if (*rp == WNUL)
             return TRUE;
-        if (*rp == L'+')
-            rp++;
-        else
-            rp = NULL;
-    }
-    if (xiswcschar(rp, L'S')) {
-        OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIG);
-        DBG_PRINTS("rotate by signal");
-        return TRUE;
     }
     DBG_PRINTF("invalid rotate format %S", param);
     return FALSE;
@@ -3994,6 +3985,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'Q':
                             OPT_SET(SVCBATCH_OPT_QUIET);
                         break;
+                        case L'R':
+                            OPT_SET(SVCBATCH_OPT_ROTATE_BY_SIG);
+                            OPT_SET(SVCBATCH_OPT_ROTATE);
+                        break;
                         case L'T':
                             OPT_SET(SVCBATCH_OPT_TRUNCATE);
                         break;
@@ -4404,6 +4399,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             return xsyserrno(12, L"R", rotateparam);
         OPT_SET(SVCBATCH_OPT_ROTATE);
     }
+#if defined(_DEBUG)
+    if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIG)) {
+        DBG_PRINTS("rotate by signal");
+    }
+#endif
     if (svcstopparam) {
         if (xiswcschar(svcstopparam, L'@')) {
             svcstop->script = cmdproc->script;
