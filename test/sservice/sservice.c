@@ -56,11 +56,12 @@ static BOOL WINAPI consolehandler(DWORD ctrl)
 
 int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
 {
-    int i;
-    int e     = 0;
-    int r     = 0;
-    int secs  = 300;
-    DWORD  id;
+    int   i     = 0;
+    int   e     = 0;
+    int   r     = 0;
+    int   secs  = 300;
+    char  buf[128];
+    DWORD id;
 
 
     _setmode(_fileno(stdout), _O_BINARY);
@@ -73,7 +74,9 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         fprintf(stderr, "\n\n[%.4lu] CreateEvent failed\n", id);
         return r;
     }
-    fprintf(stdout, "\n[%.4lu] Program '%S' started\n", id, wargv[0]);
+    if (fgets(buf, 128, stdin))
+        i = 1;
+    fprintf(stdout, "\n[%.4lu] %d Program '%S' started\n", id, i, wargv[0]);
     if (argc > 1) {
         secs = _wtoi(wargv[1]);
         if (secs > 1800)
@@ -92,7 +95,6 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
     }
     SetConsoleCtrlHandler(NULL, FALSE);
     SetConsoleCtrlHandler(consolehandler, TRUE);
-
     fprintf(stdout, "\n\n[%.4lu] Program running for %d seconds\n\n", id, secs);
     for(i = 0; ;i++) {
         DWORD ws = WaitForSingleObject(stopsig, 1000);
