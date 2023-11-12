@@ -952,23 +952,6 @@ and lowercase letters with **-** command switch.
   exiting log files from `1 .. 4.`.
 
 
-* **LE [name]**
-
-  **Set error log file name**
-
-  This option allows a user use a separate log file for
-  logging messages send to standard error.
-
-  ```no-highlight
-  > svcbatch create ... /LE:myService.error.log ...
-
-  ```
-
-  The **name** parameter is handled the same as
-  described with **LN** command option.
-
-
-
 
 * **LR [rule]**
 

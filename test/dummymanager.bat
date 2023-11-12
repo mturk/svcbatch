@@ -75,7 +75,7 @@ rem set "SERVICE_LOG_FNAME=-ln "%SERVICE_NAME%.log""
 rem
 rem set "SERVICE_LOG_FNAME=-ln "%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log""
 rem
-set "SERVICE_LOG_FNAME=/LN:@N.@Y-@m-@d.log /LE:@N.error.log /SN:@N.stop.log"
+set "SERVICE_LOG_FNAME=/LN:@N.@Y-@m-@d.log /SN:@N.stop.log"
 rem
 set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /SM:1"
 rem
