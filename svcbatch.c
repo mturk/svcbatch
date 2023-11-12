@@ -32,7 +32,7 @@ static void     dbgprintf(LPCSTR, int, LPCSTR, ...);
 static void     dbgprints(LPCSTR, int, LPCSTR);
 static DWORD    dbgfopen(void);
 static int      dbgsvcmode = 0;
-static LPWSTR   dbgtemdir  = NULL;
+static LPWSTR   dbgtempdir = NULL;
 static volatile HANDLE  dbgfile = NULL;
 static CRITICAL_SECTION dbglock;
 
@@ -5221,9 +5221,9 @@ static DWORD dbgfopen(void)
     LPWSTR n;
     DWORD  rc;
 
-    if (IS_EMPTY_WCS(dbgtemdir))
+    if (IS_EMPTY_WCS(dbgtempdir))
         return ERROR_PATH_NOT_FOUND;
-    n = xwmakepath(dbgtemdir, program->name, DBG_FILE_NAME);
+    n = xwmakepath(dbgtempdir, program->name, DBG_FILE_NAME);
     h = CreateFileW(n, GENERIC_READ | GENERIC_WRITE,
                     FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
                     OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -5252,7 +5252,7 @@ static DWORD dbgfopen(void)
     return rc;
 }
 
-static LPWSTR gettempdir(void)
+static LPWSTR dbggettemp(void)
 {
     LPWSTR p;
     LPWSTR r;
@@ -5403,7 +5403,7 @@ int wmain(int argc, LPCWSTR *argv)
         cnamestamp  = SHUTDOWN_APPNAME " " SVCBATCH_VERSION_TXT;
 #if defined(_DEBUG)
         dbgsvcmode = 2;
-        dbgtemdir  = gettempdir();
+        dbgtempdir = dbggettemp();
         dbgfopen();
         DBG_PRINTS(cnamestamp);
 #endif
@@ -5454,8 +5454,8 @@ int wmain(int argc, LPCWSTR *argv)
     servicemode = 1;
 #if defined(_DEBUG)
     dbgsvcmode  = 1;
-    dbgtemdir   = gettempdir();
-    SetEnvironmentVariableW(DBG_TEMP_NAME, dbgtemdir);
+    dbgtempdir  = dbggettemp();
+    SetEnvironmentVariableW(DBG_TEMP_NAME, dbgtempdir);
     dbgfopen();
 #endif
     /**
