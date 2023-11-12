@@ -180,7 +180,7 @@ static LONGLONG              rotatesize     = CPP_INT64_C(0);
 static LARGE_INTEGER         rotatetime     = {{ 0, 0 }};
 
 static int       servicemode    = 0;
-static DWORD     svcoptions     = SVCBATCH_OPT_ENV;
+static DWORD     svcoptions     = 0;
 static DWORD     preshutdown    = 0;
 static int       stoptimeout    = SVCBATCH_STOP_TIMEOUT;
 static int       svcfailmode    = 0;
@@ -3997,7 +3997,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                             OPT_SET(SVCBATCH_OPT_TRUNCATE);
                         break;
                         case L'U':
-                            OPT_CLR(SVCBATCH_OPT_ENV);
+                            OPT_SET(SVCBATCH_OPT_NOENV);
                         break;
                         case L'W':
                             OPT_SET(SVCBATCH_OPT_LONGPATHS);
@@ -4322,7 +4322,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         OPT_SET(SVCBATCH_OPT_WRPIPE);
         xsvcstatus(SERVICE_START_PENDING, 0);
     }
-    if (IS_SET(SVCBATCH_OPT_ENV)) {
+    if (IS_NOT(SVCBATCH_OPT_NOENV)) {
         /**
          * Add additional environment variables
          * that are unique to this service instance

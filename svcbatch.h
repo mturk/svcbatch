@@ -265,7 +265,7 @@
 #define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time              */
 #define SVCBATCH_OPT_QUIET          0x00000004   /* Disable logging             */
 #define SVCBATCH_OPT_CTRL_BREAK     0x00000008   /* Send CTRL_BREAK on stop     */
-#define SVCBATCH_OPT_ENV            0x00000010   /* Set private envvars         */
+#define SVCBATCH_OPT_NOENV          0x00000010   /* Do not set private envvars  */
 #define SVCBATCH_OPT_LONGPATHS      0x00000020   /* Use LongPathsEnabled        */
 #define SVCBATCH_OPT_EXPAND_ARGS    0x00000040   /* ExpandEnvironment for args  */
 #define SVCBATCH_OPT_MASK           0x0000FFFF
