@@ -438,7 +438,7 @@ static const wchar_t *wcsmessages[] = {
     L"The parameter is outside valid range",                                /* 26 */
     L"Service name starts with invalid character(s)",                       /* 27 */
     L"The %s command option value array is not terminated",                 /* 28 */
-    L"Command options %s are mutually exclusive",                           /* 29 */
+    L"The %s are mutually exclusive",                                       /* 29 */
     L"Unknown %s command option modifier",                                  /* 30 */
     L"Service %s log names cannot be the same",                             /* 31 */
     L"The Control code is missing. Use control [service name] [code]",      /* 32 */
@@ -4180,9 +4180,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         return xsyserrno(28, xwoptarr, NULL);
     if (sinputparam) {
         if (IS_SET(SVCBATCH_OPT_WRPIPE))
-            return xsyserrno(29, L"/F:Y and /I", sinputparam);
+            return xsyserrno(29, L"feature Y and I", NULL);
         if (svcstopparam)
-            return xsyserrno(29, L"/S and /I",   sinputparam);
+            return xsyserrno(29, L"options S and I", NULL);
     }
     wargc -= xwoptind;
     wargv += xwoptind;
