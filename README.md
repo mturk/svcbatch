@@ -593,11 +593,12 @@ and lowercase letters with **-** command switch.
 
   **Notice**
 
-  The **filename** size must be less then **128** kilobytes,
-  and is defined by the `#define SVCBATCH_DATA_MAX 131072`
+  The **filename** size must be less then **64** kilobytes,
+  and is defined by the `#define SVCBATCH_DATA_MAX 65536`
   macro inside [svcbatch header file](svcbatch.h)
 
   Do not use this option together with **/F:Y** feature.
+  Service will fail to start if both options are defined.
 
 
 * **E [name=value]**

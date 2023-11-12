@@ -174,7 +174,7 @@
 /**
  * Maximum size of the data file in bytes
  */
-#define SVCBATCH_DATA_MAX       131072
+#define SVCBATCH_DATA_MAX       65536
 
 /**
  * Timing definitions
