@@ -125,6 +125,7 @@ typedef struct _SVCBATCH_LOG {
     volatile HANDLE     fd;
     volatile LONG       state;
     volatile LONG       count;
+    DWORD               flags;
     CRITICAL_SECTION    cs;
     LPCWSTR             logName;
     LPWSTR              logFile;
@@ -440,6 +441,7 @@ static const wchar_t *wcsmessages[] = {
     L"Command options %s are mutually exclusive",                           /* 29 */
     L"Unknown %s command option modifier",                                  /* 30 */
     L"The Control code is missing. Use control [service name] [code]",      /* 31 */
+    L"Service %s names cannot be the same",                                 /* 32 */
 
     NULL
 };
@@ -1906,7 +1908,8 @@ static DWORD waitprocess(LPSVCBATCH_PROCESS p, DWORD w)
     if (p->state > SVCBATCH_PROCESS_STOPPED) {
         if (w > 0)
             WaitForSingleObject(p->pInfo.hProcess, w);
-        GetExitCodeProcess(p->pInfo.hProcess, &p->exitCode);
+        if (!GetExitCodeProcess(p->pInfo.hProcess, &p->exitCode))
+            p->exitCode = GetLastError();
     }
     return p->exitCode;
 }
@@ -2538,9 +2541,9 @@ static BOOL canrotatelogs(LPSVCBATCH_LOG log)
     BOOL rv = FALSE;
 
     SVCBATCH_CS_ENTER(log);
-    if (log->state == 0) {
+    if (log->state) {
         if (log->size) {
-            InterlockedExchange(&log->state, 1);
+            InterlockedExchange(&log->state, 0);
             rv = TRUE;
         }
     }
@@ -2831,6 +2834,7 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
     DBG_PRINTF("%S", log->logFile);
 #endif
     InterlockedExchange64(&log->size, 0);
+    InterlockedExchange(&log->state,  0);
     InterlockedExchangePointer(&log->fd, fh);
 
     return 0;
@@ -2842,7 +2846,7 @@ static DWORD rotatelogs(LPSVCBATCH_LOG log)
     HANDLE h  = NULL;
 
     SVCBATCH_CS_ENTER(log);
-    InterlockedExchange(&log->state, 1);
+    InterlockedExchange(&log->state, 0);
 
     h = InterlockedExchangePointer(&log->fd, NULL);
     if (h == NULL) {
@@ -2885,14 +2889,15 @@ static DWORD closelogfile(LPSVCBATCH_LOG log)
         return ERROR_FILE_NOT_FOUND;
 
     SVCBATCH_CS_ENTER(log);
-    DBG_PRINTF("%d %S", log->state, log->logFile);
-    InterlockedExchange(&log->state, 1);
+    DBG_PRINTF("%lu %S", log->state, log->logFile);
+    InterlockedExchange(&log->state, 0);
 
     h = InterlockedExchangePointer(&log->fd, NULL);
     if (h) {
         FlushFileBuffers(h);
         CloseHandle(h);
     }
+    xfree(log->logFile);
 
     SVCBATCH_CS_LEAVE(log);
     SVCBATCH_CS_CLOSE(log);
@@ -3130,9 +3135,10 @@ static DWORD runshutdown(void)
     DBG_PRINTF("waiting %lu ms for shutdown process %lu",
                stoptimeout, svcstop->pInfo.dwProcessId);
     rc = WaitForSingleObject(svcstop->pInfo.hProcess, stoptimeout);
-    if (rc == WAIT_OBJECT_0)
-        GetExitCodeProcess(svcstop->pInfo.hProcess, &rc);
-
+    if (rc == WAIT_OBJECT_0) {
+        if (!GetExitCodeProcess(svcstop->pInfo.hProcess, &rc))
+            rc = GetLastError();
+    }
 finished:
     svcstop->exitCode = rc;
     closeprocess(svcstop);
@@ -3155,7 +3161,7 @@ static DWORD WINAPI stopthread(void *ssp)
     DBG_PRINTS("started");
     if (outputlog) {
         SVCBATCH_CS_ENTER(outputlog);
-        InterlockedExchange(&outputlog->state, 1);
+        InterlockedExchange(&outputlog->state, 0);
         SVCBATCH_CS_LEAVE(outputlog);
     }
     if (svcstop && svcstop->script) {
@@ -3272,7 +3278,7 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
 #if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("wrote   %4lu bytes", wr);
 #endif
-    if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIZE)) {
+    if (log->flags) {
         if (log->size >= rotatesize) {
             if (canrotatelogs(log)) {
                 DBG_PRINTS("rotating by size");
@@ -3327,7 +3333,6 @@ static DWORD WINAPI rotatethread(void *unused)
     wh[3] = NULL;
 
     DBG_PRINTF("started");
-    InterlockedExchange(&outputlog->state, 1);
     if (IS_SET(SVCBATCH_OPT_ROTATE_BY_TIME)) {
         wt = CreateWaitableTimer(NULL, TRUE, NULL);
         if (IS_INVALID_HANDLE(wt)) {
@@ -3355,41 +3360,43 @@ static DWORD WINAPI rotatethread(void *unused)
             break;
             case WAIT_OBJECT_2:
                 DBG_PRINTS("dologrotate signaled");
+                rw = SVCBATCH_ROTATE_READY;
                 rc = rotatelogs(outputlog);
                 if (rc == 0) {
                     if (IS_VALID_HANDLE(wt) && (rotateinterval < 0)) {
                         CancelWaitableTimer(wt);
                         SetWaitableTimer(wt, &rotatetime, 0, NULL, NULL, FALSE);
                     }
-                    ResetEvent(dologrotate);
-                    rw = SVCBATCH_ROTATE_READY;
                 }
+                ResetEvent(dologrotate);
             break;
             case WAIT_OBJECT_3:
                 DBG_PRINTS("rotate timer signaled");
+                ResetEvent(dologrotate);
+                rw = SVCBATCH_ROTATE_READY;
                 if (canrotatelogs(outputlog)) {
                     DBG_PRINTS("rotate by time");
                     rc = rotatelogs(outputlog);
-                    rw = SVCBATCH_ROTATE_READY;
                 }
+#if defined(_DEBUG)
                 else {
                     DBG_PRINTS("rotate is busy ... canceling timer");
                 }
+#endif
                 if (rc == 0) {
                     CancelWaitableTimer(wt);
                     if (rotateinterval > 0)
                         rotatetime.QuadPart += rotateinterval;
                     SetWaitableTimer(wt, &rotatetime, 0, NULL, NULL, FALSE);
-                    ResetEvent(dologrotate);
                 }
             break;
             case WAIT_TIMEOUT:
                 DBG_PRINTS("rotate ready");
                 SVCBATCH_CS_ENTER(outputlog);
-                InterlockedExchange(&outputlog->state, 0);
+                InterlockedExchange(&outputlog->state, 1);
                 if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIZE)) {
                     if (outputlog->size >= rotatesize) {
-                        InterlockedExchange(&outputlog->state, 1);
+                        InterlockedExchange(&outputlog->state, 0);
                         DBG_PRINTS("rotating by size");
                         SetEvent(dologrotate);
                     }
@@ -3402,6 +3409,7 @@ static DWORD WINAPI rotatethread(void *unused)
             break;
         }
     }
+    InterlockedExchange(&outputlog->state, 0);
     if (rc > 1)
         createstopthread(rc);
     goto finished;
@@ -3412,12 +3420,15 @@ failed:
         createstopthread(rc);
 
 finished:
-    SAFE_CLOSE_HANDLE(wt);
+    if (IS_VALID_HANDLE(wt)) {
+        CancelWaitableTimer(wt);
+        CloseHandle(wt);
+    }
     DBG_PRINTS("done");
     return rc > 1 ? rc : 0;
 }
 
-static DWORD readiopipe(LPSVCBATCH_PIPE op, LPSVCBATCH_LOG log)
+static DWORD logiodata(LPSVCBATCH_LOG log, LPSVCBATCH_PIPE op)
 {
     DWORD rc = 0;
 
@@ -3436,7 +3447,8 @@ static DWORD readiopipe(LPSVCBATCH_PIPE op, LPSVCBATCH_LOG log)
                     &op->read, (LPOVERLAPPED)op) && op->read) {
             op->state = 0;
             rc = logwrdata(log, op->buffer, op->read);
-            SetEvent(op->o.hEvent);
+            if (rc == 0)
+                SetEvent(op->o.hEvent);
         }
         else {
             op->state = GetLastError();
@@ -3445,6 +3457,7 @@ static DWORD readiopipe(LPSVCBATCH_PIPE op, LPSVCBATCH_LOG log)
         }
     }
     if (rc) {
+        CancelIoEx(op->pipe, (LPOVERLAPPED)op);
         ResetEvent(op->o.hEvent);
 #if defined(_DEBUG)
         if ((rc == ERROR_BROKEN_PIPE) || (rc == ERROR_NO_DATA))
@@ -3593,14 +3606,15 @@ static DWORD WINAPI workerthread(void *unused)
             ws = WaitForMultipleObjects(nw, wh, FALSE, INFINITE);
             switch (ws) {
                 case WAIT_OBJECT_0:
+                    rc = 0;
                     nw = 0;
                     DBG_PRINTS("process signaled");
                 break;
                 case WAIT_OBJECT_1:
-                    rc = readiopipe(op, outputlog);
+                    rc = logiodata(outputlog, op);
                 break;
                 case WAIT_OBJECT_2:
-                    rc = readiopipe(ep, stderrlog);
+                    rc = logiodata(stderrlog, ep);
                 break;
                 default:
                     rc = GetLastError();
@@ -3610,9 +3624,9 @@ static DWORD WINAPI workerthread(void *unused)
             }
         } while (nw);
         if (op)
-            CancelIoEx(op->pipe, (LPOVERLAPPED)op);
+            CancelIoEx(op->pipe, NULL);
         if (ep)
-            CancelIoEx(ep->pipe, (LPOVERLAPPED)ep);
+            CancelIoEx(ep->pipe, NULL);
     }
     else {
         ws = WaitForSingleObject(cmdproc->pInfo.hProcess, INFINITE);
@@ -4242,6 +4256,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         rotateparam = NULL;
         stoplogname = NULL;
         svclogfname = NULL;
+        svcerrfname = NULL;
         logdirparam = NULL;
         stopmaxlogs = 0;
         srvcmaxlogs = 0;
@@ -4251,6 +4266,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
         SVCBATCH_CS_INIT(outputlog);
         if (svcerrfname) {
+            if (xwcsequals(svcerrfname, outputlog->logName))
+                return xsyserrno(32, L"log error log", svcerrfname);
             stderrlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
             stderrlog->logName = svcerrfname;
             SVCBATCH_CS_INIT(stderrlog);
@@ -4443,6 +4460,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (!resolverotate(rotateparam))
             return xsyserrno(12, L"R", rotateparam);
         OPT_SET(SVCBATCH_OPT_ROTATE);
+        if (IS_SET(SVCBATCH_OPT_ROTATE_BY_SIZE))
+            outputlog->flags = SVCBATCH_OPT_ROTATE_BY_SIZE;
     }
     if (svcstopparam) {
         if (xiswcschar(svcstopparam, L'@')) {
@@ -4470,6 +4489,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (wp == NULL)
                     return xsyserror(GetLastError(), L"ExpandEnvironment", svcstop->args[x]);
                 svcstop->args[x] = wp;
+            }
+        }
+        if (stoplogname) {
+            if (xwcsequals(stoplogname, outputlog->logName))
+                return xsyserrno(32, L"log and stop log", stoplogname);
+            if (svcerrfname) {
+                if (xwcsequals(svcerrfname, stoplogname))
+                    return xsyserrno(32, L"stop and error log", svcerrfname);
             }
         }
     }
