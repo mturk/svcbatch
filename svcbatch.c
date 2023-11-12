@@ -2421,6 +2421,7 @@ static BOOL createstdpipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
 
     i = xwcslcpy(name, SVCBATCH_UUID_MAX, SVCBATCH_PIPEPFX);
     xuuidstring(name + i);
+    DBG_PRINTF("%d %S", mode ? 1 : 0, name);
 
     *rd = CreateNamedPipeW(name,
                            PIPE_ACCESS_INBOUND | mode,
@@ -2442,8 +2443,8 @@ static BOOL createstdpipe(LPHANDLE rd, LPHANDLE wr, DWORD mode)
                       NULL);
     if (IS_INVALID_HANDLE(*wr))
         return FALSE;
-    DBG_PRINTF("%d %S", mode ? 1 : 0, name);
-    return TRUE;
+    else
+        return TRUE;
 }
 
 static BOOL createnulpipe(LPHANDLE ph)
@@ -4177,8 +4178,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     if (xwoptarr && xwoptend)
         return xsyserrno(28, xwoptarr, NULL);
-    if (IS_SET(SVCBATCH_OPT_WRPIPE) && sinputparam)
-        return xsyserrno(29, L"/F:Y and /I", NULL);
+    if (sinputparam) {
+        if (IS_SET(SVCBATCH_OPT_WRPIPE))
+            return xsyserrno(29, L"/F:Y and /I", sinputparam);
+        if (svcstopparam)
+            return xsyserrno(29, L"/S and /I",   sinputparam);
+    }
     wargc -= xwoptind;
     wargv += xwoptind;
     if (svcfailmode == 0)

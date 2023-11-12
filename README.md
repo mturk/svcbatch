@@ -597,8 +597,9 @@ and lowercase letters with **-** command switch.
   and is defined by the `#define SVCBATCH_DATA_MAX 65536`
   macro inside [svcbatch header file](svcbatch.h)
 
-  Do not use this option together with **/F:Y** feature.
-  Service will fail to start if both options are defined.
+  Do not use this option together with **/F:Y** feature or
+  with **/S** command option(s). Service will fail to start
+  and write an error to the Windows Event Log.
 
 
 * **E [name=value]**
