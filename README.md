@@ -1321,8 +1321,8 @@ SvcBatch have limits for the following features:
 * **File name length**
 
   The maximum file name length must be less then
-  **4096** characters, and is defined by the
-  `#define SVCBATCH_PATH_MAX 4096` macro
+  **2040** characters, and is defined by the
+  `#define SVCBATCH_PATH_SIZ 2040` macro
   inside [svcbatch header file](svcbatch.h)
 
 
