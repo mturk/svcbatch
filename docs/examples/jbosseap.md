@@ -35,10 +35,9 @@ that can be used to manage the services.
 
 ```no-highlight
 
-Usage: winservice.bat command [service_name] [server_mode] [arguments ...]
+Usage: winservice.bat command [shell] [service_name] [arguments ...]
 commands:
   create            Create the service
-  createps          Create the service using powershell
   delete            Delete the service
   start             Start the service
   stop              Stop the service
@@ -47,7 +46,7 @@ commands:
 
 Before executing [winservice](jbosseap/winservice.bat) edit `winservice.bat`
 and modify `DEFAULT_SERVICE_NAME` `SERVICE_DISPLAY`, `SERVICE_DESCIPTION`
-and `DEFAULT_SERVER_MODE` variables to match the exact version you are using.
+and `SERVER_MODE` variables to match the exact version you are using.
 
 
 To create a service type:
