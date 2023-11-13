@@ -2474,7 +2474,7 @@ static BOOL canrotatelogs(LPSVCBATCH_LOG log)
     return rv;
 }
 
-static LPWSTR createsvcdir(LPCWSTR dir, int fsp)
+static LPWSTR createsvcdir(LPCWSTR dir)
 {
     WCHAR  b[SVCBATCH_PATH_MAX];
     LPWSTR p;
@@ -2506,12 +2506,6 @@ static LPWSTR createsvcdir(LPCWSTR dir, int fsp)
             xsyserror(rc, L"GetDirPath", b);
             return NULL;
         }
-        if (fsp) {
-            if ((b[0] == L'\\') && (b[1] == L'\\')) {
-                xsyserror(ERROR_BUFFER_OVERFLOW, L"LongPath", b);
-                return NULL;
-            }
-        }
         rc = xcreatedir(b);
         if (rc != 0) {
             xsyserror(rc, L"CreateDirectory", b);
@@ -2520,12 +2514,6 @@ static LPWSTR createsvcdir(LPCWSTR dir, int fsp)
         p = xgetdirpath(b, b, SVCBATCH_PATH_SIZ);
         if (p == NULL) {
             xsyserror(GetLastError(), L"GetDirPath", b);
-            return NULL;
-        }
-    }
-    if (fsp) {
-        if ((b[0] == L'\\') && (b[1] == L'\\')) {
-            xsyserror(ERROR_BUFFER_OVERFLOW, L"LongPath", b);
             return NULL;
         }
     }
@@ -4250,7 +4238,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     if (outputlog) {
         if (logdirparam == NULL)
             logdirparam = SVCBATCH_LOGSDIR;
-        service->logs = createsvcdir(logdirparam, 0);
+        service->logs = createsvcdir(logdirparam);
         if (IS_EMPTY_WCS(service->logs))
             return ERROR_BAD_PATHNAME;
     }
@@ -4262,9 +4250,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         service->logs = service->work;
     }
     if (tmpdirparam) {
-        pp = createsvcdir(tmpdirparam, 1);
+        pp = createsvcdir(tmpdirparam);
         if (IS_EMPTY_WCS(pp))
             return ERROR_BAD_PATHNAME;
+        if ((pp[0] == L'\\') && (pp[1] == L'\\'))
+            return xsyserror(ERROR_BUFFER_OVERFLOW, pp, NULL);
         SetEnvironmentVariableW(L"TMP",  pp);
         SetEnvironmentVariableW(L"TEMP", pp);
         xfree(pp);
