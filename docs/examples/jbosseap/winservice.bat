@@ -81,6 +81,7 @@ rem
 rem Create Service
 rem
 :doCreate
+rem
 rem Set common create command options
 rem
 rem Set the server mode
@@ -90,6 +91,10 @@ rem Set the log name
 set "SERVICE_LOGNAME=/LN:service.log"
 rem
 rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SN:service.stop.log /SM:1"
+rem
+rem Set the stop parameters
+set "SERVICE_STOP_ARGS=[ --controller=127.0.0.1:9990 --connect --command=:shutdown ]"
+rem
 rem
 if /i "%SERVICE_SHELL%" == "cmd" goto doCreateCmd
 if /i "%SERVICE_SHELL%" == "ps"  goto doCreatePs
@@ -111,7 +116,7 @@ rem
     --start=automatic ^
     /F:P /E:NOPAUSE=Y ^
     /L:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
-    /S:jboss-cli.bat [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    /S:jboss-cli.bat %SERVICE_STOP_ARGS% ^
     %SERVER_MODE%.bat %CMD_LINE_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
@@ -130,7 +135,7 @@ rem
     /F:P ^
     /L:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
     /C:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
-    /S:jboss-cli.ps1 [ --controller=127.0.0.1:9990 --connect --command=:shutdown ] ^
+    /S:jboss-cli.ps1 %SERVICE_STOP_ARGS% ^
     %SERVER_MODE%.ps1 %CMD_LINE_ARGS%
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
