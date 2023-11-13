@@ -90,6 +90,7 @@ rem
     "--displayName=A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs=SeShutdownPrivilege ^
     /F:PLER0 /H ..\..\test -w ..\build\dbg ^
+    /T:Logs\%SERVICE_NAME%\tmp ^
     %SERVICE_ENVIRONMENT% ^
     %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^
     %ROTATE_RULE% ^
