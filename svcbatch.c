@@ -4252,7 +4252,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     if (isabsolutepath(svchomeparam)) {
         service->home = xgetfinalpath(1, svchomeparam);
         if (IS_EMPTY_WCS(service->home))
-            return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
+            return xsyserror(GetLastError(), svchomeparam, NULL);
     }
     else {
         if (svchomeparam == NULL) {
@@ -4268,7 +4268,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 SetCurrentDirectoryW(program->directory);
             service->home = xgetfinalpath(1, svchomeparam);
             if (IS_EMPTY_WCS(service->home))
-                return xsyserror(ERROR_FILE_NOT_FOUND, svchomeparam, NULL);
+                return xsyserror(GetLastError(), svchomeparam, NULL);
         }
     }
     SetCurrentDirectoryW(service->home);
@@ -4279,7 +4279,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     else {
         service->work = xgetfinalpath(2, svcworkparam);
         if (IS_EMPTY_WCS(service->work))
-            return xsyserror(ERROR_FILE_NOT_FOUND, svcworkparam, NULL);
+            return xsyserror(GetLastError(), svcworkparam, NULL);
     }
     if (!resolvescript(scriptparam))
         return xsyserror(ERROR_FILE_NOT_FOUND, scriptparam, NULL);
@@ -4363,7 +4363,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         else
             cmdproc->application = xgetfinalpath(0, wp);
         if (cmdproc->application == NULL)
-            return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
+            return xsyserror(GetLastError(), wp, NULL);
         xfree(wp);
     }
     else {
@@ -4373,7 +4373,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
 
         cmdproc->application = xgetfinalpath(0, wp);
         if (cmdproc->application == NULL)
-            return xsyserror(ERROR_FILE_NOT_FOUND, wp, NULL);
+            return xsyserror(GetLastError(), wp, NULL);
         xfree(wp);
         cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS;
         OPT_SET(SVCBATCH_OPT_WRPIPE);
@@ -4412,7 +4412,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             else
                 svcstop->script = xgetfinalpath(0, skipdotslash(svcstopparam));
             if (IS_EMPTY_WCS(svcstop->script))
-                return xsyserror(ERROR_FILE_NOT_FOUND, svcstopparam, NULL);
+                return xsyserror(GetLastError(), svcstopparam, NULL);
         }
         if ((stopmaxlogs > 0) && (stoplogname == NULL))
             stoplogname = SVCBATCH_LOGSTOP;
