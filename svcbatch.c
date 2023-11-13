@@ -2193,7 +2193,8 @@ static DWORD xfixmaxpath(LPWSTR buf, DWORD len, int isdir)
              * Prepend \\?\ to long paths
              * if starts with X:\
              */
-            if ((buf[1] == L':' ) &&
+            if (xisalpha(buf[0])  &&
+                (buf[1] == L':' ) &&
                 (buf[2] == L'\\')) {
                 wmemmove(buf + 4, buf, len + 1);
                 xpprefix(buf);
@@ -2210,8 +2211,13 @@ static LPWSTR xgetfullpath(LPCWSTR path, LPWSTR dst, DWORD siz)
 
     ASSERT_WSTR(path, NULL);
     len = GetFullPathNameW(path, siz, dst, NULL);
-    if ((len == 0) || (len >= siz))
+    if (len == 0) {
         return NULL;
+    }
+    if (len >= siz) {
+        SetLastError(ERROR_BUFFER_OVERFLOW);
+        return NULL;
+    }
     xwinpathsep(dst);
     xfixmaxpath(dst, len, 1);
     return dst;
@@ -2226,8 +2232,13 @@ static LPWSTR xgetfinalpath(int isdir, LPCWSTR path)
     DWORD  acc = GENERIC_READ;
 
     len = GetFullPathNameW(path, SVCBATCH_PATH_SIZ, buf, NULL);
-    if ((len == 0) || (len >= SVCBATCH_PATH_SIZ))
+    if (len == 0) {
         return NULL;
+    }
+    if (len >= SVCBATCH_PATH_SIZ) {
+        SetLastError(ERROR_BUFFER_OVERFLOW);
+        return NULL;
+    }
     xwinpathsep(buf);
     xfixmaxpath(buf, len, isdir);
     if (isdir > 1)
@@ -2283,7 +2294,7 @@ static DWORD xgetfilepath(LPCWSTR path, LPWSTR dst, DWORD siz)
         SetLastError(ERROR_BAD_PATHNAME);
         return 0;
     }
-    return xfixmaxpath(dst, len, 1);
+    return xfixmaxpath(dst, len, 0);
 }
 
 static LPWSTR xsearchexe(LPCWSTR name)
@@ -2523,7 +2534,7 @@ static LPWSTR createsvcdir(LPCWSTR dir)
         b[i++] = L'\\';
         i = xwcslcat(b, SVCBATCH_PATH_SIZ, i, dir);
         if (i >= SVCBATCH_PATH_SIZ) {
-            xsyserror(0, L"GetPath", dir);
+            xsyserror(ERROR_BUFFER_OVERFLOW, dir, NULL);
             return NULL;
         }
         xfixmaxpath(b, i, 1);
@@ -2531,7 +2542,7 @@ static LPWSTR createsvcdir(LPCWSTR dir)
     else {
         p = xgetfullpath(dir, b, SVCBATCH_PATH_SIZ);
         if (p == NULL) {
-            xsyserror(0, L"GetFullPath", dir);
+            xsyserror(GetLastError(), dir, NULL);
             return NULL;
         }
     }
@@ -2540,17 +2551,17 @@ static LPWSTR createsvcdir(LPCWSTR dir)
         DWORD rc = GetLastError();
 
         if (rc > ERROR_PATH_NOT_FOUND) {
-            xsyserror(rc, L"GetDirPath", b);
+            xsyserror(rc, b, NULL);
             return NULL;
         }
         rc = xcreatedir(b);
         if (rc != 0) {
-            xsyserror(rc, L"CreateDirectory", b);
+            xsyserror(rc, b, NULL);
             return NULL;
         }
         p = xgetdirpath(b, b, SVCBATCH_PATH_SIZ);
         if (p == NULL) {
-            xsyserror(GetLastError(), L"GetDirPath", b);
+            xsyserror(GetLastError(), b, NULL);
             return NULL;
         }
     }
