@@ -650,6 +650,28 @@ static __inline void xpprefix(LPWSTR str)
     str[3] = L'\\';
 }
 
+static __inline int xispprefix(LPCWSTR str)
+{
+    if ((str[0] == L'\\') &&
+        (str[1] == L'\\') &&
+        (str[2] == L'?')  &&
+        (str[3] == L'\\'))
+        return 1;
+    else
+        return 0;
+}
+
+static __inline LPWSTR xnopprefix(LPCWSTR str)
+{
+    if ((str[0] == L'\\') &&
+        (str[1] == L'\\') &&
+        (str[2] == L'?')  &&
+        (str[3] == L'\\'))
+        return (LPWSTR)(str + 4);
+    else
+        return (LPWSTR)str;
+}
+
 static LPWSTR xwcschr(LPCWSTR str, int c)
 {
     ASSERT_WSTR(str, NULL);
@@ -1173,26 +1195,26 @@ static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
     LPCWSTR v = NULL;
 
     switch (e) {
-        case L'B':
-            v = service->base;
-        break;
-        case L'H':
-            v = service->home;
-        break;
-        case L'L':
-            v = service->logs;
-        break;
-        case L'W':
-            v = service->work;
-        break;
         case L'A':
             v = program->name;
         break;
+        case L'B':
+            v = xnopprefix(service->base);
+        break;
+        case L'H':
+            v = xnopprefix(service->home);
+        break;
+        case L'L':
+            v = xnopprefix(service->logs);
+        break;
+        case L'W':
+            v = xnopprefix(service->work);
+        break;
         case L'D':
-            v = program->directory;
+            v = xnopprefix(program->directory);
         break;
         case L'E':
-            v = program->application;
+            v = xnopprefix(program->application);
         break;
         case L'N':
             v = service->name;
@@ -2159,11 +2181,7 @@ static DWORD xfixmaxpath(LPWSTR buf, DWORD len, int isdir)
              * Strip leading \\?\ for short paths
              * but not \\?\UNC\* paths
              */
-            if ((buf[0] == L'\\') &&
-                (buf[1] == L'\\') &&
-                (buf[2] == L'?')  &&
-                (buf[3] == L'\\') &&
-                (buf[5] == L':')) {
+            if (xispprefix(buf) && (buf[5] == L':')) {
                 wmemmove(buf, buf + 4, len - 3);
                 len -= 4;
             }
@@ -2247,6 +2265,25 @@ static LPWSTR xgetdirpath(LPCWSTR path, LPWSTR dst, DWORD siz)
 
     xfixmaxpath(dst, len, 1);
     return dst;
+}
+
+static DWORD xgetfilepath(LPCWSTR path, LPWSTR dst, DWORD siz)
+{
+    HANDLE fh;
+    DWORD  len;
+
+    fh = CreateFileW(path, GENERIC_READ,
+                     FILE_SHARE_READ, NULL, OPEN_EXISTING,
+                     FILE_ATTRIBUTE_NORMAL, NULL);
+    if (IS_INVALID_HANDLE(fh))
+        return 0;
+    len = GetFinalPathNameByHandleW(fh, dst, siz, VOLUME_NAME_DOS);
+    CloseHandle(fh);
+    if ((len == 0) || (len >= siz)) {
+        SetLastError(ERROR_BAD_PATHNAME);
+        return 0;
+    }
+    return xfixmaxpath(dst, len, 1);
 }
 
 static LPWSTR xsearchexe(LPCWSTR name)
@@ -4253,7 +4290,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         pp = createsvcdir(tmpdirparam);
         if (IS_EMPTY_WCS(pp))
             return ERROR_BAD_PATHNAME;
-        if ((pp[0] == L'\\') && (pp[1] == L'\\'))
+        if (xispprefix(pp))
             return xsyserror(ERROR_BUFFER_OVERFLOW, pp, NULL);
         SetEnvironmentVariableW(L"TMP",  pp);
         SetEnvironmentVariableW(L"TEMP", pp);
@@ -4264,12 +4301,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
          * Add additional environment variables
          * that are unique to this service instance
          */
-        xsetsvcenv(eenvp, eenvx, L"_BASE", service->base);
-        xsetsvcenv(eenvp, eenvx, L"_HOME", service->home);
-        xsetsvcenv(eenvp, eenvx, L"_LOGS", service->logs);
+        xsetsvcenv(eenvp, eenvx, L"_BASE", xnopprefix(service->base));
+        xsetsvcenv(eenvp, eenvx, L"_HOME", xnopprefix(service->home));
+        xsetsvcenv(eenvp, eenvx, L"_LOGS", xnopprefix(service->logs));
+        xsetsvcenv(eenvp, eenvx, L"_WORK", xnopprefix(service->work));
         xsetsvcenv(eenvp, eenvx, L"_NAME", service->name);
         xsetsvcenv(eenvp, eenvx, L"_UUID", service->uuid);
-        xsetsvcenv(eenvp, eenvx, L"_WORK", service->work);
     }
     for (i = 0; i < uenvc; i++) {
         if (uenvn[i] == NULL) {
@@ -5243,7 +5280,9 @@ static int xwmaininit(int argc, LPCWSTR *argv)
         return GetLastError();
     if (nn >= SVCBATCH_PATH_SIZ)
         return ERROR_INSUFFICIENT_BUFFER;
-    nn = xfixmaxpath(bb, nn, 0);
+    nn = xgetfilepath(bb, bb, SVCBATCH_PATH_SIZ);
+    if (nn == 0)
+        return ERROR_INVALID_NAME;
     program->application = xwcsndup(bb, nn);
     program->directory   = xwcsndup(bb, nn);
     ASSERT_WSTR(program->application, ERROR_BAD_PATHNAME);
