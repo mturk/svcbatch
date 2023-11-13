@@ -136,9 +136,9 @@
 /**
  * Maximum safe path length that
  * allows inserting \\?\ for long paths.
- * This value must be SVCBATCH_PATH_MAX - 4
+ * This value must be SVCBATCH_PATH_MAX - 6
  */
-#define SVCBATCH_PATH_SIZ       4092
+#define SVCBATCH_PATH_SIZ       4090
 
 /**
  * Maximum length for the object names.

@@ -790,12 +790,14 @@ static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
 
     c = lp + ln + le + 2;
     if (IS_NOT(SVCBATCH_OPT_LONGPATHS)) {
-        if ((c > MAX_PATH) &&
+        if ((c > MAX_PATH)  && xisalpha(p[0]) &&
             (p[1] == L':' ) &&
             (p[2] == L'\\'))
             x = 4;
+        c += x;
     }
-    rs = xwmalloc(c + x);
+    ASSERT_LESS(c, SVCBATCH_PATH_MAX, NULL);
+    rs = xwmalloc(c);
 
     if (x > 0)
         xpprefix(rs);
@@ -2066,7 +2068,7 @@ static DWORD xcreatedir(LPCWSTR path)
         /**
          * One or more intermediate directories do not exist
          */
-        xwcslcpy(pp, SVCBATCH_PATH_MAX, path);
+        xwcslcpy(pp, SVCBATCH_PATH_SIZ, path);
         xwinpathsep(pp);
         rc = xmdparent(pp);
         if (rc == 0) {
