@@ -10,7 +10,7 @@ the service by typing
 
 ```no-highlight
 
-> svcbatch create adummybash /F:B /C:bash.exe [ --norc --noprofile ] /S:@ /E:PATH=@SystemDrive@\msys64\usr\bin;@PATH@ ./dummyloop.sh
+> svcbatch create adummybash /F:B /C:bash.exe [ --norc --noprofile ] /S:@ /E:PATH=$SystemDrive\msys64\usr\bin;$PATH ./dummyloop.sh
 
 ```
 

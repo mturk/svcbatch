@@ -59,6 +59,8 @@
 #define SVCBATCH_MINOR_VERSION  0
 #define SVCBATCH_PATCH_VERSION  1
 #define SVCBATCH_MICRO_VERSION  0
+
+#define SVCBATCH_RELEASE_VER    (SVCBATCH_MAJOR_VERSION * 10000 + SVCBATCH_MINOR_VERSION * 100 + SVCBATCH_PATCH_VERSION)
 /**
  * Set to zero for release versions
  */
@@ -148,6 +150,12 @@
  * to _MAX_FNAME (256) characters
  */
 #define SVCBATCH_NAME_MAX       256
+
+/**
+ * Maximum length for the environment variables prefix.
+ *
+ */
+#define SVCBATCH_ENVP_MAX       192
 
 /**
  * Maximum length for the UUID based object names.
@@ -389,12 +397,6 @@
 # define SVCBATCH_BUILD_CC      ""
 #endif
 
-#if defined(VERSION_SFX)
-# define SVCBATCH_VERSION_SFX   CPP_TOSTR(VERSION_SFX)
-#else
-# define SVCBATCH_VERSION_SFX   ""
-#endif
-
 #if defined(_DEBUG)
 # if SVCBATCH_ISDEV_VERSION
 #  define SVCBATCH_VERSION_DBG  "_2.dbg"
@@ -408,6 +410,13 @@
 #  define SVCBATCH_VERSION_DBG  ""
 # endif
 #endif
+
+#if defined(VERSION_SFX)
+# define SVCBATCH_VERSION_SFX   CPP_TOSTR(VERSION_SFX)
+#else
+# define SVCBATCH_VERSION_SFX   SVCBATCH_VERSION_DBG
+#endif
+
 
 /**
  * Macro for .rc files using numeric csv representation
@@ -430,16 +439,23 @@
                                 CPP_TOWCS(SVCBATCH_MICRO_VERSION)
 
 
+#define SVCBATCH_VERSION_EXP \
+                                CPP_TOWCS(SVCBATCH_MAJOR_VERSION) L"."  \
+                                CPP_TOWCS(SVCBATCH_MINOR_VERSION) L"."  \
+                                CPP_TOWCS(SVCBATCH_PATCH_VERSION)
+
+#define SVCBATCH_VERSION_REL \
+                                CPP_TOWCS(SVCBATCH_MICRO_VERSION)       \
+                                CPP_WIDEN(SVCBATCH_VERSION_SFX)
+
 #define SVCBATCH_VERSION_WCS \
                                 SVCBATCH_VERSION_VER                    \
-                                CPP_WIDEN(SVCBATCH_VERSION_SFX)         \
-                                CPP_WIDEN(SVCBATCH_VERSION_DBG)
+                                CPP_WIDEN(SVCBATCH_VERSION_SFX)
 
 
 #define SVCBATCH_VERSION_TXT  \
                                 SVCBATCH_VERSION_STR                    \
                                 SVCBATCH_VERSION_SFX                    \
-                                SVCBATCH_VERSION_DBG                    \
                                 SVCBATCH_BUILD_CC
 
 #define SVCBATCH_PROJECT_URL \

@@ -592,7 +592,7 @@ and lowercase letters with **-** command switch.
   For example:
 
   ```no-highlight
-  > svcbatch create ... /E:NOPAUSE=Y /E:CATALINA_BASE=@W ...
+  > svcbatch create ... /E:NOPAUSE=Y /E:CATALINA_BASE=$WORK ...
 
   ```
 
@@ -600,30 +600,31 @@ and lowercase letters with **-** command switch.
   and `CATALINA_BASE` to the value of the current working
   directory.
 
-  If the **value** parameter starts with **@**, followed
-  by the single letter, it will be evaluated to the
-  corresponding runtime value.
-  The **@W** will be evaluated to the current working directory,
-  **@N** will set the **value** to the current Service name, etc.
+  SvcBatch will evaluate **value** parameter and replace each
+  **$variable** string with corresponding runtime value.
 
-  This feature is usually used when the **/F:U** feature is defined,
-  since it allows to export specific runtime value(s).
+  If the **$variable** does not exits, it will be replaced by
+  empty string.
 
-  The supported **@X** values are:
+  The **$WORK** will be evaluated to the current working directory,
+  **$NAME** will set the **value** to the current Service name, etc.
+
+
+  The runtime **variable** values are:
 
   ```no-highlight
 
-    A   Program application name
-    B   Base directory
-    D   Program directory
-    E   Program executable
-    H   Home directory
-    L   Logs directory
-    N   Service Name
-    P   Program ProcessId
-    U   Service UUID
-    V   SvcBatch version
-    W   Work directory
+    BASENAME    Program application name
+    BASE        Base directory
+    DIRNAME     Program directory
+    HOME        Home directory
+    LOGS        Logs directory
+    NAME        Service Name
+    PROCESSID   Program ProcessId
+    RELEASE     SvcBatch release version
+    UUUID       Service UUID
+    VERSION     SvcBatch version number
+    WORK        Work directory
 
   ```
 
@@ -633,27 +634,24 @@ and lowercase letters with **-** command switch.
   variable for the current process:
 
   ```no-highlight
-  > svcbatch create ... -e "PATH=@ProgramFiles@\SomeApplication;@PATH@" ...
+  > svcbatch create ... -e "PATH=$ProgramFiles\SomeApplication;$PATH" ...
 
   ```
 
-  In the upper example, each **@** character will be replaced
-  with **%** character, and then evaluated.
+  In the upper example, each **$variable** will be evaluated
+  to the current runtime value.
 
-  This is much safer then using **%** directly, since it
-  ensures that it will be evaluated at runtime.
-
-  Each **@@** character pair will be replaced by the
-  single **@** character. This allows to use **@** characters
-  as part of **value** without replacing them to **%**.
+  Each **$$** character pair will be replaced by the
+  single **$** character. This allows to use **$** characters
+  as part of **value** without evaluating them.
 
 
   ```no-highlight
-  > svcbatch create ... /E "SOME_VARIABLE=RUN@@1" ...
+  > svcbatch create ... /E "SOME_VARIABLE=RUN$$1" ...
 
   ```
   In the upper example, SvcBatch will set `SOME_VARIABLE`
-  environment variable to the value `RUN@1`.
+  environment variable to the value `RUN$1`.
 
 
 
@@ -663,8 +661,7 @@ and lowercase letters with **-** command switch.
   In case the **/F:U** feature was not defined, SvcBatch
   will first set all [Private Environment Variables](#private-environment-variables)
 
-  After that it will evaluate and set all **/E:VAR=@X** variables.
-  Then it will evaluate and set all other "standard" variables.
+  After that it will evaluate and set all **/E:name=value** variables.
 
   Finally it will delete all environment variables defined
   by using **/EU:VAR**.
@@ -687,13 +684,13 @@ and lowercase letters with **-** command switch.
     A   Program application name
     B   Base directory
     D   Program directory
-    E   Program executable
     H   Home directory
     L   Logs directory
     N   Service Name
     P   Program ProcessId
+    R   SvcBatch release version
     U   Service UUID
-    V   SvcBatch version
+    V   SvcBatch version number
     W   Work directory
 
   ```
@@ -704,22 +701,22 @@ and lowercase letters with **-** command switch.
 
   ```no-highlight
 
-    A  ...  [PREFIX]_APP
+    A  ...  [PREFIX]_BASENAME
     B  ...  [PREFIX]_BASE
-    D  ...  [PREFIX]_DIR
-    E  ...  [PREFIX]_EXE
+    D  ...  [PREFIX]_DIRNAME
     H  ...  [PREFIX]_HOME
     L  ...  [PREFIX]_LOGS
     N  ...  [PREFIX]_NAME
-    P  ...  [PREFIX]_PID
+    P  ...  [PREFIX]_PROCESSID
+    R  ...  [PREFIX]_RELEASE
     U  ...  [PREFIX]_UUID
-    V  ...  [PREFIX]_VER
+    V  ...  [PREFIX]_VERSION
     W  ...  [PREFIX]_WORK
 
   ```
 
-  The following example will export `SVCBATCH_PID`
-  and `SVCBATCH_VER` environment variables with the
+  The following example will export `SVCBATCH_PROCESSID`
+  and `SVCBATCH_VERSION` environment variables with the
   values set to their corresponding runtime values.
 
   ```no-highlight
@@ -1314,7 +1311,7 @@ SvcBatch have limits for the following features:
   Default Program File Name is **svcbatch.exe**.
 
   Program File Name can contain only alphanumeric ASCII
-  characters including underscore (`_`) and period (`.`),
+  characters including underscore (`_`) character,
   and must end with **.exe** file extension.
 
 

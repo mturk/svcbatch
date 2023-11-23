@@ -80,7 +80,7 @@ rem
 set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /SM:1"
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=/E:PATH=@_TEMP_HOME@;@PATH@ /E:_TEMP_HOME=@H /EU:_TEMP_HOME /EE:ADE /E:ADUMMYSVC_PID=@P /E:ADUMMYSVC_VER=@V"
+set "SERVICE_ENVIRONMENT=/E:PATH=$HOME;$PATH /EE:ADVR /E:ADUMMYSVC_PID=$ProcessId"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
@@ -95,7 +95,7 @@ rem
     %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^
     %ROTATE_RULE% ^
     %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
-    %SERVICE_BATCH% run "@@home @_TEMP_HOME@\@ADUMMYSVC_VER@"
+    %SERVICE_BATCH% run ".${UNDEFINED.VARIABLE}. $HOME\$VERSION"
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
