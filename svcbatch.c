@@ -458,16 +458,16 @@ static const wchar_t *wcsmessages[] = {
 
 #define SVCBATCH_MSG(_id) wcsmessages[_id]
 
-static int xfatalerr(LPCSTR func, int err)
+static void xfatalerr(LPCSTR func, int err)
 {
 
     OutputDebugStringA(">>> " SVCBATCH_NAME " " SVCBATCH_VERSION_STR);
     OutputDebugStringA(func);
     OutputDebugStringA("<<<\n\n");
     _exit(err);
+#if 0
     TerminateProcess(GetCurrentProcess(), err);
-
-    return err;
+#endif
 }
 
 static void *xmmalloc(size_t size)
@@ -477,10 +477,8 @@ static void *xmmalloc(size_t size)
 
     n = MEM_ALIGN_DEFAULT(size);
     p = (UINT64 *)malloc(n);
-    if (p == NULL) {
+    if (p == NULL)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-        return NULL;
-    }
     n = (n >> 3) - 1;
     *(p + n) = UINT64_ZERO;
     return p;
@@ -493,9 +491,8 @@ static void *xmcalloc(size_t size)
 
     n = MEM_ALIGN_DEFAULT(size);
     p = calloc(1, n);
-    if (p == NULL) {
+    if (p == NULL)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-    }
     return p;
 }
 
@@ -511,10 +508,8 @@ static void *xrealloc(void *mem, size_t size)
     }
     n = MEM_ALIGN_DEFAULT(size);
     p = (UINT64 *)realloc(mem, n);
-    if (p == NULL) {
+    if (p == NULL)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-        return NULL;
-    }
     if (mem == NULL) {
         n = (n >> 3) - 1;
         *(p + n) = UINT64_ZERO;
@@ -696,10 +691,8 @@ static int xwbsinit(LPSVCBATCH_WBUFFER wb, int len)
     wb->siz = MEM_ALIGN_DEFAULT(len + 1);
     wb->buf = (LPWSTR)malloc(wb->siz * sizeof(WCHAR));
 
-    if (wb->buf == NULL) {
+    if (wb->buf == NULL)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-        return -1;
-    }
     return 0;
 }
 
@@ -711,10 +704,8 @@ static int xwbsaddch(LPSVCBATCH_WBUFFER wb, WCHAR ch)
     if (c >= wb->siz) {
         wb->siz = MEM_ALIGN_DEFAULT(c + 1);
         wb->buf = (LPWSTR)realloc(wb->buf, wb->siz * sizeof(WCHAR));
-        if (wb->buf == NULL) {
+        if (wb->buf == NULL)
             SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-            return -1;
-        }
     }
     wb->buf[wb->pos] = ch;
     wb->pos = c;
@@ -731,10 +722,8 @@ static int xwbsaddnws(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len)
     if (c >= wb->siz) {
         wb->siz = MEM_ALIGN_DEFAULT(c + 1);
         wb->buf = (LPWSTR)realloc(wb->buf, wb->siz * sizeof(WCHAR));
-        if (wb->buf == NULL) {
+        if (wb->buf == NULL)
             SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-            return -1;
-        }
     }
     wmemcpy(wb->buf + wb->pos, str, len);
     wb->pos += len;
@@ -1043,7 +1032,7 @@ static LPCWSTR xntowcs(DWORD n)
     return s;
 }
 
-static LPCWSTR xwctowcs(WCHAR c)
+static LPCWSTR xwctowcs(int c)
 {
     static WCHAR b[] = { 0, 0, 0, 0 };
 
@@ -1282,7 +1271,7 @@ static LPWSTR xgetenv(LPCWSTR s)
 static LPWSTR xexpandenv(LPWSTR str)
 {
     LPWSTR  buf = NULL;
-    DWORD   bsz = BBUFSIZ;
+    DWORD   bsz = SVCBATCH_NAME_MAX;
     DWORD   len;
 
     while (buf == NULL) {
@@ -2278,8 +2267,9 @@ static DWORD WINAPI xrunthread(LPVOID param)
     DBG_PRINTF("%s ended %lu", p->name, p->exitCode);
 #endif
     InterlockedExchange(&p->started, 0);
+#if 0
     ExitThread(p->exitCode);
-
+#endif
     return p->exitCode;
 }
 
@@ -5463,7 +5453,7 @@ static LPWSTR dbggettemp(void)
 
 #endif
 
-static int xwmaininit(int argc, LPCWSTR *argv)
+static int xwmaininit(void)
 {
     WCHAR  bb[SVCBATCH_PATH_MAX];
     LPWSTR dp = NULL;
@@ -5558,7 +5548,7 @@ int wmain(int argc, LPCWSTR *argv)
      * Make sure child processes are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
-    r = xwmaininit(argc, argv);
+    r = xwmaininit();
     if (r != 0)
         return r;
     if (argc > 1)
