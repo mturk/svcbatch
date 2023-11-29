@@ -19,11 +19,12 @@
 #if defined(_MSC_VER)
 /**
  * Disable or reduce the frequency of...
+ *   C4057: indirection to slightly different base types
  *   C4100: unreferenced formal parameter
  *   C4244: int to char/short - precision loss
  *   C4702: unreachable code
  */
-# pragma warning(disable: 4100 4244 4702)
+# pragma warning(disable: 4057 4100 4244 4702)
 #endif
 
 #if defined(_MSC_VER)
