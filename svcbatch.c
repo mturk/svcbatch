@@ -5047,7 +5047,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
 
     if (isabsolutepath(inifileparam)) {
         LPSVCBATCH_FILEDATA fd;
-        LPSVCBATCH_VARIABLE vp;
 
         fd = (LPSVCBATCH_FILEDATA)xarrayadd(&xpinifiles);
         if (!xfdread(inifileparam, fd)) {
@@ -5056,15 +5055,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         x = xreadini(fd);
         if (x) {
             return xsyserror(x, inifileparam, NULL);
-        }
-        DBG_PRINTF("variables %d", xvariables.nelts);
-        for (i = 0; i < xvariables.nelts; i++) {
-            vp = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
-            DBG_PRINTF("[%2d] %d %2d %S.%S %p\n", i, vp->type,
-                        vp->data.pos, vp->section, vp->name, vp->data.buf);
-#if 0
-            xfree(vp->data.buf);
-#endif
         }
     }
 
@@ -5291,6 +5281,18 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     xarrayclear(&aeenvv);
     xarrayclear(&auenvv);
 
+#if defined(_DEBUG)
+    if (inifileparam) {
+        LPSVCBATCH_VARIABLE vp;
+
+        DBG_PRINTF("variables %d", xvariables.nelts);
+        for (i = 0; i < xvariables.nelts; i++) {
+            vp = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
+            DBG_PRINTF("[%2d] %d %3d %S.%S %S\n", i, vp->type,
+                        vp->data.pos, vp->section, vp->name, vp->data.buf);
+        }
+    }
+#endif
     xfree(scriptparam);
     DBG_PRINTS("done");
     return 0;
