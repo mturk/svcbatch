@@ -253,6 +253,13 @@
 #define SBUFSIZ                128
 #define BBUFSIZ                512
 
+
+/**
+ * Start of the custom error messages
+ */
+#define SVCBATCH_START_ERROR            90000
+#define SVCBATCH_EEINVAL                (SVCBATCH_START_ERROR +  1)
+
 /**
  * Process state
  */
@@ -279,6 +286,10 @@
 #define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00200000   /* Rotate by size              */
 #define SVCBATCH_OPT_ROTATE_BY_TIME 0x00400000   /* Rotate by time              */
 
+#define SVCBATCH_VARIABLE_RDONLY    0x00000001
+#define SVCBATCH_VARIABLE_ARRAY     0x00000010
+#define SVCBATCH_VARIABLE_MULTILINE 0x00000020
+
 
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
 #define SVCBATCH_FAIL_ERROR     2   /* Set service error if run endeded without stop    */
@@ -294,8 +305,12 @@
 #define IS_EMPTY_WCS(_s)        (((_s) == NULL) || (*(_s) == WNUL))
 #define IS_EMPTY_STR(_s)        (((_s) == NULL) || (*(_s) == CNUL))
 #define IS_VALID_WCS(_s)        (((_s) != NULL) && (*(_s) != WNUL))
-#define IS_SET(_o)              ((svcoptions & (_o)) == (_o))
-#define IS_NOT(_o)              ((svcoptions & (_o)) != (_o))
+
+#define IS_SET(_v, _o)          (((_v) & (_o)) == (_o))
+#define IS_NOT(_v, _o)          (((_v) & (_o)) != (_o))
+
+#define IS_OPT_SET(_o)          ((svcoptions & (_o)) == (_o))
+#define IS_NOT_OPT(_o)          ((svcoptions & (_o)) != (_o))
 #define OPT_SET(_o)             svcoptions |=  (_o)
 
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
