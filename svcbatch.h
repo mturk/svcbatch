@@ -252,6 +252,7 @@
 #define TBUFSIZ                 32
 #define SBUFSIZ                128
 #define BBUFSIZ                512
+#define MBUFSIZ               1024
 
 
 /**
