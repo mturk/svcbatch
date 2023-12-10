@@ -3436,17 +3436,23 @@ static int xprocessini(LPSVCBATCH_FILEDATA fd)
                 int xi = 0;
                 int rv = 0;
                 if (fd->section == SVCBATCH_SECTION_NONE) {
-                    if ((*lb == L'!') || (*lb == L'?'))
-                        xi = xwstartswith(lb + 1, L"include ");
+                    xi = xwstartswith(lb, L"include");
                     if (xi) {
+                        int    io;
+                        LPWSTR eq;
                         LPWSTR in;
                         LPWSTR nn;
                         WCHAR  fc;
                         SVCBATCH_FILEDATA nf;
 
-                        in = xwsskip(lb + 1 + xi);
-                        in = xwunquote(in, '<', '>');
-                        in = xwrltrim(in, NULL);
+                        io = xwstartswith(lb + xi, L"optional");
+                        eq = xwcschr(lb + io + xi, L'=');
+                        if (eq == NULL) {
+                            DBG_PRINTF("[%3d] invalid include '%S'", ln, lb);
+                            return ln;
+
+                        }
+                        in = xwsskip(eq + 1);
                         if (IS_EMPTY_WCS(in) ) {
                             DBG_PRINTF("[%3d] invalid include '%S'", ln, lb);
                             return ln;
@@ -3459,20 +3465,19 @@ static int xprocessini(LPSVCBATCH_FILEDATA fd)
                             if (xisiniloaded(nf.name)) {
                                 rv = ln;
                                 DBG_PRINTF("[%3d] already loaded %S", ln, nf.name);
+                                xfdclose(&nf);
                             }
                             else {
+                                xarrayadd(&xpinifiles, &nf);
                                 rv = xprocessini(&nf);
                             }
-                            if (rv != 0)
-                                xfdclose(&nf);
-                            else
-                                xarrayadd(&xpinifiles, &nf);
                         }
                         else {
-                            if (*lb == L'?') {
+                            if (io) {
                                 DBG_PRINTF("[%3d] cannot find %S", ln, nn);
                             }
-                            else {
+                            else
+                            {
                                 rv = ln;
                                 DBG_PRINTF("[%3d] cannot open %S", ln, nn);
                             }
@@ -4978,12 +4983,12 @@ static int xreadinifiles(void)
      */
     ip = xwmakepath(program->directory, program->name, L".ini");
     if (xfdread(ip, &fd)) {
+        xarrayadd(&xpinifiles, &fd);
         rv = xprocessini(&fd);
         if (rv) {
 
             return rv;
         }
-        xarrayadd(&xpinifiles, &fd);
         DBG_PRINTF("%S", ip);
     }
     xfree(ip);
@@ -4994,12 +4999,12 @@ static int xreadinifiles(void)
      */
     ip = xwmakepath(program->directory, service->name, L".ini");
     if (xfdread(ip, &fd)) {
+        xarrayadd(&xpinifiles, &fd);
         rv = xprocessini(&fd);
         if (rv) {
 
             return rv;
         }
-        xarrayadd(&xpinifiles, &fd);
         DBG_PRINTF("%S", ip);
     }
     xfree(ip);
@@ -5431,10 +5436,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             return xsyserror(GetLastError(), inifileparam, NULL);
         if (xisiniloaded(fd.name))
             return xsyserror(ERROR_ALREADY_EXISTS, inifileparam, NULL);
+        xarrayadd(&xpinifiles, &fd);
         x = xprocessini(&fd);
         if (x)
             return xsyserror(ERROR_INVALID_DATA, inifileparam, xntowcs(x));
-        xarrayadd(&xpinifiles, &fd);
     }
 
     /**
