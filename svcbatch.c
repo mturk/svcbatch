@@ -229,6 +229,7 @@ static HANDLE    svcstopdone    = NULL;
 static HANDLE    workerended    = NULL;
 static HANDLE    dologrotate    = NULL;
 static HANDLE    sharedmmap     = NULL;
+static HANDLE    svclogmutex    = NULL;
 static LPCWSTR   stoplogname    = NULL;
 
 static LPCSTR    cnamestamp     = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
@@ -2236,6 +2237,27 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
     xwoptind++;
     xwoptarg = optarg;
     return option;
+}
+
+static LPWSTR xgenresname(LPCWSTR name)
+{
+
+    static WCHAR b[SVCBATCH_NAME_MAX];
+    int n;
+    int i;
+
+    n = xwcslen(name) + 1;
+    if (n > 250)
+        name += n - 250;
+    i = xwcslcat(b, SVCBATCH_NAME_MAX, 0, L"Local\\");
+    n = xwcslcat(b, SVCBATCH_NAME_MAX, i, name);
+    for (i = 6; i < n; i++) {
+        if (b[i] == ':' || b[i] == '/' || b[i] == '\\')
+            b[i] = '_';
+        else
+            b[i] = xtolower(b[i]);
+    }
+    return b;
 }
 
 static LPWSTR xuuidstring(LPWSTR b)
@@ -4387,6 +4409,7 @@ static void __cdecl objectscleanup(void)
     SAFE_CLOSE_HANDLE(svcstopdone);
     SAFE_CLOSE_HANDLE(stopstarted);
     SAFE_CLOSE_HANDLE(dologrotate);
+    SAFE_CLOSE_HANDLE(svclogmutex);
     if (sharedmem)
         UnmapViewOfFile(sharedmem);
     SAFE_CLOSE_HANDLE(sharedmmap);
@@ -4896,7 +4919,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             logdirparam = SVCBATCH_LOGSDIR;
         service->logs = createsvcdir(logdirparam);
         if (IS_EMPTY_WCS(service->logs))
-            return ERROR_BAD_PATHNAME;
+            return xsyserror(ERROR_BAD_PATHNAME, logdirparam, NULL);
+        pp = xgenresname(xnopprefix(service->logs));
+        svclogmutex = CreateMutexW(NULL, FALSE, pp);
+        if ((svclogmutex == NULL) || (GetLastError() == ERROR_ALREADY_EXISTS))
+            return xsyserror(ERROR_ALREADY_ASSIGNED, L"LogDirectory", NULL);
     }
     else {
         /**
