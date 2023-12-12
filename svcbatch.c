@@ -100,9 +100,10 @@ typedef struct _SVCBATCH_WBUFFER {
 } SVCBATCH_WBUFFER, *LPSVCBATCH_WBUFFER;
 
 typedef struct _SVCBATCH_VARIABLE {
-    DWORD                   type;
+    int                     index;
     int                     section;
     int                     noff;
+    DWORD                   type;
     LPCWSTR                 name;
     SVCBATCH_WBUFFER        data;
 } SVCBATCH_VARIABLE, *LPSVCBATCH_VARIABLE;
@@ -208,15 +209,13 @@ typedef struct _SVCBATCH_NAME_MAP {
     int     code;
 } SVCBATCH_NAME_MAP, *LPSVCBATCH_NAME_MAP;
 
-typedef struct _SVCBATCH_FILEDATA {
-    LPWSTR            name;     /* Final path name  use free(p->name)   */
-    LPWSTR            file;     /* Pointer to the file name part        */
-    LPWSTR            data;     /* Data read        use free(p->data)   */
-    int               size;     /* Original data size                   */
+typedef struct _SVCBATCH_INIFILE {
     int               section;
+    int               size;     /* Original data size                   */
+    LPWSTR            name;     /* Final path name  use free(p->name)   */
+    LPWSTR            data;     /* Data read        use free(p->data)   */
     SVCBATCH_VARIABLE var;      /* Current variable being processed     */
-
-} SVCBATCH_FILEDATA, *LPSVCBATCH_FILEDATA;
+} SVCBATCH_INIFILE, *LPSVCBATCH_INIFILE;
 
 
 static int                   svcmainargc = 0;
@@ -318,7 +317,7 @@ static const wchar_t *scmcommands[] = {
 };
 
 static const wchar_t *scmallowed[] = {
-    L"qbdDinpPsu",          /* SVCBATCH_SCM_CREATE      */
+    L"qbdDnpPsuc",          /* SVCBATCH_SCM_CREATE      */
     L"qbdDnpPsu",           /* SVCBATCH_SCM_CONFIG      */
     L"q",                   /* SVCBATCH_SCM_CONTROL     */
     L"q",                   /* SVCBATCH_SCM_DELETE      */
@@ -354,7 +353,7 @@ static const wchar_t *scmcoptions[] = {
     L"b+binpath",
     L"d+description",
     L"D+depend",
-    L"i+ini",
+    L"c+conf",
     L"n+displayname",
     L"p+password",
     L"P+privs",
@@ -805,7 +804,7 @@ static int xwbsaddwch(LPSVCBATCH_WBUFFER wb, WCHAR ch)
         wb->pos  = 0;
         wb->buf  = NULL;
     }
-    c = wb->pos + 1;
+    c = wb->pos + 2;
     p = wb->buf;
     if (c >= wb->siz) {
         wb->siz = xmemalign(c + 1);
@@ -813,9 +812,7 @@ static int xwbsaddwch(LPSVCBATCH_WBUFFER wb, WCHAR ch)
         if (wb->buf == NULL)
             SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     }
-    wb->buf[wb->pos] = ch;
-    wb->pos = c;
-    wb->buf[wb->pos] = WNUL;
+    wb->buf[wb->pos++] = ch;
     return 0;
 }
 
@@ -827,39 +824,13 @@ static int xwbsaddwcs(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len)
     ASSERT_NULL(wb, -1);
     if (len == 0)
         len = xwcslen(str);
-    if (wb->siz == 0) {
-        wb->pos  = 0;
-        wb->buf  = NULL;
-    }
-    c = wb->pos + len;
-    p = wb->buf;
-    if (c >= wb->siz) {
-        wb->siz = xmemalign(c + 1);
-        wb->buf = (LPWSTR)realloc(p, wb->siz * sizeof(WCHAR));
-        if (wb->buf == NULL)
-            SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-    }
-    if (len) {
-        wmemcpy(wb->buf + wb->pos, str, len);
-        wb->pos = c;
-    }
-    wb->buf[wb->pos] = WNUL;
-    return 0;
-}
-
-static int xwbssetwcs(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len)
-{
-    int c;
-    LPWSTR p;
-
-    ASSERT_NULL(wb, -1);
     if (len == 0)
-        len = xwcslen(str);
+        return 0;
     if (wb->siz == 0) {
         wb->pos  = 0;
         wb->buf  = NULL;
     }
-    c = wb->pos + len + 1;
+    c = wb->pos + len + 2;
     p = wb->buf;
     if (c >= wb->siz) {
         wb->siz = xmemalign(c + 1);
@@ -869,10 +840,8 @@ static int xwbssetwcs(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len)
     }
     if (len) {
         wmemcpy(wb->buf + wb->pos, str, len);
-        wb->pos = c - 1;
+        wb->pos += len;
     }
-    wb->buf[wb->pos + 0] = WNUL;
-    wb->buf[wb->pos + 1] = WNUL;
     return 0;
 }
 
@@ -894,6 +863,15 @@ static void xwbsfinish(LPSVCBATCH_WBUFFER wb)
         wb->buf[wb->pos + 1] = WNUL;
     }
 }
+
+static int xwbssetwcs(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len)
+{
+    if (xwbsaddwcs(wb, str, len))
+        return -1;
+    xwbsfinish(wb);
+    return 0;
+}
+
 
 static LPWSTR xwbsdata(LPSVCBATCH_WBUFFER wb)
 {
@@ -1020,7 +998,8 @@ static void xarrayclear(LPSVCBATCH_ARRAY arr)
 
 static LPWSTR xwrtrim(LPWSTR s, int n)
 {
-    ASSERT_WSTR(s, s);
+    if (IS_EMPTY_WCS(s))
+        return s;
     while (--n >= 0) {
         if (xisblank(s[n]))
             s[n] = WNUL;
@@ -1032,7 +1011,8 @@ static LPWSTR xwrtrim(LPWSTR s, int n)
 
 static LPWSTR xwsskip(LPWSTR s)
 {
-    ASSERT_WSTR(s, s);
+    if (IS_EMPTY_WCS(s))
+        return s;
     while (xisblank(*s))
         s++;
     return s;
@@ -1042,43 +1022,34 @@ static LPWSTR xwltrim(LPWSTR s, int *o)
 {
     int n = 0;
 
-    ASSERT_WSTR(s, s);
-    while (xisblank(*s)) {
-        s++;
-        n++;
+    if (IS_VALID_WCS(s)) {
+        while (xisblank(*s)) {
+            s++;
+            n++;
+        }
     }
     if (o != NULL)
         *o = n;
     return s;
 }
 
-static LPWSTR xwrltrim(LPWSTR s, int *n)
+static LPWSTR xwrltrim(LPWSTR s)
 {
     LPWSTR p;
 
-    ASSERT_WSTR(s, s);
+    if (IS_EMPTY_WCS(s))
+        return s;
     while (xisblank(*s))
         s++;
     p = s;
     while (*p)
         p++;
     while (--p >= s) {
-        if (xisblank(*p)) {
+        if (xisblank(*p))
             *p = WNUL;
-        }
-        else {
-            if (n != NULL) {
-                if (*p == *n) {
-                    *p = WNUL;
-                     n = NULL;
-                    continue;
-                }
-            }
+        else
             break;
-        }
     }
-    if (n != NULL)
-        *n = 0;
     return s;
 }
 
@@ -1250,45 +1221,6 @@ static LPWSTR xwcsconcat(LPCWSTR s1, LPCWSTR s2)
     return rs;
 }
 
-static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
-{
-    LPWSTR rs;
-    int    lp;
-    int    ln;
-    int    le;
-    int    c;
-    int    x = 0;
-
-    ASSERT_WSTR(p, NULL);
-    ASSERT_WSTR(n, NULL);
-    lp = xwcslen(p);
-    ln = xwcslen(n);
-    le = xwcslen(e);
-
-    c = lp + ln + le + 2;
-    if (IS_NOT_OPT(SVCBATCH_OPT_LONGPATHS)) {
-        if ((c > MAX_PATH)  && xisalpha(p[0]) &&
-            (p[1] == L':' ) &&
-            (p[2] == L'\\'))
-            x = 4;
-        c += x;
-    }
-    ASSERT_LESS(c, SVCBATCH_PATH_MAX, NULL);
-    rs = xwmalloc(c);
-
-    if (x > 0)
-        xpprefix(rs);
-    wmemcpy(rs + x, p, lp);
-    x += lp;
-    rs[x++] = L'\\';
-    wmemcpy(rs + x, n, ln);
-    if (le > 0)
-        wmemcpy(rs + x + ln, e, le);
-
-    xwinpathsep(rs);
-    return rs;
-}
-
 static LPWSTR xwcspbrk(LPCWSTR str, LPCWSTR set)
 {
     LPCWSTR p = str;
@@ -1313,8 +1245,8 @@ static int xwcsnone(LPCWSTR str, LPCWSTR set)
     LPCWSTR p = str;
     LPCWSTR q;
 
-    ASSERT_WSTR(str, 0);
-    ASSERT_WSTR(set, 0);
+    ASSERT_WSTR(str, 1);
+    ASSERT_WSTR(set, 1);
     while (*p) {
         if ((*p < 32) || (*p > 127))
             return 1;
@@ -1655,48 +1587,99 @@ static void xvarclear(LPSVCBATCH_VARIABLE v)
         v->data.buf[0] = WNUL;
         v->data.buf[1] = WNUL;
     }
-    v->noff = 0;
-    v->type = 0;
-    v->name = NULL;
+    v->index = 0;
+    v->noff  = 0;
+    v->type  = 0;
+    v->name  = NULL;
 }
 
-static LPSVCBATCH_VARIABLE xvarfind(LPSVCBATCH_ARRAY arr, int section, LPCWSTR name)
+static int xvarclean(int i)
+{
+    LPSVCBATCH_VARIABLE v;
+    ASSERT_SPAN(i, 1, xvariables.nelts, 0);
+
+    v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i - 1);
+    ASSERT_NULL(v, 0);
+    v->noff = 0;
+    v->type = 0;
+
+    xfree(v->data.buf);
+    v->data.pos = 0;
+    v->data.siz = 0;
+    v->data.buf = NULL;
+
+    return v->index;;
+}
+
+static LPSVCBATCH_VARIABLE xvarfind(int section, LPCWSTR name)
 {
     LPSVCBATCH_VARIABLE v;
     int i;
-    ASSERT_NULL(arr, NULL);
 
-    for (i = 0; i < arr->nelts; i++) {
-        v = (LPSVCBATCH_VARIABLE)xarrayget(arr, i);
+    for (i = 0; i < xvariables.nelts; i++) {
+        v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
         if ((v->section == section) && xwcsequals(v->name, name))
             return v;
     }
     return NULL;
 }
 
-static LPSVCBATCH_VARIABLE xvargetx(LPSVCBATCH_ARRAY arr, int section, LPCWSTR name)
+static int xvarget(int section, LPCWSTR name)
 {
     LPSVCBATCH_VARIABLE v;
     int i;
-    ASSERT_NULL(arr, NULL);
+
+    for (i = 0; i < xvariables.nelts; i++) {
+        v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
+        if ((v->section == section) && xwcsequals(v->name, name))
+            return i + 1;
+    }
+    return 0;
+}
+
+static LPWSTR xvardata(int i)
+{
+    LPSVCBATCH_VARIABLE v;
+    ASSERT_SPAN(i, 1, xvariables.nelts, NULL);
+    v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i - 1);
+    return xwbsdata(&v->data);
+}
+
+static LPWSTR xvargets(int section, LPCWSTR name)
+{
+    LPSVCBATCH_VARIABLE v;
+    int i;
+
+    for (i = 0; i < xvariables.nelts; i++) {
+        v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
+        if ((v->section == section) && xwcsequals(v->name, name))
+            return xwbsdata(&v->data);
+    }
+    return NULL;
+}
+
+static LPSVCBATCH_VARIABLE xvargetx(int section, LPCWSTR name)
+{
+    LPSVCBATCH_VARIABLE v;
+    int i;
 
     if (section != SVCBATCH_SECTION_NONE) {
-        for (i = 0; i < arr->nelts; i++) {
-            v = (LPSVCBATCH_VARIABLE)xarrayget(arr, i);
+        for (i = 0; i < xvariables.nelts; i++) {
+            v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
             if ((v->section == section) && xwcsequals(v->name, name))
                 return v;
         }
     }
     if (section != SVCBATCH_SECTION_GLOBAL) {
-        for (i = 0; i < arr->nelts; i++) {
-            v = (LPSVCBATCH_VARIABLE)xarrayget(arr, i);
+        for (i = 0; i < xvariables.nelts; i++) {
+            v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
             if ((v->section == SVCBATCH_SECTION_GLOBAL)  && xwcsequals(v->name, name))
                 return v;
         }
     }
     if (section != SVCBATCH_SECTION_SERVICE) {
-        for (i = 0; i < arr->nelts; i++) {
-            v = (LPSVCBATCH_VARIABLE)xarrayget(arr, i);
+        for (i = 0; i < xvariables.nelts; i++) {
+            v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
             if ((v->section == SVCBATCH_SECTION_SERVICE) && xwcsequals(v->name, name))
                 return v;
         }
@@ -1704,119 +1687,155 @@ static LPSVCBATCH_VARIABLE xvargetx(LPSVCBATCH_ARRAY arr, int section, LPCWSTR n
     return NULL;
 }
 
-static LPSVCBATCH_VARIABLE xvarend(LPSVCBATCH_VARIABLE v)
+static int xvarend(LPSVCBATCH_VARIABLE v)
 {
     LPSVCBATCH_VARIABLE a;
 
     if (v->name == NULL) {
         xvarclear(v);
-        return v;
+        return 0;
+    }
+    if (v->data.pos == 0) {
+        DBG_PRINTF("nul [%.2d] 0x%02X %S.%S", v->index, v->type, xsectionname(v->section), v->name);
+        xvarclear(v);
+        return 0;
     }
     xwbsfinish(&v->data);
-#if 0
-    if (IS_SET(v->type, SVCBATCH_VARIABLE_ARRAY)) {
-        int     c = 0;
-        LPCWSTR p;
-        LPWSTR  d = v->data.buf;
-
-        for (p = d; *p; p++, c++) {
-            DBG_PRINTF("[%d] %S.%S '%S'", c, xsectionname(v->section), v->name, p);
-            while (*p)
-                p++;
-        }
-    }
-#endif
-    a = xvarfind(&xvariables, v->section, v->name);
+    a = xvarfind(v->section, v->name);
     if (a != NULL) {
         if (IS_NOT(a->type, SVCBATCH_VARIABLE_RDONLY)) {
-            memcpy(a, v, sizeof(SVCBATCH_VARIABLE));
-            v->data.buf = NULL;
-            v->data.siz = 0;
-            DBG_PRINTF("replaced 0x%02X %S.%S", a->type, xsectionname(a->section), a->name);
+            if (IS_NOT(a->type, SVCBATCH_VARIABLE_APPEND)) {
+                v->index = a->index;
+                v->type |= a->type;
+                xfree(a->data.buf);
+                memcpy(a, v, sizeof(SVCBATCH_VARIABLE));
+                v->data.buf = NULL;
+                v->data.siz = 0;
+                DBG_PRINTF("rep [%.2d] 0x%02X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
+            }
+            else {
+                DBG_PRINTF("add [%.2d] 0x%02X %S.%S %d %d", a->index, a->type, xsectionname(a->section), a->name, a->data.pos, v->data.pos);
+                if (a->data.pos &&
+                    IS_NOT(a->type, SVCBATCH_VARIABLE_ARRAY))
+                    xwbsaddwch(&a->data, 0);
+                xwbsaddwcs(&a->data, v->data.buf, v->data.pos);
+                if (IS_NOT(v->type, SVCBATCH_VARIABLE_ARRAY))
+                    xwbsaddwch(&a->data, 0);
+                a->type |= SVCBATCH_VARIABLE_ARRAY;
+                xwbsfinish(&a->data);
+            }
+            if (IS_SET(a->type, SVCBATCH_VARIABLE_MULTILINE |
+                                SVCBATCH_VARIABLE_ARRAY)) {
+                int i;
+                for (i = 0; i < a->data.pos; i++) {
+                    if ((a->data.buf[i] == WNUL) && (a->data.buf[i + 1] != WNUL))
+                        a->data.buf[i] = L' ';
+                }
+            }
         }
 #if defined(_DEBUG)
         else {
-            DBG_PRINTF("readonly 0x%02X %S.%S", a->type, xsectionname(a->section), a->name);
+            DBG_PRINTF("rd [%.2d] 0x%02X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
         }
 #endif
     }
     else {
         a = (LPSVCBATCH_VARIABLE)xarrayadd(&xvariables, v);
+        a->index    = xvariables.nelts;
         v->data.buf = NULL;
         v->data.siz = 0;
-        DBG_PRINTF("variable 0x%02X %S.%S", a->type, xsectionname(a->section), a->name);
+        DBG_PRINTF("new [%.2d] 0x%02X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
     }
     xvarclear(v);
-    return a;
+    return a->index;
 }
 
-static LPSVCBATCH_VARIABLE xvaradd(SVCBATCH_SECTION_ID section,
-                                   LPCWSTR name, LPCWSTR value)
-{
-    LPSVCBATCH_VARIABLE v;
-
-    v = xvarfind(&xvariables, section, name);
-    if (v) {
-        if (IS_SET(v->type, SVCBATCH_VARIABLE_RDONLY)) {
-#if defined(_DEBUG)
-            LPCWSTR s = xsectionname(section);
-            DBG_PRINTF("rdonly %S.%S", s, v->name);
-#endif
-            return NULL;
-        }
-        xvarclear(v);
-    }
-    else {
-        v = (LPSVCBATCH_VARIABLE)xarrayadd(&xvariables, NULL);
-        v->section = section;
-    }
-    xwbssetwcs(&v->data, value, 0);
-    v->name  = name;
-    DBG_PRINTF("variable 0x%02X %S.%S", v->type, xsectionname(v->section), v->name);
-    return v;
-}
-
-static LPSVCBATCH_VARIABLE xvarset(SVCBATCH_SECTION_ID section,
-                                   LPCWSTR name, LPCWSTR value)
-{
-    LPSVCBATCH_VARIABLE v;
-
-    v = xvarfind(&xvariables, section, name);
-    if (v) {
-#if defined(_DEBUG)
-        LPCWSTR s = xsectionname(section);
-        DBG_PRINTF("exists %S.%S", s, v->name);
-#endif
-        xvarclear(v);
-    }
-    else {
-        v = (LPSVCBATCH_VARIABLE)xarrayadd(&xvariables, NULL);
-        v->section = section;
-    }
-    xwbssetwcs(&v->data, value, 0);
-    v->type |= SVCBATCH_VARIABLE_RDONLY;
-    v->name  = name;
-
-    return v;
-}
-
-static LPSVCBATCH_VARIABLE xvarini(SVCBATCH_SECTION_ID section,
-                                   LPCWSTR name, LPCWSTR value)
+static int xvarnew(DWORD type, SVCBATCH_SECTION_ID section, LPCWSTR name)
 {
     LPSVCBATCH_VARIABLE v;
 
     v = (LPSVCBATCH_VARIABLE)xarrayadd(&xvariables, NULL);
-    ASSERT_NULL(v, NULL);
+    ASSERT_NULL(v, 0);
+    v->index   = xvariables.nelts;
+    v->section = section;
+    v->name    = name;
+    v->type    = type;
+    DBG_PRINTF("new [%.2d] 0x%02X %S.%S", v->index, v->type, xsectionname(v->section), name);
+    return v->index;
+}
 
+static int xvaradd(int i, LPCWSTR s)
+{
+    int n;
+    LPSVCBATCH_VARIABLE v;
+
+    ASSERT_WSTR(s, 0);
+    ASSERT_SPAN(i, 1, xvariables.nelts, 0);
+
+    v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i - 1);
+    ASSERT_NULL(v, 0);
+    if (IS_SET(v->type, SVCBATCH_VARIABLE_RDONLY)) {
+#if defined(_DEBUG)
+        DBG_PRINTF("rd  [%.2d] %S.%S", v->index, xsectionname(v->section), v->name);
+#endif
+        return 0;
+    }
+    n = xwcslen(s);
+    if (n) {
+        if (v->data.pos &&
+            IS_NOT(v->type, SVCBATCH_VARIABLE_ARRAY))
+            xwbsaddwch(&v->data, 0);
+        xwbsaddwcs(&v->data, s, n + 1);
+        v->type |= SVCBATCH_VARIABLE_ARRAY;
+    }
+    DBG_PRINTF("add [%.2d] %S.%S '%S'", v->index, xsectionname(v->section), v->name, s);
+    return i;
+}
+
+static int xvarset(SVCBATCH_SECTION_ID section,
+                   LPCWSTR name, LPCWSTR value)
+{
+    LPSVCBATCH_VARIABLE v;
+
+    v = xvarfind(section, name);
+    if (v) {
+#if defined(_DEBUG)
+        DBG_PRINTF("has [%.2d] %S.%S", v->index, xsectionname(section), v->name);
+#endif
+        v->data.pos = 0;
+        v->noff     = 0;
+    }
+    else {
+        v = (LPSVCBATCH_VARIABLE)xarrayadd(&xvariables, NULL);
+        v->index   = xvariables.nelts;
+        v->section = section;
+        v->name    = name;
+        DBG_PRINTF("new [%.2d] %S.%S", v->index, xsectionname(v->section), name);
+    }
+    xwbssetwcs(&v->data, value, 0);
+    v->type = SVCBATCH_VARIABLE_RDONLY;
+
+    return v->index;
+}
+
+static int xvarini(SVCBATCH_SECTION_ID section, LPCWSTR name, LPCWSTR value)
+{
+    LPSVCBATCH_VARIABLE v;
+
+    v = (LPSVCBATCH_VARIABLE)xarrayadd(&xvariables, NULL);
+    ASSERT_NULL(v, 0);
+
+    v->index   = xvariables.nelts;
     v->section = section;
     v->type    = SVCBATCH_VARIABLE_RDONLY;
     v->name    = name;
     xwbssetwcs(&v->data, value, 0);
+    DBG_PRINTF("new [%.2d] %S.%S", v->index, xsectionname(v->section), name);
 
-    return v;
+    return v->index;
 }
 
-static LPWSTR xgetsysvar(LPCWSTR n, int e)
+static LPCWSTR xgetsysvar(LPCWSTR n, int e)
 {
     LPCWSTR v = NULL;
 
@@ -1860,7 +1879,7 @@ static LPWSTR xgetsysvar(LPCWSTR n, int e)
             return NULL;
         break;
     }
-    return xwcsdup(v);
+    return v;
 }
 
 static LPWSTR xgetenv(LPCWSTR s)
@@ -1916,6 +1935,8 @@ static LPWSTR xexpandenvstr(SVCBATCH_SECTION_ID id, LPCWSTR src)
     LPCWSTR              s = src;
 
     ASSERT_WSTR(src, NULL);
+    if (xwcspbrk(src, L"$%") == NULL)
+        return xwcsdup(src);
     if (xwbsinit(&wb, xwcslen(src)))
         return NULL;
 
@@ -1956,8 +1977,9 @@ static LPWSTR xexpandenvstr(SVCBATCH_SECTION_ID id, LPCWSTR src)
                     }
                 }
                 if (n > 0) {
-                    LPWSTR ep = NULL;
-                    LPWSTR dp = NULL;
+                    LPCWSTR cp = NULL;
+                    LPWSTR  ep = NULL;
+                    LPWSTR  dp = NULL;
 
                     i = xwcslcpyn(bb, SVCBATCH_NAME_MAX, s, n);
                     if (i >= SVCBATCH_NAME_MAX) {
@@ -1971,29 +1993,27 @@ static LPWSTR xexpandenvstr(SVCBATCH_SECTION_ID id, LPCWSTR src)
                         if (dp != NULL) {
                             int si;
                             *(dp++) = WNUL;
-                            si = xnamemap(bb, sectionnames, SVCBATCH_SECTION_INVALID);
-                            if (si != SVCBATCH_SECTION_INVALID)
-                                sv = xvarfind(&xvariables, si, dp);
+                            si = xnamemap(bb, sectionnames, SVCBATCH_SECTION_NONE);
+                            if (si != SVCBATCH_SECTION_NONE)
+                                sv = xvarfind(si, dp);
                             if (sv != NULL)
-                                ep = xwbsdata(&sv->data);
+                                cp = xwbsdata(&sv->data);
                         }
                     }
                     if (dp == NULL) {
                         if (sv == NULL)
-                            sv = xvargetx(&xvariables, id, bb);
+                            sv = xvargetx(id, bb);
                         if (sv != NULL)
-                            ep = xwbsdata(&sv->data);
-                        if (ep == NULL)
-                            ep = xgetsysvar(bb, 0);
-                        if (ep == NULL)
+                            cp = xwbsdata(&sv->data);
+                        if (cp == NULL)
+                            cp = xgetsysvar(bb, 0);
+                        if (cp == NULL) {
                             ep = xgetenv(bb);
+                            cp = ep;
+                        }
                     }
-                    if (ep != NULL) {
-                        i = xwcslen(ep);
-                        xwbsaddwcs(&wb, ep, i);
-                        if (sv == NULL)
-                            free(ep);
-                    }
+                    xwbsaddwcs(&wb, cp, 0);
+                    xfree(ep);
                     s += n + c;
                 }
                 else {
@@ -2014,12 +2034,11 @@ static LPWSTR xexpandenvstr(SVCBATCH_SECTION_ID id, LPCWSTR src)
     rs = xwbsdata(&wb);
     if (np > 1)
         rs = xexpandenv(rs);
-
     return rs;
 }
 
 
-static DWORD xsetenvvar(LPCWSTR n, LPWSTR v)
+static DWORD xsetenvvar(LPCWSTR n, LPCWSTR v)
 {
     DWORD  r = 0;
     LPWSTR e;
@@ -2027,9 +2046,11 @@ static DWORD xsetenvvar(LPCWSTR n, LPWSTR v)
     ASSERT_WSTR(n, ERROR_BAD_ENVIRONMENT);
     ASSERT_WSTR(v, ERROR_INVALID_PARAMETER);
 
-    e = xexpandenvstr(SVCBATCH_SECTION_EXPORT, v);
+    DBG_PRINTF("%S = %S", n, v);
+    e = xexpandenvstr(SVCBATCH_SECTION_NONE, v);
     if ((e == NULL) || !SetEnvironmentVariableW(n, e))
         r = GetLastError();
+    DBG_PRINTF("%S = %S", n, e);
     xfree(e);
     return r;
 }
@@ -2042,6 +2063,7 @@ static DWORD xsetenvstr(LPCWSTR s)
 
     ASSERT_WSTR(s, ERROR_BAD_ENVIRONMENT);
 
+    DBG_PRINTF("%S", s);
     n = xexpandenvstr(SVCBATCH_SECTION_SERVICE, s);
     if (n == NULL)
         return GetLastError();
@@ -2062,15 +2084,14 @@ static DWORD xsetenvstr(LPCWSTR s)
 
 static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
 {
-    LPWSTR v;
-    DWORD  r = 0;
+    LPCWSTR v;
+    DWORD   r = 0;
 
     v = xgetsysvar(n, e);
     if (v == NULL)
         return ERROR_INVALID_DATA;
     if (!SetEnvironmentVariableW(n, v))
         r = GetLastError();
-    xfree(v);
     return r;
 }
 
@@ -3015,6 +3036,68 @@ static BOOL isrelativepath(LPCWSTR p)
     return FALSE;
 }
 
+static LPWSTR xwmergepath(LPCWSTR p, LPCWSTR n)
+{
+    LPWSTR rs;
+    int    lp;
+    int    ln;
+
+    ASSERT_WSTR(p, NULL);
+    ASSERT_WSTR(n, NULL);
+    if (isabsolutepath(n))
+        return xwcsdup(n);
+    lp = xwcslen(p);
+    ln = xwcslen(n);
+
+    rs = xwmalloc(lp + ln + 1);
+    wmemcpy(rs, p, lp);
+    while (--lp > 1) {
+        if (rs[lp] == L'\\')
+            break;
+    }
+    wmemcpy(rs + lp + 1, n, ln + 1);
+    return rs;
+}
+
+static LPWSTR xwmakepath(LPCWSTR p, LPCWSTR n, LPCWSTR e)
+{
+    LPWSTR rs;
+    int    lp;
+    int    ln;
+    int    le;
+    int    c;
+    int    x = 0;
+
+    ASSERT_WSTR(p, NULL);
+    ASSERT_WSTR(n, NULL);
+    lp = xwcslen(p);
+    ln = xwcslen(n);
+    le = xwcslen(e);
+
+    c = lp + ln + le + 2;
+    if (IS_NOT_OPT(SVCBATCH_OPT_LONGPATHS)) {
+        if ((c > MAX_PATH)  && xisalpha(p[0]) &&
+            (p[1] == L':' ) &&
+            (p[2] == L'\\'))
+            x = 4;
+        c += x;
+    }
+    ASSERT_LESS(c, SVCBATCH_PATH_MAX, NULL);
+    rs = xwmalloc(c);
+
+    if (x > 0)
+        xpprefix(rs);
+    wmemcpy(rs + x, p, lp);
+    x += lp;
+    rs[x++] = L'\\';
+    wmemcpy(rs + x, n, ln);
+    if (le > 0)
+        wmemcpy(rs + x + ln, e, le);
+
+    xwinpathsep(rs);
+    return rs;
+}
+
 static DWORD xfixmaxpath(LPWSTR buf, DWORD len, int isdir)
 {
     if (len > 5) {
@@ -3168,27 +3251,43 @@ static LPWSTR xsearchexe(LPCWSTR name)
     return xwcsndup(buf, len);
 }
 
-static BOOL xfdread(LPCWSTR name, LPSVCBATCH_FILEDATA fd)
+static BOOL xisiniloaded(LPCWSTR name)
 {
+    LPSVCBATCH_INIFILE ip;
+    int i;
+
+    for (i = 0; i < xpinifiles.nelts; i++) {
+        ip = (LPSVCBATCH_INIFILE)xarrayget(&xpinifiles, i);
+        if (xwcsequals(ip->name, name))
+            return TRUE;
+    }
+    return FALSE;
+}
+
+static LPSVCBATCH_INIFILE xreadinifile(LPCWSTR name)
+{
+    WCHAR  nb[SVCBATCH_PATH_MAX];
+    DWORD  ii;
+    DWORD  ip = 0;
     DWORD  rc = 0;
     DWORD  rd = 0;
     DWORD  sz;
-    WCHAR  nb[SVCBATCH_PATH_MAX];
     HANDLE fh;
     LPBYTE bb;
     LPBYTE bp;
     LPBYTE dd;
+    LPSVCBATCH_INIFILE        fd;
     WIN32_FILE_ATTRIBUTE_DATA ad;
 
-    ASSERT_WSTR(name, FALSE);
-    ASSERT_NULL(fd,   FALSE);
+    ASSERT_WSTR(name, NULL);
+
     sz = GetFullPathNameW(name, SVCBATCH_PATH_SIZ, nb, NULL);
     if (sz == 0) {
-        return FALSE;
+        return NULL;
     }
     if (sz >= SVCBATCH_PATH_SIZ) {
         SetLastError(ERROR_BUFFER_OVERFLOW);
-        return FALSE;
+        return NULL;
     }
     xwinpathsep(nb);
     xfixmaxpath(nb, sz, 0);
@@ -3196,32 +3295,35 @@ static BOOL xfdread(LPCWSTR name, LPSVCBATCH_FILEDATA fd)
     if (GetFileAttributesExW(nb, GetFileExInfoStandard, &ad)) {
         if ((ad.nFileSizeHigh > 0) || (ad.nFileSizeLow >= 1048576)) {
             SetLastError(ERROR_FILE_TOO_LARGE);
-            return FALSE;
+            return NULL;
         }
         if (ad.nFileSizeLow == 0) {
             SetLastError(ERROR_INVALID_DATA);
-            return FALSE;
+            return NULL;
         }
     }
     else {
-        return FALSE;
+        return NULL;
     }
     fh = CreateFileW(nb, GENERIC_READ, FILE_SHARE_READ, NULL,
                      OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (IS_INVALID_HANDLE(fh))
-        return FALSE;
+        return NULL;
     sz = GetFinalPathNameByHandleW(fh, nb, SVCBATCH_PATH_SIZ, VOLUME_NAME_DOS);
     if ((sz == 0) || (sz >= SVCBATCH_PATH_SIZ)) {
         CloseHandle(fh);
         SetLastError(ERROR_BAD_PATHNAME);
-        return FALSE;
+        return NULL;
     }
     sz = xfixmaxpath(nb, sz, 0);
-    xmemzero(fd, 1, sizeof(SVCBATCH_FILEDATA));
+    if (xisiniloaded(nb)) {
+        CloseHandle(fh);
+        SetLastError(ERROR_ALREADY_EXISTS);
+        return NULL;
+    }
+    fd = xarrayadd(&xpinifiles, NULL);
+
     fd->name = xwcsdup(nb);
-    fd->file = xwcsrchr(fd->name, L'\\');
-    if (fd->file)
-        fd->file++;
     bb = (LPBYTE)xmmalloc(ad.nFileSizeLow + 2);
     if (ReadFile(fh, bb, ad.nFileSizeLow, &rd, NULL)) {
         if (rd != ad.nFileSizeLow)
@@ -3233,155 +3335,125 @@ static BOOL xfdread(LPCWSTR name, LPSVCBATCH_FILEDATA fd)
     CloseHandle(fh);
     if (rc) {
         xfree(bb);
-        xfree(fd->name);
-        xmemzero(fd, 1, sizeof(SVCBATCH_FILEDATA));
         SetLastError(rc);
-        return FALSE;
+        return NULL;
     }
-    else {
-        DWORD ii;
-        DWORD ip = 0;
-        if ((bb[0] == 0xEF) &&
-            (bb[1] == 0xBB) &&
-            (bb[2] == 0xBF)) {
-            /* Skip BOM */
-            ip = 3;
+    if ((bb[0] == 0xEF) &&
+        (bb[1] == 0xBB) &&
+        (bb[2] == 0xBF)) {
+        /* Skip BOM */
+        ip = 3;
+    }
+    dd = bp = bb + ip;
+    for (ii = ip; ii < rd; ii++, bp++) {
+        switch (*bp) {
+            case '\n':
+                *dd++ = 10;
+            break;
+            case '\t':
+                *dd++ = 32;
+            break;
+            default:
+                if (*bp > 31)
+                    *dd++ = *bp;
+            break;
         }
-        dd = bp = bb + ip;
-        for (ii = ip; ii < rd; ii++, bp++) {
-            switch (*bp) {
-                case '\n':
-                    *dd++ = 10;
-                break;
-                case '\t':
-                    *dd++ = 32;
-                break;
-                default:
-                    if (*bp > 31)
-                        *dd++ = *bp;
-                break;
-            }
-        }
-        *dd++ = 10;
-        *dd   = 0;
+    }
+    *dd++ = 10;
+    *dd++ = 0;
 
-        bp = bb + ip;
-        ii = (DWORD)(dd - bp);
-        fd->data = xwmalloc(ii + 1);
-        fd->size = MultiByteToWideChar(CP_UTF8, 0, bp, -1, fd->data, ii + 1);
-        if (fd->size == 0) {
-            rc = GetLastError();
-            xfree(bb);
-            xfree(fd->data);
-            xfree(fd->name);
-            xmemzero(fd, 1, sizeof(SVCBATCH_FILEDATA));
-            SetLastError(rc);
-            return FALSE;
-        }
+    bp = bb + ip;
+    ii = (DWORD)(dd - bp);
+    fd->data = xwmalloc(ii + 1);
+    fd->size = MultiByteToWideChar(CP_UTF8, 0, bp, -1, fd->data, ii);
+    if (fd->size == 0) {
+        rc = GetLastError();
         xfree(bb);
+        SAFE_MEM_FREE(fd->data);
+        SetLastError(rc);
+        return NULL;
     }
+    xfree(bb);
     DBG_PRINTF("opened %S", fd->name);
-    return TRUE;
+    return fd;
 }
 
-static void xfdclose(LPSVCBATCH_FILEDATA fd)
+static void xiniclose(LPSVCBATCH_INIFILE ini)
 {
-    if (fd) {
-        xfree(fd->name);
-        xfree(fd->data);
-        xvarclear(&fd->var);
-        xmemzero(fd, 1, sizeof(SVCBATCH_FILEDATA));
-    }
+    SAFE_MEM_FREE(ini->name);
+    SAFE_MEM_FREE(ini->data);
 }
 
-static int xprocessvar(LPSVCBATCH_FILEDATA fd, LPWSTR str, int num, int off)
+static int xprocessvar(LPSVCBATCH_INIFILE ini, LPWSTR str, int num, int off)
 {
     LPWSTR eq;
     LPWSTR vn;
     LPWSTR vv;
-    int    nn;
-    int    nc = 94;
+    int    nn = 0;
 
-    if (fd->var.name && (off > fd->var.noff)) {
-        if (IS_SET(fd->var.type, SVCBATCH_VARIABLE_MULTILINE)) {
-            vv = xwrltrim(str, &nc);
-            nn = xwcslen(vv);
-            if (nn) {
-                if (fd->var.data.pos)
-                    xwbsaddwch(&fd->var.data, 32);
-                xwbsaddwcs(&fd->var.data, vv, nn);
-            }
+    if (ini->var.name && (off > ini->var.noff)) {
+        vv = xwrltrim(str);
+        nn = xwcslen(vv);
+        if (nn) {
+            if (ini->var.data.pos &&
+                IS_NOT(ini->var.type, SVCBATCH_VARIABLE_ARRAY))
+                xwbsaddwch(&ini->var.data, 0);
+            xwbsaddwcs(&ini->var.data, vv, nn + 1);
+            ini->var.type |= SVCBATCH_VARIABLE_ARRAY;
         }
-        else {
-            vv = xwrltrim(str, NULL);
-            nn = xwcslen(vv);
-            if (nn) {
-                if (fd->var.data.pos &&
-                    IS_NOT(fd->var.type, SVCBATCH_VARIABLE_ARRAY))
-                    xwbsaddwch(&fd->var.data, 0);
-                xwbsaddwcs(&fd->var.data, vv, nn + 1);
-                fd->var.type |= SVCBATCH_VARIABLE_ARRAY;
-            }
-        }
+        return 0;
     }
-    else {
-        xvarend(&fd->var);
-        eq = xwcschr(str, L'=');
-        if (eq == NULL) {
-            DBG_PRINTF("[%3d] invalid variable '%S'", num, str);
-            return num;
-        }
-        *eq = WNUL;
-        vn = xwrtrim(str, (int)(eq - str));
-        vv = xwrltrim(eq + 1, &nc);
-        if (nc == 94)
-            fd->var.type |= SVCBATCH_VARIABLE_MULTILINE;
-        fd->var.noff    = off;
-        fd->var.name    = vn;
-        xwbsaddwcs(&fd->var.data, vv, 0);
+    xvarend(&ini->var);
+    eq = xwcschr(str, L'=');
+    if (eq == NULL) {
+        DBG_PRINTF("[%3d] invalid variable '%S'", num, str);
+        return num;
     }
+    *eq = WNUL;
+    vn = xwrtrim(str, (int)(eq - str));
+    if (!xisvalidvarname(vn)) {
+        DBG_PRINTF("[%3d] invalid variable name '%S'", num, vn);
+        return num;
+    }
+    vv = xwsskip(eq + 1);
+    nn = xwcslen(vv);
+    ini->var.noff    = off;
+    ini->var.name    = vn;
+    if (nn)
+        xwbsaddwcs(&ini->var.data, vv, nn);
 
     return 0;
 }
 
-static int xprocessline(LPSVCBATCH_FILEDATA fd, LPWSTR str, int num)
+static int xprocessline(LPSVCBATCH_INIFILE ini, LPWSTR str, int num)
 {
     int    rv = 0;
     int    no = 0;
-    int    nc = 94;
 
     str = xwltrim(str, &no);
-    if ((*str == L';') || (*str == L'#')) {
-        if (fd->var.name && (no > fd->var.noff)) {
-            if (IS_SET(fd->var.type, SVCBATCH_VARIABLE_MULTILINE)) {
-                xwrltrim(str, &nc);
-                if (nc == 0) {
-                    xvarend(&fd->var);
-                    nc = 94;
-                }
-            }
-            if (nc == 94) {
-                /* Skip inline comments */
-                DBG_PRINTF("[%3d] inline comment '%S'", num, str);
-                return 0;
-            }
+
+    if ((*str == L'#') || (*str == L';')) {
+        if (ini->var.name && (no > ini->var.noff)) {
+            /* Skip inline comments */
+            DBG_PRINTF("[%3d] inline comment '%S'", num, str);
+            return 0;
         }
-        xvarend(&fd->var);
+        xvarend(&ini->var);
         return 0;
     }
     if (*str == L'[') {
         LPWSTR sp;
 
-        xvarend(&fd->var);
+        xvarend(&ini->var);
         sp = xwunquote(str, L'[', L']');
         if (sp != str) {
-            sp = xwrltrim(sp, NULL);
-            fd->section = xnamemap(sp, sectionnames, SVCBATCH_SECTION_INVALID);
-            if (fd->section == SVCBATCH_SECTION_INVALID) {
+            sp = xwrltrim(sp);
+            ini->section = xnamemap(sp, sectionnames, SVCBATCH_SECTION_NONE);
+            if (ini->section == SVCBATCH_SECTION_NONE) {
                 DBG_PRINTF("[%3d] unknown section '%S'", num, sp);
                 return num;
             }
-            fd->var.section = fd->section;
+            ini->var.section = ini->section;
         }
         else {
             DBG_PRINTF("[%3d] invalid section '%S'", num, str);
@@ -3389,8 +3461,8 @@ static int xprocessline(LPSVCBATCH_FILEDATA fd, LPWSTR str, int num)
         }
     }
     else {
-        if ((fd->section > SVCBATCH_SECTION_NONE) && (fd->section < SVCBATCH_SECTION_INVALID)) {
-            rv = xprocessvar(fd, str, num, no);
+        if (ini->section > SVCBATCH_SECTION_NONE) {
+            rv = xprocessvar(ini, str, num, no);
         }
         else {
             DBG_PRINTF("[%3d] variable without section '%S'", num, str);
@@ -3400,51 +3472,41 @@ static int xprocessline(LPSVCBATCH_FILEDATA fd, LPWSTR str, int num)
     return rv;
 }
 
-static BOOL xisiniloaded(LPCWSTR name)
-{
-    LPSVCBATCH_FILEDATA fd;
-    int i;
-
-    for (i = 0; i < xpinifiles.nelts; i++) {
-        fd = (LPSVCBATCH_FILEDATA)xarrayget(&xpinifiles, i);
-        if (xwcsequals(fd->name, name))
-            return TRUE;
-    }
-    return FALSE;
-}
-
-static int xprocessini(LPSVCBATCH_FILEDATA fd)
+static int xprocessini(LPSVCBATCH_INIFILE ini, int einc)
 {
     int    i;
     int    ln;
     LPWSTR lb;
     LPWSTR le;
 
-    for (i = 0, ln = 0; i < fd->size; i++) {
-        if (fd->data[i] == L'\n')
+    for (i = 0, ln = 0; i < ini->size; i++) {
+        if (ini->data[i] == L'\n')
             ln++;
 
     }
-    DBG_PRINTF("read %d lines and %d bytes", ln, fd->size - 1);
+    DBG_PRINTF("read %d lines and %d bytes", ln, ini->size - 1);
     ln = 1;
-    lb = fd->data;
-    for (i = 0, le = lb; i < fd->size; i++, le++) {
+    lb = ini->data;
+    for (i = 0, le = lb; i < ini->size; i++, le++) {
         if (*le == 10) {
             *le = WNUL;
             xwrtrim(lb, (int)(le - lb));
             if (*lb) {
                 int xi = 0;
                 int rv = 0;
-                if (fd->section == SVCBATCH_SECTION_NONE) {
+                if (ini->section == SVCBATCH_SECTION_NONE) {
                     xi = xwstartswith(lb, L"include");
                     if (xi) {
-                        int    io;
-                        LPWSTR eq;
-                        LPWSTR in;
-                        LPWSTR nn;
-                        WCHAR  fc;
-                        SVCBATCH_FILEDATA nf;
+                        int     io;
+                        LPCWSTR ip;
+                        LPWSTR  eq;
+                        LPWSTR  nn;
+                        LPSVCBATCH_INIFILE ni;
 
+                        if (einc == 0) {
+                            DBG_PRINTF("[%3d] nested include is disabled '%S'", ln, lb);
+                            return ln;
+                        }
                         io = xwstartswith(lb + xi, L"optional");
                         eq = xwcschr(lb + io + xi, L'=');
                         if (eq == NULL) {
@@ -3452,25 +3514,15 @@ static int xprocessini(LPSVCBATCH_FILEDATA fd)
                             return ln;
 
                         }
-                        in = xwsskip(eq + 1);
-                        if (IS_EMPTY_WCS(in) ) {
-                            DBG_PRINTF("[%3d] invalid include '%S'", ln, lb);
+                        ip = skipdotslash(xwsskip(eq + 1));
+                        if (IS_EMPTY_WCS(ip)) {
+                            DBG_PRINTF("[%3d] invalid include file '%S'", ln, eq + 1);
                             return ln;
                         }
-                        fc = *fd->file;
-                        *fd->file = WNUL;
-                        nn = xwcsconcat(fd->name, in);
-                        *fd->file = fc;
-                        if (xfdread(nn, &nf)) {
-                            if (xisiniloaded(nf.name)) {
-                                rv = ln;
-                                DBG_PRINTF("[%3d] already loaded %S", ln, nf.name);
-                                xfdclose(&nf);
-                            }
-                            else {
-                                xarrayadd(&xpinifiles, &nf);
-                                rv = xprocessini(&nf);
-                            }
+                        nn = xwmergepath(ini->name, ip);
+                        ni = xreadinifile(nn);
+                        if (ni) {
+                            rv = xprocessini(ni, einc - 1);
                         }
                         else {
                             if (io) {
@@ -3488,19 +3540,20 @@ static int xprocessini(LPSVCBATCH_FILEDATA fd)
                     }
                 }
                 if (xi == 0)
-                    rv = xprocessline(fd, lb, ln);
+                    rv = xprocessline(ini, lb, ln);
                 if (rv != 0)
                     return rv;
             }
             else {
-                xvarend(&fd->var);
+                xvarend(&ini->var);
             }
             lb = le + 1;
             ln++;
         }
     }
-    xvarend(&fd->var);
-    fd->section = SVCBATCH_SECTION_NONE;
+    xvarend(&ini->var);
+    ini->section = SVCBATCH_SECTION_NONE;
+    DBG_PRINTS("done");
     return 0;
 }
 
@@ -4926,13 +4979,13 @@ static void waitforthreads(DWORD ms)
 
 static void __cdecl inifilecleanup(void)
 {
-    LPSVCBATCH_FILEDATA fd;
+    LPSVCBATCH_INIFILE ini;
     int i;
 
     for (i = 0; i < xpinifiles.nelts; i++) {
-        fd = (LPSVCBATCH_FILEDATA)xarrayget(&xpinifiles, i);
-        DBG_PRINTF("[%2d] closing %S", i, fd->name);
-        xfdclose(fd);
+        ini = (LPSVCBATCH_INIFILE)xarrayget(&xpinifiles, i);
+        DBG_PRINTF("[%2d] closing %S", i, ini->name);
+        xiniclose(ini);
     }
     xarraydelete(&xpinifiles);
     DBG_PRINTS("done");
@@ -4968,23 +5021,23 @@ static void xinitvars(void)
     xvarini(SVCBATCH_SECTION_SERVICE, L"name",      service->name);
     xvarini(SVCBATCH_SECTION_SERVICE, L"uuid",      service->uuid);
 
-    xarrayinit(&xpinifiles, 1, sizeof(SVCBATCH_FILEDATA));
+    xarrayinit(&xpinifiles, 1, sizeof(SVCBATCH_INIFILE));
     atexit(inifilecleanup);
 }
 
 static int xreadinifiles(void)
 {
-    int               rv = 0;
-    LPWSTR            ip;
-    SVCBATCH_FILEDATA fd;
+    int                rv = 0;
+    LPWSTR             ip;
+    LPSVCBATCH_INIFILE fd;
 
     /**
      * First try to load program->directory\\program->name.ini
      */
     ip = xwmakepath(program->directory, program->name, L".ini");
-    if (xfdread(ip, &fd)) {
-        xarrayadd(&xpinifiles, &fd);
-        rv = xprocessini(&fd);
+    fd = xreadinifile(ip);
+    if (fd) {
+        rv = xprocessini(fd, 1);
         if (rv) {
 
             return rv;
@@ -4998,9 +5051,9 @@ static int xreadinifiles(void)
      * Next try to load program->directory\\service->name.ini
      */
     ip = xwmakepath(program->directory, service->name, L".ini");
-    if (xfdread(ip, &fd)) {
-        xarrayadd(&xpinifiles, &fd);
-        rv = xprocessini(&fd);
+    fd = xreadinifile(ip);
+    if (fd) {
+        rv = xprocessini(fd, 1);
         if (rv) {
 
             return rv;
@@ -5152,9 +5205,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     WCHAR    eenvp[SVCBATCH_NAME_MAX];
 
     LPSVCBATCH_VARIABLE vp;
-    SVCBATCH_FILEDATA   fd;
+    LPSVCBATCH_INIFILE  ini;
 
     LPCWSTR  cp;
+    LPCWSTR  sp;
     LPWSTR   wp;
     LPWSTR   pp;
     LPWSTR   scriptparam  = NULL;
@@ -5171,7 +5225,17 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  eexportparam = NULL;
     LPCWSTR  uexportparam = NULL;
 
+    int cmdprocoptsvar;
+    int cmdprocargsvar;
+    int svcstopargsvar;
+
     DBG_PRINTS("started");
+    cmdprocoptsvar = xvarnew(SVCBATCH_VARIABLE_APPEND, SVCBATCH_SECTION_COMMAND,  L"options");
+    cmdprocargsvar = xvarnew(SVCBATCH_VARIABLE_APPEND, SVCBATCH_SECTION_START,    L"arguments");
+    svcstopargsvar = xvarnew(SVCBATCH_VARIABLE_APPEND, SVCBATCH_SECTION_STOP,     L"arguments");
+
+    xvarnew(SVCBATCH_VARIABLE_MULTILINE, SVCBATCH_SECTION_SERVICE,  L"description");
+    xvarnew(SVCBATCH_VARIABLE_MULTILINE, SVCBATCH_SECTION_SERVICE,  L"displayname");
 
     x = getsvcarguments(&wargc, &wargv);
     if (x != ERROR_SUCCESS)
@@ -5187,16 +5251,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 xwoptarr = NULL;
             break;
             case 'C':
-                if (cmdproc->optc < SVCBATCH_MAX_ARGS)
-                    cmdproc->opts[cmdproc->optc++] = xwoptarg;
-                else
-                    return xsyserrno(16, L"C", xwoptarg);
+                xvaradd(cmdprocoptsvar, xwoptarg);
             break;
             case 'S':
-                if (svcstop->argc < SVCBATCH_MAX_ARGS)
-                    svcstop->args[svcstop->argc++] = xwoptarg;
-                else
-                    return xsyserrno(16, L"S", xwoptarg);
+                xvaradd(svcstopargsvar, xwoptarg);
             break;
             case 'f':
                 cp = xwoptarg;
@@ -5357,7 +5415,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 *(wp++) = WNUL;
                 if (IS_EMPTY_WCS(wp))
                     return xsyserrno(11, L"E", xwoptarg);
-                xvaradd(SVCBATCH_SECTION_EXPORT, pp, wp);
+                xvarset(SVCBATCH_SECTION_EXPORT, pp, wp);
             break;
             case ENOENT:
                 return xsyserrno(11, xwoption, NULL);
@@ -5386,20 +5444,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             /**
              * Add arguments for script file
              */
-            if (cmdproc->argc < SVCBATCH_MAX_ARGS)
-                cmdproc->args[cmdproc->argc++] = wargv[i];
-            else
-                return xsyserrno(17, L"script",  wargv[i]);
+            xvaradd(cmdprocargsvar, wargv[i]);
         }
-    }
-    for (i = 1; i < sargc; i++) {
-        if (cmdproc->argc < SVCBATCH_MAX_ARGS)
-            cmdproc->args[cmdproc->argc++] = sargv[i];
-        else
-            return xsyserrno(17, L"script",  sargv[i]);
-#if defined(_DEBUG) && (_DEBUG > 1)
-        DBG_PRINTF("[%.2d] '%S'", wargc + xwoptind + i - 1, sargv[i]);
-#endif
     }
     if (IS_OPT_SET(SVCBATCH_OPT_QUIET)) {
         /**
@@ -5431,15 +5477,21 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     eenvp[eenvx++] = L'_';
     eenvp[eenvx]   = WNUL;
 
+#if 1
     if (inifileparam) {
-        if (!xfdread(inifileparam, &fd))
+        ini = xreadinifile(inifileparam);
+        if (ini == NULL)
             return xsyserror(GetLastError(), inifileparam, NULL);
-        if (xisiniloaded(fd.name))
-            return xsyserror(ERROR_ALREADY_EXISTS, inifileparam, NULL);
-        xarrayadd(&xpinifiles, &fd);
-        x = xprocessini(&fd);
+        x = xprocessini(ini, 1);
         if (x)
             return xsyserror(ERROR_INVALID_DATA, inifileparam, xntowcs(x));
+    }
+#endif
+    for (i = 1; i < sargc; i++) {
+        xvaradd(cmdprocargsvar, sargv[i]);
+#if defined(_DEBUG) && (_DEBUG > 1)
+        DBG_PRINTF("[%.2d] '%S'", wargc + xwoptind + i - 1, sargv[i]);
+#endif
     }
 
     /**
@@ -5557,37 +5609,29 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 return xsyserrno(21, SVCBATCH_MSG(4), cp);
             x = xsetusrenv(eenvp, *ep);
             if (x)
-                return xsyserror(x, L"SetUserEnvironment", eenvp);
+                return xsyserror(x, L"SetUserEnvironment", eexportparam);
             eenvp[eenvx] = WNUL;
             ep++;
         }
     }
-    vp = xvarfind(&xvariables, SVCBATCH_SECTION_SERVICE, L"export");
-    if (vp) {
-        if (IS_SET(vp->type, SVCBATCH_VARIABLE_ARRAY)) {
-            pp = xwbsdata(&vp->data);
-            for (i = 0, cp = pp; *cp; cp++, i++) {
-                xsetenvstr(cp);
-                while (*cp)
-                    cp++;
-            }
-        }
-        else {
-            pp = xwbsdata(&vp->data);
-            xsetenvstr(pp);
+#if 1
+    pp = xvargets(SVCBATCH_SECTION_SERVICE, L"export");
+    if (pp) {
+        for (cp = pp; *cp; cp++) {
+            xsetenvstr(cp);
+            while (*cp)
+                cp++;
         }
     }
-
-
+#endif
     for (i = 0; i < xvariables.nelts; i++) {
         vp = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
         if (vp->section == SVCBATCH_SECTION_EXPORT) {
             pp = xwbsdata(&vp->data);
-            DBG_PRINTF("[%2d] export %S %S", i, vp->name, pp);
             xsetenvvar(vp->name, pp);
+            DBG_PRINTF("[%2d] exported %S", i, vp->name);
         }
     }
-
     if (commandparam) {
         /**
          * Search the current working folder,
@@ -5616,15 +5660,36 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (cmdproc->application == NULL)
             return xsyserror(GetLastError(), wp, NULL);
         xfree(wp);
-        cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS;
+        xvaradd(cmdprocoptsvar, SVCBATCH_DEF_ARGS);
         OPT_SET(SVCBATCH_OPT_WRPIPE);
     }
-    if (IS_OPT_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
-        for (x = 0; x < cmdproc->argc; x++) {
-            wp = xexpandenvstr(SVCBATCH_SECTION_COMMAND, cmdproc->args[x]);
-            if (wp == NULL)
-                return xsyserror(GetLastError(), L"ExpandEnvironment", cmdproc->args[x]);
-            cmdproc->args[x] = wp;
+    pp = xvardata(cmdprocoptsvar);
+    if (IS_VALID_WCS(pp)) {
+        for (cp = pp; *cp; cp++) {
+            if (cmdproc->optc < SVCBATCH_MAX_ARGS)
+                cmdproc->opts[cmdproc->optc++] = cp;
+            else
+                return xsyserrno(16, L"C", cp);
+            while (*cp)
+                cp++;
+        }
+    }
+    DBG_PRINTF("setting args %d", cmdprocargsvar);
+    pp = xvardata(cmdprocargsvar);
+    if (IS_VALID_WCS(pp)) {
+        for (cp = pp; *cp; cp++) {
+            sp = cp;
+            if (IS_OPT_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
+                sp = xexpandenvstr(SVCBATCH_SECTION_START, cp);
+                if (sp == NULL)
+                    return xsyserror(GetLastError(), L"ExpandEnvironment", cp);
+            }
+            if (cmdproc->argc < SVCBATCH_MAX_ARGS)
+                cmdproc->args[cmdproc->argc++] = sp;
+            else
+                return xsyserrno(17, L"script", sp);
+            while (*cp)
+                cp++;
         }
     }
     if (rotateparam) {
@@ -5638,6 +5703,24 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
 #endif
     if (svcstopparam) {
+        DBG_PRINTF("svcstopparam %S", svcstopparam);
+        pp = xvardata(svcstopargsvar);
+        if (IS_VALID_WCS(pp)) {
+            for (cp = pp; *cp; cp++) {
+                sp = cp;
+                if (IS_OPT_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
+                    sp = xexpandenvstr(SVCBATCH_SECTION_STOP, cp);
+                    if (sp == NULL)
+                        return xsyserror(GetLastError(), L"ExpandEnvironment", cp);
+                }
+                if (svcstop->argc < SVCBATCH_MAX_ARGS)
+                    svcstop->args[svcstop->argc++] = sp;
+                else
+                    return xsyserrno(16, L"S", sp);
+                while (*cp)
+                    cp++;
+            }
+        }
         if (xiswcschar(svcstopparam, L'@')) {
             svcstop->script = cmdproc->script;
             if (svcstop->argc == 0)
@@ -5657,14 +5740,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         }
         if ((stopmaxlogs > 0) && (stoplogname == NULL))
             stoplogname = SVCBATCH_LOGSTOP;
-        if (IS_OPT_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
-            for (x = 0; x < svcstop->argc; x++) {
-                wp = xexpandenvstr(SVCBATCH_SECTION_STOP, svcstop->args[x]);
-                if (wp == NULL)
-                    return xsyserror(GetLastError(), L"ExpandEnvironment", svcstop->args[x]);
-                svcstop->args[x] = wp;
-            }
-        }
         if (stoplogname) {
             if (xwcsequals(stoplogname, outputlog->logName))
                 return xsyserrno(31, L"log and stop", stoplogname);
@@ -5915,29 +5990,30 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     int       ec = 0;
     int       ep = 0;
     int       en = 0;
-    int       currpc      = 0;
-    int       cmdverbose  = 1;
-    int       wtime       = 0;
-    ULONGLONG wtmstart    = 0;
-    ULONGLONG wtimeout    = 0;
-    LPCWSTR   ed          = NULL;
-    LPCWSTR   ex          = NULL;
-    LPWSTR    pp          = NULL;
-    LPWSTR    sdepends    = NULL;
-    LPWSTR    binarypath  = NULL;
-    LPCWSTR   description = NULL;
-    LPCWSTR   displayname = NULL;
-    LPCWSTR   privileges  = NULL;
-    LPCWSTR   username    = NULL;
-    LPCWSTR   password    = NULL;
-    LPCWSTR   inifilename = NULL;
-    DWORD     starttype   = SERVICE_NO_CHANGE;
-    DWORD     servicetype = SERVICE_NO_CHANGE;
-    DWORD     srmajor     = SERVICE_STOP_REASON_MAJOR_NONE;
-    DWORD     srminor     = SERVICE_STOP_REASON_MINOR_NONE;
-    DWORD     srflag      = SERVICE_STOP_REASON_FLAG_PLANNED;
-    SC_HANDLE mgr         = NULL;
-    SC_HANDLE svc         = NULL;
+    int       currpc        = 0;
+    int       cmdverbose    = 1;
+    int       wtime         = 0;
+    ULONGLONG wtmstart      = 0;
+    ULONGLONG wtimeout      = 0;
+    LPCWSTR   ed            = NULL;
+    LPCWSTR   ex            = NULL;
+    LPWSTR    pp            = NULL;
+    LPWSTR    sdepends      = NULL;
+    LPWSTR    binarypath    = NULL;
+    LPCWSTR   description   = NULL;
+    LPCWSTR   displayname   = NULL;
+    LPCWSTR   privileges    = NULL;
+    LPCWSTR   username      = NULL;
+    LPCWSTR   password      = NULL;
+    LPCWSTR   inifilename   = NULL;
+    DWORD     starttype     = SERVICE_NO_CHANGE;
+    DWORD     servicetype   = SERVICE_NO_CHANGE;
+    DWORD     srmajor       = SERVICE_STOP_REASON_MAJOR_NONE;
+    DWORD     srminor       = SERVICE_STOP_REASON_MINOR_NONE;
+    DWORD     srflag        = SERVICE_STOP_REASON_FLAG_PLANNED;
+    SC_HANDLE mgr           = NULL;
+    SC_HANDLE svc           = NULL;
+    LPSVCBATCH_INIFILE ini  = NULL;
 
     if (cmd == SVCBATCH_SCM_VERSION) {
         fputs(cnamestamp, stdout);
@@ -6024,7 +6100,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case 'd':
                 description = xwoptarg;
             break;
-            case 'i':
+            case 'c':
                 inifilename = xwoptarg;
             case 'n':
                 displayname = xwoptarg;
@@ -6108,6 +6184,21 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         cmdverbose++;
     }
     if (cmd == SVCBATCH_SCM_CREATE) {
+        if (inifilename) {
+            ini = xreadinifile(inifilename);
+            if (ini == NULL) {
+                rv = GetLastError();
+                ec = __LINE__;
+                ed = inifilename;
+                goto finished;
+            }
+            ec = xprocessini(ini, 1);
+            if (ec) {
+                rv = ERROR_INVALID_DATA;
+                ed = inifilename;
+                goto finished;
+            }
+        }
         if (binarypath == NULL)
             binarypath = xappendarg(1, NULL, program->application);
         svc = CreateServiceW(mgr,
@@ -6642,7 +6733,7 @@ static int xwmaininit(void)
         return ERROR_BAD_FORMAT;
 
     xwcslower(program->name);
-    xarrayinit(&xvariables, 1, sizeof(SVCBATCH_VARIABLE));
+    xarrayinit(&xvariables, 16, sizeof(SVCBATCH_VARIABLE));
     return 0;
 }
 
