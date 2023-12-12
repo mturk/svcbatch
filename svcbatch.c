@@ -496,6 +496,7 @@ static const wchar_t *wcsmessages[] = {
     L"Unknown %s command option modifier",                                  /* 30 */
     L"Service %s log names cannot be the same",                             /* 31 */
     L"The Control code is missing. Use control [service name] [code]",      /* 32 */
+    L"The %s environment variable is non local",                            /* 33 */
 
     NULL
 };
@@ -1350,6 +1351,131 @@ static int xsnprintf(char *dst, int siz, LPCSTR fmt, ...)
 
 }
 
+static int getdayofyear(int y, int m, int d)
+{
+    static const int dayoffset[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
+    int r;
+
+    r = dayoffset[m - 1] + d;
+    if (IS_LEAP_YEAR(y) && (r > 59))
+        r++;
+    return r;
+}
+
+static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
+{
+    LPCWSTR s = fmt;
+    LPWSTR  d = dst;
+    int     n = siz;
+    SYSTEMTIME tm;
+
+    ASSERT_WSTR(s, 0);
+    ASSERT_NULL(d, 0);
+    ASSERT_SIZE(n, 2, 0);
+
+    if (IS_OPT_SET(SVCBATCH_OPT_LOCALTIME))
+        GetLocalTime(&tm);
+    else
+        GetSystemTime(&tm);
+
+    while (*s) {
+        *d = WNUL;
+
+        ASSERT_SIZE(n, 2, siz);
+        if (*s == L'@') {
+            int i = 0;
+            int w;
+            s++;
+            switch (*s) {
+                case L'@':
+                    d[i++] = L'@';
+                break;
+                case L'y':
+                    d[i++] = tm.wYear % 100 / 10 + L'0';
+                    d[i++] = tm.wYear % 10 + L'0';
+                break;
+                case L'Y':
+                    ASSERT_SIZE(n, 4, siz);
+                    d[i++] = tm.wYear / 1000 + L'0';
+                    d[i++] = tm.wYear % 1000 / 100 + L'0';
+                    d[i++] = tm.wYear % 100 / 10 + L'0';
+                    d[i++] = tm.wYear % 10 + L'0';
+                break;
+                case L'd':
+                    d[i++] = tm.wDay  / 10 + L'0';
+                    d[i++] = tm.wDay % 10 + L'0';
+                break;
+                case L'm':
+                    d[i++] = tm.wMonth / 10 + L'0';
+                    d[i++] = tm.wMonth % 10 + L'0';
+                break;
+                case L'H':
+                    d[i++] = tm.wHour / 10 + L'0';
+                    d[i++] = tm.wHour % 10 + L'0';
+                break;
+                case L'M':
+                    d[i++] = tm.wMinute / 10 + L'0';
+                    d[i++] = tm.wMinute % 10 + L'0';
+                break;
+                case L'S':
+                    d[i++] = tm.wSecond / 10 + L'0';
+                    d[i++] = tm.wSecond % 10 + L'0';
+                break;
+                case L'j':
+                    ASSERT_SIZE(n,  3, siz);
+                    w = getdayofyear(tm.wYear, tm.wMonth, tm.wDay);
+                    d[i++] = w / 100 + L'0';
+                    d[i++] = w % 100 / 10 + L'0';
+                    d[i++] = w % 10 + L'0';
+                break;
+                case L'F':
+                    ASSERT_SIZE(n, 10, siz);
+                    d[i++] = tm.wYear / 1000 + L'0';
+                    d[i++] = tm.wYear % 1000 / 100 + L'0';
+                    d[i++] = tm.wYear % 100 / 10 + L'0';
+                    d[i++] = tm.wYear % 10 + L'0';
+                    d[i++] = L'-';
+                    d[i++] = tm.wMonth / 10 + L'0';
+                    d[i++] = tm.wMonth % 10 + L'0';
+                    d[i++] = L'-';
+                    d[i++] = tm.wDay  / 10 + L'0';
+                    d[i++] = tm.wDay % 10 + L'0';
+                break;
+                case L'w':
+                    d[i++] = L'0' + tm.wDayOfWeek;
+                break;
+                /** Custom formatting codes */
+                case L's':
+                    ASSERT_SIZE(n,  3, siz);
+                    d[i++] = tm.wMilliseconds / 100 + L'0';
+                    d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
+                    d[i++] = tm.wMilliseconds % 10 + L'0';
+                break;
+                case L'N':
+                    i = xwcslcpy(d, n, service->name);
+                break;
+                case L'P':
+                    i = xwcslcpy(d, n, program->name);
+                break;
+                default:
+                    SetLastError(ERROR_INVALID_PARAMETER);
+                   *dst = WNUL;
+                    return 0;
+                break;
+            }
+            d += i;
+            n -= i;
+        }
+        else {
+            *d++ = *s;
+            n--;
+        }
+        s++;
+    }
+    *d = WNUL;
+    return (int)(d - dst);
+}
+
 static int xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, int def)
 {
     int i;
@@ -1441,14 +1567,14 @@ static wchar_t *xwcsctok(wchar_t *s, wchar_t d, wchar_t **c)
 }
 
 
-static LPSVCBATCH_VARIABLE xvarfind(int type, LPCWSTR name)
+static LPSVCBATCH_VARIABLE xvarfind(LPCWSTR name)
 {
     LPSVCBATCH_VARIABLE v;
     int i;
 
     for (i = 0; i < xvariables.nelts; i++) {
         v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
-        if (IS_SET(v->type, type) && xwcsequals(v->name, name))
+        if (xwcsequals(v->name, name))
             return v;
     }
     return NULL;
@@ -1508,22 +1634,25 @@ static int xvaradd(int i, LPCWSTR s)
     return i;
 }
 
-static int xvarset(int type,
-                   LPCWSTR name, LPCWSTR value)
+static int xvarset(LPCWSTR name, LPCWSTR value)
 {
     LPSVCBATCH_VARIABLE v;
 
-    v = xvarfind(type, name);
+    v = xvarfind(name);
     if (v) {
+        if (IS_NOT(v->type, SVCBATCH_VARIABLE_LOCAL)) {
+            DBG_PRINTF("%S is not local", name);
+            return 0;
+        }
         v->data.pos = 0;
     }
     else {
         v = (LPSVCBATCH_VARIABLE)xarrayadd(&xvariables, NULL);
-        v->index   = xvariables.nelts;
-        v->name    = name;
+        v->index = xvariables.nelts;
+        v->name  = name;
     }
     xwbssetwcs(&v->data, value, 0);
-    v->type = SVCBATCH_VARIABLE_RDONLY | type;
+    v->type = SVCBATCH_VARIABLE_RDONLY | SVCBATCH_VARIABLE_LOCAL;
 
     return v->index;
 }
@@ -1551,6 +1680,7 @@ static int xvarput(int i, LPCWSTR value)
     v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i - 1);
     ASSERT_NULL(v, 0);
     v->data.pos = 0;
+    v->type     = SVCBATCH_VARIABLE_RDONLY;
     xwbssetwcs(&v->data, value, 0);
 
     return v->index;
@@ -1560,8 +1690,6 @@ static LPCWSTR xgetsysvar(LPCWSTR n, int e)
 {
     LPCWSTR v = NULL;
 
-    if (e == 0)
-        e = xnamemap(n, senvnamemap, 0);
     switch (e) {
         case L'A':
             v = program->name;
@@ -1707,16 +1835,24 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
                         SetLastError(ERROR_BUFFER_OVERFLOW);
                         return NULL;
                     }
-                    sv = xvargetx(bb);
-                    if (sv != NULL)
-                        cp = xwbsdata(&sv->data);
-                    if (cp == NULL)
-                        cp = xgetsysvar(bb, 0);
+                    if ((c > 0) && (bb[0] == L'+')) {
+                        ep = xwmalloc(BBUFSIZ);
+                        if (xwcsftime(ep, BBUFSIZ, bb + 1))
+                            cp = ep;
+                        else
+                            cp = zerostring;
+                    }
+                    if (cp == NULL) {
+                        sv = xvargetx(bb);
+                        if (sv != NULL)
+                            cp = xwbsdata(&sv->data);
+                    }
                     if (cp == NULL) {
                         ep = xgetenv(bb);
                         cp = ep;
                     }
-                    xwbsaddwcs(&wb, cp, 0);
+                    if (IS_VALID_WCS(cp))
+                        xwbsaddwcs(&wb, cp, 0);
                     xfree(ep);
                     s += n + c;
                 }
@@ -1744,23 +1880,35 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
 
 static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
 {
-    LPSVCBATCH_VARIABLE v;
-    DWORD  r = 0;
-    LPWSTR e;
+    LPSVCBATCH_VARIABLE vp;
+    DWORD   rv = 0;
+    LPCWSTR cn = n;
+    LPWSTR  en = NULL;
+    LPWSTR  ep;
 
     ASSERT_WSTR(n, ERROR_BAD_ENVIRONMENT);
     ASSERT_WSTR(p, ERROR_INVALID_PARAMETER);
 
     DBG_PRINTF("%S = %S", n, p);
-    v = xvargetx(n);
-    if (v != NULL)
+    if (xwcschr(n, L'$')) {
+        en = xexpandenvstr(n);
+        if (en == NULL)
+            return GetLastError();
+        cn = en;
+    }
+    vp = xvargetx(cn);
+    if (vp != NULL) {
+        DBG_PRINTF("invalid %S = %S", cn, p);
+        xfree(en);
         return ERROR_ACCESS_DENIED;
-    e = xexpandenvstr(p);
-    if ((e == NULL) || !SetEnvironmentVariableW(n, e))
-        r = GetLastError();
-    DBG_PRINTF("%S = %S", n, e);
-    xfree(e);
-    return r;
+    }
+    ep = xexpandenvstr(p);
+    if ((ep == NULL) || !SetEnvironmentVariableW(cn, ep))
+        rv = GetLastError();
+    DBG_PRINTF("%S = %S", cn, ep);
+    xfree(en);
+    xfree(ep);
+    return rv;
 }
 
 static DWORD xsetusrenv(LPCWSTR n, WCHAR e)
@@ -2115,18 +2263,6 @@ static LPWSTR xuuidstring(LPWSTR b)
     b[x] = WNUL;
     return b;
 }
-
-static int getdayofyear(int y, int m, int d)
-{
-    static const int dayoffset[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-    int r;
-
-    r = dayoffset[m - 1] + d;
-    if (IS_LEAP_YEAR(y) && (r > 59))
-        r++;
-    return r;
-}
-
 
 #if defined(_DEBUG)
 
@@ -3249,120 +3385,6 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
     }
 
     return 0;
-}
-
-static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
-{
-    LPCWSTR s = fmt;
-    LPWSTR  d = dst;
-    int     n = siz;
-    SYSTEMTIME tm;
-
-    ASSERT_WSTR(s, 0);
-    ASSERT_NULL(d, 0);
-    ASSERT_SIZE(n, 2, 0);
-
-    if (IS_OPT_SET(SVCBATCH_OPT_LOCALTIME))
-        GetLocalTime(&tm);
-    else
-        GetSystemTime(&tm);
-
-    while (*s) {
-        *d = WNUL;
-
-        ASSERT_SIZE(n, 2, siz);
-        if (*s == L'@') {
-            int i = 0;
-            int w;
-            s++;
-            switch (*s) {
-                case L'@':
-                    d[i++] = L'@';
-                break;
-                case L'y':
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
-                break;
-                case L'Y':
-                    ASSERT_SIZE(n, 4, siz);
-                    d[i++] = tm.wYear / 1000 + L'0';
-                    d[i++] = tm.wYear % 1000 / 100 + L'0';
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
-                break;
-                case L'd':
-                    d[i++] = tm.wDay  / 10 + L'0';
-                    d[i++] = tm.wDay % 10 + L'0';
-                break;
-                case L'm':
-                    d[i++] = tm.wMonth / 10 + L'0';
-                    d[i++] = tm.wMonth % 10 + L'0';
-                break;
-                case L'H':
-                    d[i++] = tm.wHour / 10 + L'0';
-                    d[i++] = tm.wHour % 10 + L'0';
-                break;
-                case L'M':
-                    d[i++] = tm.wMinute / 10 + L'0';
-                    d[i++] = tm.wMinute % 10 + L'0';
-                break;
-                case L'S':
-                    d[i++] = tm.wSecond / 10 + L'0';
-                    d[i++] = tm.wSecond % 10 + L'0';
-                break;
-                case L'j':
-                    ASSERT_SIZE(n,  3, siz);
-                    w = getdayofyear(tm.wYear, tm.wMonth, tm.wDay);
-                    d[i++] = w / 100 + L'0';
-                    d[i++] = w % 100 / 10 + L'0';
-                    d[i++] = w % 10 + L'0';
-                break;
-                case L'F':
-                    ASSERT_SIZE(n, 10, siz);
-                    d[i++] = tm.wYear / 1000 + L'0';
-                    d[i++] = tm.wYear % 1000 / 100 + L'0';
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
-                    d[i++] = L'-';
-                    d[i++] = tm.wMonth / 10 + L'0';
-                    d[i++] = tm.wMonth % 10 + L'0';
-                    d[i++] = L'-';
-                    d[i++] = tm.wDay  / 10 + L'0';
-                    d[i++] = tm.wDay % 10 + L'0';
-                break;
-                case L'w':
-                    d[i++] = L'0' + tm.wDayOfWeek;
-                break;
-                /** Custom formatting codes */
-                case L's':
-                    ASSERT_SIZE(n,  3, siz);
-                    d[i++] = tm.wMilliseconds / 100 + L'0';
-                    d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
-                    d[i++] = tm.wMilliseconds % 10 + L'0';
-                break;
-                case L'N':
-                    i = xwcslcpy(d, n, service->name);
-                break;
-                case L'P':
-                    i = xwcslcpy(d, n, program->name);
-                break;
-                default:
-                    SetLastError(ERROR_INVALID_PARAMETER);
-                   *dst = WNUL;
-                    return 0;
-                break;
-            }
-            d += i;
-            n -= i;
-        }
-        else {
-            *d++ = *s;
-            n--;
-        }
-        s++;
-    }
-    *d = WNUL;
-    return (int)(d - dst);
 }
 
 static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
@@ -4737,7 +4759,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 *(wp++) = WNUL;
                 if (IS_EMPTY_WCS(wp))
                     return xsyserrno(11, L"E", xwoptarg);
-                xvarset(SVCBATCH_VARIABLE_LOCAL, pp, wp);
+                if (xvarset(pp, wp) == 0)
+                    return xsyserrno(33, pp, NULL);
             break;
             case ENOENT:
                 return xsyserrno(11, xwoption, NULL);
@@ -4890,6 +4913,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             return xsyserror(ERROR_BUFFER_OVERFLOW, pp, NULL);
         SetEnvironmentVariableW(L"TMP",  pp);
         SetEnvironmentVariableW(L"TEMP", pp);
+        xvarini(L"tmp",  pp);
+        xvarini(L"temp", pp);
         xfree(pp);
     }
 
@@ -4928,7 +4953,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     for (i = 0; i < xvariables.nelts; i++) {
         vp = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
-        if (IS_VALID_WCS(vp->name) && IS_SET(vp->type, SVCBATCH_VARIABLE_LOCAL)) {
+        if (IS_SET(vp->type, SVCBATCH_VARIABLE_LOCAL)) {
             pp = xwbsdata(&vp->data);
             x  = xsetenvvar(vp->name, pp);
             if (x)
