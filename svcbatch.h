@@ -81,6 +81,7 @@
  * service arguments
  */
 #define SVCBATCH_SVCARGS       L"ImagePathArguments"
+#define SVCBATCH_SVCCONF       L"ServiceConfigurationFile"
 
 /**
  * Default arguments for cmd.exe
@@ -292,7 +293,8 @@
  */
 #define SVCBATCH_VARIABLE_RDONLY    0x00000001
 #define SVCBATCH_VARIABLE_APPEND    0x00000002
-#define SVCBATCH_VARIABLE_STRICT    0x00000004   /*Disable arrays               */
+#define SVCBATCH_VARIABLE_STRICT    0x00000004   /* Disable arrays               */
+#define SVCBATCH_VARIABLE_PRIVATE   0x00000008   /* Variable is private          */
 #define SVCBATCH_VARIABLE_ARRAY     0x00000010
 #define SVCBATCH_VARIABLE_MULTILINE 0x00000020
 #define SVCBATCH_VARIABLE_BOOL      0x00000100
