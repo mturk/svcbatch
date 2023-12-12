@@ -287,10 +287,16 @@
 #define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00200000   /* Rotate by size              */
 #define SVCBATCH_OPT_ROTATE_BY_TIME 0x00400000   /* Rotate by time              */
 
+/**
+ * Variable types
+ */
 #define SVCBATCH_VARIABLE_RDONLY    0x00000001
 #define SVCBATCH_VARIABLE_APPEND    0x00000002
+#define SVCBATCH_VARIABLE_STRICT    0x00000004   /*Disable arrays               */
 #define SVCBATCH_VARIABLE_ARRAY     0x00000010
 #define SVCBATCH_VARIABLE_MULTILINE 0x00000020
+#define SVCBATCH_VARIABLE_BOOL      0x00000100
+#define SVCBATCH_VARIABLE_NUMBER    0x00000200
 
 
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */

@@ -217,6 +217,11 @@ typedef struct _SVCBATCH_INIFILE {
     SVCBATCH_VARIABLE var;      /* Current variable being processed     */
 } SVCBATCH_INIFILE, *LPSVCBATCH_INIFILE;
 
+typedef struct _SVCBATCH_VARIABLE_MAP {
+    LPCWSTR name;
+    int     section;
+    int     type;
+} SVCBATCH_VARIABLE_MAP, *LPSVCBATCH_VARIABLE_MAP;
 
 static int                   svcmainargc = 0;
 static int                   srvcmaxlogs = SVCBATCH_DEF_LOGS;
@@ -1696,58 +1701,59 @@ static int xvarend(LPSVCBATCH_VARIABLE v)
         return 0;
     }
     if (v->data.pos == 0) {
-        DBG_PRINTF("nul [%.2d] 0x%02X %S.%S", v->index, v->type, xsectionname(v->section), v->name);
+        DBG_PRINTF("nul [%.2d] 0x%04X %S.%S", v->index, v->type, xsectionname(v->section), v->name);
         xvarclear(v);
-        return 0;
+        return SVCBATCH_VARIABLE_STRICT;
     }
     xwbsfinish(&v->data);
     a = xvarfind(v->section, v->name);
     if (a != NULL) {
-        if (IS_NOT(a->type, SVCBATCH_VARIABLE_RDONLY)) {
-            if (IS_NOT(a->type, SVCBATCH_VARIABLE_APPEND)) {
-                v->index = a->index;
-                v->type |= a->type;
-                xfree(a->data.buf);
-                memcpy(a, v, sizeof(SVCBATCH_VARIABLE));
-                v->data.buf = NULL;
-                v->data.siz = 0;
-                DBG_PRINTF("rep [%.2d] 0x%02X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
-            }
-            else {
-                DBG_PRINTF("add [%.2d] 0x%02X %S.%S %d %d", a->index, a->type, xsectionname(a->section), a->name, a->data.pos, v->data.pos);
-                if (a->data.pos &&
-                    IS_NOT(a->type, SVCBATCH_VARIABLE_ARRAY))
-                    xwbsaddwch(&a->data, 0);
-                xwbsaddwcs(&a->data, v->data.buf, v->data.pos);
-                if (IS_NOT(v->type, SVCBATCH_VARIABLE_ARRAY))
-                    xwbsaddwch(&a->data, 0);
-                a->type |= SVCBATCH_VARIABLE_ARRAY;
-                xwbsfinish(&a->data);
-            }
-            if (IS_SET(a->type, SVCBATCH_VARIABLE_MULTILINE |
-                                SVCBATCH_VARIABLE_ARRAY)) {
-                int i;
-                for (i = 0; i < a->data.pos; i++) {
-                    if ((a->data.buf[i] == WNUL) && (a->data.buf[i + 1] != WNUL))
-                        a->data.buf[i] = L' ';
-                }
-            }
+        /**
+         * Check for correct types
+         */
+        if (IS_SET(a->type, SVCBATCH_VARIABLE_RDONLY)) {
+            DBG_PRINTF("err [%.2d] 0x%04X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
+            xvarclear(v);
+            return SVCBATCH_VARIABLE_RDONLY;
         }
-#if defined(_DEBUG)
+        if (IS_NOT(a->type, SVCBATCH_VARIABLE_APPEND)) {
+            v->index = a->index;
+            v->type |= a->type;
+            xfree(a->data.buf);
+            memcpy(a, v, sizeof(SVCBATCH_VARIABLE));
+            v->data.buf = NULL;
+            v->data.siz = 0;
+            DBG_PRINTF("rep [%.2d] 0x%04X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
+        }
         else {
-            DBG_PRINTF("rd [%.2d] 0x%02X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
+            DBG_PRINTF("add [%.2d] 0x%04X %S.%S %d %d", a->index, a->type, xsectionname(a->section), a->name, a->data.pos, v->data.pos);
+            if (a->data.pos &&
+                IS_NOT(a->type, SVCBATCH_VARIABLE_ARRAY))
+                xwbsaddwch(&a->data, 0);
+            xwbsaddwcs(&a->data, v->data.buf, v->data.pos);
+            if (IS_NOT(v->type, SVCBATCH_VARIABLE_ARRAY))
+                xwbsaddwch(&a->data, 0);
+            a->type |= SVCBATCH_VARIABLE_ARRAY;
+            xwbsfinish(&a->data);
         }
-#endif
+        if (IS_SET(a->type, SVCBATCH_VARIABLE_MULTILINE |
+                            SVCBATCH_VARIABLE_ARRAY)) {
+            int i;
+            for (i = 0; i < a->data.pos; i++) {
+                if ((a->data.buf[i] == WNUL) && (a->data.buf[i + 1] != WNUL))
+                    a->data.buf[i] = L' ';
+            }
+        }
     }
     else {
         a = (LPSVCBATCH_VARIABLE)xarrayadd(&xvariables, v);
         a->index    = xvariables.nelts;
         v->data.buf = NULL;
         v->data.siz = 0;
-        DBG_PRINTF("new [%.2d] 0x%02X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
+        DBG_PRINTF("new [%.2d] 0x%04X %S.%S", a->index, a->type, xsectionname(a->section), a->name);
     }
     xvarclear(v);
-    return a->index;
+    return 0;
 }
 
 static int xvarnew(DWORD type, SVCBATCH_SECTION_ID section, LPCWSTR name)
@@ -1760,7 +1766,7 @@ static int xvarnew(DWORD type, SVCBATCH_SECTION_ID section, LPCWSTR name)
     v->section = section;
     v->name    = name;
     v->type    = type;
-    DBG_PRINTF("new [%.2d] 0x%02X %S.%S", v->index, v->type, xsectionname(v->section), name);
+    DBG_PRINTF("new [%.2d] 0x%04X %S.%S", v->index, v->type, xsectionname(v->section), name);
     return v->index;
 }
 
@@ -1776,7 +1782,7 @@ static int xvaradd(int i, LPCWSTR s)
     ASSERT_NULL(v, 0);
     if (IS_SET(v->type, SVCBATCH_VARIABLE_RDONLY)) {
 #if defined(_DEBUG)
-        DBG_PRINTF("rd  [%.2d] %S.%S", v->index, xsectionname(v->section), v->name);
+        DBG_PRINTF("err [%.2d] 0x%04X %S.%S", v->index, v->type, xsectionname(v->section), v->name);
 #endif
         return 0;
     }
@@ -1788,7 +1794,7 @@ static int xvaradd(int i, LPCWSTR s)
         xwbsaddwcs(&v->data, s, n + 1);
         v->type |= SVCBATCH_VARIABLE_ARRAY;
     }
-    DBG_PRINTF("add [%.2d] %S.%S '%S'", v->index, xsectionname(v->section), v->name, s);
+    DBG_PRINTF("add [%.2d] 0x%04X %S.%S '%S'", v->index, v->type, xsectionname(v->section), v->name, s);
     return i;
 }
 
@@ -1813,7 +1819,7 @@ static int xvarset(SVCBATCH_SECTION_ID section,
         DBG_PRINTF("new [%.2d] %S.%S", v->index, xsectionname(v->section), name);
     }
     xwbssetwcs(&v->data, value, 0);
-    v->type = SVCBATCH_VARIABLE_RDONLY;
+    v->type = SVCBATCH_VARIABLE_RDONLY | SVCBATCH_VARIABLE_STRICT;
 
     return v->index;
 }
@@ -1827,7 +1833,7 @@ static int xvarini(SVCBATCH_SECTION_ID section, LPCWSTR name, LPCWSTR value)
 
     v->index   = xvariables.nelts;
     v->section = section;
-    v->type    = SVCBATCH_VARIABLE_RDONLY;
+    v->type    = SVCBATCH_VARIABLE_RDONLY | SVCBATCH_VARIABLE_STRICT;
     v->name    = name;
     xwbssetwcs(&v->data, value, 0);
     DBG_PRINTF("new [%.2d] %S.%S", v->index, xsectionname(v->section), name);
@@ -5768,7 +5774,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         for (i = 0; i < xvariables.nelts; i++) {
             vp = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
             pp = xwbsdata(&vp->data);
-            DBG_PRINTF("[%2d] 0x%02X %3d %3d %S.%S '%S'\n", i, vp->type,
+            DBG_PRINTF("[%2d] 0x%04X %3d %3d %S.%S '%S'\n", i, vp->type,
                         vp->data.pos, vp->data.siz, xsectionname(vp->section), vp->name,
                         xexpandenvstr(vp->section, pp));
         }
