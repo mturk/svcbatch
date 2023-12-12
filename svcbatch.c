@@ -1363,11 +1363,12 @@ static int getdayofyear(int y, int m, int d)
     return r;
 }
 
-static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
+static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *nv)
 {
     LPCWSTR s = fmt;
     LPWSTR  d = dst;
     int     n = siz;
+    int     v = 0;
     SYSTEMTIME tm;
 
     ASSERT_WSTR(s, 0);
@@ -1394,6 +1395,7 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                 case L'y':
                     d[i++] = tm.wYear % 100 / 10 + L'0';
                     d[i++] = tm.wYear % 10 + L'0';
+                    v++;
                 break;
                 case L'Y':
                     ASSERT_SIZE(n, 4, siz);
@@ -1401,26 +1403,32 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                     d[i++] = tm.wYear % 1000 / 100 + L'0';
                     d[i++] = tm.wYear % 100 / 10 + L'0';
                     d[i++] = tm.wYear % 10 + L'0';
+                    v++;
                 break;
                 case L'd':
                     d[i++] = tm.wDay  / 10 + L'0';
                     d[i++] = tm.wDay % 10 + L'0';
+                    v++;
                 break;
                 case L'm':
                     d[i++] = tm.wMonth / 10 + L'0';
                     d[i++] = tm.wMonth % 10 + L'0';
+                    v++;
                 break;
                 case L'H':
                     d[i++] = tm.wHour / 10 + L'0';
                     d[i++] = tm.wHour % 10 + L'0';
+                    v++;
                 break;
                 case L'M':
                     d[i++] = tm.wMinute / 10 + L'0';
                     d[i++] = tm.wMinute % 10 + L'0';
+                    v++;
                 break;
                 case L'S':
                     d[i++] = tm.wSecond / 10 + L'0';
                     d[i++] = tm.wSecond % 10 + L'0';
+                    v++;
                 break;
                 case L'j':
                     ASSERT_SIZE(n,  3, siz);
@@ -1428,6 +1436,7 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                     d[i++] = w / 100 + L'0';
                     d[i++] = w % 100 / 10 + L'0';
                     d[i++] = w % 10 + L'0';
+                    v++;
                 break;
                 case L'F':
                     ASSERT_SIZE(n, 10, siz);
@@ -1441,9 +1450,11 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                     d[i++] = L'-';
                     d[i++] = tm.wDay  / 10 + L'0';
                     d[i++] = tm.wDay % 10 + L'0';
+                    v++;
                 break;
                 case L'w':
                     d[i++] = L'0' + tm.wDayOfWeek;
+                    v++;
                 break;
                 /** Custom formatting codes */
                 case L's':
@@ -1451,6 +1462,7 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                     d[i++] = tm.wMilliseconds / 100 + L'0';
                     d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
                     d[i++] = tm.wMilliseconds % 10 + L'0';
+                    v++;
                 break;
                 case L'N':
                     i = xwcslcpy(d, n, service->name);
@@ -1473,6 +1485,8 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
         }
         s++;
     }
+    if (nv)
+        *nv = v;
     *d = WNUL;
     return (int)(d - dst);
 }
@@ -1838,7 +1852,7 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
                     }
                     if ((c > 0) && (bb[0] == L'+')) {
                         ep = xwmalloc(BBUFSIZ);
-                        if (xwcsftime(ep, BBUFSIZ, bb + 1))
+                        if (xwcsftime(ep, BBUFSIZ, bb + 1, NULL))
                             cp = ep;
                         else
                             cp = zerostring;
@@ -3418,8 +3432,11 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
     int     rp = srvcmaxlogs;
 
     if (xwcschr(np, L'@')) {
-        if (xwcsftime(nb, SVCBATCH_NAME_MAX, np) == 0)
+        int nv = 0;
+        if (xwcsftime(nb, SVCBATCH_NAME_MAX, np, &nv) == 0)
             return xsyserror(GetLastError(), np, NULL);
+        if (nv)
+            rp = 0;
         DBG_PRINTF("%d %S -> %S", rp, np, nb);
         np = nb;
     }
