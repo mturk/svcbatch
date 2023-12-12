@@ -663,8 +663,6 @@ and lowercase letters with **-** command switch.
 
   After that it will evaluate and set all **/E:name=value** variables.
 
-  Finally it will delete all environment variables defined
-  by using **/EU:VAR**.
 
 
 * **EE [variables]**
@@ -736,22 +734,6 @@ and lowercase letters with **-** command switch.
 
   ```
 
-
-
-* **EU [variable]**
-
-  **Unset the environment variable**
-
-  This option allows to remove the specified
-  environment **variable** from the current process's environment.
-
-  The following example will delete `SOME_VARIABLE` environment
-  variable for the current process:
-
-  ```no-highlight
-  > svcbatch create ... /EU:SOME_VARIABLE ...
-
-  ```
 
 
 * **EP [prefix]**

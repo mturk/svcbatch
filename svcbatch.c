@@ -360,16 +360,6 @@ static const SVCBATCH_NAME_MAP senvnamemap[] = {
     { NULL,            0                   }
 };
 
-static const SVCBATCH_NAME_MAP boolnamemap[] = {
-    { L"False",     0       },
-    { L"No",        0       },
-    { L"Off",       0       },
-    { L"On",        1       },
-    { L"True",      1       },
-    { L"Yes",       1       },
-    { NULL,         0       }
-};
-
 static const char *xgenerichelp =
     "\nUsage:\n  " SVCBATCH_NAME " [command] [service name] <option1> <option2>...\n"           \
     "\n    Commands:"                                                                           \
@@ -842,17 +832,10 @@ static LPWSTR xwbsdata(LPSVCBATCH_WBUFFER wb)
     ASSERT_NULL(wb, NULL);
 
     xwbsfinish(wb);
-    return wb->buf;
-}
-
-static void xwbsclear(LPSVCBATCH_WBUFFER wb)
-{
-    if (wb) {
-        xfree(wb->buf);
-        wb->buf = NULL;
-        wb->siz = 0;
-        wb->pos = 0;
-    }
+    if (wb->pos)
+        return wb->buf;
+    else
+        return NULL;
 }
 
 static int xarrayinit(LPSVCBATCH_ARRAY arr, int nelts, size_t esize)
@@ -1514,73 +1497,6 @@ static LPCWSTR xcodemap(SVCBATCH_NAME_MAP const *map, int c)
     }
     return zerostring;
 }
-
-static int xwcstobool(LPCWSTR str)
-{
-    int r;
-    ASSERT_WSTR(str, -1);
-    r = xnamemap(str, boolnamemap, -1);
-    if (r < 0)
-        SetLastError(ERROR_INVALID_PARAMETER);
-    return r;
-}
-
-/**
- * Count the number of tokens delimited by d
- */
-static int xwcsntok(const wchar_t *s, wchar_t d)
-{
-    int n = 1;
-
-    while (*s == d) {
-        s++;
-    }
-    if (*s == WNUL)
-        return 0;
-    while (*s != WNUL) {
-        if (*(s++) == d) {
-            while (*s == d) {
-                s++;
-            }
-            if (*s != WNUL)
-                n++;
-        }
-    }
-    return n;
-}
-
-/**
- * This is wcstok_s clone using single character as token delimiter
- */
-static wchar_t *xwcsctok(wchar_t *s, wchar_t d, wchar_t **c)
-{
-    wchar_t *p;
-
-    if ((s == NULL) && ((s = *c) == NULL))
-        return NULL;
-
-    *c = NULL;
-    /**
-     * Skip leading delimiter
-     */
-    while (*s == d) {
-        s++;
-    }
-    if (*s == WNUL)
-        return NULL;
-    p = s;
-
-    while (*s != WNUL) {
-        if (*s == d) {
-            *s = WNUL;
-            *c = s + 1;
-            break;
-        }
-        s++;
-    }
-    return p;
-}
-
 
 static LPSVCBATCH_VARIABLE xvarfind(LPCWSTR name)
 {
@@ -4605,7 +4521,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  logdirparam  = NULL;
     LPCWSTR  tmpdirparam  = NULL;
     LPCWSTR  eexportparam = NULL;
-    LPCWSTR  uexportparam = NULL;
 
     int cmdprocoptsvar;
     int cmdprocargsvar;
@@ -4774,10 +4689,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     return xsyserrno(13, L"K", xwoptarg);
             break;
             case 'e':
-                if (xwoptvar == 'u') {
-                    uexportparam = xwoptarg;
-                    break;
-                }
                 if (xwoptvar == 'p') {
                     if (xiswcschar(xwoptarg, L'@'))
                         eprefixparam = service->name;
@@ -5118,18 +5029,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     else {
         SAFE_MEM_FREE(svcstop);
-    }
-    if (uexportparam) {
-        LPCWSTR cx = NULL;
-
-        pp = xwcsdup(uexportparam);
-        cp = xwcsctok(pp, L',', &cx);
-
-        while (cp != NULL) {
-            DBG_PRINTF("unseting '%S'", cp);
-            SetEnvironmentVariableW(cp, NULL);
-            cp = xwcsctok(NULL, L',', &cx);
-        }
     }
 
     xfree(scriptparam);
