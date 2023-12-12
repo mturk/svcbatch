@@ -1459,38 +1459,12 @@ static LPSVCBATCH_VARIABLE xvarfind(int section, LPCWSTR name)
     return NULL;
 }
 
-static int xvarget(int section, LPCWSTR name)
-{
-    LPSVCBATCH_VARIABLE v;
-    int i;
-
-    for (i = 0; i < xvariables.nelts; i++) {
-        v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
-        if ((v->section == section) && xwcsequals(v->name, name))
-            return i + 1;
-    }
-    return 0;
-}
-
 static LPWSTR xvardata(int i)
 {
     LPSVCBATCH_VARIABLE v;
     ASSERT_SPAN(i, 1, xvariables.nelts, NULL);
     v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i - 1);
     return xwbsdata(&v->data);
-}
-
-static LPWSTR xvargets(int section, LPCWSTR name)
-{
-    LPSVCBATCH_VARIABLE v;
-    int i;
-
-    for (i = 0; i < xvariables.nelts; i++) {
-        v = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
-        if ((v->section == section) && xwcsequals(v->name, name))
-            return xwbsdata(&v->data);
-    }
-    return NULL;
 }
 
 static LPSVCBATCH_VARIABLE xvargetx(int section, LPCWSTR name)
@@ -1793,16 +1767,20 @@ static LPWSTR xexpandenvstr(SVCBATCH_SECTION_ID id, LPCWSTR src)
 }
 
 
-static DWORD xsetenvvar(int s, LPCWSTR n, LPCWSTR v)
+static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
 {
+    LPSVCBATCH_VARIABLE v;
     DWORD  r = 0;
     LPWSTR e;
 
     ASSERT_WSTR(n, ERROR_BAD_ENVIRONMENT);
-    ASSERT_WSTR(v, ERROR_INVALID_PARAMETER);
+    ASSERT_WSTR(p, ERROR_INVALID_PARAMETER);
 
-    DBG_PRINTF("%S = %S", n, v);
-    e = xexpandenvstr(s, v);
+    DBG_PRINTF("%S = %S", n, p);
+    v = xvargetx(SVCBATCH_SECTION_NONE, n);
+    if (v != NULL)
+        return ERROR_ACCESS_DENIED;
+    e = xexpandenvstr(SVCBATCH_SECTION_NONE, p);
     if ((e == NULL) || !SetEnvironmentVariableW(n, e))
         r = GetLastError();
     DBG_PRINTF("%S = %S", n, e);
@@ -4965,8 +4943,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         vp = (LPSVCBATCH_VARIABLE)xarrayget(&xvariables, i);
         if (vp->section == SVCBATCH_SECTION_EXPORT) {
             pp = xwbsdata(&vp->data);
-            xsetenvvar(SVCBATCH_SECTION_NONE, vp->name, pp);
-            DBG_PRINTF("[%2d] exported %S", i, vp->name);
+            x = xsetenvvar(vp->name, pp);
+            if (x)
+                return xsyserror(x, L"SetUserEnvironment", vp->name);
+            DBG_PRINTF("[%.2d] exported %S", i, vp->name);
         }
     }
     if (commandparam) {
