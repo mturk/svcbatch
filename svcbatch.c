@@ -1681,41 +1681,15 @@ static LPWSTR xgetenv(LPCWSTR s)
     return d;
 }
 
-static LPWSTR xexpandenv(LPWSTR str)
-{
-    LPWSTR  buf = NULL;
-    DWORD   bsz = SVCBATCH_NAME_MAX;
-    DWORD   len;
-
-    while (buf == NULL) {
-        buf = xwmalloc(bsz);
-        len = ExpandEnvironmentStringsW(str, buf, bsz);
-        if (len == 0) {
-            xfree(str);
-            xfree(buf);
-            return NULL;
-        }
-        if (len > bsz) {
-            xfree(buf);
-            buf = NULL;
-            bsz = len + 1;
-        }
-    }
-    xfree(str);
-    return buf;
-}
-
 static LPWSTR xexpandenvstr(LPCWSTR src)
 {
-    int    np = 0;
     WCHAR  bb[SVCBATCH_NAME_MAX];
     SVCBATCH_WBUFFER    wb;
     LPSVCBATCH_VARIABLE sv;
-    LPWSTR              rs;
     LPCWSTR              s = src;
 
     ASSERT_WSTR(src, NULL);
-    if (xwcspbrk(src, L"$%") == NULL)
+    if (xwcschr(src, L'$') == NULL)
         return xwcsdup(src);
     if (xwbsinit(&wb, xwcslen(src)))
         return NULL;
@@ -1793,19 +1767,10 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
             }
         }
         else {
-            if (*s == L'%') {
-                if (*(s + 1) == L'%')
-                    s++;
-                else
-                    np++;
-            }
             xwbsaddwch(&wb, *s++);
         }
     }
-    rs = xwbsdata(&wb);
-    if (np > 1)
-        rs = xexpandenv(rs);
-    return rs;
+    return xwbsdata(&wb);
 }
 
 
