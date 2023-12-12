@@ -277,7 +277,8 @@
  * Variable types
  */
 #define SVCBATCH_VARIABLE_RDONLY    0x00000001
-#define SVCBATCH_VARIABLE_ARRAY     0x00000010
+#define SVCBATCH_VARIABLE_LOCAL     0x00000002
+#define SVCBATCH_VARIABLE_ARRAY     0x00000004
 
 
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
