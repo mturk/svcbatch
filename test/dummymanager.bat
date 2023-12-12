@@ -89,7 +89,6 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     "--displayName=A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs=SeShutdownPrivilege ^
-    --conf "%TEST_DIR%\dummyservice.ini" ^
     /F:PLER0 /H ..\..\test -w ..\build\dbg ^
     /T:Logs\%SERVICE_NAME%\tmp ^
     %SERVICE_ENVIRONMENT% ^
