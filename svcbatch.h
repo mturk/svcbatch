@@ -81,7 +81,6 @@
  * service arguments
  */
 #define SVCBATCH_SVCARGS       L"ImagePathArguments"
-#define SVCBATCH_SVCCONF       L"ServiceConfigurationFile"
 
 /**
  * Default arguments for cmd.exe
