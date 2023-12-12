@@ -64,6 +64,14 @@ static const char *dbgsvcmodes[] = {
 
 #define MAKEWORD2(a, b)         ((DWORD)(((BYTE)(((DWORD_PTR)(a)) & 0x0f)) | ((DWORD)((BYTE)(((DWORD_PTR)(b)) & 0x0f))) << 4))
 
+/**
+ * Misc internal buffer size definitions
+ */
+#define TBUFSIZ                 32
+#define SBUFSIZ                128
+#define BBUFSIZ                512
+#define MBUFSIZ               1024
+
 typedef enum {
     SVCBATCH_SECTION_NONE = 0,
     SVCBATCH_SECTION_GLOBAL,

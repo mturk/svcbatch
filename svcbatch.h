@@ -117,11 +117,6 @@
 #define SVCBATCH_MAX_ARGS       32
 
 /**
- * Maximum number of each /E option type
- */
-#define SVCBATCH_MAX_ENVS       32
-
-/**
  * Maximum number of command options
  */
 #define SVCBATCH_MAX_OPTS      256
@@ -245,15 +240,6 @@
 #define MEM_ALIGN(size, boundary) \
     (((size) + ((boundary) - 1)) & ~((boundary) - 1))
 #define MEM_ALIGN_DEFAULT(size) MEM_ALIGN(size, 8)
-
-/**
- * Misc internal buffer size definitions
- */
-#define TBUFSIZ                 32
-#define SBUFSIZ                128
-#define BBUFSIZ                512
-#define MBUFSIZ               1024
-
 
 /**
  * Start of the custom error messages
