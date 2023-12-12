@@ -4656,6 +4656,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'L':
                             OPT_SET(SVCBATCH_OPT_LOCALTIME);
                         break;
+                        case L'N':
+                            OPT_SET(SVCBATCH_OPT_NOENV);
+                        break;
                         case L'Q':
                             OPT_SET(SVCBATCH_OPT_QUIET);
                         break;
@@ -4665,9 +4668,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         break;
                         case L'T':
                             OPT_SET(SVCBATCH_OPT_TRUNCATE);
-                        break;
-                        case L'U':
-                            OPT_SET(SVCBATCH_OPT_NOENV);
                         break;
                         case L'W':
                             OPT_SET(SVCBATCH_OPT_LONGPATHS);

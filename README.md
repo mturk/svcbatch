@@ -322,7 +322,7 @@ and lowercase letters with **-** command switch.
   listed in any order.
 
   ```no-highlight
-      <B><E><L><P><Q><R><T><U><W><Y><0|1|2>
+      <B><E><L><N><P><Q><R><T><W><Y><0|1|2>
   ```
 
     * **B**
@@ -364,6 +364,18 @@ and lowercase letters with **-** command switch.
 
       This option causes all logging and rotation
       to use local instead system time.
+
+
+    * **N**
+
+      **Do not export private environment variables**
+
+      If set this option will disable export of all
+      private environment variables to the script program.
+
+      Check [Private Environment Variables](#private-environment-variables)
+      section, for the list of exported variables.
+
 
 
     * **P**
@@ -422,18 +434,6 @@ and lowercase letters with **-** command switch.
       If set this option will truncate existing
       log file on log rotation instead creating
       a new log file.
-
-
-
-    * **U**
-
-      **Unset private environment variables**
-
-      If set this option will disable export of all
-      private environment variables to the script program.
-
-      Check [Private Environment Variables](#private-environment-variables)
-      section, for the list of exported variables.
 
 
 
@@ -658,7 +658,7 @@ and lowercase letters with **-** command switch.
   SvcBatch will evaluate **E** command options in order they
   are defined in service configuration.
 
-  In case the **/F:U** feature was not defined, SvcBatch
+  In case the **/F:N** feature was not defined, SvcBatch
   will first set all [Private Environment Variables](#private-environment-variables)
 
   After that it will evaluate and set all **/E:name=value** variables.
@@ -724,7 +724,7 @@ and lowercase letters with **-** command switch.
 
   ```
 
-  This feature is usually used when the **/F:U** feature
+  This feature is usually used when the **/F:N** feature
   is defined, or to export specific runtime value(s).
 
   The following example will only export service's home
@@ -732,7 +732,7 @@ and lowercase letters with **-** command switch.
   environment variables:
 
   ```no-highlight
-  > svcbatch create myService ... /F:U /EP:@ /EE:HW ...
+  > svcbatch create myService ... /F:N /EP:@ /EE:HW ...
 
   ```
 
@@ -790,7 +790,7 @@ and lowercase letters with **-** command switch.
 
   **Notice**
 
-  If **/F:U** was added to the service's configuration
+  If **/F:N** was added to the service's configuration
   this option will ensure that all private environment
   variables are removed from the current process.
 

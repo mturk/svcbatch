@@ -61,7 +61,8 @@ rem Set arguments for shutdown bat file
 set "SHUTDOWN_ARGS=[ stop arguments ] /S:[ "with spaces" ]"
 rem
 rem
-set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%\%LONG_STRING%"
+rem set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%\%LONG_STRING%"
+set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/LR:@10+100K"
 set "ROTATE_RULE=/LR:@5+20K"
@@ -71,9 +72,9 @@ rem Rotate Log files every full hour or when larger then 40000 bytes
 rem set "ROTATE_RULE=/LR:@60+40000B"
 rem
 rem Set log file names instead default SvcBatch.log
-rem set "SERVICE_LOG_FNAME=-ln "%SERVICE_NAME%.log""
+rem set "SERVICE_LOG_FNAME=/LN:@N.log"
 rem
-rem set "SERVICE_LOG_FNAME=-ln "%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log""
+rem set "SERVICE_LOG_FNAME=/LN:@N.@Y-@m-@d.@H@M@S.log"
 rem
 set "SERVICE_LOG_FNAME=/LN:@N.@Y-@m-@d.log /SN:@N.stop.log"
 rem
