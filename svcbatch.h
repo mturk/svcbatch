@@ -117,11 +117,6 @@
 #define SVCBATCH_MAX_ARGS       32
 
 /**
- * Maximum number of command options
- */
-#define SVCBATCH_MAX_OPTS      256
-
-/**
  * Maximum length for the path and
  * file names. Although the C Runtime
  * supports path lengths up to 32768 characters
@@ -147,18 +142,6 @@
 #define SVCBATCH_NAME_MAX       256
 
 /**
- * Maximum length for the environment variables prefix.
- *
- */
-#define SVCBATCH_ENVP_MAX       192
-
-/**
- * Maximum length for the UUID based object names.
- *
- */
-#define SVCBATCH_UUID_MAX       64
-
-/**
  * Size of the pipe read buffer in bytes.
  */
 #define SVCBATCH_PIPE_LEN       8192
@@ -168,11 +151,6 @@
  * written to the file or event log
  */
 #define SVCBATCH_LINE_MAX       2048
-
-/**
- * Maximum value for a numeric variable
- */
-#define SVCBATCH_INT_MAX        10000000
 
 /**
  * Timing definitions
@@ -272,14 +250,6 @@
 #define SVCBATCH_OPT_ROTATE_BY_SIG  0x00100000   /* Rotate by signal            */
 #define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00200000   /* Rotate by size              */
 #define SVCBATCH_OPT_ROTATE_BY_TIME 0x00400000   /* Rotate by time              */
-
-/**
- * Variable types
- */
-#define SVCBATCH_VARIABLE_RDONLY    0x00000001
-#define SVCBATCH_VARIABLE_LOCAL     0x00000002
-#define SVCBATCH_VARIABLE_ARRAY     0x00000004
-
 
 #define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
 #define SVCBATCH_FAIL_ERROR     2   /* Set service error if run endeded without stop    */
