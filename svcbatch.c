@@ -221,7 +221,7 @@ static LPSVCBATCH_LOG        outputlog   = NULL;
 static LPSVCBATCH_IPC        sharedmem   = NULL;
 static LPSVCBATCH_VARIABLES  svariables  = NULL;
 
-
+static volatile HANDLE       wrpipehandle   = NULL;
 static volatile LONG         killdepth      = 0;
 static volatile LONG         runcounter     = 0;
 static LONGLONG              rotateinterval = CPP_INT64_C(0);
@@ -1586,8 +1586,9 @@ static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
 {
     DWORD   rv = 0;
     LPCWSTR cn = n;
+    LPCWSTR cp = p;
     LPWSTR  en = NULL;
-    LPWSTR  ep;
+    LPWSTR  ep = NULL;
 
     ASSERT_WSTR(n, ERROR_BAD_ENVIRONMENT);
     ASSERT_WSTR(p, ERROR_INVALID_PARAMETER);
@@ -1599,7 +1600,15 @@ static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
         en = xexpandenvstr(n);
         if (en == NULL)
             return GetLastError();
-        cn = en;
+        else
+            cn = en;
+    }
+    if (xwcschr(p, L'$')) {
+        ep = xexpandenvstr(p);
+        if (ep == NULL)
+            return GetLastError();
+        else
+            cp = ep;
     }
     ep = xexpandenvstr(p);
     if ((ep == NULL) || !SetEnvironmentVariableW(cn, ep))
@@ -3581,16 +3590,15 @@ static DWORD logwrdata(LPSVCBATCH_LOG log, BYTE *buf, DWORD len)
     return 0;
 }
 
-static DWORD WINAPI wrpipethread(void *pipe)
+static DWORD WINAPI wrpipethread(void *unused)
 {
-    HANDLE h  = (HANDLE)pipe;
     DWORD  rc = 0;
     DWORD  wr = 0;
 
     DBG_PRINTS("started");
-    if (WriteFile(h, stdindata, stdinsize, &wr, NULL) && (wr != 0)) {
+    if (WriteFile(wrpipehandle, stdindata, stdinsize, &wr, NULL) && (wr != 0)) {
         DBG_PRINTF("wrote %lu bytes", wr);
-        if (!FlushFileBuffers(h)) {
+        if (!FlushFileBuffers(wrpipehandle)) {
             rc = GetLastError();
         }
 #if defined(_DEBUG)
@@ -3602,7 +3610,6 @@ static DWORD WINAPI wrpipethread(void *pipe)
     else {
         rc = GetLastError();
     }
-    CloseHandle(h);
 #if defined(_DEBUG)
     if (rc) {
         if (rc == ERROR_BROKEN_PIPE)
@@ -3617,10 +3624,9 @@ static DWORD WINAPI wrpipethread(void *pipe)
     return rc;
 }
 
-static DWORD WINAPI rotatethread(void *unused)
+static DWORD WINAPI rotatethread(void *wt)
 {
     HANDLE wh[4];
-    HANDLE wt = NULL;
     DWORD  rc = 0;
     DWORD  nw = 3;
     DWORD  rw = SVCBATCH_ROTATE_READY;
@@ -3632,19 +3638,9 @@ static DWORD WINAPI rotatethread(void *unused)
     wh[3] = NULL;
 
     DBG_PRINTF("started");
-    if (IS_OPT_SET(SVCBATCH_OPT_ROTATE_BY_TIME)) {
-        wt = CreateWaitableTimer(NULL, TRUE, NULL);
-        if (IS_INVALID_HANDLE(wt)) {
-            rc = xsyserror(GetLastError(), L"CreateWaitableTimer", NULL);
-            goto failed;
-        }
-        if (!SetWaitableTimer(wt, &rotatetime, 0, NULL, NULL, FALSE)) {
-            rc = xsyserror(GetLastError(), L"SetWaitableTimer", NULL);
-            CloseHandle(wt);
-            goto failed;
-        }
+    if (wt)
         wh[nw++] = wt;
-    }
+
     while (rr) {
         DWORD wc;
 
@@ -3720,14 +3716,6 @@ static DWORD WINAPI rotatethread(void *unused)
     }
     DBG_PRINTS("done");
     return rc;
-
-failed:
-    InterlockedExchange(&outputlog->state, 0);
-    setsvcstatusexit(rc);
-    if (WaitForSingleObject(workerended, SVCBATCH_STOP_SYNC) == WAIT_TIMEOUT)
-        createstopthread(rc);
-    DBG_PRINTS("failed");
-    return rc;
 }
 
 static DWORD logiodata(LPSVCBATCH_LOG log, LPSVCBATCH_PIPE op)
@@ -3778,7 +3766,6 @@ static DWORD logiodata(LPSVCBATCH_LOG log, LPSVCBATCH_PIPE op)
 
 static DWORD WINAPI workerthread(void *unused)
 {
-    DWORD    i;
     HANDLE   rd = NULL;
     HANDLE   wr = NULL;
     LPHANDLE rp = NULL;
@@ -3804,12 +3791,6 @@ static DWORD WINAPI workerthread(void *unused)
         goto finished;
     }
 
-    cmdproc->commandLine = xappendarg(1, NULL, cmdproc->application);
-    for (i = 0; i < cmdproc->optc; i++)
-        cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, cmdproc->opts[i]);
-    cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->script);
-    for (i = 0; i < cmdproc->argc; i++)
-        cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
     if (outputlog) {
         op = (LPSVCBATCH_PIPE)xmcalloc(sizeof(SVCBATCH_PIPE));
         op->pipe     = rd;
@@ -3846,38 +3827,18 @@ static DWORD WINAPI workerthread(void *unused)
     SAFE_CLOSE_HANDLE(cmdproc->sInfo.hStdInput);
     SAFE_CLOSE_HANDLE(cmdproc->sInfo.hStdError);
 
-    if (IS_OPT_SET(SVCBATCH_OPT_WRPIPE)) {
-        if (!xcreatethread(SVCBATCH_WRPIPE_THREAD,
-                           1, wrpipethread, wr)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            xsyserror(rc, L"WriteThread", NULL);
-            TerminateProcess(cmdproc->pInfo.hProcess, rc);
-            cmdproc->exitCode = rc;
-            goto finished;
-        }
-    }
-    if (IS_OPT_SET(SVCBATCH_OPT_ROTATE)) {
-        if (!xcreatethread(SVCBATCH_ROTATE_THREAD,
-                           1, rotatethread, NULL)) {
-            rc = GetLastError();
-            setsvcstatusexit(rc);
-            xsyserror(rc, L"RotateThread", NULL);
-            TerminateProcess(cmdproc->pInfo.hProcess, rc);
-            cmdproc->exitCode = rc;
-            goto finished;
-        }
-    }
     ResumeThread(cmdproc->pInfo.hThread);
     InterlockedExchange(&cmdproc->state, SVCBATCH_PROCESS_RUNNING);
     xsvcstatus(SERVICE_RUNNING, 0);
 
     DBG_PRINTF("running %lu", cmdproc->pInfo.dwProcessId);
-    if (IS_OPT_SET(SVCBATCH_OPT_WRPIPE))
+    if (IS_OPT_SET(SVCBATCH_OPT_WRPIPE)) {
+        InterlockedExchangePointer(&wrpipehandle, wr);
         ResumeThread(threads[SVCBATCH_WRPIPE_THREAD].thread);
-    if (IS_OPT_SET(SVCBATCH_OPT_ROTATE))
+    }
+    if (IS_OPT_SET(SVCBATCH_OPT_ROTATE)) {
         ResumeThread(threads[SVCBATCH_ROTATE_THREAD].thread);
-
+    }
     SAFE_CLOSE_HANDLE(cmdproc->pInfo.hThread);
     if (outputlog) {
         HANDLE wh[2];
@@ -3946,7 +3907,6 @@ finished:
         free(op);
     }
     closeprocess(cmdproc);
-
     DBG_PRINTS("done");
     SetEvent(workerended);
     return cmdproc->exitCode;
@@ -4720,7 +4680,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
 #endif
     if (outputlog) {
-        if (svclogfname) {
+        if (svclogfname && xwcschr(svclogfname, L'$')) {
             outputlog->logName = xexpandenvstr(svclogfname);
             if (outputlog->logName == NULL)
                 return xsyserror(GetLastError(), svclogfname, NULL);
@@ -4747,15 +4707,21 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 return xsyserror(GetLastError(), svcstopparam, NULL);
         }
         if (stoplogname) {
-            wp = xexpandenvstr(stoplogname);
-            if (wp == NULL)
-                return xsyserror(GetLastError(), stoplogname, NULL);
-            if (xwcspbrk(wp, INVALID_FILENAME_CHARS))
-                return xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(23), wp);
-            stoplogname = wp;
+            if (xwcschr(stoplogname, L'$')) {
+                wp = xexpandenvstr(stoplogname);
+                if (wp == NULL)
+                    return xsyserror(GetLastError(), stoplogname, NULL);
+                if (xwcspbrk(wp, INVALID_FILENAME_CHARS))
+                    return xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(23), wp);
+                stoplogname = wp;
+            }
+            if (xwcspbrk(stoplogname, INVALID_FILENAME_CHARS))
+                return xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(23), stoplogname);
         }
-        else if (stopmaxlogs > 0)
-            stoplogname = SVCBATCH_LOGSTOP;
+        else {
+            if (stopmaxlogs > 0)
+                stoplogname = SVCBATCH_LOGSTOP;
+        }
         for (x = 0; x < svcstop->argc; x++) {
             if (xwcschr(svcstop->args[x], L'$')) {
                 wp = xexpandenvstr(svcstop->args[x]);
@@ -4780,6 +4746,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
 
 static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
 {
+    DWORD  i;
     DWORD  rv = 0;
 
     DBG_PRINTS("started");
@@ -4827,6 +4794,47 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         }
         xsvcstatus(SERVICE_START_PENDING, 0);
     }
+    cmdproc->commandLine = xappendarg(1, NULL, cmdproc->application);
+    for (i = 0; i < cmdproc->optc; i++)
+    cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, cmdproc->opts[i]);
+    cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->script);
+    for (i = 0; i < cmdproc->argc; i++)
+    cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
+
+    if (IS_OPT_SET(SVCBATCH_OPT_WRPIPE)) {
+        if (!xcreatethread(SVCBATCH_WRPIPE_THREAD,
+                           1, wrpipethread, NULL)) {
+            rv = GetLastError();
+            xsyserror(rv, L"CreateEvent", NULL);
+            xsvcstatus(SERVICE_STOPPED, rv);
+            return;
+        }
+    }
+    if (IS_OPT_SET(SVCBATCH_OPT_ROTATE)) {
+        HANDLE wt = NULL;
+        if (IS_OPT_SET(SVCBATCH_OPT_ROTATE_BY_TIME)) {
+            wt = CreateWaitableTimer(NULL, TRUE, NULL);
+            if (IS_INVALID_HANDLE(wt)) {
+                rv = GetLastError();
+                xsyserror(rv, L"CreateWaitableTimer", NULL);
+                xsvcstatus(SERVICE_STOPPED, rv);
+                return;
+            }
+            if (!SetWaitableTimer(wt, &rotatetime, 0, NULL, NULL, FALSE)) {
+                rv = GetLastError();
+                xsyserror(rv, L"SetWaitableTimer", NULL);
+                xsvcstatus(SERVICE_STOPPED, rv);
+                return;
+            }
+        }
+        if (!xcreatethread(SVCBATCH_ROTATE_THREAD,
+                           1, rotatethread, wt)) {
+            rv = GetLastError();
+            xsyserror(rv, L"RotateThread", NULL);
+            xsvcstatus(SERVICE_STOPPED, rv);
+            return;
+        }
+    }
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
         rv = xsyserror(GetLastError(), L"WorkerThread", NULL);
@@ -4856,6 +4864,7 @@ finished:
 
 static DWORD svcstopmain(void)
 {
+    DWORD i;
     DWORD rc;
 
     DBG_PRINTS("started");
@@ -4870,6 +4879,13 @@ static DWORD svcstopmain(void)
         if (rc)
             return rc;
     }
+    cmdproc->commandLine = xappendarg(1, NULL, cmdproc->application);
+    for (i = 0; i < cmdproc->optc; i++)
+    cmdproc->commandLine = xappendarg(0, cmdproc->commandLine, cmdproc->opts[i]);
+    cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->script);
+    for (i = 0; i < cmdproc->argc; i++)
+    cmdproc->commandLine = xappendarg(1, cmdproc->commandLine, cmdproc->args[i]);
+
     if (!xcreatethread(SVCBATCH_WORKER_THREAD,
                        0, workerthread, NULL)) {
         rc = xsyserror(GetLastError(), L"WorkerThread", NULL);
