@@ -72,16 +72,16 @@ rem Rotate Log files every full hour or when larger then 40000 bytes
 rem set "ROTATE_RULE=/LR:@60+40000B"
 rem
 rem Set log file names instead default SvcBatch.log
-rem set "SERVICE_LOG_FNAME=/LN:@N.log"
+rem set "SERVICE_LOG_FNAME=/LN:%SERVICE_NAME%.log"
 rem
-rem set "SERVICE_LOG_FNAME=/LN:@N.@Y-@m-@d.@H@M@S.log"
+rem set "SERVICE_LOG_FNAME=/LN:%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log"
 rem
-set "SERVICE_LOG_FNAME=/LN:@N.@Y-@m-@d.log /SN:@N.stop.log"
+set "SERVICE_LOG_FNAME=/LN:$NAME.@4-@Y-@m-@d.log /SN:$NAME.stop.log"
 rem
 set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /SM:1"
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=/E:PATH=$HOME;$PATH /E:THE${NAME}ID=${+x@Y@m@d:}NUMBER /EE:ADVR /E:ADUMMYSVC_PID=$ProcessId"
+set "SERVICE_ENVIRONMENT=/E:PATH=$HOME;$PATH /E:THE${NAME}ID=${+x@2@Y@m@d:}NUMBER /EE:ADVR /E:ADUMMYSVC_PID=$ProcessId"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line

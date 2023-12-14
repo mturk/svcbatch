@@ -63,10 +63,12 @@ static const char *dbgsvcmodes[] = {
 #define IS_LEAP_YEAR(_y)        ((!(_y % 4)) ? (((_y % 400) && !(_y % 100)) ? 0 : 1) : 0)
 
 #define SYSVARS_COUNT           27
-#define SETSYSVAR_VAL(_i, _v)   svariables->var[(_i) - 64].val = (_v)
 #define GETSYSVAR_VAL(_i)       svariables->var[(_i) - 64].val
 #define GETSYSVAR_KEY(_i)       svariables->var[(_i) - 64].key
+#define SETSYSVAR_VAL(_i, _v)   svariables->var[(_i) - 64].val = (_v)
+#define SETSYSVAR_KEY(_i, _k)   svariables->var[(_i) - 64].key = (_k)
 
+#define INVALID_FILENAME_CHARS  L"/\\:;<>?*|\""
 
 /**
  * Misc internal buffer size definitions
@@ -221,6 +223,7 @@ static LPSVCBATCH_VARIABLES  svariables  = NULL;
 
 
 static volatile LONG         killdepth      = 0;
+static volatile LONG         runcounter     = 0;
 static LONGLONG              rotateinterval = CPP_INT64_C(0);
 static LONGLONG              rotatesize     = CPP_INT64_C(0);
 static LARGE_INTEGER         rotatetime     = {{ 0, 0 }};
@@ -466,7 +469,7 @@ static const wchar_t *wcsmessages[] = {
     L"The %s contains invalid characters",                                  /* 20 */
     L"The %s is too large",                                                 /* 21 */
     L"Unknown command option",                                              /* 22 */
-    L"The /\\:;<>?*|\" are not valid service name characters",              /* 23 */
+    L"The /\\:;<>?*|\" are not valid object name characters",               /* 23 */
     L"The maximum service name length is 256 characters",                   /* 24 */
     L"Stop the service and call Delete again",                              /* 25 */
     L"The parameter is outside valid range",                                /* 26 */
@@ -1106,6 +1109,7 @@ static LPWSTR xntowcb(DWORD n, LPWSTR b, int c)
     return s;
 }
 
+
 static LPCWSTR xwctowcs(int c)
 {
     static WCHAR b[] = { 0, 0, 0, 0 };
@@ -1178,6 +1182,28 @@ static int xwcslcpy(LPWSTR dst, int siz, LPCWSTR src)
         c++;
     return c;
 }
+
+static int xwcslcati(LPWSTR dst, int siz, int pos,
+                     DWORD n, int np, int pc)
+{
+    WCHAR  b[TBUFSIZ];
+    LPWSTR s;
+    int    c = 0;
+
+    s = b + TBUFSIZ;
+    *(--s) = WNUL;
+    do {
+        *(--s) = L'0' + (WCHAR)(n % 10);
+        n /= 10;
+        c++;
+    } while (n);
+    while ((np > c) && (s > b)) {
+        *(--s) = pc;
+        np--;
+    }
+    return xwcslcat(dst, siz, pos, s);
+}
+
 
 static int xvsnwprintf(LPWSTR dst, int siz,
                        LPCWSTR fmt, va_list ap)
@@ -1262,12 +1288,11 @@ static int getdayofyear(int y, int m, int d)
     return r;
 }
 
-static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *nv)
+static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
 {
     LPCWSTR s = fmt;
     LPWSTR  d = dst;
     int     n = siz;
-    int     v = 0;
     SYSTEMTIME tm;
 
     ASSERT_WSTR(s, 0);
@@ -1294,7 +1319,6 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *nv)
                 case L'y':
                     d[i++] = tm.wYear % 100 / 10 + L'0';
                     d[i++] = tm.wYear % 10 + L'0';
-                    v++;
                 break;
                 case L'Y':
                     ASSERT_SIZE(n, 4, siz);
@@ -1302,32 +1326,26 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *nv)
                     d[i++] = tm.wYear % 1000 / 100 + L'0';
                     d[i++] = tm.wYear % 100 / 10 + L'0';
                     d[i++] = tm.wYear % 10 + L'0';
-                    v++;
                 break;
                 case L'd':
                     d[i++] = tm.wDay  / 10 + L'0';
                     d[i++] = tm.wDay % 10 + L'0';
-                    v++;
                 break;
                 case L'm':
                     d[i++] = tm.wMonth / 10 + L'0';
                     d[i++] = tm.wMonth % 10 + L'0';
-                    v++;
                 break;
                 case L'H':
                     d[i++] = tm.wHour / 10 + L'0';
                     d[i++] = tm.wHour % 10 + L'0';
-                    v++;
                 break;
                 case L'M':
                     d[i++] = tm.wMinute / 10 + L'0';
                     d[i++] = tm.wMinute % 10 + L'0';
-                    v++;
                 break;
                 case L'S':
                     d[i++] = tm.wSecond / 10 + L'0';
                     d[i++] = tm.wSecond % 10 + L'0';
-                    v++;
                 break;
                 case L'j':
                     ASSERT_SIZE(n,  3, siz);
@@ -1335,7 +1353,6 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *nv)
                     d[i++] = w / 100 + L'0';
                     d[i++] = w % 100 / 10 + L'0';
                     d[i++] = w % 10 + L'0';
-                    v++;
                 break;
                 case L'F':
                     ASSERT_SIZE(n, 10, siz);
@@ -1349,11 +1366,9 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *nv)
                     d[i++] = L'-';
                     d[i++] = tm.wDay  / 10 + L'0';
                     d[i++] = tm.wDay % 10 + L'0';
-                    v++;
                 break;
                 case L'w':
                     d[i++] = L'0' + tm.wDayOfWeek;
-                    v++;
                 break;
                 /** Custom formatting codes */
                 case L's':
@@ -1361,17 +1376,23 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *nv)
                     d[i++] = tm.wMilliseconds / 100 + L'0';
                     d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
                     d[i++] = tm.wMilliseconds % 10 + L'0';
-                    v++;
                 break;
-                case L'N':
-                    i = xwcslcpy(d, n, service->name);
-                break;
-                case L'P':
-                    i = xwcslcpy(d, n, program->name);
+                case L'0':
+                case L'2':
+                case L'4':
+                    ASSERT_SIZE(n,  6, siz);
+                    if (*s == L'0')
+                        w = runcounter % 10;
+                    else if (*s == '2')
+                        w = runcounter % 100;
+                    else
+                        w = runcounter % 10000;
+                    i = xwcslcati(d, n, i, w, *s - L'0', L'0');
+                    InterlockedIncrement(&runcounter);
                 break;
                 default:
-                    SetLastError(ERROR_INVALID_PARAMETER);
                    *dst = WNUL;
+                    SetLastError(ERROR_INVALID_PARAMETER);
                     return 0;
                 break;
             }
@@ -1384,8 +1405,6 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt, int *nv)
         }
         s++;
     }
-    if (nv)
-        *nv = v;
     *d = WNUL;
     return (int)(d - dst);
 }
@@ -1442,17 +1461,6 @@ static LPCWSTR xgetsysvar(LPCWSTR name)
 
 static int xaddvariable(int opt, LPCWSTR key, LPCWSTR val)
 {
-    int i;
-
-    DBG_PRINTF("[%.2d] '%C' %S = %S", svariables->pos, opt, key, val);
-    for (i = 1; i < SYSVARS_COUNT; i++) {
-        if (svariables->var[i].opt) {
-            if (xwcsequals(svariables->var[i].key, key)) {
-                SetLastError(ERROR_ACCESS_DENIED);
-                return 0;
-            }
-        }
-    }
     if (svariables->pos == svariables->siz) {
         SetLastError(ERROR_BUFFER_OVERFLOW);
         return 0;
@@ -1543,7 +1551,7 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
                     }
                     if ((c > 0) && (bb[0] == L'+')) {
                         ep = xwmalloc(BBUFSIZ);
-                        if (xwcsftime(ep, BBUFSIZ, bb + 1, NULL))
+                        if (xwcsftime(ep, BBUFSIZ, bb + 1))
                             cp = ep;
                         else
                             cp = zerostring;
@@ -1592,13 +1600,6 @@ static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
         if (en == NULL)
             return GetLastError();
         cn = en;
-    }
-    if (xgetsysvar(cn) != NULL) {
-#if defined(_DEBUG) && (_DEBUG > 2)
-        DBG_PRINTF("invalid %S = %S", cn, p);
-#endif
-        xfree(en);
-        return ERROR_ACCESS_DENIED;
     }
     ep = xexpandenvstr(p);
     if ((ep == NULL) || !SetEnvironmentVariableW(cn, ep))
@@ -3103,12 +3104,10 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
     int     rp = srvcmaxlogs;
 
     if (xwcschr(np, L'@')) {
-        int nv = 0;
-        if (xwcsftime(nb, SVCBATCH_NAME_MAX, np, &nv) == 0)
+        if (xwcsftime(nb, SVCBATCH_NAME_MAX, np) == 0)
             return xsyserror(GetLastError(), np, NULL);
-        if (nv)
-            rp = 0;
-        DBG_PRINTF("%d %S -> %S", rp, np, nb);
+        rp = 0;
+        DBG_PRINTF("%S -> %S", np, nb);
         np = nb;
     }
     xfree(log->logFile);
@@ -4517,7 +4516,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     }
     else {
         outputlog = (LPSVCBATCH_LOG)xmcalloc(sizeof(SVCBATCH_LOG));
-        outputlog->logName = svclogfname ? svclogfname : SVCBATCH_LOGNAME;
+        outputlog->logName = SVCBATCH_LOGNAME;
         SVCBATCH_CS_INIT(outputlog);
     }
     cp = eprefixparam;
@@ -4723,6 +4722,15 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         DBG_PRINTS("rotate by signal");
     }
 #endif
+    if (outputlog) {
+        if (svclogfname) {
+            outputlog->logName = xexpandenvstr(svclogfname);
+            if (outputlog->logName == NULL)
+                return xsyserror(GetLastError(), svclogfname, NULL);
+            if (xwcspbrk(outputlog->logName, INVALID_FILENAME_CHARS))
+                return xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(23), outputlog->logName);
+        }
+    }
     if (svcstopparam) {
         if (xiswcschar(svcstopparam, L'@')) {
             svcstop->script = cmdproc->script;
@@ -4741,7 +4749,15 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             if (IS_EMPTY_WCS(svcstop->script))
                 return xsyserror(GetLastError(), svcstopparam, NULL);
         }
-        if ((stopmaxlogs > 0) && (stoplogname == NULL))
+        if (stoplogname) {
+            wp = xexpandenvstr(stoplogname);
+            if (wp == NULL)
+                return xsyserror(GetLastError(), stoplogname, NULL);
+            if (xwcspbrk(wp, INVALID_FILENAME_CHARS))
+                return xsyserror(ERROR_INVALID_PARAMETER, SVCBATCH_MSG(23), wp);
+            stoplogname = wp;
+        }
+        else if (stopmaxlogs > 0)
             stoplogname = SVCBATCH_LOGSTOP;
         if (IS_OPT_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
             for (x = 0; x < svcstop->argc; x++) {
@@ -4804,6 +4820,7 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
+    InterlockedExchange(&runcounter, 0);
     xsvcstatus(SERVICE_START_PENDING, 0);
     if (outputlog) {
         rv = openlogfile(outputlog, TRUE);
@@ -5018,7 +5035,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         ex = SVCBATCH_MSG(27);
         goto finished;
     }
-    if (xwcspbrk(service->name, L"/\\:;<>?*|\"")) {
+    if (xwcspbrk(service->name, INVALID_FILENAME_CHARS)) {
         rv = ERROR_INVALID_NAME;
         ec = __LINE__;
         ex = SVCBATCH_MSG(23);

@@ -867,13 +867,15 @@ and lowercase letters with **-** command switch.
     @j  Day of the year as a decimal number (001 - 366)
     @m  Month as a decimal number (01 - 12)
     @M  Minute as a decimal number (00 - 59)
-    @N  Service Name
-    @P  Program Name
     @S  Second as a decimal number (00 - 59)
     @s  Millisecond as a decimal number (000 - 999)
     @w  Weekday as a decimal number (0 - 6; Sunday is 0)
     @y  Year without century, as decimal number (00 - 99)
     @Y  Year with century, as decimal number
+    @0  Current counter as a decimal number (0    -    9)
+    @2  Current counter as a decimal number (00   -   99)
+    @4  Current counter as a decimal number (0000 - 9999)
+
   ```
 
   Make sure that log names contain only valid file name characters.
