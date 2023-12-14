@@ -4320,9 +4320,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         case L'B':
                             OPT_SET(SVCBATCH_OPT_CTRL_BREAK);
                         break;
-                        case L'E':
-                            OPT_SET(SVCBATCH_OPT_EXPAND_ARGS);
-                        break;
                         case L'L':
                             OPT_SET(SVCBATCH_OPT_LOCALTIME);
                         break;
@@ -4703,8 +4700,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS;
         OPT_SET(SVCBATCH_OPT_WRPIPE);
     }
-    if (IS_OPT_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
-        for (x = 0; x < cmdproc->argc; x++) {
+    for (x = 0; x < cmdproc->argc; x++) {
+        if (xwcschr(cmdproc->args[x], L'$')) {
             wp = xexpandenvstr(cmdproc->args[x]);
             if (wp == NULL)
                 return xsyserror(GetLastError(), L"ExpandEnvironment", cmdproc->args[x]);
@@ -4759,8 +4756,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         }
         else if (stopmaxlogs > 0)
             stoplogname = SVCBATCH_LOGSTOP;
-        if (IS_OPT_SET(SVCBATCH_OPT_EXPAND_ARGS)) {
-            for (x = 0; x < svcstop->argc; x++) {
+        for (x = 0; x < svcstop->argc; x++) {
+            if (xwcschr(svcstop->args[x], L'$')) {
                 wp = xexpandenvstr(svcstop->args[x]);
                 if (wp == NULL)
                     return xsyserror(GetLastError(), L"ExpandEnvironment", svcstop->args[x]);

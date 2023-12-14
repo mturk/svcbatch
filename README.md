@@ -322,7 +322,7 @@ and lowercase letters with **-** command switch.
   listed in any order.
 
   ```no-highlight
-      <B><E><L><N><P><Q><R><T><W><Y><0|1|2>
+      <B><L><N><P><Q><R><T><W><Y><0|1|2>
   ```
 
     * **B**
@@ -347,15 +347,6 @@ and lowercase letters with **-** command switch.
       When using `start /B application`, the application does
       not receive `ctrl+c` signal. The `ctrl+break` is the only
       way to interrupt the application.
-
-
-    * **E**
-
-      **Expand environment variables for script arguments**
-
-      If set this option will expand environment strings for
-      each script argument.
-
 
 
     * **L**
