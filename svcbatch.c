@@ -63,10 +63,10 @@ static const char *dbgsvcmodes[] = {
 #define IS_LEAP_YEAR(_y)        ((!(_y % 4)) ? (((_y % 400) && !(_y % 100)) ? 0 : 1) : 0)
 
 #define SYSVARS_COUNT           27
-#define GETSYSVAR_VAL(_i)       svariables->var[(_i) - 64].val
-#define GETSYSVAR_KEY(_i)       svariables->var[(_i) - 64].key
-#define SETSYSVAR_VAL(_i, _v)   svariables->var[(_i) - 64].val = (_v)
-#define SETSYSVAR_KEY(_i, _k)   svariables->var[(_i) - 64].key = (_k)
+#define GETSYSVAR_VAL(_i)       svariables->var[_i - 64].val
+#define GETSYSVAR_KEY(_i)       svariables->var[_i - 64].key
+#define SETSYSVAR_VAL(_i, _v)   svariables->var[_i - 64].val = _v
+#define SETSYSVAR_KEY(_i, _k)   svariables->var[_i - 64].key = _k
 
 #define INVALID_FILENAME_CHARS  L"/\\:;<>?*|\""
 
@@ -485,6 +485,21 @@ static const wchar_t *wcsmessages[] = {
 
 #define SVCBATCH_MSG(_id) wcsmessages[_id]
 
+#if defined (_DEBUG)
+static volatile LONG  __memory_alloc = 0;
+static volatile LONG  __memory_free  = 0;
+
+  #define __malloc(__s)                  trace_malloc(__FUNCTION__, __LINE__, (__s))
+  #define __free(__m)                    trace_free(__FUNCTION__, __LINE__, (__m))
+
+
+
+#else
+
+  #define __malloc(__s)                  malloc((__s))
+  #define __free(__m)                    trace_free((__m))
+
+#endif
 static void xfatalerr(LPCSTR func, int err)
 {
 
@@ -497,13 +512,34 @@ static void xfatalerr(LPCSTR func, int err)
 #endif
 }
 
+#if defined (_DEBUG)
+
+
+
+void  trace_free(LPCSTR funcname, int line, void *mem)
+{
+        OutputDebugStringA("trace_free");
+        OutputDebugStringA(funcname);
+        free(mem);    
+}
+
+void *trace_malloc(LPCSTR funcname, int line, size_t size)
+{
+        OutputDebugStringA("trace_malloc");
+        OutputDebugStringA(funcname);
+        return malloc(size);    
+}
+
+
+#endif
+
 static void *xmmalloc(size_t size)
 {
     UINT64 *p;
     size_t  n;
 
     n = MEM_ALIGN_DEFAULT(size);
-    p = (UINT64 *)malloc(n);
+    p = (UINT64 *)__malloc(n);
     if (p == NULL)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     n = (n >> 3) - 1;
@@ -530,7 +566,7 @@ static void *xrealloc(void *mem, size_t size)
 
     if (size == 0) {
         if (mem)
-            free(mem);
+            __free(mem);
         return NULL;
     }
     n = MEM_ALIGN_DEFAULT(size);
@@ -557,7 +593,7 @@ static __inline LPWSTR *xwaalloc(size_t size)
 static __inline void xfree(void *mem)
 {
     if (mem)
-        free(mem);
+        __free(mem);
 }
 
 static __inline void xmemzero(void *mem, size_t number, size_t size)
