@@ -486,20 +486,59 @@ static const wchar_t *wcsmessages[] = {
 #define SVCBATCH_MSG(_id) wcsmessages[_id]
 
 #if defined (_DEBUG)
-static volatile LONG  __memory_alloc = 0;
-static volatile LONG  __memory_free  = 0;
+static volatile LONG  __memory_calloc   = 0;
+static volatile LONG  __memory_malloc   = 0;
+static volatile LONG  __memory_realloc  = 0;
+static volatile LONG  __memory_free     = 0;
 
-  #define __malloc(__s)                  trace_malloc(__FUNCTION__, __LINE__, (__s))
-  #define __free(__m)                    trace_free(__FUNCTION__, __LINE__, (__m))
+static volatile LONG  __memory_trace_ia = 0;
+static volatile LONG  __memory_trace_ic = 0;
 
+typedef struct __memory_trace_block_t {
+    int          mode;
+    int          line;
+    LPCSTR       cn;
+    LPCSTR       fn;
 
+    void        *mem;
+    size_t       size;
+} __memory_trace_block;
 
-#else
+static __memory_trace_block __memory_trace_a[512];
+static __memory_trace_block __memory_trace_c[512];
 
-  #define __malloc(__s)                  malloc((__s))
-  #define __free(__m)                    trace_free((__m))
+#if 0
+static char __memory_trace_buffer[MBUFSIZ];
+static int __memory_trace_vsnprintf(const char *fmt, va_list ap)
+{
+    int c = MBUFSIZ - 1;
+    int n;
 
+    __memory_trace_buffer[0] = '\0';
+    n = _vsnprintf(__memory_trace_buffer, c, fmt, ap);
+    if (n < 0)
+        n = 0;
+    if (n > c)
+        n = c;
+    __memory_trace_buffer[n] = '\0';
+    OutputDebugStringA(__memory_trace_buffer);
+    return n;
+}
+
+static int __memory_trace_printf(const char *fmt, ...)
+{
+    int     rv;
+    va_list ap;
+
+    va_start(ap, fmt);
+    rv = __memory_trace_vsnprintf(fmt, ap);
+    va_end(ap);
+    return rv;
+
+}
 #endif
+#endif
+
 static void xfatalerr(LPCSTR func, int err)
 {
 
@@ -514,24 +553,185 @@ static void xfatalerr(LPCSTR func, int err)
 
 #if defined (_DEBUG)
 
-
-
-void  trace_free(LPCSTR funcname, int line, void *mem)
+void  trace_xfree(LPCSTR funcname, int line, void *mem)
 {
-        OutputDebugStringA("trace_free");
-        OutputDebugStringA(funcname);
-        free(mem);    
-}
+    int   i;
 
-void *trace_malloc(LPCSTR funcname, int line, size_t size)
-{
-        OutputDebugStringA("trace_malloc");
-        OutputDebugStringA(funcname);
-        return malloc(size);    
-}
-
-
+#if 0
+    __memory_trace_printf("%s (%d) %p", funcname, line, mem);
 #endif
+    if (mem) {
+        i = InterlockedIncrement(&__memory_trace_ic) - 1;
+        InterlockedIncrement(&__memory_free);
+
+        __memory_trace_c[i].mode    = 1;
+        __memory_trace_c[i].line    = line;
+        __memory_trace_c[i].fn      = funcname;
+        __memory_trace_c[i].cn      = "xfree";
+        __memory_trace_c[i].mem     = mem;
+        __memory_trace_c[i].size    = 0;
+        free(mem);
+    }
+}
+
+void *trace_calloc(LPCSTR caller, LPCSTR funcname, int line, size_t number, size_t size)
+{
+    int   i;
+    void *m;
+
+    i = InterlockedIncrement(&__memory_trace_ia) - 1;
+    InterlockedIncrement(&__memory_calloc);
+#if 0
+    __memory_trace_printf("%s %s (%d) %llu", caller, funcname, line, size);
+#endif
+    m = calloc(number, size);
+
+    __memory_trace_a[i].mode    = 2;
+    __memory_trace_a[i].line    = line;
+    __memory_trace_a[i].fn      = funcname;
+    __memory_trace_a[i].cn      = caller;
+    __memory_trace_a[i].mem     = m;
+    __memory_trace_a[i].size    = size * number;
+
+    return m;
+}
+
+void *trace_malloc(LPCSTR caller, LPCSTR funcname, int line, size_t size)
+{
+    int   i;
+    void *m;
+
+    i = InterlockedIncrement(&__memory_trace_ia) - 1;
+    InterlockedIncrement(&__memory_malloc);
+    m = malloc(size);
+    if (m == NULL)
+        SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
+
+    __memory_trace_a[i].mode    = 3;
+    __memory_trace_a[i].line    = line;
+    __memory_trace_a[i].fn      = funcname;
+    __memory_trace_a[i].cn      = caller;
+    __memory_trace_a[i].mem     = m;
+    __memory_trace_a[i].size    = size;
+#if 0
+    __memory_trace_printf("%s %s (%d) %llu %p", caller, funcname, line, size, m);
+#endif
+    return m;
+}
+
+void *trace_realloc(LPCSTR caller, LPCSTR funcname, int line, void *memblock, size_t size)
+{
+    int   i;
+    void *m;
+
+    i = InterlockedIncrement(&__memory_trace_ia) - 1;
+    InterlockedIncrement(&__memory_realloc);
+    m = realloc(memblock, size);
+    if (m == NULL)
+        SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
+
+    __memory_trace_a[i].mode    = 4;
+    __memory_trace_a[i].line    = line;
+    __memory_trace_a[i].fn      = funcname;
+    __memory_trace_a[i].cn      = caller;
+    __memory_trace_a[i].mem     = m;
+    __memory_trace_a[i].size    = size;
+#if 0
+    __memory_trace_printf("%s %s (%d) %p %llu", caller, funcname, line, m, size);
+#endif
+    return m;
+}
+
+static void *trace_xmmalloc(LPCSTR caller, LPCSTR funcname, int line, size_t size)
+{
+    UINT64 *p;
+    size_t  n;
+
+    n = MEM_ALIGN_DEFAULT(size);
+    p = (UINT64 *)trace_malloc(caller ? caller : "xmmalloc", funcname, line, n);
+    n = (n >> 3) - 1;
+    *(p + n) = UINT64_ZERO;
+    return p;
+}
+
+static void *trace_xmcalloc(LPCSTR funcname, int line, size_t size)
+{
+    void   *p;
+    size_t  n;
+
+    n = MEM_ALIGN_DEFAULT(size);
+    p = trace_calloc("xmcalloc", funcname, line, 1, n);
+    return p;
+}
+
+static LPWSTR  trace_xwmalloc(LPCSTR caller, LPCSTR funcname, int line, size_t size)
+{
+    return (LPWSTR)trace_xmmalloc(caller ? caller : "xwmalloc", funcname, line, size * sizeof(WCHAR));
+}
+
+static void *trace_xrealloc(LPCSTR funcname, int line, void *mem, size_t size)
+{
+    UINT64 *p;
+    size_t  n;
+
+    if (size == 0) {
+        trace_xfree(funcname, line, mem);
+        return NULL;
+    }
+    n = MEM_ALIGN_DEFAULT(size);
+    p = (UINT64 *)trace_realloc("xrealloc", funcname, line, mem, n);
+    if (p == NULL)
+        SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
+    if (mem == NULL) {
+        n = (n >> 3) - 1;
+        *(p + n) = UINT64_ZERO;
+    }
+    return p;
+}
+
+static LPWSTR *trace_xwaalloc(LPCSTR funcname, int line, size_t size)
+{
+    void *p;
+
+    p = trace_xmmalloc("xwaalloc", funcname, line, size * sizeof(LPWSTR));
+    return (LPWSTR *)p;
+}
+
+static LPWSTR trace_xwcsdup(LPCSTR funcname, int line, LPCWSTR s)
+{
+    size_t n;
+    LPWSTR d;
+
+    if (IS_EMPTY_WCS(s))
+        return NULL;
+    n = wcslen(s);
+    d = trace_xwmalloc("xwcsdup", funcname, line, n + 1);
+    return wmemcpy(d, s, n);
+}
+
+static LPWSTR trace_xwcsndup(LPCSTR funcname, int line, LPCWSTR s, size_t n)
+{
+    LPWSTR d;
+
+    if (IS_EMPTY_WCS(s) || (n < 1))
+        return NULL;
+    d = trace_xwmalloc("xwcsndup", funcname, line, n + 1);
+    return wmemcpy(d, s, n);
+}
+
+
+
+#define xmmalloc(__s)       trace_xmmalloc(NULL, __FUNCTION__, __LINE__, (__s))
+#define xmcalloc(__s)       trace_xmcalloc(__FUNCTION__, __LINE__, (__s))
+#define xrealloc(__m, __s)  trace_xrealloc(__FUNCTION__, __LINE__, (__m), (__s))
+#define xfree(__m)          trace_xfree(__FUNCTION__, __LINE__, (__m))
+#define xwmalloc(__s)       trace_xwmalloc(NULL, __FUNCTION__, __LINE__, (__s))
+#define xwaalloc(__s)       trace_xwaalloc(__FUNCTION__, __LINE__, (__s))
+
+#define xwcsdup(__s)        trace_xwcsdup(__FUNCTION__, __LINE__, (__s))
+#define xwcsndup(__s, __n)  trace_xwcsndup(__FUNCTION__, __LINE__, (__s), (__n))
+
+#else
 
 static void *xmmalloc(size_t size)
 {
@@ -539,7 +739,7 @@ static void *xmmalloc(size_t size)
     size_t  n;
 
     n = MEM_ALIGN_DEFAULT(size);
-    p = (UINT64 *)__malloc(n);
+    p = (UINT64 *)malloc(n);
     if (p == NULL)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     n = (n >> 3) - 1;
@@ -559,14 +759,24 @@ static void *xmcalloc(size_t size)
     return p;
 }
 
+static __inline void xfree(void *mem)
+{
+    if (mem)
+        free(mem);
+}
+
+static __inline LPWSTR  xwmalloc(size_t size)
+{
+    return (LPWSTR)xmmalloc(size * sizeof(WCHAR));
+}
+
 static void *xrealloc(void *mem, size_t size)
 {
     UINT64 *p;
     size_t  n;
 
     if (size == 0) {
-        if (mem)
-            __free(mem);
+        xfree(mem);
         return NULL;
     }
     n = MEM_ALIGN_DEFAULT(size);
@@ -580,21 +790,36 @@ static void *xrealloc(void *mem, size_t size)
     return p;
 }
 
-static __inline LPWSTR  xwmalloc(size_t size)
-{
-    return (LPWSTR)xmmalloc(size * sizeof(WCHAR));
-}
-
 static __inline LPWSTR *xwaalloc(size_t size)
 {
     return (LPWSTR *)xmmalloc(size * sizeof(LPWSTR));
 }
 
-static __inline void xfree(void *mem)
+static LPWSTR xwcsdup(LPCWSTR s)
 {
-    if (mem)
-        __free(mem);
+    size_t n;
+    LPWSTR d;
+
+    if (IS_EMPTY_WCS(s))
+        return NULL;
+    n = wcslen(s);
+    d = xwmalloc(n + 1);
+    return wmemcpy(d, s, n);
 }
+
+static LPWSTR xwcsndup(LPCWSTR s, size_t n)
+{
+    LPWSTR d;
+
+    if (IS_EMPTY_WCS(s) || (n < 1))
+        return NULL;
+    d = xwmalloc(n + 1);
+    return wmemcpy(d, s, n);
+}
+
+
+
+#endif
 
 static __inline void xmemzero(void *mem, size_t number, size_t size)
 {
@@ -985,28 +1210,6 @@ static int xisvalidvarname(LPCWSTR n)
             return 0;
     }
     return 1;
-}
-
-static LPWSTR xwcsdup(LPCWSTR s)
-{
-    size_t n;
-    LPWSTR d;
-
-    if (IS_EMPTY_WCS(s))
-        return NULL;
-    n = wcslen(s);
-    d = xwmalloc(n + 1);
-    return wmemcpy(d, s, n);
-}
-
-static LPWSTR xwcsndup(LPCWSTR s, size_t n)
-{
-    LPWSTR d;
-
-    if (IS_EMPTY_WCS(s) || (n < 1))
-        return NULL;
-    d = xwmalloc(n + 1);
-    return wmemcpy(d, s, n);
 }
 
 static LPWSTR xwcsconcat(LPCWSTR s1, LPCWSTR s2)
@@ -1535,7 +1738,7 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
 
     ASSERT_WSTR(src, NULL);
     if (xwcschr(src, L'$') == NULL)
-        return xwcsdup(src);
+        return (LPWSTR)src;
     if (xwbsinit(&wb, SVCBATCH_NAME_MAX))
         return NULL;
 
@@ -1562,7 +1765,7 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
                         n++;
                     }
                     if (c == 0) {
-                        free(wb.buf);
+                        xfree(wb.buf);
                         SetLastError(ERROR_INVALID_PARAMETER);
                         return NULL;
                     }
@@ -1581,7 +1784,7 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
 
                     i = xwcslcpyn(bb, SVCBATCH_NAME_MAX, s, n);
                     if (i >= SVCBATCH_NAME_MAX) {
-                        free(wb.buf);
+                        xfree(wb.buf);
                         SetLastError(ERROR_BUFFER_OVERFLOW);
                         return NULL;
                     }
@@ -1621,10 +1824,8 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
 static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
 {
     DWORD   rv = 0;
-    LPCWSTR cn = n;
-    LPCWSTR cp = p;
-    LPWSTR  en = NULL;
-    LPWSTR  ep = NULL;
+    LPWSTR  en;
+    LPWSTR  ep;
 
     ASSERT_WSTR(n, ERROR_BAD_ENVIRONMENT);
     ASSERT_WSTR(p, ERROR_INVALID_PARAMETER);
@@ -1632,28 +1833,21 @@ static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
 #if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("%S = %S", n, p);
 #endif
-    if (xwcschr(n, L'$')) {
-        en = xexpandenvstr(n);
-        if (en == NULL)
-            return GetLastError();
-        else
-            cn = en;
-    }
-    if (xwcschr(p, L'$')) {
-        ep = xexpandenvstr(p);
-        if (ep == NULL)
-            return GetLastError();
-        else
-            cp = ep;
-    }
+    en = xexpandenvstr(n);
+    if (en == NULL)
+        return GetLastError();
     ep = xexpandenvstr(p);
-    if ((ep == NULL) || !SetEnvironmentVariableW(cn, ep))
+    if (ep == NULL)
+        return GetLastError();
+    if ((ep == NULL) || !SetEnvironmentVariableW(en, ep))
         rv = GetLastError();
 #if defined(_DEBUG) && (_DEBUG > 2)
-    DBG_PRINTF("%S = %S", cn, ep);
+    DBG_PRINTF("%S = %S", en, ep);
 #endif
-    xfree(en);
-    xfree(ep);
+    if (en != n)
+        xfree(en);
+    if (ep != p)
+        xfree(ep);
     return rv;
 }
 
@@ -3940,7 +4134,7 @@ finished:
     if (op != NULL) {
         SAFE_CLOSE_HANDLE(op->pipe);
         SAFE_CLOSE_HANDLE(op->o.hEvent);
-        free(op);
+        xfree(op);
     }
     closeprocess(cmdproc);
     DBG_PRINTS("done");
@@ -4155,13 +4349,13 @@ static DWORD createevents(void)
     return 0;
 }
 
-static LPCWSTR *mergearguments(LPWSTR msz, int *argc)
+static LPWSTR *mergearguments(LPWSTR msz, int *argc)
 {
     int      i;
     int      x = 0;
     int      c = 1;
     LPWSTR   p;
-    LPCWSTR *argv;
+    LPWSTR  *argv;
 
     if (msz) {
         for (p = msz; *p; p++, c++) {
@@ -4170,9 +4364,9 @@ static LPCWSTR *mergearguments(LPWSTR msz, int *argc)
         }
     }
     c   += svcmainargc;
-    argv = (LPCWSTR *)xwaalloc(c);
+    argv = (LPWSTR *)xwaalloc(c);
 
-    argv[x++] = service->name;
+    argv[x++] = (LPWSTR)service->name;
     /**
      * Add option arguments in the following order
      * ImagePath
@@ -4181,7 +4375,7 @@ static LPCWSTR *mergearguments(LPWSTR msz, int *argc)
      */
     if (svcmainargc > 0) {
         for (i = 0; i < svcmainargc; i++)
-            argv[x++] = svcmainargv[i];
+            argv[x++] = (LPWSTR)svcmainargv[i];
     }
     if (msz) {
         for (p = msz; *p; p++) {
@@ -4199,7 +4393,7 @@ static LPCWSTR *mergearguments(LPWSTR msz, int *argc)
     return argv;
 }
 
-static DWORD getsvcarguments(int *argc, LPCWSTR **argv)
+static DWORD getsvcarguments(int *argc, LPWSTR **argv, LPBYTE *data)
 {
     DWORD   t;
     DWORD   c;
@@ -4226,6 +4420,7 @@ static DWORD getsvcarguments(int *argc, LPCWSTR **argv)
 finished:
     if (k != NULL)
         RegCloseKey(k);
+    *data = b;
     *argv = mergearguments((LPWSTR)b, argc);
     return ERROR_SUCCESS;
 }
@@ -4265,7 +4460,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     int      opt;
     int      eenvx;
     int      wargc = 0;
-    LPCWSTR *wargv;
+    LPBYTE   wdata = NULL;
+    LPWSTR  *wargv;
     WCHAR    eenvp[SVCBATCH_NAME_MAX];
 
     LPCWSTR  cp;
@@ -4285,7 +4481,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
 
     DBG_PRINTS("started");
 
-    x = getsvcarguments(&wargc, &wargv);
+    x = getsvcarguments(&wargc, &wargv, &wdata);
     if (x != ERROR_SUCCESS)
         return xsyserror(x, SVCBATCH_SVCARGS, NULL);
     while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
@@ -4673,7 +4869,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
          *
          * This is the system default value.
          */
-        wp = xexpandenvstr(skipdotslash(commandparam));
+        cp = skipdotslash(commandparam);
+        wp = xexpandenvstr(cp);
         if (wp == NULL)
             return xsyserror(GetLastError(), commandparam, NULL);
         if (isrelativepath(wp))
@@ -4682,7 +4879,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             cmdproc->application = xgetfinalpath(0, wp);
         if (cmdproc->application == NULL)
             return xsyserror(GetLastError(), wp, NULL);
-        xfree(wp);
+        if (wp != cp)
+            xfree(wp);
     }
     else {
         wp = xgetenv(L"COMSPEC");
@@ -5622,8 +5820,36 @@ finished:
 #if defined(_DEBUG)
 static void __cdecl dbgcleanup(void)
 {
+    int i;
+    int x;
     HANDLE h;
 
+    xfree(service->uuid);
+    xfree(svariables);
+
+    DBG_PRINTF("calloc     %3llu", __memory_calloc);
+    DBG_PRINTF("malloc     %3llu", __memory_malloc);
+    DBG_PRINTF("realloc    %3llu", __memory_realloc);
+    DBG_PRINTF("free       %3llu", __memory_free);
+
+    DBG_PRINTS("unallocated");
+    for (i = 0; i < __memory_trace_ia; i++) {
+        int c = 0;
+        for (x = 0; x < __memory_trace_ic; x++) {
+            if (__memory_trace_a[i].mem == __memory_trace_c[x].mem) {
+                c = x;
+                break;
+            }
+        }
+        if (c == 0) {
+            dbgprintf(__memory_trace_a[i].fn,
+                      __memory_trace_a[i].line,
+                      "%-8s  %4llu %p",
+                       __memory_trace_a[i].cn,
+                       __memory_trace_a[i].size,
+                       __memory_trace_a[i].mem);
+        }
+    }
     DBG_PRINTS("done");
     h = InterlockedExchangePointer(&dbgfile, NULL);
     if (IS_VALID_HANDLE(h)) {
