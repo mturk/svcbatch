@@ -2746,6 +2746,28 @@ static DWORD xgetfilepath(LPCWSTR path, LPWSTR dst, DWORD siz)
     return xfixmaxpath(dst, len, 0);
 }
 
+static LPWSTR xgettempdir(void)
+{
+    LPWSTR p;
+    LPWSTR r;
+
+    p = xgetenv(L"TMP");
+    if (p == NULL)
+        p = xgetenv(L"TEMP");
+    if (p == NULL)
+        p = xgetenv(L"USERPROFILE");
+    if (p == NULL) {
+        r = xgetenv(L"SystemRoot");
+        if (r != NULL) {
+            p = xwcsconcat(r, L"\\Temp");
+            xfree(r);
+        }
+    }
+    r = xgetfinalpath(2, p);
+    xfree(p);
+    return r;
+}
+
 static LPWSTR xsearchexe(LPCWSTR name)
 {
     WCHAR  buf[SVCBATCH_PATH_MAX];
@@ -5619,25 +5641,12 @@ static DWORD dbgfopen(void)
 static LPWSTR dbggettemp(void)
 {
     LPWSTR p;
-    LPWSTR r;
 
     p = xgetenv(DBG_TEMP_NAME);
-    if (p == NULL)
-        p = xgetenv(L"TMP");
-    if (p == NULL)
-        p = xgetenv(L"TEMP");
-    if (p == NULL)
-        p = xgetenv(L"USERPROFILE");
-    if (p == NULL) {
-        r = xgetenv(L"SystemRoot");
-        if (r != NULL) {
-            p = xwcsconcat(r, L"\\Temp");
-            xfree(r);
-        }
-    }
-    r = xgetfinalpath(2, p);
-    xfree(p);
-    return r;
+    if (p != NULL)
+        return p;
+    else
+        return xgettempdir();
 }
 
 #endif
