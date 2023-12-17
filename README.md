@@ -357,18 +357,6 @@ and lowercase letters with **-** command switch.
       to use local instead system time.
 
 
-    * **N**
-
-      **Do not export private environment variables**
-
-      If set this option will disable export of all
-      private environment variables to the script program.
-
-      Check [Private Environment Variables](#private-environment-variables)
-      section, for the list of exported variables.
-
-
-
     * **P**
 
       **Enable preshutdown service notification**
@@ -649,8 +637,8 @@ and lowercase letters with **-** command switch.
   SvcBatch will evaluate **E** command options in order they
   are defined in service configuration.
 
-  In case the **/F:N** feature was not defined, SvcBatch
-  will first set all [Private Environment Variables](#private-environment-variables)
+  SvcBatch will first set all
+  [Private Environment Variables](#private-environment-variables)
 
   After that it will evaluate and set all **/E:name=value** variables.
 
@@ -713,15 +701,14 @@ and lowercase letters with **-** command switch.
 
   ```
 
-  This feature is usually used when the **/F:N** feature
-  is defined, or to export specific runtime value(s).
+  This feature is usually used to export specific runtime variable(s).
 
   The following example will only export service's home
   and work directories as `MYSERVICE_HOME` and `MYSERVICE_WORK`
   environment variables:
 
   ```no-highlight
-  > svcbatch create myService ... /F:N /EP:@ /EE:HW ...
+  > svcbatch create myService ... /EP:@ /EE:HW ...
 
   ```
 
@@ -760,12 +747,6 @@ and lowercase letters with **-** command switch.
 
   ```
 
-
-  **Notice**
-
-  If **/F:N** was added to the service's configuration
-  this option will ensure that all private environment
-  variables are removed from the current process.
 
 
 

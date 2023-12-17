@@ -73,6 +73,7 @@ static const char *dbgsvcmodes[] = {
 /**
  * Misc internal buffer size definitions
  */
+#define NBUFSIZ                 16
 #define TBUFSIZ                 32
 #define WBUFSIZ                 64
 #define SBUFSIZ                128
@@ -736,10 +737,10 @@ static __inline int xmemalign(unsigned int s)
 {
     unsigned int n;
     /**
-     * Align to 8 bytes for sizes lower then 64k
+     * Align to MEMORY_ALLOCATION_ALIGNMENT bytes for sizes lower then 64k
      * For sizes larger then 64k, align to the next 64k
      */
-    n = s > 65535 ? 65536 : 8;
+    n = s > 65535 ? 65536 : MEMORY_ALLOCATION_ALIGNMENT;
     while (n < s)
         n = n << 1;
     return n;
@@ -1398,7 +1399,7 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
                     ASSERT_SIZE(n,  6, siz);
                     if (*s == L'0')
                         w = runcounter % 10;
-                    else if (*s == '2')
+                    else if (*s == L'2')
                         w = runcounter % 100;
                     else
                         w = runcounter % 10000;
@@ -4072,7 +4073,8 @@ static void __cdecl objectscleanup(void)
 
 static void xinitvars(void)
 {
-    static WCHAR b[TBUFSIZ];
+    static WCHAR p[NBUFSIZ];
+    static WCHAR v[NBUFSIZ];
 
     svariables = (LPSVCBATCH_VARIABLES)xmcalloc(sizeof(SVCBATCH_VARIABLES));
     svariables->siz = SBUFSIZ;
@@ -4081,13 +4083,13 @@ static void xinitvars(void)
     svariables->var[0].key = zerostring;
     svariables->var[0].val = zerostring;
 
-    xsetsysvar('V', L"VERSION",   CPP_TOWCS(SVCBATCH_RELEASE_VER));
+    xsetsysvar('V', L"VERSION",   xntowcb(SVCBATCH_RELEASE_VER, v, NBUFSIZ));
     xsetsysvar('R', L"RELEASE",   SVCBATCH_VERSION_WCS);
     xsetsysvar('N', L"NAME",      service->name);
     xsetsysvar('U', L"UUID",      service->uuid);
     xsetsysvar('A', L"BASENAME",  program->name);
     xsetsysvar('D', L"DIRNAME",   xnopprefix(program->directory));
-    xsetsysvar('P', L"PROCESSID", xntowcb(program->pInfo.dwProcessId, b, TBUFSIZ));
+    xsetsysvar('P', L"PROCESSID", xntowcb(program->pInfo.dwProcessId, p, NBUFSIZ));
 
     xsetsysvar('B', L"BASE",      zerostring);
     xsetsysvar('H', L"HOME",      zerostring);
@@ -4247,11 +4249,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  svcstopparam = NULL;
     LPCWSTR  commandparam = NULL;
     LPCWSTR  eprefixparam = NULL;
-    LPCWSTR  eexportparam = NULL;
     LPCWSTR  rotateparam  = NULL;
     LPCWSTR  logdirparam  = NULL;
     LPCWSTR  svclogfname  = NULL;
     LPCWSTR  tmpdirparam  = NULL;
+
+    LPCWSTR  eexportparam = L"BHLUW";
 
     DBG_PRINTS("started");
 
@@ -4288,9 +4291,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                         break;
                         case L'L':
                             OPT_SET(SVCBATCH_OPT_LOCALTIME);
-                        break;
-                        case L'N':
-                            OPT_SET(SVCBATCH_OPT_NOENV);
                         break;
                         case L'Q':
                             OPT_SET(SVCBATCH_OPT_QUIET);
@@ -4604,19 +4604,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     SETSYSVAR_VAL('L', xnopprefix(service->logs));
     SETSYSVAR_VAL('W', xnopprefix(service->work));
 
-    if (IS_NOT_OPT(SVCBATCH_OPT_NOENV)) {
+    if (!xiswcschar(eexportparam, L'0')) {
         /**
          * Add additional environment variables
          * that are unique to this service instance
          */
-        xsetsvcenv(eenvp, eenvx, 'B');
-        xsetsvcenv(eenvp, eenvx, 'H');
-        xsetsvcenv(eenvp, eenvx, 'L');
-        xsetsvcenv(eenvp, eenvx, 'W');
-        xsetsvcenv(eenvp, eenvx, 'N');
-        xsetsvcenv(eenvp, eenvx, 'U');
-    }
-    if (eexportparam) {
         cp = eexportparam;
         while (*cp) {
             if (xwcschr(L"ABDHLNPRUVW", *cp) == NULL)
