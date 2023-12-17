@@ -802,6 +802,27 @@ static int xwbsaddwcs(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len)
     return 0;
 }
 
+static int xwbsaddnum(LPSVCBATCH_WBUFFER wb, DWORD n, int np, int pc)
+{
+    WCHAR  b[NBUFSIZ];
+    LPWSTR s;
+    int    c = 0;
+
+    ASSERT_NULL(wb, -1);
+    s = b + NBUFSIZ;
+    *(--s) = WNUL;
+    do {
+        *(--s) = L'0' + (WCHAR)(n % 10);
+        n /= 10;
+        c++;
+    } while (n);
+    while ((np > c) && (s > b)) {
+        *(--s) = pc;
+        np--;
+    }
+    return xwbsaddwcs(wb, s, 0);
+}
+
 static int xwbsfinish(LPSVCBATCH_WBUFFER wb)
 {
     int    c;
@@ -1182,28 +1203,6 @@ static int xwcslcpy(LPWSTR dst, int siz, LPCWSTR src)
     return c;
 }
 
-static int xwcslcati(LPWSTR dst, int siz, int pos,
-                     DWORD n, int np, int pc)
-{
-    WCHAR  b[TBUFSIZ];
-    LPWSTR s;
-    int    c = 0;
-
-    s = b + TBUFSIZ;
-    *(--s) = WNUL;
-    do {
-        *(--s) = L'0' + (WCHAR)(n % 10);
-        n /= 10;
-        c++;
-    } while (n);
-    while ((np > c) && (s > b)) {
-        *(--s) = pc;
-        np--;
-    }
-    return xwcslcat(dst, siz, pos, s);
-}
-
-
 static int xvsnwprintf(LPWSTR dst, int siz,
                        LPCWSTR fmt, va_list ap)
 {
@@ -1287,16 +1286,15 @@ static int getdayofyear(int y, int m, int d)
     return r;
 }
 
-static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
+static LPWSTR xwcsftime(LPCWSTR fmt)
 {
-    LPCWSTR s = fmt;
-    LPWSTR  d = dst;
-    int     n = siz;
-    SYSTEMTIME tm;
+    LPCWSTR          s = fmt;
+    SYSTEMTIME       tm;
+    SVCBATCH_WBUFFER wb;
 
-    ASSERT_WSTR(s, 0);
-    ASSERT_NULL(d, 0);
-    ASSERT_SIZE(n, 2, 0);
+    ASSERT_WSTR(s, NULL);
+    if (xwbsinit(&wb, SVCBATCH_NAME_MAX))
+        return NULL;
 
     if (IS_OPT_SET(SVCBATCH_OPT_LOCALTIME))
         GetLocalTime(&tm);
@@ -1304,125 +1302,111 @@ static int xwcsftime(LPWSTR dst, int siz, LPCWSTR fmt)
         GetSystemTime(&tm);
 
     while (*s) {
-        *d = WNUL;
-
-        ASSERT_SIZE(n, 2, siz);
         if (*s == L'@') {
-            int i = 0;
             int w;
             s++;
             switch (*s) {
                 case L'@':
-                    d[i++] = L'@';
+                    xwbsaddwch(&wb, L'@');
                 break;
                 case L'y':
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wYear % 100 / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 10 + L'0');
                 break;
                 case L'Y':
-                    ASSERT_SIZE(n, 4, siz);
-                    d[i++] = tm.wYear / 1000 + L'0';
-                    d[i++] = tm.wYear % 1000 / 100 + L'0';
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wYear / 1000 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 1000 / 100 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 100 / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 10 + L'0');
                 break;
                 case L'd':
-                    d[i++] = tm.wDay  / 10 + L'0';
-                    d[i++] = tm.wDay % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wDay  / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wDay % 10 + L'0');
                 break;
                 case L'm':
-                    d[i++] = tm.wMonth / 10 + L'0';
-                    d[i++] = tm.wMonth % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wMonth / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wMonth % 10 + L'0');
                 break;
                 case L'H':
-                    d[i++] = tm.wHour / 10 + L'0';
-                    d[i++] = tm.wHour % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wHour / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wHour % 10 + L'0');
                 break;
                 case L'M':
-                    d[i++] = tm.wMinute / 10 + L'0';
-                    d[i++] = tm.wMinute % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wMinute / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wMinute % 10 + L'0');
                 break;
                 case L'S':
-                    d[i++] = tm.wSecond / 10 + L'0';
-                    d[i++] = tm.wSecond % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wSecond / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wSecond % 10 + L'0');
                 break;
                 case L'j':
-                    ASSERT_SIZE(n,  3, siz);
                     w = getdayofyear(tm.wYear, tm.wMonth, tm.wDay);
-                    d[i++] = w / 100 + L'0';
-                    d[i++] = w % 100 / 10 + L'0';
-                    d[i++] = w % 10 + L'0';
+                    xwbsaddwch(&wb, w / 100 + L'0');
+                    xwbsaddwch(&wb, w % 100 / 10 + L'0');
+                    xwbsaddwch(&wb, w % 10 + L'0');
                 break;
                 case 'L':
-                    ASSERT_SIZE(n, 14, siz);
-                    d[i++] = tm.wYear / 1000 + L'0';
-                    d[i++] = tm.wYear % 1000 / 100 + L'0';
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
-                    d[i++] = tm.wMonth / 10 + L'0';
-                    d[i++] = tm.wMonth % 10 + L'0';
-                    d[i++] = tm.wDay  / 10 + L'0';
-                    d[i++] = tm.wDay % 10 + L'0';
-                    d[i++] = tm.wHour / 10 + L'0';
-                    d[i++] = tm.wHour % 10 + L'0';
-                    d[i++] = tm.wMinute / 10 + L'0';
-                    d[i++] = tm.wMinute % 10 + L'0';
-                    d[i++] = tm.wSecond / 10 + L'0';
-                    d[i++] = tm.wSecond % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wYear / 1000 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 1000 / 100 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 100 / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 10 + L'0');
+                    xwbsaddwch(&wb, tm.wMonth / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wMonth % 10 + L'0');
+                    xwbsaddwch(&wb, tm.wDay  / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wDay % 10 + L'0');
+                    xwbsaddwch(&wb, tm.wHour / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wHour % 10 + L'0');
+                    xwbsaddwch(&wb, tm.wMinute / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wMinute % 10 + L'0');
+                    xwbsaddwch(&wb, tm.wSecond / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wSecond % 10 + L'0');
                 break;
                 case L'F':
-                    ASSERT_SIZE(n, 10, siz);
-                    d[i++] = tm.wYear / 1000 + L'0';
-                    d[i++] = tm.wYear % 1000 / 100 + L'0';
-                    d[i++] = tm.wYear % 100 / 10 + L'0';
-                    d[i++] = tm.wYear % 10 + L'0';
-                    d[i++] = L'-';
-                    d[i++] = tm.wMonth / 10 + L'0';
-                    d[i++] = tm.wMonth % 10 + L'0';
-                    d[i++] = L'-';
-                    d[i++] = tm.wDay  / 10 + L'0';
-                    d[i++] = tm.wDay % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wYear / 1000 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 1000 / 100 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 100 / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wYear % 10 + L'0');
+                    xwbsaddwch(&wb, L'-');
+                    xwbsaddwch(&wb, tm.wMonth / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wMonth % 10 + L'0');
+                    xwbsaddwch(&wb, L'-');
+                    xwbsaddwch(&wb, tm.wDay  / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wDay % 10 + L'0');
                 break;
                 case L'w':
-                    d[i++] = L'0' + tm.wDayOfWeek;
+                    xwbsaddwch(&wb, L'0' + tm.wDayOfWeek);
                 break;
                 /** Custom formatting codes */
                 case L's':
-                    ASSERT_SIZE(n,  3, siz);
-                    d[i++] = tm.wMilliseconds / 100 + L'0';
-                    d[i++] = tm.wMilliseconds % 100 / 10 + L'0';
-                    d[i++] = tm.wMilliseconds % 10 + L'0';
+                    xwbsaddwch(&wb, tm.wMilliseconds / 100 + L'0');
+                    xwbsaddwch(&wb, tm.wMilliseconds % 100 / 10 + L'0');
+                    xwbsaddwch(&wb, tm.wMilliseconds % 10 + L'0');
                 break;
                 case L'0':
                 case L'2':
                 case L'4':
-                    ASSERT_SIZE(n,  6, siz);
                     if (*s == L'0')
                         w = runcounter % 10;
                     else if (*s == L'2')
                         w = runcounter % 100;
                     else
                         w = runcounter % 10000;
-                    i = xwcslcati(d, n, i, w, *s - L'0', L'0');
+                    xwbsaddnum(&wb, w, *s - L'0', L'0');
                     InterlockedIncrement(&runcounter);
                 break;
                 default:
-                   *dst = WNUL;
+                    xfree(wb.buf);
                     SetLastError(ERROR_INVALID_PARAMETER);
-                    return 0;
+                    return NULL;
                 break;
             }
-            d += i;
-            n -= i;
         }
         else {
-            *d++ = *s;
-            n--;
+            xwbsaddwch(&wb, *s);
         }
         s++;
     }
-    *d = WNUL;
-    return (int)(d - dst);
+    return xwbsdata(&wb);
 }
 
 static int xnamemap(LPCWSTR src, SVCBATCH_NAME_MAP const *map, int def)
@@ -1509,7 +1493,6 @@ static LPWSTR xgetenv(LPCWSTR s)
 static LPWSTR xexpandenvstr(LPCWSTR src)
 {
     WCHAR  bb[SVCBATCH_NAME_MAX];
-    WCHAR  xb[BBUFSIZ];
     SVCBATCH_WBUFFER wb;
     LPWSTR           rp;
     LPCWSTR           s = src;
@@ -1567,10 +1550,8 @@ static LPWSTR xexpandenvstr(LPCWSTR src)
                         return NULL;
                     }
                     if ((c > 0) && (bb[0] == L'+')) {
-                        if (xwcsftime(xb, BBUFSIZ, bb + 1))
-                            cp = xb;
-                        else
-                            cp = zerostring;
+                        ep = xwcsftime(bb + 1);
+                        cp = ep;
                     }
                     if (cp == NULL) {
                         cp = xgetsysvar(bb);
@@ -3113,21 +3094,23 @@ static DWORD rotateprevlogs(LPSVCBATCH_LOG log, BOOL ssp)
 
 static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
 {
-    HANDLE  fh = NULL;
     DWORD   rc;
-    WCHAR   nb[SVCBATCH_NAME_MAX];
-    LPCWSTR np = log->logName;
+    HANDLE  fh = NULL;
+    LPWSTR  nf = NULL;
+    LPCWSTR nn = log->logName;
     int     rp = srvcmaxlogs;
 
-    if (xwcschr(np, L'@')) {
-        if (xwcsftime(nb, SVCBATCH_NAME_MAX, np) == 0)
-            return xsyserror(GetLastError(), np, NULL);
+    if (xwcschr(nn, L'@')) {
+        nf = xwcsftime(nn);
+        if (nf == NULL)
+            return xsyserror(GetLastError(), nn, NULL);
         rp = 0;
-        DBG_PRINTF("%S -> %S", np, nb);
-        np = nb;
+        DBG_PRINTF("%S -> %S", nn, nf);
+        nn = nf;
     }
     xfree(log->logFile);
-    log->logFile = xwmakepath(service->logs, np, NULL);
+    log->logFile = xwmakepath(service->logs, nn, NULL);
+    xfree(nf);
     if (rp) {
         rc = rotateprevlogs(log, ssp);
         if (rc)
@@ -3147,7 +3130,6 @@ static DWORD openlogfile(LPSVCBATCH_LOG log, BOOL ssp)
     InterlockedExchange64(&log->size, 0);
     InterlockedExchange(&log->state,  0);
     InterlockedExchangePointer(&log->fd, fh);
-
     return 0;
 }
 
