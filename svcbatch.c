@@ -1383,15 +1383,15 @@ static LPWSTR xwcsftime(LPCWSTR fmt)
                     xwbsaddwch(&wb, tm.wMilliseconds % 10 + L'0');
                 break;
                 case L'0':
+                    xwbsaddwch(&wb, runcounter % 10 + L'0');
+                    InterlockedIncrement(&runcounter);
+                break;
                 case L'2':
+                    xwbsaddnum(&wb, runcounter % 100, 2, L'0');
+                    InterlockedIncrement(&runcounter);
+                break;
                 case L'4':
-                    if (*s == L'0')
-                        w = runcounter % 10;
-                    else if (*s == L'2')
-                        w = runcounter % 100;
-                    else
-                        w = runcounter % 10000;
-                    xwbsaddnum(&wb, w, *s - L'0', L'0');
+                    xwbsaddnum(&wb, runcounter % 10000, 4, L'0');
                     InterlockedIncrement(&runcounter);
                 break;
                 default:
@@ -4236,7 +4236,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  svclogfname  = NULL;
     LPCWSTR  tmpdirparam  = NULL;
 
-    LPCWSTR  eexportparam = L"BHLUW";
+    LPCWSTR  eexportparam = L"BHLNUW";
 
     DBG_PRINTS("started");
 
