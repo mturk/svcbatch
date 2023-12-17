@@ -208,6 +208,8 @@ typedef struct _SVCBATCH_NAME_MAP {
     int     code;
 } SVCBATCH_NAME_MAP, *LPSVCBATCH_NAME_MAP;
 
+static SYSTEM_INFO           ssysteminfo;
+static HANDLE                processheap = NULL;
 static int                   svcmainargc = 0;
 static int                   srvcmaxlogs = SVCBATCH_DEF_LOGS;
 static int                   stopmaxlogs = 0;
@@ -497,18 +499,15 @@ static void xfatalerr(LPCSTR func, int err)
 #endif
 }
 
-
 static void *xmmalloc(size_t size)
 {
-    UINT64 *p;
+    void   *p;
     size_t  n;
 
     n = MEM_ALIGN_DEFAULT(size);
-    p = (UINT64 *)malloc(n);
+    p = HeapAlloc(processheap, HEAP_ZERO_MEMORY, n);
     if (p == NULL)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-    n = (n >> 3) - 1;
-    *(p + n) = UINT64_ZERO;
     return p;
 }
 
@@ -518,41 +517,40 @@ static void *xmcalloc(size_t size)
     size_t  n;
 
     n = MEM_ALIGN_DEFAULT(size);
-    p = calloc(1, n);
+    p = HeapAlloc(processheap, HEAP_ZERO_MEMORY, n);
     if (p == NULL)
         SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
     return p;
 }
 
-static __inline void xfree(void *mem)
+static __inline void xfree(void *m)
 {
-    if (mem)
-        free(mem);
+    if (m != NULL)
+        HeapFree(processheap, 0, m);
+}
+
+static void *xrealloc(void *m, size_t size)
+{
+    void   *p;
+    size_t  n;
+
+    if (size == 0) {
+        xfree(m);
+        return NULL;
+    }
+    n = MEM_ALIGN_DEFAULT(size);
+    if (m == NULL)
+        p = HeapAlloc(  processheap, HEAP_ZERO_MEMORY, n);
+    else
+        p = HeapReAlloc(processheap, HEAP_ZERO_MEMORY, m, n);
+    if (p == NULL)
+        SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
+    return p;
 }
 
 static __inline LPWSTR  xwmalloc(size_t size)
 {
     return (LPWSTR)xmmalloc(size * sizeof(WCHAR));
-}
-
-static void *xrealloc(void *mem, size_t size)
-{
-    UINT64 *p;
-    size_t  n;
-
-    if (size == 0) {
-        xfree(mem);
-        return NULL;
-    }
-    n = MEM_ALIGN_DEFAULT(size);
-    p = (UINT64 *)realloc(mem, n);
-    if (p == NULL)
-        SVCBATCH_FATAL(ERROR_OUTOFMEMORY);
-    if (mem == NULL) {
-        n = (n >> 3) - 1;
-        *(p + n) = UINT64_ZERO;
-    }
-    return p;
 }
 
 static __inline LPWSTR *xwaalloc(size_t size)
@@ -5677,6 +5675,11 @@ static int xwmaininit(void)
     LPWSTR pp;
     DWORD  nn;
 
+    GetSystemInfo(&ssysteminfo);
+    processheap = GetProcessHeap();
+    if (IS_INVALID_HANDLE(processheap))
+        return GetLastError();
+
 #if defined (_DEBUG)
     InitializeCriticalSection(&dbglock);
     atexit(dbgcleanup);
@@ -5765,6 +5768,7 @@ int wmain(int argc, LPCWSTR *argv)
      * Make sure child processes are kept quiet.
      */
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOOPENFILEERRORBOX | SEM_NOGPFAULTERRORBOX);
+
     r = xwmaininit();
     if (r != 0)
         return r;

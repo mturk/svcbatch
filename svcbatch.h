@@ -217,7 +217,7 @@
 /** Memory alignment */
 #define MEM_ALIGN(size, boundary) \
     (((size) + ((boundary) - 1)) & ~((boundary) - 1))
-#define MEM_ALIGN_DEFAULT(size) MEM_ALIGN(size, 8)
+#define MEM_ALIGN_DEFAULT(size) MEM_ALIGN(size, MEMORY_ALLOCATION_ALIGNMENT)
 
 /**
  * Start of the custom error messages
