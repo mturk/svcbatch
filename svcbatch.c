@@ -4837,9 +4837,10 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     if (eenvx >= (SVCBATCH_NAME_MAX - 10))
         return xsyserrno(21, SVCBATCH_MSG(4),  cp);
     xwcsupper(eenvp);
+    SETSYSVAR_VAL('E', xwcsdup(eenvp));
+
     eenvp[eenvx++] = L'_';
     eenvp[eenvx]   = WNUL;
-    SETSYSVAR_VAL('E', xwcsdup(eenvp));
 
     for (i = 1; i < sargc; i++) {
         if (cmdproc->argc < SVCBATCH_MAX_ARGS)
