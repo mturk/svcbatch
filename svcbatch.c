@@ -5471,6 +5471,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     if (cmd == SVCBATCH_SCM_CREATE) {
         starttype     = SERVICE_DEMAND_START;
         servicetype   = SERVICE_WIN32_OWN_PROCESS;
+        binaryargs    = 0;
     }
     if ((cmd == SVCBATCH_SCM_START)  || (cmd == SVCBATCH_SCM_STOP))
         wtime = SVCBATCH_SCM_WAIT_DEF;
