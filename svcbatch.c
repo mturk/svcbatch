@@ -332,10 +332,8 @@ static SVCBATCH_REG_VALUE svcregvalues[] = {
     { L"StopLogName",       RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SLOGNAME   */
     { L"StopMaxLogs",       RRF_RT_REG_DWORD,       0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SMAXLOGS   */
 
-    { L"StopTimeout",       RRF_RT_REG_DWORD,       SVCBATCH_STOP_TIMEOUT,
-                                                       0, NULL, NULL },     /* SVCBATCH_OPTS_STIMEOUT   */
-    { L"MaxLogs",           RRF_RT_REG_DWORD,       SVCBATCH_DEF_LOGS,
-                                                       0, NULL, NULL },     /* SVCBATCH_OPTS_MAXLOGS    */
+    { L"StopTimeout",       RRF_RT_REG_DWORD,       0, 0, NULL, NULL },     /* SVCBATCH_OPTS_STIMEOUT   */
+    { L"MaxLogs",           RRF_RT_REG_DWORD,       0, 0, NULL, NULL },     /* SVCBATCH_OPTS_MAXLOGS    */
 
 
 
@@ -4363,7 +4361,24 @@ static LPWSTR *mergearguments(LPWSTR msz, int *argc)
     return argv;
 }
 
-static DWORD getsvcregconfig(void)
+static int     getsvcoptnum(int i, int d)
+{
+    if (svcregvalues[i].size)
+        return svcregvalues[i].dval;
+    else
+        return d;
+}
+
+static LPCWSTR getsvcoptwcs(int i, LPCWSTR d)
+{
+    if (svcregvalues[i].size) {
+        if (IS_VALID_WCS(svcregvalues[i].sval))
+            return svcregvalues[i].sval;
+    }
+    return d;
+}
+
+static DWORD getsvcoptions(LPCWSTR *err)
 {
     int     i;
     DWORD   t;
@@ -4379,6 +4394,7 @@ static DWORD getsvcregconfig(void)
     i = xwcslcat(name, BBUFSIZ, i, L"\\" SVCBATCH_SVCOPTS);
     s = RegOpenKeyExW(HKEY_LOCAL_MACHINE, name, 0, KEY_READ, &k);
     if (s != ERROR_SUCCESS) {
+        *err = L"RegOpenKey";
         if (s == ERROR_FILE_NOT_FOUND)
             return 0;
         else
@@ -4386,6 +4402,7 @@ static DWORD getsvcregconfig(void)
     }
     i = 0;
     while (svcregvalues[i].name != NULL) {
+        *err = svcregvalues[i].name;
         d = 0;
         if (svcregvalues[i].type == RRF_RT_REG_DWORD) {
             c = 4;
@@ -4470,48 +4487,45 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPWSTR   pp;
     LPWSTR   featureparam = NULL;
     LPWSTR   scriptparam  = NULL;
-    LPCWSTR  svchomeparam = NULL;
-    LPCWSTR  svcworkparam = NULL;
-    LPCWSTR  svcstopparam = NULL;
-    LPCWSTR  commandparam = NULL;
-    LPCWSTR  eprefixparam = NULL;
-    LPCWSTR  rotateparam  = NULL;
-    LPCWSTR  logdirparam  = NULL;
-    LPCWSTR  svclogfname  = NULL;
-    LPCWSTR  tmpdirparam  = NULL;
-
-    LPCWSTR  eexportparam = L"BHLNUW";
+    LPCWSTR  svchomeparam;
+    LPCWSTR  svcworkparam;
+    LPCWSTR  svcstopparam;
+    LPCWSTR  commandparam;
+    LPCWSTR  eprefixparam;
+    LPCWSTR  rotateparam;
+    LPCWSTR  logdirparam;
+    LPCWSTR  svclogfname;
+    LPCWSTR  tmpdirparam;
+    LPCWSTR  eexportparam;
+    LPCWSTR  errmsg = NULL;
 
     DBG_PRINTS("started");
 
-    x = getsvcregconfig();
+    x = getsvcoptions(&errmsg);
     if (x != ERROR_SUCCESS)
-        return xsyserror(x, SVCBATCH_SVCOPTS, NULL);
+        return xsyserror(x, SVCBATCH_SVCOPTS, errmsg);
     svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
     wargv   = mergearguments((LPWSTR)svcregvalues[0].data, &wargc);
 
-    svchomeparam = skipdotslash(svcregvalues[SVCBATCH_OPTS_HOME].sval);
-    logdirparam  = skipdotslash(svcregvalues[SVCBATCH_OPTS_LOGS].sval);
-    tmpdirparam  = skipdotslash(svcregvalues[SVCBATCH_OPTS_TEMP].sval);
-    svcworkparam = skipdotslash(svcregvalues[SVCBATCH_OPTS_WORK].sval);
+    svchomeparam = skipdotslash(getsvcoptwcs(SVCBATCH_OPTS_HOME, NULL));
+    logdirparam  = skipdotslash(getsvcoptwcs(SVCBATCH_OPTS_LOGS, NULL));
+    tmpdirparam  = skipdotslash(getsvcoptwcs(SVCBATCH_OPTS_TEMP, NULL));
+    svcworkparam = skipdotslash(getsvcoptwcs(SVCBATCH_OPTS_WORK, NULL));
 
-    commandparam = svcregvalues[SVCBATCH_OPTS_COMMAND  ].sval;
-    eprefixparam = svcregvalues[SVCBATCH_OPTS_ENVPREFIX].sval;
-    killdepth    = svcregvalues[SVCBATCH_OPTS_KILLDEPTH].dval;
-    svclogfname  = svcregvalues[SVCBATCH_OPTS_LOGNAME  ].sval;
-    rotateparam  = svcregvalues[SVCBATCH_OPTS_LOGROTATE].sval;
-    stoplogname  = svcregvalues[SVCBATCH_OPTS_SLOGNAME ].sval;
-    stoptimeout  = svcregvalues[SVCBATCH_OPTS_STIMEOUT ].dval;
-    srvcmaxlogs  = svcregvalues[SVCBATCH_OPTS_MAXLOGS  ].dval;
-    stopmaxlogs  = svcregvalues[SVCBATCH_OPTS_SMAXLOGS ].dval;
-    svcstopparam = svcregvalues[SVCBATCH_OPTS_SVCSTOP  ].sval;
-    if (svcregvalues[SVCBATCH_OPTS_SCRIPT].sval) {
-        scriptparam = (LPWSTR)svcregvalues[SVCBATCH_OPTS_SCRIPT].data;
-        svcregvalues[SVCBATCH_OPTS_SCRIPT].sval = NULL;
-        svcregvalues[SVCBATCH_OPTS_SCRIPT].data = NULL;
-    }
-    if (svcregvalues[SVCBATCH_OPTS_STOPARGS].sval) {
-        cp = svcregvalues[SVCBATCH_OPTS_STOPARGS].sval;
+    commandparam = getsvcoptwcs(SVCBATCH_OPTS_COMMAND,   NULL);
+    eexportparam = getsvcoptwcs(SVCBATCH_OPTS_ENVEXPORT, L"BHLNUW");
+    eprefixparam = getsvcoptwcs(SVCBATCH_OPTS_ENVPREFIX, NULL);
+    killdepth    = getsvcoptnum(SVCBATCH_OPTS_KILLDEPTH,    0);
+    svclogfname  = getsvcoptwcs(SVCBATCH_OPTS_LOGNAME,   NULL);
+    rotateparam  = getsvcoptwcs(SVCBATCH_OPTS_LOGROTATE, NULL);
+    stoplogname  = getsvcoptwcs(SVCBATCH_OPTS_SLOGNAME,  NULL);
+    stoptimeout  = getsvcoptnum(SVCBATCH_OPTS_STIMEOUT,  SVCBATCH_STOP_TIMEOUT);
+    srvcmaxlogs  = getsvcoptnum(SVCBATCH_OPTS_MAXLOGS,   SVCBATCH_DEF_LOGS);
+    stopmaxlogs  = getsvcoptnum(SVCBATCH_OPTS_SMAXLOGS,     0);
+    svcstopparam = getsvcoptwcs(SVCBATCH_OPTS_SVCSTOP,   NULL);
+
+    cp = getsvcoptwcs(SVCBATCH_OPTS_STOPARGS, NULL);
+    if (cp != NULL) {
         for (; *cp; cp++) {
             if (svcstop->argc < SVCBATCH_MAX_ARGS)
                 svcstop->args[svcstop->argc++] = cp;
@@ -4521,8 +4535,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 cp++;
         }
     }
-    if (svcregvalues[SVCBATCH_OPTS_CMDOPTS].sval) {
-        cp = svcregvalues[SVCBATCH_OPTS_CMDOPTS].sval;
+    cp = getsvcoptwcs(SVCBATCH_OPTS_CMDOPTS, NULL);
+    if (cp != NULL) {
         for (; *cp; cp++) {
             if (cmdproc->optc < SVCBATCH_MAX_ARGS)
                 cmdproc->opts[cmdproc->optc++] = cp;
@@ -4532,8 +4546,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 cp++;
         }
     }
-    if (svcregvalues[SVCBATCH_OPTS_RUNARGS].sval) {
-        cp = svcregvalues[SVCBATCH_OPTS_RUNARGS].sval;
+    cp = getsvcoptwcs(SVCBATCH_OPTS_RUNARGS, NULL);
+    if (cp != NULL) {
         for (; *cp; cp++) {
             if (cmdproc->argc < SVCBATCH_MAX_ARGS)
                 cmdproc->args[cmdproc->argc++] = cp;
@@ -4543,8 +4557,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 cp++;
         }
     }
-    if (svcregvalues[SVCBATCH_OPTS_ENVSET].sval) {
-        cp = svcregvalues[SVCBATCH_OPTS_ENVSET].sval;
+    cp = getsvcoptwcs(SVCBATCH_OPTS_ENVSET, NULL);
+    if (cp != NULL) {
         for (; *cp; cp++) {
             pp = xwcsdup(cp);
             wp = xwcschr(pp, L'=');
@@ -4560,9 +4574,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 cp++;
         }
     }
-    featureparam = xwcsdup(svcregvalues[SVCBATCH_OPTS_FEATURES].sval);
-    if (svcregvalues[SVCBATCH_OPTS_ENVEXPORT].sval)
-        eexportparam = svcregvalues[SVCBATCH_OPTS_ENVEXPORT].sval;
+    featureparam = xwcsdup(getsvcoptwcs(SVCBATCH_OPTS_FEATURES, NULL));
+    scriptparam  = xwcsdup(getsvcoptwcs(SVCBATCH_OPTS_SCRIPT,   NULL));
 
     while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
         switch (opt) {
@@ -4755,7 +4768,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         svcfailmode = SVCBATCH_FAIL_ERROR;
     if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
         return xsyserrno(13, L"K", xntowcs(killdepth));
-    DBG_PRINTF("killdepth %d", killdepth);
     if ((stoptimeout < SVCBATCH_STOP_TMIN) || (stoptimeout > SVCBATCH_STOP_TMAX))
         return xsyserrno(13, L"ST", xntowcs(stoptimeout));
     stoptimeout = stoptimeout * 1000;
@@ -4925,7 +4937,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     SETSYSVAR_VAL('W', xnopprefix(service->work));
 
     if (tmpdirparam) {
-        wp = xexpandenvstr(tmpdirparam, L"HLNPVW");
+        wp = xexpandenvstr(tmpdirparam, L"BHLNPVW");
         if (wp == NULL)
             return xsyserror(GetLastError(), tmpdirparam, NULL);
         pp = createsvcdir(wp);
@@ -5246,7 +5258,7 @@ finished:
     return service->exitCode;
 }
 
-static int setsvcarguments(int cmd, int argc, LPCWSTR *argv)
+static int setsvcoptions(int cmd, int argc, LPCWSTR *argv)
 {
     int     i;
     int     e;
@@ -5568,7 +5580,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                              username,
                              password);
         if ((svc != NULL) && (embedargs == 0)) {
-            ep = setsvcarguments(cmd, argc, argv);
+            ep = setsvcoptions(cmd, argc, argv);
             if (ep) {
                 rv = GetLastError();
                 ec = __LINE__;
@@ -5860,7 +5872,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             goto finished;
         }
         if (embedargs == 0) {
-            ep = setsvcarguments(cmd, argc, argv);
+            ep = setsvcoptions(cmd, argc, argv);
             if (ep) {
                 rv = GetLastError();
                 ec = __LINE__;
