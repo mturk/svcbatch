@@ -4491,7 +4491,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     svcworkparam = skipdotslash(svcregvalues[SVCBATCH_OPTS_WORK].sval);
 
     commandparam = svcregvalues[SVCBATCH_OPTS_COMMAND  ].sval;
-    eexportparam = svcregvalues[SVCBATCH_OPTS_ENVEXPORT].sval;
     eprefixparam = svcregvalues[SVCBATCH_OPTS_ENVPREFIX].sval;
     killdepth    = svcregvalues[SVCBATCH_OPTS_KILLDEPTH].dval;
     svclogfname  = svcregvalues[SVCBATCH_OPTS_LOGNAME  ].sval;
@@ -4557,6 +4556,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         }
     }
     featureparam = xwcsdup(svcregvalues[SVCBATCH_OPTS_FEATURES].sval);
+    if (svcregvalues[SVCBATCH_OPTS_ENVEXPORT].sval)
+        eexportparam = svcregvalues[SVCBATCH_OPTS_ENVEXPORT].sval;
 
     while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
         switch (opt) {
