@@ -887,7 +887,7 @@ static int xwbsaddwch(LPSVCBATCH_WBUFFER wb, WCHAR ch)
     return 0;
 }
 
-static int xwbsaddwcs(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len)
+static int xwbsaddwcs(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len, int cc)
 {
     int c;
     LPWSTR p;
@@ -908,7 +908,13 @@ static int xwbsaddwcs(LPSVCBATCH_WBUFFER wb, LPCWSTR str, int len)
         wb->buf = (LPWSTR)xrealloc(p, wb->siz * sizeof(WCHAR));
     }
     if (len) {
-        wmemcpy(wb->buf + wb->pos, str, len);
+        if (cc) {
+            for (c = 0; c < len; c++)
+                wb->buf[wb->pos + c] = cc == '+' ? xtoupper(str[c]) : xtolower(str[c]);
+        }
+        else {
+            wmemcpy(wb->buf + wb->pos, str, len);
+        }
         wb->pos += len;
     }
     return 0;
@@ -932,7 +938,7 @@ static int xwbsaddnum(LPSVCBATCH_WBUFFER wb, DWORD n, int np, int pc)
         *(--s) = pc;
         np--;
     }
-    return xwbsaddwcs(wb, s, 0);
+    return xwbsaddwcs(wb, s, 0, 0);
 }
 
 static int xwbsfinish(LPSVCBATCH_WBUFFER wb)
@@ -1714,8 +1720,10 @@ static LPWSTR xexpandenvstr(LPCWSTR src, LPCWSTR set)
                     }
                 }
                 if (n > 0) {
+                    int     cc = 0;
                     LPCWSTR cp = NULL;
                     LPWSTR  ep = NULL;
+                    LPWSTR  nb = bb;
 
                     i = xwcslcpyn(bb, SVCBATCH_NAME_MAX, s, n);
                     if (i >= SVCBATCH_NAME_MAX) {
@@ -1723,23 +1731,19 @@ static LPWSTR xexpandenvstr(LPCWSTR src, LPCWSTR set)
                         SetLastError(ERROR_BUFFER_OVERFLOW);
                         return NULL;
                     }
-                    if ((c > 0) && (bb[0] == L'+')) {
-                        ep = xwcsftime(bb + 1);
-                        cp = ep;
+                    if ((c > 0) && ((*nb == L'+') || (*nb == L'-')))
+                        cc = *(nb++);
+                    cp = xgetsysvar(nb, set);
+                    if (set && (cp == NULL)) {
+                        xfree(wb.buf);
+                        SetLastError(ERROR_INVALID_NAME);
+                        return NULL;
                     }
                     if (cp == NULL) {
-                        cp = xgetsysvar(bb, set);
-                        if (set && (cp == NULL)) {
-                            xfree(wb.buf);
-                            SetLastError(ERROR_INVALID_NAME);
-                            return NULL;
-                        }
-                    }
-                    if (cp == NULL) {
-                        ep = xgetenv(bb);
+                        ep = xgetenv(nb);
                         cp = ep;
                     }
-                    xwbsaddwcs(&wb, cp, 0);
+                    xwbsaddwcs(&wb, cp, 0, cc);
                     xfree(ep);
                     s += n + c;
                 }
@@ -5133,7 +5137,6 @@ static void WINAPI servicemain(DWORD argc, LPWSTR *argv)
         xsvcstatus(SERVICE_STOPPED, rv);
         return;
     }
-    InterlockedExchange(&runcounter, 0);
     xsvcstatus(SERVICE_START_PENDING, 0);
     if (outputlog) {
         rv = openlogfile(outputlog, TRUE);
