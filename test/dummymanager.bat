@@ -81,7 +81,8 @@ rem
 rem set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /SM:1"
 rem
 rem Set PATH
-set "SERVICE_ENVIRONMENT=/E:PATH=$HOME;$PATH /E:THE${NAME}ID=${+x@2@Y@m@d:}NUMBER /EE:ABDHLNRUVW /E:ADUMMYSVC_PID=$ProcessId"
+set "SERVICE_ENVIRONMENT=/E:PATH=$HOME;$PATH /E:THE${NAME}ID=${+x@2@Y@m@d:}NUMBER"
+rem set "SERVICE_ENVIRONMENT=%SERVICE_ENVIRONMENT%  /EE:ABDHLNRUVW"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
@@ -99,6 +100,8 @@ rem
     --stopLogName=$NAME.stop.log --stopMaxLogs=1 ^
     --logRotate "S+@6+20K" ^
     --stopArgs "stop|arguments|with spaces" ^
+    --set "ADUMMYSVC_PID=$ProcessId|ADUMMYSVC_VER=$VERSION" ^
+    --export=ABDHLNRUVW ^
     /F:PL0 ^
     %SERVICE_ENVIRONMENT% ^
     %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^

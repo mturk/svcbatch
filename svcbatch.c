@@ -285,6 +285,9 @@ typedef enum {
     SVCBATCH_OPTS_WORK,
     SVCBATCH_OPTS_COMMAND,
     SVCBATCH_OPTS_CMDOPTS,
+    SVCBATCH_OPTS_ENVEXPORT,
+    SVCBATCH_OPTS_ENVPREFIX,
+    SVCBATCH_OPTS_ENVSET,
     SVCBATCH_OPTS_FEATURES,
     SVCBATCH_OPTS_KILLDEPTH,
     SVCBATCH_OPTS_LOGNAME,
@@ -293,9 +296,9 @@ typedef enum {
     SVCBATCH_OPTS_SVCSTOP,
     SVCBATCH_OPTS_STOPARGS,
     SVCBATCH_OPTS_SLOGNAME,
+    SVCBATCH_OPTS_SMAXLOGS,
     SVCBATCH_OPTS_STIMEOUT,
     SVCBATCH_OPTS_MAXLOGS,
-    SVCBATCH_OPTS_SMAXLOGS,
 
     SVCBATCH_OPTS_MAX
 } SVCBATCH_OPTS_ID;
@@ -309,11 +312,14 @@ typedef enum {
 static SVCBATCH_REG_VALUE svcregvalues[] = {
     { L"Arguments",         RRF_RT_REG_MULTI_SZ,    0, 0, NULL, NULL },     /* SVCBATCH_OPTS_ARGUMENTS  */
     { L"Home",              RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_HOME       */
-    { L"Logs",              RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_LOGS       */
+    { L"LogPath",           RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_LOGS       */
     { L"Temp",              RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_TEMP       */
     { L"Work",              RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_WORK       */
     { L"Command",           RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_COMMAND    */
     { L"CommandOptions",    RRF_RT_REG_MULTI_SZ,    0, 0, NULL, NULL },     /* SVCBATCH_OPTS_CMDOPTS    */
+    { L"ExportVariables",   RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_ENVEXPORT  */
+    { L"EnvironmentPrefix", RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_ENVPREFIX  */
+    { L"SetEnvironment",    RRF_RT_REG_MULTI_SZ,    0, 0, NULL, NULL },     /* SVCBATCH_OPTS_ENVSET     */
     { L"Features",          RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_FEATURES   */
     { L"KillDepth",         RRF_RT_REG_DWORD,       0, 0, NULL, NULL },     /* SVCBATCH_OPTS_KILLDEPTH  */
     { L"LogName",           RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_LOGNAME    */
@@ -322,12 +328,12 @@ static SVCBATCH_REG_VALUE svcregvalues[] = {
     { L"Stop",              RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SVCSTOP    */
     { L"StopArguments",     RRF_RT_REG_MULTI_SZ,    0, 0, NULL, NULL },     /* SVCBATCH_OPTS_STOPARGS   */
     { L"StopLogName",       RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SLOGNAME   */
+    { L"StopMaxLogs",       RRF_RT_REG_DWORD,       0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SMAXLOGS   */
 
     { L"StopTimeout",       RRF_RT_REG_DWORD,       SVCBATCH_STOP_TIMEOUT,
                                                        0, NULL, NULL },     /* SVCBATCH_OPTS_STIMEOUT   */
     { L"MaxLogs",           RRF_RT_REG_DWORD,       SVCBATCH_DEF_LOGS,
                                                        0, NULL, NULL },     /* SVCBATCH_OPTS_MAXLOGS    */
-    { L"StopMaxLogs",       RRF_RT_REG_DWORD,       0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SMAXLOGS   */
 
 
 
@@ -424,8 +430,11 @@ static const SVCBATCH_LONGOPT scmcoptions[] = {
     { 200 + SVCBATCH_OPTS_LOGS,         '+', L"logs"         },
     { 200 + SVCBATCH_OPTS_TEMP,         '+', L"temp"         },
     { 200 + SVCBATCH_OPTS_WORK,         '+', L"work"         },
-    { 200 + SVCBATCH_OPTS_COMMAND,      '+', L"command"      },
     { 200 + SVCBATCH_OPTS_CMDOPTS,      '+', L"commandopts"  },
+    { 200 + SVCBATCH_OPTS_COMMAND,      '+', L"command"      },
+    { 200 + SVCBATCH_OPTS_ENVEXPORT,    '+', L"export"       },
+    { 200 + SVCBATCH_OPTS_ENVPREFIX,    '+', L"prefix"       },
+    { 200 + SVCBATCH_OPTS_ENVSET,       '+', L"set"          },
     { 200 + SVCBATCH_OPTS_FEATURES,     '+', L"features"     },
     { 200 + SVCBATCH_OPTS_KILLDEPTH,    '+', L"killdepth"    },
     { 200 + SVCBATCH_OPTS_LOGNAME,      '+', L"logname"      },
@@ -434,9 +443,9 @@ static const SVCBATCH_LONGOPT scmcoptions[] = {
     { 200 + SVCBATCH_OPTS_STOPARGS,     '+', L"stopargs"     },
     { 200 + SVCBATCH_OPTS_SLOGNAME,     '+', L"stoplogname"  },
     { 200 + SVCBATCH_OPTS_STIMEOUT,     '+', L"stoptimeout"  },
+    { 200 + SVCBATCH_OPTS_SMAXLOGS,     '+', L"stopmaxlogs"  },
     { 200 + SVCBATCH_OPTS_SVCSTOP,      '+', L"stop"         },
     { 200 + SVCBATCH_OPTS_MAXLOGS,      '+', L"maxlogs"      },
-    { 200 + SVCBATCH_OPTS_SMAXLOGS,     '+', L"stopmaxlogs"  },
 
 
     {0,                                   0, NULL            }
@@ -4463,7 +4472,9 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     tmpdirparam  = skipdotslash(svcregvalues[SVCBATCH_OPTS_TEMP].sval);
     svcworkparam = skipdotslash(svcregvalues[SVCBATCH_OPTS_WORK].sval);
 
-    commandparam = svcregvalues[  SVCBATCH_OPTS_COMMAND].sval;
+    commandparam = svcregvalues[SVCBATCH_OPTS_COMMAND  ].sval;
+    eexportparam = svcregvalues[SVCBATCH_OPTS_ENVEXPORT].sval;
+    eprefixparam = svcregvalues[SVCBATCH_OPTS_ENVPREFIX].sval;
     featureparam = svcregvalues[SVCBATCH_OPTS_FEATURES ].sval;
     killdepth    = svcregvalues[SVCBATCH_OPTS_KILLDEPTH].dval;
     svclogfname  = svcregvalues[SVCBATCH_OPTS_LOGNAME  ].sval;
@@ -4472,7 +4483,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     stoptimeout  = svcregvalues[SVCBATCH_OPTS_STIMEOUT ].dval;
     srvcmaxlogs  = svcregvalues[SVCBATCH_OPTS_MAXLOGS  ].dval;
     stopmaxlogs  = svcregvalues[SVCBATCH_OPTS_SMAXLOGS ].dval;
-    svcstopparam = svcregvalues[  SVCBATCH_OPTS_SVCSTOP].sval;
+    svcstopparam = svcregvalues[SVCBATCH_OPTS_SVCSTOP  ].sval;
     if (svcregvalues[SVCBATCH_OPTS_SCRIPT].sval) {
         scriptparam = (LPWSTR)svcregvalues[SVCBATCH_OPTS_SCRIPT].data;
         svcregvalues[SVCBATCH_OPTS_SCRIPT].sval = NULL;
@@ -4500,6 +4511,24 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 cp++;
         }
     }
+    if (svcregvalues[SVCBATCH_OPTS_ENVSET].sval) {
+        cp = svcregvalues[SVCBATCH_OPTS_ENVSET].sval;
+        for (; *cp; cp++) {
+            pp = xwcsdup(cp);
+            wp = xwcschr(pp, L'=');
+            if ((wp == NULL) || (wp == pp))
+                return xsyserrno(11, L"E", cp);
+            *(wp++) = WNUL;
+            if (IS_EMPTY_WCS(wp))
+                return xsyserrno(11, L"E", cp);
+            if (!xaddvariable('e', pp, wp))
+                return xsyserror(GetLastError(), L"SetUserEnvironment", pp);
+
+            while (*cp)
+                cp++;
+        }
+    }
+
     while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
         switch (opt) {
             case '[':
@@ -4584,14 +4613,11 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 svcworkparam = skipdotslash(xwoptarg);
             break;
             case 'k':
-                killdepth = xwcstoi(xwoptarg, NULL);
+                killdepth    = xwcstoi(xwoptarg, NULL);
             break;
             case 'e':
                 if (xwoptvar == 'p') {
-                    if (xiswcschar(xwoptarg, L'@'))
-                        eprefixparam = service->name;
-                    else
-                        eprefixparam = xwoptarg;
+                    eprefixparam = xwoptarg;
                     break;
                 }
                 if (xwoptvar == 'e') {
@@ -4730,6 +4756,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     cp = eprefixparam;
     if (cp == NULL)
         cp = program->name;
+    if (xiswcschar(cp, L'@'))
+        cp = service->name;
     if (!xisvalidvarname(cp))
         return xsyserrno(20, SVCBATCH_MSG(4),  cp);
     /**
