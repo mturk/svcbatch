@@ -269,7 +269,7 @@ static DWORD    stdinsize       = 3;
 static int      xwoptind        = 1;
 static int      xwoptend        = 0;
 static int      xwoptvar        = 0;
-static LPCWSTR  xwoptarr        = NULL;
+static int      xwoptarr        = 0;
 static LPCWSTR  xwoptarg        = NULL;
 static LPCWSTR  xwoption        = NULL;
 
@@ -2024,7 +2024,7 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             xwoptind++;
             xwoptend--;
             if (xwoptend > 0)
-                return *xwoptarr;
+                return xwoptarr;
             else
                 return ']';
         }
@@ -2033,18 +2033,18 @@ static int xwgetopt(int nargc, LPCWSTR *nargv, LPCWSTR opts)
             xwoptind++;
             xwoptend++;
             if (xwoptend > 1)
-                return *xwoptarr;
+                return xwoptarr;
             else
                 return '[';
         }
         if (xwoptend) {
             xwoptarg = xwoption;
             xwoptind++;
-            return *xwoptarr;
+            return xwoptarr;
         }
     }
     xwoptend = 0;
-    xwoptarr = NULL;
+    xwoptarr = 0;
     if ((xwoption[0] != L'-') && (xwoption[0] != L'/'))
         return EOF;
     if (xwoption[1] == WNUL) {
@@ -4566,7 +4566,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             break;
             case ']':
                 xwoptend = 0;
-                xwoptarr = NULL;
+                xwoptarr = 0;
             break;
             case 'C':
                 if (cmdproc->optc < SVCBATCH_MAX_ARGS)
@@ -4594,7 +4594,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
              */
             case 'c':
                 xwoptend = 0;
-                xwoptarr = L"C";
+                xwoptarr = 'C';
                 if (xiswcschar(xwoptarg, L'['))
                     xwoptend = 1;
                 else
@@ -4602,7 +4602,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             break;
             case 'r':
                 xwoptend = 0;
-                xwoptarr = L"R";
+                xwoptarr = 'R';
                 if (xiswcschar(xwoptarg, L'['))
                     xwoptend = 1;
                 else
@@ -4641,7 +4641,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 if (xwoptvar != 0)
                     return xsyserrno(30, L"S", xwctowcs(xwoptvar));
                 xwoptend = 0;
-                xwoptarr = L"S";
+                xwoptarr = 'S';
                 if (xiswcschar(xwoptarg, L'['))
                     xwoptend = 1;
                 else
@@ -4690,7 +4690,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         }
     }
     if (xwoptarr && xwoptend)
-        return xsyserrno(28, xwoptarr, NULL);
+        return xsyserrno(28, xwctowcs(xwoptarr), NULL);
     wargc -= xwoptind;
     wargv += xwoptind;
     if (featureparam) {
