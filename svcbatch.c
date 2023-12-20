@@ -421,7 +421,6 @@ static const SVCBATCH_LONGOPT scmcoptions[] = {
     { 'd',                              '+', L"description"  },
     { 'D',                              '+', L"depend"       },
     { 'n',                              '+', L"displayname"  },
-    { 'o',                              ':', L"opts"         },
     { 'p',                              '+', L"password"     },
     { 'P',                              '+', L"privs"        },
     { 'q',                              '.', L"quiet"        },
@@ -5423,7 +5422,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     LPCWSTR   displayname   = NULL;
     LPCWSTR   username      = NULL;
     LPCWSTR   password      = NULL;
-    LPCWSTR   cmdoptions    = NULL;
     DWORD     starttype     = SERVICE_NO_CHANGE;
     DWORD     servicetype   = SERVICE_NO_CHANGE;
     DWORD     srmajor       = SERVICE_STOP_REASON_MAJOR_NONE;
@@ -5509,9 +5507,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             case 'n':
                 displayname = xwoptarg;
             break;
-            case 'o':
-                cmdoptions  = xwoptarg;
-            break;
             case 'p':
                 password    = xwoptarg;
             break;
@@ -5573,26 +5568,6 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
     }
     if (optc)
         binaryargs = 0;
-    if (cmdoptions) {
-        LPCWSTR cp = cmdoptions;
-        while (*cp) {
-            switch (xtolower(*cp)) {
-                case 'a':
-                    binaryargs = 1;
-                break;
-                case 'o':
-                    binaryargs = 0;
-                break;
-                default:
-                    rv = ERROR_NOT_SUPPORTED;
-                    ec = __LINE__;
-                    ed = cmdoptions;
-                    goto finished;
-                break;
-            }
-            cp++;
-        }
-    }
     argc -= xwoptind;
     argv += xwoptind;
     if (wtime)
@@ -5906,9 +5881,8 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
         if (binarypath && binaryargs) {
             for (i = 0; i < argc; i++)
                 binarypath = xappendarg(1, binarypath, argv[i]);
-        }
-        if (binaryargs)
             argc = 0;
+        }
         if (!ChangeServiceConfigW(svc,
                                   servicetype,
                                   starttype,
