@@ -1201,9 +1201,14 @@ static LPWSTR xstrtomsz(LPCWSTR s, WCHAR c, int *b)
 
     n = xwcslen(s);
     d = xwmalloc(n + 2);
-    for (i = 0, x = 0; i < n; i++) {
+    i = 0;
+    while (s[i] == c)
+        i++;
+    for (x = 0; i < n; i++) {
         if (s[i] == c) {
-            if ((s[i+1] != c) && (s[i+1] != WNUL))
+            while (s[i+1] == c)
+                i++;
+            if (s[i+1] != WNUL)
                 d[x++] = WNUL;
         }
         else {
