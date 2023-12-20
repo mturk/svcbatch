@@ -255,6 +255,8 @@ static HANDLE    sharedmmap     = NULL;
 static HANDLE    svclogmutex    = NULL;
 static LPCWSTR   stoplogname    = NULL;
 
+static LPCWSTR   allexportvars  = L"ABDHLNPRUVW";
+static LPCWSTR   defexportvars  = L"BHLNUW";
 static LPCSTR    cnamestamp     = SVCBATCH_NAME " " SVCBATCH_VERSION_TXT;
 
 static SVCBATCH_THREAD threads[SVCBATCH_MAX_THREADS];
@@ -1774,7 +1776,7 @@ static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
 #if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("%S = %S", n, p);
 #endif
-    en = xexpandenvstr(n, L"AENPUV");
+    en = xexpandenvstr(n, L"ANPUVX");
     if (en == NULL)
         return GetLastError();
     ep = xexpandenvstr(p, NULL);
@@ -4290,7 +4292,7 @@ static void xinitvars(void)
     xsetsysvar('L', L"LOGS",      zerostring);
     xsetsysvar('W', L"WORK",      zerostring);
     xsetsysvar('T', L"TEMP",      NULL);
-    xsetsysvar('E', L"PREFIX",    NULL);
+    xsetsysvar('X', L"PREFIX",    zerostring);
 
     svariables->pos = SYSVARS_COUNT;
 }
@@ -4518,7 +4520,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     svcworkparam = skipdotslash(getsvcoptwcs(SVCBATCH_OPTS_WORK, NULL));
 
     commandparam = getsvcoptwcs(SVCBATCH_OPTS_COMMAND,   NULL);
-    eexportparam = getsvcoptwcs(SVCBATCH_OPTS_ENVEXPORT, L"BHLNUW");
+    eexportparam = getsvcoptwcs(SVCBATCH_OPTS_ENVEXPORT, defexportvars);
     eprefixparam = getsvcoptwcs(SVCBATCH_OPTS_ENVPREFIX, NULL);
     killdepth    = getsvcoptnum(SVCBATCH_OPTS_KILLDEPTH,    0);
     svclogfname  = getsvcoptwcs(SVCBATCH_OPTS_LOGNAME,   NULL);
@@ -4837,7 +4839,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     if (eenvx >= (SVCBATCH_NAME_MAX - 10))
         return xsyserrno(21, SVCBATCH_MSG(4),  cp);
     xwcsupper(eenvp);
-    SETSYSVAR_VAL('E', xwcsdup(eenvp));
+    SETSYSVAR_VAL('X', xwcsdup(eenvp));
 
     eenvp[eenvx++] = L'_';
     eenvp[eenvx]   = WNUL;
@@ -4958,15 +4960,18 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (wp != tmpdirparam)
             xfree(wp);
     }
-
-    if (!xiswcschar(eexportparam, L'0')) {
+    if (xiswcschar(eexportparam, L'1'))
+        eexportparam = allexportvars;
+    if (xiswcschar(eexportparam, L'0'))
+        eexportparam = NULL;
+    if (eexportparam) {
         /**
          * Add additional environment variables
          * that are unique to this service instance
          */
         cp = eexportparam;
         while (*cp) {
-            if (xwcschr(L"ABDHLNPRUVW", *cp) == NULL)
+            if (xwcschr(allexportvars, *cp) == NULL)
                 return xsyserrno(12, L"EE", xwctowcs(*cp));
             xwcslcat(eenvp, SVCBATCH_NAME_MAX, eenvx, GETSYSVAR_KEY(*cp));
             if (!SetEnvironmentVariableW(eenvp, GETSYSVAR_VAL(*cp)))

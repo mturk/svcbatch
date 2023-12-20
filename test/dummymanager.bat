@@ -102,7 +102,7 @@ rem
     --logRotate "@5+20K" ^
     --stopArgs "stop|arguments|with spaces" ^
     --set "ADUMMYSVC_PID=$ProcessId|ADUMMYSVC_VER=$VERSION" ^
-    --export=ABDHLNRUVW ^
+    --export=1 ^
     --features=R ^
     /F:PL0 ^
     %SERVICE_ENVIRONMENT% ^

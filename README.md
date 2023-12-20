@@ -599,6 +599,7 @@ and lowercase letters with **-** command switch.
     HOME        Home directory
     LOGS        Logs directory
     NAME        Service Name
+    PREFIX      Private environment variables prefix
     PROCESSID   Program ProcessId
     RELEASE     SvcBatch release version
     UUUID       Service UUID
