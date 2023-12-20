@@ -1774,7 +1774,7 @@ static DWORD xsetenvvar(LPCWSTR n, LPCWSTR p)
 #if defined(_DEBUG) && (_DEBUG > 2)
     DBG_PRINTF("%S = %S", n, p);
 #endif
-    en = xexpandenvstr(n, L"ANPUV");
+    en = xexpandenvstr(n, L"AENPUV");
     if (en == NULL)
         return GetLastError();
     ep = xexpandenvstr(p, NULL);
@@ -4290,6 +4290,7 @@ static void xinitvars(void)
     xsetsysvar('L', L"LOGS",      zerostring);
     xsetsysvar('W', L"WORK",      zerostring);
     xsetsysvar('T', L"TEMP",      NULL);
+    xsetsysvar('E', L"PREFIX",    NULL);
 
     svariables->pos = SYSVARS_COUNT;
 }
@@ -4838,6 +4839,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     xwcsupper(eenvp);
     eenvp[eenvx++] = L'_';
     eenvp[eenvx]   = WNUL;
+    SETSYSVAR_VAL('E', xwcsdup(eenvp));
 
     for (i = 1; i < sargc; i++) {
         if (cmdproc->argc < SVCBATCH_MAX_ARGS)
