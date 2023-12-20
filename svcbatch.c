@@ -289,6 +289,9 @@ typedef enum {
     SVCBATCH_OPTS_KILLDEPTH,
     SVCBATCH_OPTS_LOGNAME,
     SVCBATCH_OPTS_LOGROTATE,
+    SVCBATCH_OPTS_SCRIPT,
+    SVCBATCH_OPTS_SVCSTOP,
+    SVCBATCH_OPTS_STOPARGS,
     SVCBATCH_OPTS_SLOGNAME,
     SVCBATCH_OPTS_STIMEOUT,
     SVCBATCH_OPTS_MAXLOGS,
@@ -315,6 +318,9 @@ static SVCBATCH_REG_VALUE svcregvalues[] = {
     { L"KillDepth",         RRF_RT_REG_DWORD,       0, 0, NULL, NULL },     /* SVCBATCH_OPTS_KILLDEPTH  */
     { L"LogName",           RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_LOGNAME    */
     { L"LogRotate",         RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_LOGROTATE  */
+    { L"Script",            RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SCRIPT     */
+    { L"Stop",              RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SVCSTOP    */
+    { L"StopArguments",     RRF_RT_REG_MULTI_SZ,    0, 0, NULL, NULL },     /* SVCBATCH_OPTS_STOPARGS   */
     { L"StopLogName",       RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SLOGNAME   */
 
     { L"StopTimeout",       RRF_RT_REG_DWORD,       SVCBATCH_STOP_TIMEOUT,
@@ -424,13 +430,16 @@ static const SVCBATCH_LONGOPT scmcoptions[] = {
     { 200 + SVCBATCH_OPTS_KILLDEPTH,    '+', L"killdepth"    },
     { 200 + SVCBATCH_OPTS_LOGNAME,      '+', L"logname"      },
     { 200 + SVCBATCH_OPTS_LOGROTATE,    '+', L"logrotate"    },
+    { 200 + SVCBATCH_OPTS_SCRIPT,       '+', L"script"       },
+    { 200 + SVCBATCH_OPTS_STOPARGS,     '+', L"stopargs"     },
     { 200 + SVCBATCH_OPTS_SLOGNAME,     '+', L"stoplogname"  },
     { 200 + SVCBATCH_OPTS_STIMEOUT,     '+', L"stoptimeout"  },
+    { 200 + SVCBATCH_OPTS_SVCSTOP,      '+', L"stop"         },
     { 200 + SVCBATCH_OPTS_MAXLOGS,      '+', L"maxlogs"      },
     { 200 + SVCBATCH_OPTS_SMAXLOGS,     '+', L"stopmaxlogs"  },
 
 
-    {0,      0, NULL            }
+    {0,                                   0, NULL            }
 };
 
 static const SVCBATCH_NAME_MAP starttypemap[] = {
@@ -457,40 +466,30 @@ static const char *xgenerichelp =
     "\n      Version....Print version information."                                             \
     "\n";
 
+#define SCM_CC_OPTIONS    "\n    Options:"                                                      \
+    "\n      --binPath      BinaryPathName to the .exe file."                                   \
+    "\n      --depend       Dependencies (separated by / (forward slash))."                     \
+    "\n      --description  Sets the description of a service."                                 \
+    "\n      --displayName  Sets the service display name."                                     \
+    "\n      --privs        Sets the required privileges of a service."                         \
+    "\n      --start        Sets the service startup type."                                     \
+    "\n                     <auto|manual|disabled> (default = manual)."                         \
+    "\n      --username     The name of the account under which the service should run."        \
+    "\n                     Default is LocalSystem account."                                    \
+    "\n      --password     The password to the account name specified by the"                  \
+    "\n                     username parameter."                                                \
+    "\n      --quiet        Quiet mode, do not print status or error messages."
+
 static const char *xcommandhelp[] = {
     /* Create */
     "\nDescription:\n  Creates a service entry in the registry and Service Database."           \
     "\nUsage:\n  " SVCBATCH_NAME " create [service name] <options ...> <[-] arguments ...>\n"   \
-    "\n    Options:"                                                                            \
-    "\n      --binPath      BinaryPathName to the .exe file."                                   \
-    "\n      --depend       Dependencies (separated by / (forward slash))."                     \
-    "\n      --description  Sets the description of a service."                                 \
-    "\n      --displayName  Sets the service display name."                                     \
-    "\n      --privs        Sets the required privileges of a service."                         \
-    "\n      --start        Sets the service startup type."                                     \
-    "\n                     <auto|manual|disabled> (default = manual)."                         \
-    "\n      --username     The name of the account under which the service should run."        \
-    "\n                     Default is LocalSystem account."                                    \
-    "\n      --password     The password to the account name specified by the"                  \
-    "\n                     username parameter."                                                \
-    "\n      --quiet        Quiet mode, do not print status or error messages."                 \
+    SCM_CC_OPTIONS                                                                              \
     "\n",
     /* Config */
     "\nDescription:\n  Modifies a service entry in the registry and Service Database."          \
     "\nUsage:\n  " SVCBATCH_NAME " config [service name] <options ...> <[-] arguments ...>\n"   \
-    "\n    Options:"                                                                            \
-    "\n      --binPath      BinaryPathName to the .exe file."                                   \
-    "\n      --depend       Dependencies (separated by / (forward slash))."                     \
-    "\n      --description  Sets the description of a service."                                 \
-    "\n      --displayName  Sets the service display name."                                     \
-    "\n      --privs        Sets the required privileges of a service."                         \
-    "\n      --start        Sets the service startup type."                                     \
-    "\n                     <auto|manual|disabled> (default = manual)."                         \
-    "\n      --username     The name of the account under which the service should run."        \
-    "\n                     Default is LocalSystem account."                                    \
-    "\n      --password     The password to the account name specified by the"                  \
-    "\n                     username parameter."                                                \
-    "\n      --quiet        Quiet mode, do not print status or error messages."                 \
+    SCM_CC_OPTIONS                                                                              \
     "\n",
     /* Control */
     "\nDescription:\n  Sends a CONTROL code to a service."                                      \
@@ -4456,14 +4455,15 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     x = getsvcregconfig();
     if (x != ERROR_SUCCESS)
         return xsyserror(x, SVCBATCH_SVCOPTS, NULL);
-    wargv = mergearguments((LPWSTR)svcregvalues[0].data, &wargc);
+    svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
+    wargv   = mergearguments((LPWSTR)svcregvalues[0].data, &wargc);
 
     svchomeparam = skipdotslash(svcregvalues[SVCBATCH_OPTS_HOME].sval);
     logdirparam  = skipdotslash(svcregvalues[SVCBATCH_OPTS_LOGS].sval);
     tmpdirparam  = skipdotslash(svcregvalues[SVCBATCH_OPTS_TEMP].sval);
     svcworkparam = skipdotslash(svcregvalues[SVCBATCH_OPTS_WORK].sval);
 
-    commandparam = svcregvalues[SVCBATCH_OPTS_COMMAND  ].sval;
+    commandparam = svcregvalues[  SVCBATCH_OPTS_COMMAND].sval;
     featureparam = svcregvalues[SVCBATCH_OPTS_FEATURES ].sval;
     killdepth    = svcregvalues[SVCBATCH_OPTS_KILLDEPTH].dval;
     svclogfname  = svcregvalues[SVCBATCH_OPTS_LOGNAME  ].sval;
@@ -4472,7 +4472,34 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     stoptimeout  = svcregvalues[SVCBATCH_OPTS_STIMEOUT ].dval;
     srvcmaxlogs  = svcregvalues[SVCBATCH_OPTS_MAXLOGS  ].dval;
     stopmaxlogs  = svcregvalues[SVCBATCH_OPTS_SMAXLOGS ].dval;
-
+    svcstopparam = svcregvalues[  SVCBATCH_OPTS_SVCSTOP].sval;
+    if (svcregvalues[SVCBATCH_OPTS_SCRIPT].sval) {
+        scriptparam = (LPWSTR)svcregvalues[SVCBATCH_OPTS_SCRIPT].data;
+        svcregvalues[SVCBATCH_OPTS_SCRIPT].sval = NULL;
+        svcregvalues[SVCBATCH_OPTS_SCRIPT].data = NULL;
+    }
+    if (svcregvalues[SVCBATCH_OPTS_STOPARGS].sval) {
+        cp = svcregvalues[SVCBATCH_OPTS_STOPARGS].sval;
+        for (; *cp; cp++) {
+            if (svcstop->argc < SVCBATCH_MAX_ARGS)
+                svcstop->args[svcstop->argc++] = cp;
+            else
+                return xsyserrno(16, L"S", cp);
+            while (*cp)
+                cp++;
+        }
+    }
+    if (svcregvalues[SVCBATCH_OPTS_CMDOPTS].sval) {
+        cp = svcregvalues[SVCBATCH_OPTS_CMDOPTS].sval;
+        for (; *cp; cp++) {
+            if (cmdproc->optc < SVCBATCH_MAX_ARGS)
+                cmdproc->opts[cmdproc->optc++] = cp;
+            else
+                return xsyserrno(16, L"C", cp);
+            while (*cp)
+                cp++;
+        }
+    }
     while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
         switch (opt) {
             case '[':
@@ -4540,8 +4567,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 }
                 if (xwoptvar != 0)
                     return xsyserrno(30, L"S", xwctowcs(xwoptvar));
-                if (svcstop == NULL)
-                    svcstop = (LPSVCBATCH_PROCESS)xmcalloc(sizeof(SVCBATCH_PROCESS));
                 xwoptend = 0;
                 xwoptarr = L"S";
                 if (xiswcschar(xwoptarg, L'['))
@@ -4662,12 +4687,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         /**
          * No script file defined.
          */
-        if (commandparam == NULL)
+        if ((commandparam == NULL) && (scriptparam == NULL))
             scriptparam = xwcsconcat(service->name, L".bat");
     }
     else {
-        scriptparam = xwcsdup(wargv[0]);
-        for (i = 1; i < wargc; i++) {
+        i = 0;
+        if (scriptparam == NULL)
+            scriptparam = xwcsdup(wargv[i++]);
+        for (; i < wargc; i++) {
             /**
              * Add arguments for script file
              */
@@ -5139,7 +5166,7 @@ finished:
     return service->exitCode;
 }
 
-static int setsvcarguments(int argc, LPCWSTR *argv)
+static int setsvcarguments(int cmd, int argc, LPCWSTR *argv)
 {
     int     i;
     int     e;
@@ -5173,7 +5200,7 @@ static int setsvcarguments(int argc, LPCWSTR *argv)
     i = 1;
     while (svcregvalues[i].name != NULL) {
         if (IS_VALID_WCS(svcregvalues[i].sval)) {
-            if (xwcsequals(svcregvalues[i].sval, L"nul")) {
+            if ((cmd == SVCBATCH_SCM_CONFIG) && xiswcschar(svcregvalues[i].sval, L'-')) {
                 e = __LINE__;
                 s = RegDeleteKeyValueW(k, NULL, svcregvalues[i].name);
                 if (s == ERROR_FILE_NOT_FOUND)
@@ -5461,7 +5488,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
                              username,
                              password);
         if ((svc != NULL) && (embedargs == 0)) {
-            ep = setsvcarguments(argc, argv);
+            ep = setsvcarguments(cmd, argc, argv);
             if (ep) {
                 rv = GetLastError();
                 ec = __LINE__;
@@ -5753,7 +5780,7 @@ static int xscmexecute(int cmd, int argc, LPCWSTR *argv)
             goto finished;
         }
         if (embedargs == 0) {
-            ep = setsvcarguments(argc, argv);
+            ep = setsvcarguments(cmd, argc, argv);
             if (ep) {
                 rv = GetLastError();
                 ec = __LINE__;

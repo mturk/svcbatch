@@ -58,7 +58,7 @@ rem
 rem Uncomment to use separate shutdown file
 rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
 rem Set arguments for shutdown bat file
-set "SHUTDOWN_ARGS=[ stop arguments ] /S:[ "with spaces" ]"
+rem set "SHUTDOWN_ARGS=[ stop arguments ] /S:[ "with spaces" ]"
 rem
 rem
 rem set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%\%LONG_STRING%"
@@ -98,6 +98,7 @@ rem
     --logName=$NAME.@4-@Y-@m-@d.log ^
     --stopLogName=$NAME.stop.log --stopMaxLogs=1 ^
     --logRotate "S+@6+20K" ^
+    --stopArgs "stop|arguments|with spaces" ^
     /F:PL0 ^
     %SERVICE_ENVIRONMENT% ^
     %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^
