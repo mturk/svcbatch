@@ -77,10 +77,10 @@
 #define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"
 
 /**
- * Registry value name where SvcBatch store
- * service arguments
+ * Registry key where SvcBatch saves
+ * and reads the service configuration
  */
-#define SVCBATCH_SVCARGS       L"ImagePathArguments"
+#define SVCBATCH_SVCOPTS       L"Options"
 
 /**
  * Default arguments for cmd.exe
@@ -164,9 +164,9 @@
 #define SVCBATCH_STOP_TMAX      180
 
 /**
- * Default stop timeout in milliseconds
+ * Default stop timeout in seconds
  */
-#define SVCBATCH_STOP_TIMEOUT   10000
+#define SVCBATCH_STOP_TIMEOUT   10
 
 /**
  * Custom SCM control code that

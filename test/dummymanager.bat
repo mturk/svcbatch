@@ -62,10 +62,10 @@ set "SHUTDOWN_ARGS=[ stop arguments ] /S:[ "with spaces" ]"
 rem
 rem
 rem set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%\%LONG_STRING%"
-set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%"
+rem set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%"
 rem Rotate Log files each 10 minutes or when larger then 100Kbytes
 rem set "ROTATE_RULE=/LR:@10+100K"
-set "ROTATE_RULE=/LR:@5+20K"
+rem set "ROTATE_RULE=/LR:S+@5+20K"
 rem Rotate Log files at midnight
 rem set "ROTATE_RULE=/LR:@0"
 rem Rotate Log files every full hour or when larger then 40000 bytes
@@ -76,9 +76,9 @@ rem set "SERVICE_LOG_FNAME=/LN:%SERVICE_NAME%.log"
 rem
 rem set "SERVICE_LOG_FNAME=/LN:%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log"
 rem
-set "SERVICE_LOG_FNAME=/LN:$NAME.@4-@Y-@m-@d.log /SN:$NAME.stop.log"
+rem set "SERVICE_LOG_FNAME=/LN:$NAME.@4-@Y-@m-@d.log /SN:$NAME.stop.log"
 rem
-set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /SM:1"
+rem set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /SM:1"
 rem
 rem Set PATH
 set "SERVICE_ENVIRONMENT=/E:PATH=$HOME;$PATH /E:THE${NAME}ID=${+x@2@Y@m@d:}NUMBER /EE:ABDHLNRUVW /E:ADUMMYSVC_PID=$ProcessId"
@@ -90,8 +90,15 @@ rem
 %BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
     "--displayName=A Dummy Service" --description "One dummy SvcBatch service example" ^
     --depend=Tcpip/Afd --privs=SeShutdownPrivilege ^
-    /F:PLR0 /H ..\..\test -w ..\build\dbg ^
-    /T:Logs\%SERVICE_NAME%\tmp ^
+    --home ..\..\test ^
+    --work ..\build\dbg ^
+    --logs=Logs\$NAME ^
+    --temp $LOGS\temp ^
+    --stopTimeout=12 ^
+    --logName=$NAME.@4-@Y-@m-@d.log ^
+    --stopLogName=$NAME.stop.log --stopMaxLogs=1 ^
+    --logRotate "S+@6+20K" ^
+    /F:PL0 ^
     %SERVICE_ENVIRONMENT% ^
     %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^
     %ROTATE_RULE% ^
