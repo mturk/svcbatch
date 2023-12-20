@@ -52,6 +52,7 @@ set "SERVICE_LOG_FNAME="
 set "SHUTDOWN_ARGS="
 set "ROTATE_RULE="
 set "SERVICE_BATCH=dummyservice.bat"
+rem set "SERVICE_BATCH=/R:dummyservice.bat [ some arguments ]"
 rem Use the service batch file for shutdown
 set "SERVICE_SHUTDOWN=/S:@"
 rem
@@ -98,10 +99,11 @@ rem
     --stopTimeout=12 ^
     --logName=$NAME.@4-@Y-@m-@d.log ^
     --stopLogName=$NAME.stop.log --stopMaxLogs=1 ^
-    --logRotate "S+@6+20K" ^
+    --logRotate "@5+20K" ^
     --stopArgs "stop|arguments|with spaces" ^
     --set "ADUMMYSVC_PID=$ProcessId|ADUMMYSVC_VER=$VERSION" ^
     --export=ABDHLNRUVW ^
+    --features=R ^
     /F:PL0 ^
     %SERVICE_ENVIRONMENT% ^
     %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^

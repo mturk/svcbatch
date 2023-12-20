@@ -292,6 +292,7 @@ typedef enum {
     SVCBATCH_OPTS_KILLDEPTH,
     SVCBATCH_OPTS_LOGNAME,
     SVCBATCH_OPTS_LOGROTATE,
+    SVCBATCH_OPTS_RUNARGS,
     SVCBATCH_OPTS_SCRIPT,
     SVCBATCH_OPTS_SVCSTOP,
     SVCBATCH_OPTS_STOPARGS,
@@ -324,6 +325,7 @@ static SVCBATCH_REG_VALUE svcregvalues[] = {
     { L"KillDepth",         RRF_RT_REG_DWORD,       0, 0, NULL, NULL },     /* SVCBATCH_OPTS_KILLDEPTH  */
     { L"LogName",           RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_LOGNAME    */
     { L"LogRotate",         RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_LOGROTATE  */
+    { L"RunArguments",      RRF_RT_REG_MULTI_SZ,    0, 0, NULL, NULL },     /* SVCBATCH_OPTS_RUNARGS    */
     { L"Script",            RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SCRIPT     */
     { L"Stop",              RRF_RT_REG_SZ,          0, 0, NULL, NULL },     /* SVCBATCH_OPTS_SVCSTOP    */
     { L"StopArguments",     RRF_RT_REG_MULTI_SZ,    0, 0, NULL, NULL },     /* SVCBATCH_OPTS_STOPARGS   */
@@ -388,7 +390,7 @@ static const wchar_t *scmallowed[] = {
 };
 
 
-static const wchar_t *scmdoptions = L"ce:fhkl:s:tw";
+static const wchar_t *scmdoptions = L"ce:fhkl:r:s:tw";
 
 
 /**
@@ -439,6 +441,7 @@ static const SVCBATCH_LONGOPT scmcoptions[] = {
     { 200 + SVCBATCH_OPTS_KILLDEPTH,    '+', L"killdepth"    },
     { 200 + SVCBATCH_OPTS_LOGNAME,      '+', L"logname"      },
     { 200 + SVCBATCH_OPTS_LOGROTATE,    '+', L"logrotate"    },
+    { 200 + SVCBATCH_OPTS_RUNARGS,      '+', L"args"         },
     { 200 + SVCBATCH_OPTS_SCRIPT,       '+', L"script"       },
     { 200 + SVCBATCH_OPTS_STOPARGS,     '+', L"stopargs"     },
     { 200 + SVCBATCH_OPTS_SLOGNAME,     '+', L"stoplogname"  },
@@ -1119,6 +1122,23 @@ static LPWSTR xwcsconcat(LPCWSTR s1, LPCWSTR s2)
 
     if (l1 > 0)
         wmemcpy(rs,  s1, l1);
+    if (l2 > 0)
+        wmemcpy(rs + l1, s2, l2);
+    return rs;
+}
+
+static LPWSTR xwcsappend(LPWSTR s1, LPCWSTR s2)
+{
+    LPWSTR rs;
+    int    l1;
+    int    l2;
+
+    l1 = xwcslen(s1);
+    l2 = xwcslen(s2);
+
+    if ((l1 + l2) == 0)
+        return NULL;
+    rs = (LPWSTR)xrealloc(s1, (l1 + l2 + 1) * sizeof(WCHAR));
     if (l2 > 0)
         wmemcpy(rs + l1, s2, l2);
     return rs;
@@ -2913,10 +2933,8 @@ static LPWSTR xgettempdir(void)
         p = xgetenv(L"USERPROFILE");
     if (p == NULL) {
         r = xgetenv(L"SystemRoot");
-        if (r != NULL) {
-            p = xwcsconcat(r, L"\\Temp");
-            xfree(r);
-        }
+        if (r != NULL)
+            p = xwcsappend(r, L"\\Temp");
     }
     r = xgetfinalpath(2, p);
     xfree(p);
@@ -4445,6 +4463,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  cp;
     LPWSTR   wp;
     LPWSTR   pp;
+    LPWSTR   featureparam = NULL;
     LPWSTR   scriptparam  = NULL;
     LPCWSTR  svchomeparam = NULL;
     LPCWSTR  svcworkparam = NULL;
@@ -4455,7 +4474,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     LPCWSTR  logdirparam  = NULL;
     LPCWSTR  svclogfname  = NULL;
     LPCWSTR  tmpdirparam  = NULL;
-    LPCWSTR  featureparam = NULL;
 
     LPCWSTR  eexportparam = L"BHLNUW";
 
@@ -4475,7 +4493,6 @@ static int parseoptions(int sargc, LPWSTR *sargv)
     commandparam = svcregvalues[SVCBATCH_OPTS_COMMAND  ].sval;
     eexportparam = svcregvalues[SVCBATCH_OPTS_ENVEXPORT].sval;
     eprefixparam = svcregvalues[SVCBATCH_OPTS_ENVPREFIX].sval;
-    featureparam = svcregvalues[SVCBATCH_OPTS_FEATURES ].sval;
     killdepth    = svcregvalues[SVCBATCH_OPTS_KILLDEPTH].dval;
     svclogfname  = svcregvalues[SVCBATCH_OPTS_LOGNAME  ].sval;
     rotateparam  = svcregvalues[SVCBATCH_OPTS_LOGROTATE].sval;
@@ -4511,6 +4528,17 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 cp++;
         }
     }
+    if (svcregvalues[SVCBATCH_OPTS_RUNARGS].sval) {
+        cp = svcregvalues[SVCBATCH_OPTS_RUNARGS].sval;
+        for (; *cp; cp++) {
+            if (cmdproc->argc < SVCBATCH_MAX_ARGS)
+                cmdproc->args[cmdproc->argc++] = cp;
+            else
+                return xsyserrno(16, L"R", cp);
+            while (*cp)
+                cp++;
+        }
+    }
     if (svcregvalues[SVCBATCH_OPTS_ENVSET].sval) {
         cp = svcregvalues[SVCBATCH_OPTS_ENVSET].sval;
         for (; *cp; cp++) {
@@ -4528,6 +4556,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 cp++;
         }
     }
+    featureparam = xwcsdup(svcregvalues[SVCBATCH_OPTS_FEATURES].sval);
 
     while ((opt = xwgetopt(wargc, wargv, scmdoptions)) != EOF) {
         switch (opt) {
@@ -4544,6 +4573,12 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                 else
                     return xsyserrno(16, L"C", xwoptarg);
             break;
+            case 'R':
+                if (cmdproc->argc < SVCBATCH_MAX_ARGS)
+                    cmdproc->args[cmdproc->argc++] = xwoptarg;
+                else
+                    return xsyserrno(16, L"R", xwoptarg);
+            break;
             case 'S':
                 if (svcstop->argc < SVCBATCH_MAX_ARGS)
                     svcstop->args[svcstop->argc++] = xwoptarg;
@@ -4551,7 +4586,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     return xsyserrno(16, L"S", xwoptarg);
             break;
             case 'f':
-                featureparam = xwoptarg;
+                featureparam = xwcsappend(featureparam, xwoptarg);
             break;
             /**
              * Options with arguments
@@ -4563,6 +4598,14 @@ static int parseoptions(int sargc, LPWSTR *sargv)
                     xwoptend = 1;
                 else
                     commandparam = xwoptarg;
+            break;
+            case 'r':
+                xwoptend = 0;
+                xwoptarr = L"R";
+                if (xiswcschar(xwoptarg, L'['))
+                    xwoptend = 1;
+                else
+                    scriptparam = xwcsdup(xwoptarg);
             break;
             case 'l':
                 if (xwoptvar == 'm') {
@@ -4700,6 +4743,8 @@ static int parseoptions(int sargc, LPWSTR *sargv)
             cp++;
         }
     }
+    xfree(featureparam);
+
     if (svcfailmode == 0)
         svcfailmode = SVCBATCH_FAIL_ERROR;
     if ((killdepth < 0) || (killdepth > SVCBATCH_MAX_KILLDEPTH))
@@ -4942,6 +4987,7 @@ static int parseoptions(int sargc, LPWSTR *sargv)
         if (cmdproc->application == NULL)
             return xsyserror(GetLastError(), wp, NULL);
         xfree(wp);
+        cmdproc->optc = 0;
         cmdproc->opts[cmdproc->optc++] = SVCBATCH_DEF_ARGS;
         OPT_SET(SVCBATCH_OPT_WRPIPE);
     }
