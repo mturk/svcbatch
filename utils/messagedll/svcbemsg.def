@@ -1,4 +1,0 @@
-EXPORTS
-	DllUnregisterServer PRIVATE
-	DllRegisterServer   PRIVATE
-	DllInstall          PRIVATE
