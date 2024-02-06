@@ -17,13 +17,24 @@ rem
 rem
 setlocal
 rem
+set "SERVICE_EXEC=svcbatch.exe"
+set "SERVICE_NAME=sservice"
+set "DISPLAY_NAME=Simple Service"
+rem
 if /i "x%~1" == "xdelete" goto doDelete
 rem
 rem goto doStressTest
 rem
 rem
-svcbatch create sservice /F:L0 /C:sservice.exe /C:[ "200 some parameters" ]
+%SERVICE_EXEC% create "%SERVICE_NAME%" ^
+            --displayname "%DISPLAY_NAME%" ^
+            --set Export * ^
+            --set FailMode 0 ^
+            /V:2 /C [ sservice.exe 120 some options ] arguments
 rem
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+rem
+echo Created %SERVICE_NAME%
 goto End
 rem
 :doStressTest
@@ -37,15 +48,22 @@ copy /Y sservice.exe work\ > nul
 copy /Y xsleep.exe work\ > nul
 rem
 rem
-svcbatch create sservice /F:L -w work
+%SERVICE_EXEC% create "%SERVICE_NAME%" --set UseLocalTime Yes /W:work
 rem
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+rem
+echo Created %SERVICE_NAME%
 goto End
+rem
 rem
 :doDelete
 rem
-svcbatch delete sservice
+%SERVICE_EXEC% delete "%SERVICE_NAME%"
+rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
-
+rem
+echo Deleted %SERVICE_NAME%
+rem
 rem
 :End
 exit /B 0

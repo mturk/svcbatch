@@ -20,13 +20,32 @@ rem
 rem
 setlocal
 rem
-if "x%SVCBATCH_NAME%" == "x" goto noService
+rem
+rem goto xsName
+rem
+set "_SERVICE_NAME=%SVCBATCH_NAME%"
+set "_SERVICE_UUID=%SVCBATCH_UUID%"
+set "_SERVICE_LOGS=%SVCBATCH_LOGS%"
+goto doService
+rem
+:xsName
+rem
+set "_SERVICE_NAME=%SERVICE_NAME%"
+set "_SERVICE_UUID=%SERVICE_UUID%"
+set "_SERVICE_LOGS=%SERVICE_LOGS%"
+rem
+rem
+:doService
+rem
+if "x%_SERVICE_NAME%" == "x" goto noService
 rem
 if /i "x%~1" == "xstop"     goto doShutdown
 if /i "x%~1" == "xshutdown" goto doShutdown
 rem
-echo %~nx0: Running %SVCBATCH_NAME% Service
+echo %~nx0: Running %_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]
+echo.
+echo %~nx0: %CD%
 echo.
 echo %~nx0: System Information
 echo.
@@ -70,7 +89,7 @@ rem ping -n 3 127.0.0.1 >NUL
 xsleep.exe 2
 rem
 rem Check if shutdown batch signaled to stop the service
-if exist "%SVCBATCH_LOGS%\ss-%SVCBATCH_UUID%" (
+if exist "%_SERVICE_LOGS%\ss-%_SERVICE_UUID%" (
     goto doCleanup
 )
 rem Increment counter
@@ -115,7 +134,7 @@ if %_rc% lss 10 (
 )
 rem
 rem Send shutdown signal
-rem sc stop %SVCBATCH_NAME%
+rem sc stop %_SERVICE_NAME%
 goto doRun
 rem Comment above goto to simulate failure
 echo %~nx0: [%TIME%] Simulating failure
@@ -127,16 +146,16 @@ goto End
 rem
 :doCleanup
 rem
-del /F /Q "%SVCBATCH_LOGS%\ss-%SVCBATCH_UUID%" 2>NUL
+del /F /Q "%_SERVICE_LOGS%\ss-%_SERVICE_UUID%" 2>NUL
 if %_qc% geq 15 (
     xsleep.exe 2
     goto End
 )
 echo.
-echo %~nx0: [%TIME%] Found ss-%SVCBATCH_UUID%
+echo %~nx0: [%TIME%] Found ss-%_SERVICE_UUID%
 echo %~nx0: [%TIME%] Simulating cleanup
 rem ping -n 3 127.0.0.1 >NUL
-xsleep.exe 2
+xsleep.exe 3
 echo.
 echo.
 echo %~nx0: [%TIME%] Service done
@@ -146,7 +165,7 @@ rem
 rem
 :doShutdown
 rem
-echo %~nx0: Called from %SVCBATCH_NAME% Service
+echo %~nx0: Called from %_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]
 echo.
 echo %~nx0: System Information
@@ -170,11 +189,13 @@ xsleep.exe 2
 rem Simple IPC mechanism to signal the service
 rem to stop by creating unique file
 echo.
-echo %~nx0: [%TIME%] Creating ss-%SVCBATCH_UUID%
+echo %~nx0: [%TIME%] Creating ss-%_SERVICE_UUID%
 echo.
-echo Y> "%SVCBATCH_LOGS%\ss-%SVCBATCH_UUID%"
+echo Y> "%_SERVICE_LOGS%\ss-%_SERVICE_UUID%"
 rem
 :doShutdownWork
+rem
+echo %~nx0: [%TIME%] Shutdown working
 rem ping -n 6 127.0.0.1 >NUL
 xsleep.exe 5
 rem echo %~nx0: [%TIME%] ... running
@@ -186,7 +207,7 @@ goto End
 rem
 rem
 :noService
-echo %~nx0: SVCBATCH_NAME is not defined
+echo %~nx0: _SERVICE_NAME is not defined
 exit /B 1
 rem
 rem

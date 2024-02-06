@@ -88,12 +88,12 @@ rem Set the server mode
 set "SERVER_MODE=standalone"
 rem
 rem Set the log name
-set "SERVICE_LOGNAME=/LN:service.log"
+set "SERVICE_LOGNAME=service.log"
 rem
-rem set "SERVICE_LOGNAME=/LN:service.@Y-@m-@d.log /SN:service.stop.log /SM:1"
+rem set "SERVICE_LOGNAME=service.@Y-@m-@d.log"
 rem
 rem Set the stop parameters
-set "SERVICE_STOP_ARGS=[ --controller=127.0.0.1:9990 --connect --command=:shutdown ]"
+set "SERVICE_STOP_ARGS=--controller=127.0.0.1:9990 --connect --command=:shutdown"
 rem
 rem
 if /i "%SERVICE_SHELL%" == "cmd" goto doCreateCmd
@@ -113,11 +113,13 @@ rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
     --displayName "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
-    --start=automatic ^
-    /F:P /E:NOPAUSE=Y ^
-    /L:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
-    /S:jboss-cli.bat %SERVICE_STOP_ARGS% ^
-    %SERVER_MODE%.bat %CMD_LINE_ARGS%
+    --start Automatic ^
+    --set Environment [ NOPAUSE=Y ] ^
+    --set Logs ..\%SERVER_MODE%\log ^
+    --set LogName %SERVICE_LOGNAME% ^
+    --set Stop [ jboss-cli.bat %SERVICE_STOP_ARGS% ] ^
+    --set Arguments [ %SERVER_MODE%.bat %CMD_LINE_ARGS% ]
+
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
@@ -131,12 +133,13 @@ rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
     --displayName "%SERVICE_DISPLAY%" ^
     --description "%SERVICE_DESCIPTION%" ^
-    --start=auto ^
-    /F:P ^
-    /L:..\%SERVER_MODE%\log %SERVICE_LOGNAME% ^
-    /C:powershell [ -NoProfile -ExecutionPolicy Bypass -File ] ^
-    /S:jboss-cli.ps1 %SERVICE_STOP_ARGS% ^
-    %SERVER_MODE%.ps1 %CMD_LINE_ARGS%
+    --start auto ^
+    --set Logs ..\%SERVER_MODE%\log ^
+    --set LogName %SERVICE_LOGNAME% ^
+    --set Command [ powershell -NoProfile -ExecutionPolicy Bypass -File ] ^
+    --set Stop [ jboss-cli.ps1 %SERVICE_STOP_ARGS% ] ^
+    --set Arguments [ %SERVER_MODE%.ps1 %CMD_LINE_ARGS% ]
+
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
@@ -145,7 +148,7 @@ rem
 :doStart
 rem
 rem
-%EXECUTABLE% start "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
+%EXECUTABLE% start "%SERVICE_NAME%" --wait %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -153,7 +156,7 @@ rem
 :doStop
 rem
 rem
-%EXECUTABLE% stop "%SERVICE_NAME%" -- %CMD_LINE_ARGS%
+%EXECUTABLE% stop "%SERVICE_NAME%" --wait %CMD_LINE_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem

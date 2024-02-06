@@ -1,6 +1,6 @@
 # SvcBatch: Overview
 
-SvcBatch is a program that allows users to run batch files as Windows service.
+SvcBatch is a program that allows users to run script files as Windows service.
 
 The program's main goal is to run any application as a Windows
 service by using a batch file wrapper as an application launcher.
@@ -10,7 +10,7 @@ for a specialized service wrapper.
 
 SvcBatch was designed to be simple to use and lightweight, with a small
 memory footprint. Its only dependency is win32 API, and only has
-around 5K lines of **C** code. There are no configuration
+around 8K lines of **C** code. There are no configuration
 files or installation requirements, so it can be easily distributed
 alongside any application that requires Windows service functionality.
 
@@ -65,10 +65,6 @@ create, configure, manage, and delete services.
 Check the [managing](docs/manage.md) section for some basic
 guidelines.
 
-Check [Microsoft's SC documentation](https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/sc-config)
-for detailed description how to use the `SC` utility to create
-and manage services.
-
 By default SvcBatch uses System's `cmd.exe` as a shell to run a batch file.
 Thus the batch file is an *actual* service application from a
 conceptual point of view.
@@ -108,7 +104,7 @@ detailed usage.
   **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\myservice**
 
   In case the service was installed using SvcBatch, additional
-  **ImagePathArgumets** value is created under the service's
+  **Parameters** sub key is created under the service's
   registry key that contains arguments SvcBatch will merge at
   runtime with the value of **ImagePath**.
 
@@ -136,16 +132,6 @@ detailed usage.
 
   ```
 
-  Or you can use Microsoft `sc` utility
-
-  ```no-highlight
-  > sc create myservice binPath= ""%cd%\svcbatch.exe" myservice.bat param1"
-
-  ...
-
-  > sc start myservice param2 param3
-
-  ```
 
   When started the `myservice.bat` will receive `param1 param2 param3`
   as arguments.
@@ -170,6 +156,7 @@ detailed usage.
 
   Also check the [Managing Services](#managing-services)
   section for further guidelines.
+
 
 ## Managing Services
 
@@ -416,26 +403,6 @@ and lowercase letters with **-** command switch.
 
 
 
-    * **W**
-
-      **Use Windows Long Path Names**
-
-      By default Windows paths are limited to **260** characters,
-      unless prefixed by **\\?\\**. SvcBatch adds that prefix for
-      all directory names larger the **248** characters, and file
-      names larger then **MAX_PATH** (defined as `260`).
-
-      This option enables long path behavior if enabled
-      on the system running Windows 10, Version 1607, and later.
-
-      To enable the new long path behavior, the value of
-      the **LongPathsEnabled** must be set to **1** in
-      the **HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\FileSystem**
-      registry key.
-
-      This option can be useful for new applications targeting
-      Windows 10 platform, without the overhead of prefixing each
-      path or file name parameter with **\\?\\**.
 
 
     * **Y**
@@ -454,16 +421,6 @@ and lowercase letters with **-** command switch.
       Flags **[0|1|2]** determine how the SvcBatch will handle
       service failure in case it enters a `STOP` state
       without explicit Stop command from the SCM.
-
-      This mode will not set the error code when the service
-      fails. The information message will be written to
-      the Windows Event log and service will enter a stop state.
-
-      The typical usage of this feature is for the services
-      that run for some time and then stop.
-
-
-    * **1**
 
       This mode will set the error code when the service
       fails. The error message will be written to
@@ -490,6 +447,17 @@ and lowercase letters with **-** command switch.
       **This is the default mode.**
 
 
+    * **1**
+
+
+      This mode will not set the error code when the service
+      fails. The information message will be written to
+      the Windows Event log and service will enter a stop state.
+
+      The typical usage of this feature is for the services
+      that run for some time and then stop.
+
+
     * **2**
 
       This mode will not report error code to the SCM when
@@ -511,7 +479,7 @@ and lowercase letters with **-** command switch.
   For example:
 
   ```no-highlight
-  > svcbatch create ... /C:powershell /C:[ -NoProfile -ExecutionPolicy Bypass -File ] myservice.ps1 ...
+  > svcbatch create ... /C:[ powershell -NoProfile -ExecutionPolicy Bypass -File ] myservice.ps1 ...
 
   ```
 
@@ -594,7 +562,6 @@ and lowercase letters with **-** command switch.
   ```no-highlight
 
     BASENAME    Program application name
-    BASE        Base directory
     DIRNAME     Program directory
     HOME        Home directory
     LOGS        Logs directory
@@ -659,8 +626,7 @@ and lowercase letters with **-** command switch.
 
   ```no-highlight
 
-    A   Program application name
-    B   Base directory
+    B   Program application name
     D   Program directory
     H   Home directory
     L   Logs directory
@@ -679,8 +645,7 @@ and lowercase letters with **-** command switch.
 
   ```no-highlight
 
-    A  ...  [PREFIX]_BASENAME
-    B  ...  [PREFIX]_BASE
+    B  ...  [PREFIX]_BASENAME
     D  ...  [PREFIX]_DIRNAME
     H  ...  [PREFIX]_HOME
     L  ...  [PREFIX]_LOGS
@@ -1096,12 +1061,6 @@ determined from the program executable name.
 
 Here is the list of environment variables that
 SvcBatch sets for each instance:
-
-
-* **SVCBATCH_BASE**
-
-  This variable is set to the directory of the service
-  script file.
 
 
 * **SVCBATCH_HOME**

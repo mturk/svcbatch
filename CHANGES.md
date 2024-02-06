@@ -17,7 +17,7 @@ For a full list of changes, see the [git commit log][log]
 ### New Features
 
   * SvcBatch can now be used to install and manage services
-  * Support Windows long path names
+  * Use Windows registry instead command line options
   * Improve the support for running alternate script interpreters
 
 

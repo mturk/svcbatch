@@ -1,12 +1,7 @@
-## SvcBatch test programs
+## SvcBatch Utilities
 
-This folder contains various SvcBatch tests
-used for development.
-
-Further documentation we will presume that
-you have a current SvcBatch git branch inside
-**C:\Workplace\projects\svcbatch** directory
-and installed Visual Studio compiler.
+This folder contains various SvcBatch utility
+programs.
 
 ## Prerequisites
 
@@ -21,7 +16,7 @@ and then type:
 
 ```cmd
 > cd C:\Workplace\projects\svcbatch
-> nmake tests
+> nmake utils
 
 Microsoft (R) Program Maintenance Utility Version ...
 Copyright (C) Microsoft Corporation.  All rights reserved.

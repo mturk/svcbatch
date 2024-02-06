@@ -15,6 +15,7 @@
 
 #include <windows.h>
 #include "svcbatch.h"
+#include "svcbemsg.h"
 
 #if SVCBATCH_ISDEV_VERSION
 #define SVCBATCH_PRERELEASE  VS_FF_PRERELEASE
@@ -32,10 +33,6 @@
 #define SVCBATCH_DEBUGVER    0
 #endif
 
-#define IDI_MAINICON         101
-IDI_MAINICON         ICON   "svcbatch.ico"
-CREATEPROCESS_MANIFEST_RESOURCE_ID RT_MANIFEST  "svcbatch.manifest"
-
 LANGUAGE 0x9,0x1
 1 11 "svcbatch.bin"
 
@@ -45,7 +42,7 @@ LANGUAGE 0x9,0x1
  FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
  FILEFLAGS     (SVCBATCH_PATCHED|SVCBATCH_PRERELEASE|SVCBATCH_DEBUGVER)
  FILEOS         VOS_NT_WINDOWS32
- FILETYPE       VFT_APP
+ FILETYPE       VFT_DLL
  FILESUBTYPE    0x0L
 BEGIN
     BLOCK "StringFileInfo"
@@ -54,11 +51,11 @@ BEGIN
         BEGIN
             VALUE "Comments",           SVCBATCH_LICENSE_SHORT
             VALUE "CompanyName",        SVCBATCH_COMPANY_NAME
-            VALUE "FileDescription",    SVCBATCH_DESCRIPTION
+            VALUE "FileDescription",    SVCMSG_DESCRIPTION
             VALUE "FileVersion",        SVCBATCH_VERSION_STR SVCBATCH_VERSION_SFX
-            VALUE "InternalName",       SVCBATCH_NAME
+            VALUE "InternalName",       SVCMSG_NAME
             VALUE "LegalCopyright",     SVCBATCH_COPYRIGHT
-            VALUE "OriginalFilename",   SVCBATCH_BASENAME ".exe"
+            VALUE "OriginalFilename",   SVCMSG_NAME ".dll"
             VALUE "ProductName",        SVCBATCH_NAME
             VALUE "ProductVersion",     SVCBATCH_VERSION_STR
         END
@@ -68,3 +65,4 @@ BEGIN
         VALUE "Translation", 0x409, 1200
     END
 END
+

@@ -20,10 +20,18 @@ rem
 rem
 setlocal
 set "SERVICE_NAME=adummysvc"
+set "DISPLAY_NAME=A Dummy Service"
 rem
-pushd "..\build\dbg"
+rem
+set "SERVICE_EXEC=svcbatch.exe"
+rem
+rem set "SERVICE_EXEC=service.exe"
+rem
+pushd "..\build\rel"
 set "BUILD_DIR=%cd%"
 popd
+rem
+set "SERVICE_MAIN=%BUILD_DIR%\%SERVICE_EXEC%"
 rem
 if /i "x%~1" == "xcreate"   goto doCreate
 if /i "x%~1" == "xdelete"   goto doDelete
@@ -48,68 +56,49 @@ if not exist "%BUILD_DIR%" (
 )
 rem Check long paths
 set "LONG_STRING=0123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123456790123"
-set "SERVICE_LOG_FNAME="
-set "SHUTDOWN_ARGS="
-set "ROTATE_RULE="
-set "SERVICE_BATCH=dummyservice.bat"
-rem set "SERVICE_BATCH=/R:dummyservice.bat [ some arguments ]"
-rem Use the service batch file for shutdown
-set "SERVICE_SHUTDOWN=/S:@"
 rem
-rem Uncomment to use separate shutdown file
-rem set "SERVICE_SHUTDOWN=-s dummyshutdown.bat"
-rem Set arguments for shutdown bat file
-rem set "SHUTDOWN_ARGS=[ stop arguments ] /S:[ "with spaces" ]"
-rem
-rem
-rem set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%\%LONG_STRING%"
-rem set "SERVICE_LOG_DIR=/L:Logs\%SERVICE_NAME%"
-rem Rotate Log files each 10 minutes or when larger then 100Kbytes
-rem set "ROTATE_RULE=/LR:@10+100K"
-rem set "ROTATE_RULE=/LR:S+@5+20K"
-rem Rotate Log files at midnight
-rem set "ROTATE_RULE=/LR:@0"
-rem Rotate Log files every full hour or when larger then 40000 bytes
-rem set "ROTATE_RULE=/LR:@60+40000B"
-rem
-rem Set log file names instead default SvcBatch.log
-rem set "SERVICE_LOG_FNAME=/LN:%SERVICE_NAME%.log"
-rem
-rem set "SERVICE_LOG_FNAME=/LN:%SERVICE_NAME%.@Y-@m-@d.@H@M@S.log"
-rem
-rem set "SERVICE_LOG_FNAME=/LN:$NAME.@4-@Y-@m-@d.log /SN:$NAME.stop.log"
-rem
-rem set "SERVICE_LOG_FNAME=%SERVICE_LOG_FNAME% /SM:1"
-rem
-rem Set PATH
-set "SERVICE_ENVIRONMENT=/E:PATH=$HOME;$PATH /E:${PREFIX}_${+NAME}_ID=$VERSION-${-PROCESSOR_ARCHITECTURE}"
-rem set "SERVICE_ENVIRONMENT=%SERVICE_ENVIRONMENT%  /EE:ABDHLNRUVW"
+set "SERVICE_BATCH=.\dummyservice.bat"
 rem
 rem Presuming this is the build tree ...
 rem Create a service command line
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" ^
-    "--displayName=A Dummy Service" --description "One dummy SvcBatch service example" ^
-    --depend=Tcpip/Afd --privs=SeShutdownPrivilege ^
-    --home ..\..\test ^
-    --work ..\build\dbg ^
-    --logs=Logs\$NAME ^
-    --temp $LOGS\temp ^
-    --stopTimeout=12 ^
-    --logName=$NAME.@4-@Y-@m-@d.log ^
-    --stopLogName=$NAME.stop.log --stopMaxLogs=1 ^
-    --logRotate "@5+20K" ^
-    --stopArgs "stop|arguments|with spaces" ^
-    --set "ADUMMYSVC_PID=$ProcessId|ADUMMYSVC_VER=$VERSION" ^
-    --export=1 ^
-    --features=R ^
-    /F:PL0 ^
-    %SERVICE_ENVIRONMENT% ^
-    %SERVICE_LOG_DIR% %SERVICE_LOG_FNAME% ^
-    %ROTATE_RULE% ^
-    %SERVICE_SHUTDOWN% %SHUTDOWN_ARGS% ^
-    %SERVICE_BATCH% run
+%SERVICE_MAIN% create "%SERVICE_NAME%" ^
+    --DisplayName "%DISPLAY_NAME%" ^
+    --Description "One dummy SvcBatch service example" ^
+    --depend Tcpip/Afd ^
+    --privs SeShutdownPrivilege ^
+    --start manual ^
+    --Preshutdown 22000 ^
+    --set FailMode 1 ^
+    --set UseLocalTime Yes ^
+    --set AcceptPreshutdown Yes ^
+    --set Home ..\..\test ^
+    --set Work ..\build\dbg ^
+    --set Logs Logs\$NAME ^
+    --set Temp $LOGS\temp ^
+    --set StdInput 79,0d,0a ^
+    --set StopTimeout 12000 ^
+    --set LogName $NAME.@Y-@m-@d.log ^
+    --set LogRotate On ^
+    --set LogRotateSize 20000 ^
+    --set LogRotateInterval 5 ^
+    --set EnvironmentPrefix $BASENAME ^
+    --set Environment [ ^
+            ADUMMYSVC_PID=$ProcessId ^
+            ADUMMYSVC_VER=$RELEASE ^
+            ADUMMYSVC_ARG=$1.$2.$-PROCESSOR_ARCHITECTURE ^
+            ADUMMYSVC_VER=$VERSION-$ADUMMYSVC_VER ^
+            ${+NAME}_${VERSION}_VER=$ADUMMYSVC_VER ^
+            PATH=$HOME;$PATH ^
+            ] ^
+    --set Export +BCD ^
+    --set Arguments [ %SERVICE_BATCH% run ] ^
+    --set Stop $0 ^
+    --set StopLogName $NAME.stop.log ^
+    --set StopMaxLogs 1 ^
+    /V:2
+
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
@@ -122,7 +111,7 @@ rem
 :doLite
 rem
 rem
-%BUILD_DIR%\svcbatch.exe create "%SERVICE_NAME%" --quiet ^
+%SERVICE_MAIN% create "%SERVICE_NAME%" --quiet ^
     --displayName "A Dummy Service" ^
     --description "One dummy SvcBatch service example" ^
     --username=1 ^
@@ -149,7 +138,7 @@ shift
 goto setStartArgs
 :doneStartArgs
 rem
-%BUILD_DIR%\svcbatch.exe start "%SERVICE_NAME%" --wait=10 %START_CMD_ARGS%
+%SERVICE_MAIN% start "%SERVICE_NAME%" --wait=10 %START_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo Started %SERVICE_NAME%
 goto End
@@ -170,7 +159,7 @@ shift
 goto setStopArgs
 :doneStopArgs
 rem
-%BUILD_DIR%\svcbatch.exe stop "%SERVICE_NAME%" --wait %STOP_CMD_ARGS%
+%SERVICE_MAIN% stop "%SERVICE_NAME%" --wait %STOP_CMD_ARGS%
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo Stopped %SERVICE_NAME%
 goto End
@@ -179,7 +168,7 @@ rem
 :doRotate
 rem
 rem
-%BUILD_DIR%\svcbatch.exe control "%SERVICE_NAME%" 234
+%SERVICE_MAIN% control "%SERVICE_NAME%" 234
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 goto End
 rem
@@ -187,7 +176,7 @@ rem
 :doDelete
 rem
 rem
-%BUILD_DIR%\svcbatch.exe delete "%SERVICE_NAME%"
+%SERVICE_MAIN% delete "%SERVICE_NAME%"
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 echo Deleted %SERVICE_NAME%
 goto End

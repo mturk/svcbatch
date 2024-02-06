@@ -60,27 +60,39 @@
 #define SVCBATCH_PATCH_VERSION  1
 #define SVCBATCH_MICRO_VERSION  0
 
-#define SVCBATCH_RELEASE_VER    (SVCBATCH_MAJOR_VERSION * 10000 + SVCBATCH_MINOR_VERSION * 100 + SVCBATCH_PATCH_VERSION)
+#define SVCBATCH_VERSION_NUM    (SVCBATCH_MAJOR_VERSION * 10000 + SVCBATCH_MINOR_VERSION * 100 + SVCBATCH_PATCH_VERSION)
 /**
  * Set to zero for release versions
  */
 #define SVCBATCH_ISDEV_VERSION  1
 
+#if defined(PROGRAM_NAME)
+# define SVCBATCH_PROGRAM_NAME  CPP_TOSTR(PROGRAM_NAME)
+#else
+# define SVCBATCH_PROGRAM_NAME  "SvcBatch"
+#endif
 
-#define SVCBATCH_NAME           "SvcBatch"
-#define SVCBATCH_APPNAME        "SvcBatch Service"
-#define SHUTDOWN_APPNAME        "SvcBatch Shutdown"
-#define SVCBATCH_LOGNAME       L"SvcBatch.log"
-#define SVCBATCH_LOGSTOP       L"SvcBatch.stop.log"
+#if defined(PROGRAM_BASE)
+# define SVCBATCH_PROGRAM_BASE  CPP_TOSTR(PROGRAM_BASE)
+#else
+# define SVCBATCH_PROGRAM_BASE  "svcbatch"
+#endif
+
+#define SVCBATCH_NAME          SVCBATCH_PROGRAM_NAME
+#define SVCBATCH_BASENAME      SVCBATCH_PROGRAM_BASE
+#define SVCBATCH_APPNAME       SVCBATCH_PROGRAM_NAME " Service"
+#define SHUTDOWN_APPNAME       SVCBATCH_PROGRAM_NAME " Shutdown"
+#define SVCBATCH_LOGNAME       CPP_WIDEN(SVCBATCH_PROGRAM_NAME) L".log"
+#define SVCBATCH_LOGSTOP       CPP_WIDEN(SVCBATCH_PROGRAM_NAME) L".stop.log"
 #define SVCBATCH_LOGSDIR       L"Logs"
 #define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
-#define SVCBATCH_MMAPPFX       L"\\\\Local\\mm-"
+#define SVCBATCH_MMAPPFX       L"Local\\mm-"
 
 /**
  * Registry key where SvcBatch saves
- * and reads the service configuration
+ * and reads the service parameters
  */
-#define SVCBATCH_SVCOPTS       L"Options"
+#define SVCBATCH_PARAMS_KEY    L"Parameters"
 
 /**
  * Default arguments for cmd.exe
@@ -160,13 +172,15 @@
 #define SVCBATCH_STOP_WAIT      5000
 #define SVCBATCH_STOP_SYNC      2000
 #define SVCBATCH_STOP_STEP      1000
-#define SVCBATCH_STOP_TMIN      2
-#define SVCBATCH_STOP_TMAX      180
+#define SVCBATCH_STOP_TDEF      3000
+#define SVCBATCH_STOP_TMIN      2000
+#define SVCBATCH_STOP_TMAX      180000
+#define SVCBATCH_WAIT_TMAX      120
 
 /**
- * Default stop timeout in seconds
+ * Default stop timeout in milliseconds
  */
-#define SVCBATCH_STOP_TIMEOUT   10
+#define SVCBATCH_STOP_TIMEOUT   10000
 
 /**
  * Custom SCM control code that
@@ -180,15 +194,16 @@
 #define SVCBATCH_CTRL_ROTATE    234
 
 /**
- * Minimum rotate size in kilobytes
+ * Minimum rotate size in bytes
  */
-#define SVCBATCH_MIN_ROTATE_SIZ 1
+#define SVCBATCH_MIN_ROTATE_SIZ 1000
 
 /**
  * Minimum time between two log
  * rotations in minutes
  */
 #define SVCBATCH_MIN_ROTATE_INT 2
+#define SVCBATCH_MAX_ROTATE_INT 100000
 #define SVCBATCH_ROTATE_READY   120000
 
 /**
@@ -218,6 +233,8 @@
 #define MEM_ALIGN(size, boundary) \
     (((size) + ((boundary) - 1)) & ~((boundary) - 1))
 #define MEM_ALIGN_DEFAULT(size) MEM_ALIGN(size, MEMORY_ALLOCATION_ALIGNMENT)
+#define MEM_ALIGN_WORD(size)      \
+    (((size) + 1) & 0xFFFFFFFE)
 
 /**
  * Start of the custom error messages
@@ -236,22 +253,23 @@
 /**
  * Runtime options
  */
-#define SVCBATCH_OPT_WRPIPE         0x00000001   /* Write data to stdin on run  */
+#define SVCBATCH_OPT_WRSTDIN        0x00000001   /* Write data to stdin on run  */
 #define SVCBATCH_OPT_LOCALTIME      0x00000002   /* Use local time              */
 #define SVCBATCH_OPT_QUIET          0x00000004   /* Disable logging             */
 #define SVCBATCH_OPT_CTRL_BREAK     0x00000008   /* Send CTRL_BREAK on stop     */
-#define SVCBATCH_OPT_LONGPATHS      0x00000010   /* Use LongPathsEnabled        */
-#define SVCBATCH_OPT_MASK           0x0000FFFF
+#define SVCBATCH_OPT_PRESHUTDOWN    0x00000010   /* Allow service PRESHUTDOWN   */
+#define SVCBATCH_OPT_MASK           0x000000FF
 
-#define SVCBATCH_OPT_ROTATE         0x00010000   /* Enable log rotation         */
-#define SVCBATCH_OPT_TRUNCATE       0x00020000   /* Truncate log on rotation    */
-#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00100000   /* Rotate by signal            */
-#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00200000   /* Rotate by size              */
-#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00400000   /* Rotate by time              */
+#define SVCBATCH_OPT_TRUNCATE       0x00000100   /* Truncate log on rotation    */
+#define SVCBATCH_OPT_ROTATE         0x00000200   /* Enable log rotation         */
+#define SVCBATCH_OPT_ROTATE_BY_SIG  0x00001000   /* Rotate by signal            */
+#define SVCBATCH_OPT_ROTATE_BY_SIZE 0x00002000   /* Rotate by size              */
+#define SVCBATCH_OPT_ROTATE_BY_TIME 0x00004000   /* Rotate by time              */
 
-#define SVCBATCH_FAIL_NONE      1   /* Do not set error if run ends without stop        */
-#define SVCBATCH_FAIL_ERROR     2   /* Set service error if run endeded without stop    */
-#define SVCBATCH_FAIL_EXIT      3   /* Call exit() on stop without scm CTRL_STOP        */
+#define SVCBATCH_FAIL_NONE      0   /* Do not set error if run ends without stop        */
+#define SVCBATCH_FAIL_ERROR     1   /* Set service error if run endeded without stop    */
+#define SVCBATCH_FAIL_EXIT      2   /* Call exit() on stop without scm CTRL_STOP        */
+
 
 /**
  * Helper macros
@@ -264,12 +282,10 @@
 #define IS_EMPTY_STR(_s)        (((_s) == NULL) || (*(_s) == CNUL))
 #define IS_VALID_WCS(_s)        (((_s) != NULL) && (*(_s) != WNUL))
 
-#define IS_SET(_v, _o)          (((_v) & (_o)) == (_o))
-#define IS_NOT(_v, _o)          (((_v) & (_o)) != (_o))
-
 #define IS_OPT_SET(_o)          ((svcoptions & (_o)) == (_o))
 #define IS_NOT_OPT(_o)          ((svcoptions & (_o)) != (_o))
-#define OPT_SET(_o)             svcoptions |=  (_o)
+#define SVCOPT_SET(_o)          InterlockedOr(&svcoptions, (_o))
+#define SVCOPT_CLR(_o)          InterlockedAnd(&svcoptions, ~(_o))
 
 #define DSIZEOF(_s)             (DWORD)(sizeof(_s))
 
@@ -344,17 +360,6 @@
 #define WAIT_OBJECT_2          (WAIT_OBJECT_0 + 2)
 #define WAIT_OBJECT_3          (WAIT_OBJECT_0 + 3)
 
-#ifndef DWORD_MAX
-#define DWORD_MAX               0xffffffffUL  /* maximum DWORD value */
-#endif
-
-/**
- * Error macros
- */
-#define SVCBATCH_FATAL(_e)      xfatalerr("    Fatal error in svcbatch.c"   \
-                                          " at line #" CPP_TOSTR(__LINE__), (_e))
-
-
 #if defined(_DEBUG)
 # if defined(_MSC_VER)
 #  define SVCBATCH_BUILD_CC     " (msc " CPP_TOSTR(_MSC_FULL_VER)  "."  \
@@ -405,24 +410,20 @@
                                 CPP_TOSTR(SVCBATCH_PATCH_VERSION) "."   \
                                 CPP_TOSTR(SVCBATCH_MICRO_VERSION)
 
-#define SVCBATCH_VERSION_VER \
+#define SVCBATCH_VERSION_WCS \
                                 CPP_TOWCS(SVCBATCH_MAJOR_VERSION) L"."  \
                                 CPP_TOWCS(SVCBATCH_MINOR_VERSION) L"."  \
                                 CPP_TOWCS(SVCBATCH_PATCH_VERSION) L"."  \
                                 CPP_TOWCS(SVCBATCH_MICRO_VERSION)
 
 
-#define SVCBATCH_VERSION_EXP \
+#define SVCBATCH_VERSION_VER \
                                 CPP_TOWCS(SVCBATCH_MAJOR_VERSION) L"."  \
                                 CPP_TOWCS(SVCBATCH_MINOR_VERSION) L"."  \
                                 CPP_TOWCS(SVCBATCH_PATCH_VERSION)
 
 #define SVCBATCH_VERSION_REL \
-                                CPP_TOWCS(SVCBATCH_MICRO_VERSION)       \
-                                CPP_WIDEN(SVCBATCH_VERSION_SFX)
-
-#define SVCBATCH_VERSION_WCS \
-                                SVCBATCH_VERSION_VER                    \
+                                SVCBATCH_VERSION_WCS                    \
                                 CPP_WIDEN(SVCBATCH_VERSION_SFX)
 
 
@@ -431,14 +432,15 @@
                                 SVCBATCH_VERSION_SFX                    \
                                 SVCBATCH_BUILD_CC
 
+
 #define SVCBATCH_PROJECT_URL \
     "https://github.com/mturk/svcbatch"
 
 #define SVCBATCH_DESCRIPTION \
-    "Run batch files as Windows Services"
+    "Run files as Windows Services"
 
 #define SVCBATCH_COPYRIGHT \
-    "Copyright (c) 1964-2023 The Acme Corporation or its "              \
+    "Copyright (c) 1964-2024 The Acme Corporation or its "              \
     "licensors, as applicable."
 
 #define SVCBATCH_COMPANY_NAME "Acme Corporation"

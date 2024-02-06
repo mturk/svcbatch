@@ -17,7 +17,7 @@
 -- Simple Lua infinite loop script
 --
 --
--- Sleep function
+-- Basic sleep function
 --
 function sleep(s)
   local t = os.clock() + s
