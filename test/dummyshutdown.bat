@@ -19,6 +19,8 @@ rem Dummy file executed on Service Stop
 rem
 rem
 setlocal
+rem Set active code page to 65001 (utf-8)
+chcp 65001>NUL
 rem
 echo %~nx0: Called from %SVCBATCH_NAME% Service
 echo %~nx0: Arguments [%*]

@@ -6,9 +6,6 @@ as a Windows service.
 
 ### Prerequisites
 
-Ensure that you have at least jdk version 8 installed,
-so that jvm does not exit on user log off.
-
 Download the latest [SvcBatch release](https://github.com/mturk/svcbatch/releases)
 and put `svcbatch.exe` into your `tomcat/bin` directory.
 
@@ -65,7 +62,7 @@ privileges inside your `tomcat/bin` directory
 
 ```no-highlight
 
-> svcbatch create Tomcat --displayName "Apache Tomcat" /F:L -h .. bin\catalina.bat run"
+> svcbatch create Tomcat --displayName "Apache Tomcat" -h .. bin\catalina.bat run"
   Optionally you can add description ...
 > svcbatch config Tomcat --description "Apache Tomcat Service"
   And ...

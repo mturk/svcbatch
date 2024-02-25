@@ -561,13 +561,12 @@ and lowercase letters with **-** command switch.
 
   ```no-highlight
 
+    APPLICATION Program application path
     BASENAME    Program application name
-    DIRNAME     Program directory
+    DISPLAYNAME Service display name
     HOME        Home directory
     LOGS        Logs directory
     NAME        Service Name
-    PREFIX      Private environment variables prefix
-    PROCESSID   Program ProcessId
     RELEASE     SvcBatch release version
     UUUID       Service UUID
     VERSION     SvcBatch version number
@@ -626,12 +625,12 @@ and lowercase letters with **-** command switch.
 
   ```no-highlight
 
+    A   Program application
     B   Program application name
-    D   Program directory
+    D   Service display name
     H   Home directory
     L   Logs directory
     N   Service Name
-    P   Program ProcessId
     R   SvcBatch release version
     U   Service UUID
     V   SvcBatch version number
@@ -645,12 +644,12 @@ and lowercase letters with **-** command switch.
 
   ```no-highlight
 
+    A  ...  [PREFIX]_APPLICATION
     B  ...  [PREFIX]_BASENAME
-    D  ...  [PREFIX]_DIRNAME
+    D  ...  [PREFIX]_DISPLAYNAME
     H  ...  [PREFIX]_HOME
     L  ...  [PREFIX]_LOGS
     N  ...  [PREFIX]_NAME
-    P  ...  [PREFIX]_PROCESSID
     R  ...  [PREFIX]_RELEASE
     U  ...  [PREFIX]_UUID
     V  ...  [PREFIX]_VERSION

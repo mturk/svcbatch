@@ -23,6 +23,7 @@ rem        mkrelease 1.2.3.45 "VERSION_SFX=_1.acme"
 rem        mkrelease /d ...   create debug release
 rem        mkrelease /s ...   compile with static msvcrt
 rem        mkrelease /h ...   compile with hybrid crt
+rem        mkrelease /t ...   enable debug trace
 rem
 setlocal
 rem
@@ -31,6 +32,7 @@ set "ReleaseArch=win-x64"
 set "BuildDir=build\rel"
 set "ProjectFiles=%ProjectName%.exe"
 set "DebugPrefix="
+set "TracePrefix="
 set "MakefileArgs="
 rem
 :getOpts
@@ -38,24 +40,33 @@ rem
 if /i "x%~1" == "x/d" goto setDebug
 if /i "x%~1" == "x/h" goto setHybrid
 if /i "x%~1" == "x/s" goto setStatic
+if /i "x%~1" == "x/t" goto setTrace
 rem
 goto doneOpts
 rem
 :setDebug
 set "BuildDir=build\dbg"
-set "MakefileArgs=%MakefileArgs% _DEBUG=1"
+set "MakefileArgs=%MakefileArgs% DEBUG_BUILD=1 PROGRAM_EEXT=.debug"
 set "DebugPrefix=debug-"
+set "ProjectFiles=%ProjectName%.exe.debug"
 set "ProjectFiles=%ProjectFiles% %ProjectName%.pdb"
 shift
 goto getOpts
 rem
 :setHybrid
-set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=Hybrid"
+set "MakefileArgs=%MakefileArgs% HYBRID_MSVCRT=1"
 shift
 goto getOpts
 rem
 :setStatic
-set "MakefileArgs=%MakefileArgs% _STATIC_MSVCRT=1"
+set "MakefileArgs=%MakefileArgs% STATIC_MSVCRT=1"
+shift
+goto getOpts
+rem
+:setTrace
+set "MakefileArgs=%MakefileArgs% DEBUG_TRACE=1 PROGRAM_EEXT=.trace"
+set "TracePrefix=trace-"
+set "ProjectFiles=%ProjectName%.exe.trace"
 shift
 goto getOpts
 rem
@@ -75,7 +86,14 @@ goto setArgs
 rem
 :doneArgs
 rem
-set "ReleaseArch=%DebugPrefix%%LitePrefix%%ReleaseArch%"
+if "x%DebugPrefix%x" == "xx" goto donePrefix
+if "x%TracePrefix%x" == "xx" goto donePrefix
+echo Error: Command options /d and /t are mutually exclusive
+exit /B 1
+rem
+:donePrefix
+rem
+set "ReleaseArch=%DebugPrefix%%TracePrefix%%LitePrefix%%ReleaseArch%"
 rem nmake /nologo %MakefileArgs% clean
 set "ReleaseName=%ProjectName%-%ReleaseVersion%-%ReleaseArch%"
 set "ReleaseLog=%ReleaseName%.txt
@@ -108,6 +126,8 @@ rem
 del /F /Q %ReleaseZip% 2>NUL
 7za.exe a -bd %ReleaseZip% %ProjectFiles%"
 certutil -hashfile %ReleaseZip% SHA256 | findstr /v "CertUtil" >> %ReleaseLog%
+echo. >> %ReleaseLog%
+certutil -hashfile %ReleaseZip% SHA512 | findstr /v "CertUtil" >> %ReleaseLog%
 echo. >> %ReleaseLog%
 echo ``` >> %ReleaseLog%
 popd

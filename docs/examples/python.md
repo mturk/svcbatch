@@ -52,7 +52,7 @@ without cmd.exe's wrapper pyservice.bat file, use the following:
 
 ```no-highlight
 
-> svcbatch create pyservice /C:python /E:PATH=@ProgramFiles@\Python311;@PATH@ :pyservice.py
+> svcbatch create pyservice --set Command python --set Environment PATH=@ProgramFiles@\Python311;$PATH pyservice.py
 
 
 ```

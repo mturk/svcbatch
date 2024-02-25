@@ -19,6 +19,8 @@ rem Batch file that never returns
 rem
 rem
 setlocal
+rem Set active code page to 65001 (utf-8)
+chcp 65001 1>NUL
 rem
 echo %~nx0: Started
 echo %~nx0: Arguments [%*]

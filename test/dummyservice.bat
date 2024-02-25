@@ -19,6 +19,8 @@ rem Dummy SvcBatch service
 rem
 rem
 setlocal
+rem Set active code page to 65001 (utf-8)
+rem chcp 65001>NUL
 rem
 rem
 rem goto xsName
@@ -41,6 +43,8 @@ if "x%_SERVICE_NAME%" == "x" goto noService
 rem
 if /i "x%~1" == "xstop"     goto doShutdown
 if /i "x%~1" == "xshutdown" goto doShutdown
+rem
+echo %~nx0: [%TIME%] Started %_SERVICE_NAME% Service >> "%TEMP%\%_SERVICE_NAME%-run.log"
 rem
 echo %~nx0: Running %_SERVICE_NAME% Service
 echo %~nx0: Arguments [%*]

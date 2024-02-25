@@ -16,12 +16,18 @@ rem Batch script for installing sservice
 rem
 rem
 setlocal
+rem Set active code page to 65001 (utf-8)
+chcp 65001>NUL
 rem
+pushd "..\..\build\rel"
+rem set "BUILD_DIR=%cd%"
 set "SERVICE_EXEC=svcbatch.exe"
 set "SERVICE_NAME=sservice"
 set "DISPLAY_NAME=Simple Service"
 rem
 if /i "x%~1" == "xdelete" goto doDelete
+if /i "x%~1" == "xstart"  goto doStart
+if /i "x%~1" == "xstop"   goto doStop
 rem
 rem goto doStressTest
 rem
@@ -30,7 +36,10 @@ rem
             --displayname "%DISPLAY_NAME%" ^
             --set Export * ^
             --set FailMode 0 ^
-            /V:2 /C [ sservice.exe 120 some options ] arguments
+            --set Command [ sservice.exe 120 some options ]  ^
+            --set Arguments [ "the arguments" ] ^
+            /D:2
+
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
 rem
@@ -56,6 +65,20 @@ echo Created %SERVICE_NAME%
 goto End
 rem
 rem
+:doStart
+%SERVICE_EXEC% start "%SERVICE_NAME%"
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+echo Started %SERVICE_NAME%
+goto End
+rem
+rem
+:doStop
+%SERVICE_EXEC% stop "%SERVICE_NAME%"
+if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
+echo Stopped %SERVICE_NAME%
+goto End
+rem
+rem
 :doDelete
 rem
 %SERVICE_EXEC% delete "%SERVICE_NAME%"
@@ -66,4 +89,5 @@ echo Deleted %SERVICE_NAME%
 rem
 rem
 :End
+popd
 exit /B 0

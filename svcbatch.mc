@@ -23,3 +23,15 @@ SymbolicName=SVCBATCH_EVENTLOG_MSG_3
 Language=English
 %1%2%3
 .
+
+MessageId=2304
+SymbolicName=SVCBATCH_EVENTLOG_MSG_4
+Language=English
+%1%2%3%4
+.
+
+MessageId=2305
+SymbolicName=SVCBATCH_EVENTLOG_MSG_5
+Language=English
+%1%2%3%4%5
+.

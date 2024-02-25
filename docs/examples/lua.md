@@ -10,7 +10,7 @@ the service by typing
 
 ```no-highlight
 
-> svcbatch create luasvc /C:lua.exe iloop.lua
+> svcbatch create luasvc --set Command lua.exe iloop.lua
 
 ```
 

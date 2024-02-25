@@ -43,18 +43,18 @@ PROJECT = svcbatch
 TARGET  = $(PROJECT).exe
 WORKTOP = $(SRCDIR)/build
 
-ifdef _DEBUG
-WORKDIR = $(WORKTOP)/dbg
+ifdef DEBUG_BUILD
+WORKDIR = $(WORKTOP)/dbg.gcc
 else
-WORKDIR = $(WORKTOP)/rel
+WORKDIR = $(WORKTOP)/rel.gcc
 endif
 
 POUTPUT = $(WORKDIR)/$(TARGET)
 WINVER  = 0x0601
 
-ifdef _DEBUG
-CFLAGS  = -D_DEBUG=$(_DEBUG)
-RFLAGS  = -D _DEBUG=$(_DEBUG)
+ifdef DEBUG_BUILD
+CFLAGS  = -D_DEBUG -DDEBUG
+RFLAGS  = -D DEBUG -D _DEBUG
 RL      = @true
 else
 CFLAGS  = -DNDEBUG
@@ -64,7 +64,7 @@ endif
 CFLAGS += -D_WIN32_WINNT=$(WINVER) -DWINVER=$(WINVER) -DWIN32_LEAN_AND_MEAN \
 	-D_CRT_SECURE_NO_WARNINGS -D_CRT_SECURE_NO_DEPRECATE \
 	-DUNICODE -D_UNICODE
-LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-implicit-fallthrough -Wno-stringop-overflow -municode -mconsole
+LNOPTS  = -m64 -O2 -Wall -Wextra -Wno-unused-parameter -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-stringop-overflow -municode -mconsole
 RCOPTS  = -l 0x409 -F pe-x86-64 -O coff
 RFLAGS += -D _WIN32_WINNT=$(WINVER) -D WINVER=$(WINVER)
 CLOPTS  = $(LNOPTS) -c
@@ -76,6 +76,9 @@ CFLAGS += -DVERSION_SFX=$(VERSION_SFX)
 RFLAGS += -D VERSION_SFX=$(VERSION_SFX)
 endif
 
+ifdef DEBUG_TRACE
+CFLAGS += -DDEBUG_TRACE
+endif
 
 OBJECTS = \
 	$(WORKDIR)/$(PROJECT).o \

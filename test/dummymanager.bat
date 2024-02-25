@@ -19,6 +19,9 @@ rem Dummy SvcBatch service manager
 rem
 rem
 setlocal
+rem Set active code page to 65001 (utf-8)
+chcp 65001>NUL
+rem
 set "SERVICE_NAME=adummysvc"
 set "DISPLAY_NAME=A Dummy Service"
 rem
@@ -51,7 +54,7 @@ popd
 if not exist "%BUILD_DIR%" (
     echo.
     echo Cannot find build directory.
-    echo Run [n]make tests _DEBUG=1
+    echo Run [n]make tests ...
     exit /B 1
 )
 rem Check long paths
@@ -71,33 +74,39 @@ rem
     --start manual ^
     --Preshutdown 22000 ^
     --set FailMode 1 ^
+    --set KillDepth 1 ^
+    --set SendBreakOnStop No ^
+    --set TruncateLogs No ^
     --set UseLocalTime Yes ^
     --set AcceptPreshutdown Yes ^
     --set Home ..\..\test ^
-    --set Work ..\build\dbg ^
-    --set Logs Logs\$NAME ^
-    --set Temp $LOGS\temp ^
-    --set StdInput 79,0d,0a ^
+    --set Work ..\build\rel ^
+    --set Logs Logs\Ädümmysvc ^
+    --set Temp $TEMP\$NAME\temp ^
+    --set StdInput hex:79,0d,0a ^
     --set StopTimeout 12000 ^
+    --set DisableLogging No ^
+    --set MaxLogs 2 ^
     --set LogName $NAME.@Y-@m-@d.log ^
     --set LogRotate On ^
     --set LogRotateSize 20000 ^
     --set LogRotateInterval 5 ^
     --set EnvironmentPrefix $BASENAME ^
     --set Environment [ ^
-            ADUMMYSVC_PID=$ProcessId ^
             ADUMMYSVC_VER=$RELEASE ^
-            ADUMMYSVC_ARG=$1.$2.$-PROCESSOR_ARCHITECTURE ^
+            ADUMMYSVC_ARG=$1.$2.$PROCESSOR_ARCHITECTURE ^
             ADUMMYSVC_VER=$VERSION-$ADUMMYSVC_VER ^
-            ${+NAME}_${VERSION}_VER=$ADUMMYSVC_VER ^
             PATH=$HOME;$PATH ^
             ] ^
-    --set Export +BCD ^
+    --set Export +BD ^
+    --set Command [ ^
+            $COMSPEC "/D /Q /E:ON /V:OFF /C chcp 65001>nul&&call" ^
+            ] ^
     --set Arguments [ %SERVICE_BATCH% run ] ^
     --set Stop $0 ^
     --set StopLogName $NAME.stop.log ^
     --set StopMaxLogs 1 ^
-    /V:2
+    /D:2-
 
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
@@ -187,8 +196,10 @@ rem
 rem
 pushd "%BUILD_DIR%"
 rd /S /Q "Logs" >NUL 2>&1
+rd /S /Q "%TEMP%\%SERVICE_NAME%"  >NUL 2>&1
 echo Removed %SERVICE_NAME%
 popd
+rem
 rem
 rem
 :End

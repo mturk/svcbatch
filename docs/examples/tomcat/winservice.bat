@@ -74,13 +74,13 @@ rem
 rem
 rem
 rem Set batch file to execute
-set "SVCBATCH_FILE=bin\catalina.bat"
+set "SERVICE_BATCH=bin\catalina.bat"
 rem
 rem
 rem
 %EXECUTABLE% create "%SERVICE_NAME%" ^
-    --displayName "Apache %SERVICE_NAME%" ^
-    --description "Apache Tomcat 11.1.x Server - https://tomcat.apache.org/" ^
+    --displayName "Apache Tomcat 11.0 %SERVICE_NAME%" ^
+    --description "Apache Tomcat 11.0.x Server - https://tomcat.apache.org/" ^
     --start auto ^
     --set LogName service.@Y-@m-@d.log ^
     --set UseLocalTime Yes ^

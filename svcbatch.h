@@ -78,16 +78,22 @@
 # define SVCBATCH_PROGRAM_BASE  "svcbatch"
 #endif
 
-#define SVCBATCH_NAME          SVCBATCH_PROGRAM_NAME
-#define SVCBATCH_BASENAME      SVCBATCH_PROGRAM_BASE
-#define SVCBATCH_APPNAME       SVCBATCH_PROGRAM_NAME " Service"
-#define SHUTDOWN_APPNAME       SVCBATCH_PROGRAM_NAME " Shutdown"
-#define SVCBATCH_LOGNAME       CPP_WIDEN(SVCBATCH_PROGRAM_NAME) L".log"
-#define SVCBATCH_LOGSTOP       CPP_WIDEN(SVCBATCH_PROGRAM_NAME) L".stop.log"
-#define SVCBATCH_LOGSDIR       L"Logs"
-#define SVCBATCH_PIPEPFX       L"\\\\.\\pipe\\pp-"
-#define SVCBATCH_MMAPPFX       L"Local\\mm-"
+#if defined(PROGRAM_EEXT)
+# define SVCBATCH_PROGRAM_EXT   CPP_TOSTR(PROGRAM_EEXT)
+#else
+# define SVCBATCH_PROGRAM_EXT   ""
+#endif
 
+#define SVCBATCH_NAME           SVCBATCH_PROGRAM_NAME
+#define SVCBATCH_BASENAME       SVCBATCH_PROGRAM_BASE
+#define SVCBATCH_APPNAME        SVCBATCH_PROGRAM_NAME " Service"
+#define SHUTDOWN_APPNAME        SVCBATCH_PROGRAM_NAME " Shutdown"
+#define SVCBATCH_LOGNAME        CPP_WIDEN(SVCBATCH_PROGRAM_NAME) L".log"
+#define SVCBATCH_LOGSTOP        CPP_WIDEN(SVCBATCH_PROGRAM_NAME) L".stop.log"
+#define SVCBATCH_LOGSDIR        L"Logs"
+#define SVCBATCH_MMAPPFX        L"Local\\mm-"
+
+#ifndef RC_INVOKED
 /**
  * Registry key where SvcBatch saves
  * and reads the service parameters
@@ -95,7 +101,7 @@
 #define SVCBATCH_PARAMS_KEY    L"Parameters"
 
 /**
- * Default arguments for cmd.exe
+ * Default options for cmd.exe
  *
  * /D     Disable execution of AutoRun commands from registry
  * /E:ON  Enable command extensions
@@ -109,7 +115,7 @@
  *        over this switch.
  *
  */
-#define SVCBATCH_DEF_ARGS      L"/D /E:ON /V:OFF /C"
+#define SVCBATCH_DEF_OPTS      L"/D /E:ON /V:OFF /C"
 
 /**
  * Maximum number of the SvcBatch.log.N files
@@ -317,7 +323,7 @@
 
 #define ASSERT_SPAN(_v, _m, _x, _r)                         \
     if (((_v) < (_m)) || ((_v) > (_x))) {                   \
-        SetLastError(ERROR_NO_RANGES_PROCESSED);            \
+        SetLastError(ERROR_INVALID_PARAMETER);              \
         return (_r);                                        \
     } (void)0
 
@@ -360,7 +366,9 @@
 #define WAIT_OBJECT_2          (WAIT_OBJECT_0 + 2)
 #define WAIT_OBJECT_3          (WAIT_OBJECT_0 + 3)
 
-#if defined(_DEBUG)
+#endif /* RC_INVOKED */
+
+#if SVCBATCH_ISDEV_VERSION
 # if defined(_MSC_VER)
 #  define SVCBATCH_BUILD_CC     " (msc " CPP_TOSTR(_MSC_FULL_VER)  "."  \
                                 CPP_TOSTR(_MSC_BUILD)  ")"
@@ -384,6 +392,12 @@
 #else
 # if SVCBATCH_ISDEV_VERSION
 #  define SVCBATCH_VERSION_DBG  "_1.dev"
+# endif
+#endif
+
+#if !defined(SVCBATCH_VERSION_DBG)
+# if defined(PROGRAM_EEXT)
+#  define SVCBATCH_VERSION_DBG  "_1"
 # else
 #  define SVCBATCH_VERSION_DBG  ""
 # endif
@@ -392,7 +406,7 @@
 #if defined(VERSION_SFX)
 # define SVCBATCH_VERSION_SFX   CPP_TOSTR(VERSION_SFX)
 #else
-# define SVCBATCH_VERSION_SFX   SVCBATCH_VERSION_DBG
+# define SVCBATCH_VERSION_SFX   SVCBATCH_VERSION_DBG SVCBATCH_PROGRAM_EXT
 #endif
 
 
