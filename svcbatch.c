@@ -302,7 +302,7 @@ typedef struct _SVCBATCH_SCM_PARAMS {
 } SVCBATCH_SCM_PARAMS, *LPSVCBATCH_SCM_PARAMS;
 
 #if HAVE_DEBUG_TRACE
-static int                   xtraceservice  = 1;
+static int                   xtraceservice  = 2;
 static int                   xtracesvcstop  = 1;
 static volatile HANDLE       xtracefhandle  = NULL;
 static CRITICAL_SECTION      xtracesync;
@@ -2967,7 +2967,7 @@ static int killproctree(HANDLE h, DWORD pid, DWORD rv)
 
 static void killprocess(LPSVCBATCH_PROCESS proc, DWORD rv)
 {
-
+    DWORD x = 0;
     DBG_PRINTF("proc %lu", proc->pInfo.dwProcessId);
 
     if (proc->state == SVCBATCH_PROCESS_STOPPED)
@@ -2976,6 +2976,13 @@ static void killprocess(LPSVCBATCH_PROCESS proc, DWORD rv)
 
     if (service->killDepth)
         killproctree(proc->pInfo.hProcess, proc->pInfo.dwProcessId, rv);
+    x = WaitForSingleObject(proc->pInfo.hProcess, SVCBATCH_STOP_STEP);
+    if (x || !GetExitCodeProcess(proc->pInfo.hProcess, &x))
+        x =  STILL_ACTIVE;
+    if (x == STILL_ACTIVE) {
+        DBG_PRINTF("term %lu", proc->pInfo.dwProcessId);
+        TerminateProcess(proc->pInfo.hProcess, rv);
+    }
     DBG_PRINTF("kill %lu", proc->pInfo.dwProcessId);
     proc->exitCode = rv;
 
@@ -7128,6 +7135,9 @@ int wmain(int argc, LPCWSTR *argv)
         if (cmd >= 0) {
             argc  -= 2;
             argv  += 2;
+#if HAVE_DEBUG_TRACE
+            xtraceservice = 0;
+#endif
             return xscmexecute(cmd, argc, argv);
         }
     }

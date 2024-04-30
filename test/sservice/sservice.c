@@ -75,8 +75,10 @@ int wmain(int argc, const wchar_t **wargv, const wchar_t **wenv)
         return r;
     }
     fprintf(stdout, "\n[%.4lu] Program  %S\n", id, wargv[0]);
+#if 0
     if (fgets(buf, 32, stdin))
         fprintf(stdout, "[%.4lu] StdInput %c\n", id, buf[0]);
+#endif
     if (argc > 1) {
         secs = _wtoi(wargv[1]);
         if (secs > 1800)

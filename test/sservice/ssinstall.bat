@@ -37,8 +37,7 @@ rem
             --set Export * ^
             --set FailMode 0 ^
             --set Command [ sservice.exe 120 some options ]  ^
-            --set Arguments [ "the arguments" ] ^
-            /D:2
+            --set Arguments [ "the arguments" ]
 
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%

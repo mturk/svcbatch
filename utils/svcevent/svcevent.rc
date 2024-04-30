@@ -1,0 +1,68 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ */
+
+#include <windows.h>
+#include "svcbatch.h"
+#include "svcevent.h"
+
+#if SVCBATCH_ISDEV_VERSION
+#define SVCBATCH_PRERELEASE  VS_FF_PRERELEASE
+#else
+#define SVCBATCH_PRERELEASE  0
+#endif
+#if defined(VERSION_SFX)
+#define SVCBATCH_PATCHED     VS_FF_PATCHED
+#else
+#define SVCBATCH_PATCHED     0
+#endif
+#if defined(_DEBUG)
+#define SVCBATCH_DEBUGVER    VS_FF_DEBUG
+#else
+#define SVCBATCH_DEBUGVER    0
+#endif
+
+LANGUAGE 0x9,0x1
+1 11 "svcbatch.bin"
+
+1 VERSIONINFO
+ FILEVERSION    SVCBATCH_VERSION_CSV
+ PRODUCTVERSION SVCBATCH_VERSION_CSV
+ FILEFLAGSMASK  VS_FFI_FILEFLAGSMASK
+ FILEFLAGS     (SVCBATCH_PATCHED|SVCBATCH_PRERELEASE|SVCBATCH_DEBUGVER)
+ FILEOS         VOS_NT_WINDOWS32
+ FILETYPE       VFT_DLL
+ FILESUBTYPE    0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "Comments",           SVCBATCH_LICENSE_SHORT
+            VALUE "CompanyName",        SVCBATCH_COMPANY_NAME
+            VALUE "FileDescription",    SVCEVENT_DESCRIPTION
+            VALUE "FileVersion",        SVCBATCH_VERSION_STR SVCBATCH_VERSION_SFX
+            VALUE "InternalName",       SVCEVENT_NAME
+            VALUE "LegalCopyright",     SVCBATCH_COPYRIGHT
+            VALUE "OriginalFilename",   SVCEVENT_NAME ".dll"
+            VALUE "ProductName",        SVCBATCH_NAME
+            VALUE "ProductVersion",     SVCBATCH_VERSION_STR
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+

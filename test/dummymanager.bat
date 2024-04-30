@@ -106,7 +106,7 @@ rem
     --set Stop $0 ^
     --set StopLogName $NAME.stop.log ^
     --set StopMaxLogs 1 ^
-    /D:2-
+    /D:3-
 
 rem
 if %ERRORLEVEL% neq 0 exit /B %ERRORLEVEL%
